@@ -135,6 +135,7 @@ period.
 - [`docs/from-scripts.md`](docs/from-scripts.md): porting an existing CGE pipeline
 - [`docs/comparison.md`](docs/comparison.md): how this package compares with the ones that already exist, and where it does not win (in Portuguese)
 - [`CHANGELOG.md`](CHANGELOG.md): what changed between versions
+- [`ROADMAP.md`](ROADMAP.md): what is still missing, and why it matters
 
 ## Verification
 

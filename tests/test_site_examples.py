@@ -13,12 +13,15 @@ spec.loader.exec_module(checker)
 
 @pytest.mark.parametrize("lang", sorted(checker.PAGES))
 def test_every_site_example_runs(lang):
-    page = checker.PAGES[lang]
-    assert list(checker.blocks(page)), f"the {lang} page has no executable examples"
-    assert checker.run(page, verbose=True) == 0
+    for page in checker.PAGES[lang]:
+        assert list(checker.blocks(page)), f"{page.name} ({lang}) has no executable examples"
+        assert checker.run(page, verbose=True) == 0
 
 
 def test_the_language_versions_have_the_same_examples():
-    """A translation that drops or adds an example has drifted from the other page."""
-    counts = {lang: len(list(checker.blocks(p))) for lang, p in checker.PAGES.items()}
-    assert len(set(counts.values())) == 1, counts
+    """A translation that drops or adds an example has drifted from its pair."""
+    en, pt = checker.PAGES["en"], checker.PAGES["pt-br"]
+    assert len(en) == len(pt)
+    for a, b in zip(en, pt):
+        counts = (len(list(checker.blocks(a))), len(list(checker.blocks(b))))
+        assert counts[0] == counts[1], (a.name, b.name, counts)

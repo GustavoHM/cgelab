@@ -52,6 +52,17 @@ class ModelSpec:
     government: str = "gov"
     investment: str = "s_i"
     rest_of_world: str = "row"
+
+    #: Account that collects the import tariff from commodities (Hosoe's TRF).
+    #: Absent, there is no tariff unless ``calibrate(..., tariffs=)`` supplies rates.
+    #: The receipts are not product tax.
+    tariff_account: str | None = None
+
+    #: Account that collects the indirect tax on domestic sales from commodities
+    #: (Hosoe's IDT, ``tauz``). Absent, that instrument is zero. It is not the
+    #: product tax on absorption, and it is not the specific activity tax.
+    #: Exports sold at the producer price are outside the wedge.
+    indirect_tax_account: str | None = None
     activities: Sequence[str] | None = None
     commodities: Sequence[str] | None = None
     households: Sequence[str] | None = None
@@ -78,15 +89,44 @@ class ModelSpec:
 
     #: Numeraire factor. Its price is fixed and its market is left to Walras'
     #: law, so the residual on it is an INDEPENDENT check rather than an
-    #: identity the solver was told to satisfy.
+    #: identity the solver was told to satisfy. With ``regions`` set, name the
+    #: region too: ``"r1:f_lab"``, not ``"f_lab"``.
     numeraire_factor: str | None = None
+
+    #: Regions, in order. Absent, the model is the one-region model and account
+    #: names are not split. Present, every activity, commodity, household and
+    #: factor is ``"{region}:{local}"`` and a CES across regions of origin sits
+    #: under the Armington nest. One entry is a labelled one-region model.
+    regions: Sequence[str] | None = None
+
+    #: Elasticity of substitution across regions of origin, inside the national
+    #: domestic composite. A scalar, or a mapping from the local commodity name.
+    #: Zero is Leontief: the base-year origin mix does not answer to prices.
+    sigma_interregional: float | Mapping[str, float] = 2.0
 
     def __post_init__(self):
         self.factors = list(self.factors)
-        if self.numeraire_factor is None:
-            self.numeraire_factor = self.factors[0]
-        if self.numeraire_factor not in self.factors:
-            raise ValueError(f"numeraire {self.numeraire_factor!r} is not among {self.factors}")
+        if self.regions is not None:
+            self.regions = tuple(self.regions)
+            if len(self.regions) < 1:
+                raise ValueError("regions is empty")
+            if len(set(self.regions)) != len(self.regions):
+                raise ValueError(f"region names repeat: {self.regions}")
+        if not self.regions:
+            if self.numeraire_factor is None:
+                self.numeraire_factor = self.factors[0]
+            if self.numeraire_factor not in self.factors:
+                raise ValueError(
+                    f"numeraire {self.numeraire_factor!r} is not among {self.factors}")
+        elif self.numeraire_factor is None:
+            raise ValueError(
+                "a regional model needs numeraire_factor as 'region:factor', "
+                "for example 'r1:f_lab'. One national numeraire, one unsolved market.")
+        if not isinstance(self.sigma_interregional, Mapping):
+            if float(self.sigma_interregional) < 0:
+                raise ValueError(
+                    "sigma_interregional must be >= 0, "
+                    f"got {self.sigma_interregional}")
         for field_name, allowed in (
             ("value_added", ("ces", "cobb_douglas", "leontief")),
             ("export_rule", ("fixed_shares", "cet")),
@@ -127,6 +167,76 @@ class ModelSpec:
         return AccountLayout(activities=acts, commodities=coms, households=hhs,
                              factors=list(self.factors), government=self.government,
                              investment=self.investment, rest_of_world=self.rest_of_world)
+
+    def prepare(self, sam) -> "ModelSpec":
+        """Expand regional account lists. A model without ``regions`` is returned as-is.
+
+        Local factor names (``f_lab``) become ``r1:f_lab`` for every region when
+        the short name is not itself an account. Explicit activity, commodity and
+        household lists are kept, and checked. Absent, they are discovered: the
+        region is before the colon and the local name still obeys the prefix.
+        """
+        if not self.regions:
+            return self
+        import dataclasses
+        regions = tuple(self.regions)
+        acc = list(sam.accounts)
+        acc_set = set(acc)
+
+        def split(name):
+            reg, sep, local = name.partition(":")
+            if not sep or reg not in regions:
+                raise ValueError(
+                    f"account {name!r} is in a regional model but is not "
+                    f"'region:name' with region one of {list(regions)}")
+            return reg, local
+
+        def discover(prefix):
+            found = []
+            for name in acc:
+                if ":" not in name:
+                    continue
+                reg, local = name.split(":", 1)
+                if reg in regions and local.startswith(prefix):
+                    found.append(name)
+            found.sort(key=lambda n: (regions.index(n.split(":", 1)[0]), n.split(":", 1)[1]))
+            if not found:
+                raise ValueError(
+                    f"no regional accounts with local prefix {prefix!r} in regions {list(regions)}")
+            return found
+
+        def take(explicit, prefix, label):
+            if explicit is None:
+                return discover(prefix)
+            names = list(explicit)
+            missing = [n for n in names if n not in acc_set]
+            if missing:
+                raise KeyError(f"{label} not present in the SAM: {missing}")
+            for n in names:
+                split(n)
+            return names
+
+        acts = take(self.activities, self.activity_prefix, "activities")
+        coms = take(self.commodities, self.commodity_prefix, "commodities")
+        hhs = take(self.households, self.household_prefix, "households")
+
+        if all(f in acc_set for f in self.factors):
+            factors = list(self.factors)
+            for f in factors:
+                split(f)
+        else:
+            factors = [f"{reg}:{f}" for reg in regions for f in self.factors]
+            missing = [f for f in factors if f not in acc_set]
+            if missing:
+                raise KeyError(
+                    f"regional factors not in the SAM: {missing}. Pass full names "
+                    f"('r1:f_lab') or local names that exist in every region.")
+        if self.numeraire_factor not in factors:
+            raise ValueError(
+                f"numeraire {self.numeraire_factor!r} is not among the regional "
+                f"factors {factors}")
+        return dataclasses.replace(
+            self, activities=acts, commodities=coms, households=hhs, factors=factors)
 
     def sigma_va_vector(self, activities: Sequence[str]):
         return _as_vector(self.sigma_va, activities, "sigma_va")

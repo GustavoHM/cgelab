@@ -166,6 +166,11 @@ class PathResult:
                 })
         return pd.DataFrame(rows)
 
+    def sectoral(self) -> pd.DataFrame:
+        """Output and prices of every account along the path. See :func:`cgekit.results.sectoral_path`."""
+        from .results import sectoral_path
+        return sectoral_path(self)
+
     def commodity(self, name: str) -> pd.DataFrame:
         """Price and output of one commodity along the path."""
         j = self.econ.commodity(name)
@@ -212,6 +217,11 @@ def run_path(econ: Economy, closure: Closure | None = None, *, years: Sequence,
     """
     closure = closure or Closure()
     growth = growth or Growth()
+    if econ.regional is not None and len(econ.regional.regions) > 1:
+        raise ValueError(
+            "run_path does not move factors between regions. The within-period "
+            "nest is solved by solve_period; a regional capital stock that "
+            "accumulates, and migration, are not in this slice.")
     years = list(years)
     caps = growth.capital_factors
     ki = np.array([econ.factor(k) for k in caps])

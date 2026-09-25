@@ -75,8 +75,9 @@ O `cgekit` foi validado de três formas:
   MCS aplicada para a qual foi escrito, que ainda não é pública.
 
 Isso é evidência de que o que ele faz, faz certo. **Não** é evidência de que cubra o que um GAMS
-cobre. O `cgekit` não tem múltiplas regiões, nem estimação de elasticidades, nem expectativas
-racionais, nem a maturidade de uma plataforma com trinta anos de uso.
+cobre. O ninho de várias regiões não tem migração de fatores, e o pacote não estima
+elasticidades, não tem expectativas racionais, nem a maturidade de uma plataforma com trinta
+anos de uso.
 
 ## Fontes
 

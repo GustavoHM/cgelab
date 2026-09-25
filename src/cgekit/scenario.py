@@ -86,11 +86,30 @@ class Scenario:
     #: World price of each imported commodity, as a multiple of the base year.
     world_price: np.ndarray | None = None
 
+    #: Import tariff, ad valorem, one rate per commodity. Read only when a
+    #: base-year tariff was calibrated (``calibrate(..., tariffs=)`` or
+    #: ``ModelSpec.tariff_account``). It does not move the product tax, and
+    #: ``product_tax`` does not move it. Absent, the calibrated rates hold.
+    tariff: np.ndarray | None = None
+
+    #: Indirect tax on domestic sales, ad valorem, one rate per commodity
+    #: (Hosoe's ``tauz`` / the IDT account). Same rule as ``tariff``: only when
+    #: the base year was calibrated with it, and it does not touch the tariff
+    #: or the product tax on absorption. Exports sold at the producer price
+    #: are outside this wedge.
+    output_tax: np.ndarray | None = None
+
     #: World price of each EXPORTED commodity, as a multiple of the base year.
     #: Read only under ``export_rule="cet"``: with fixed export shares exports
     #: are a fixed fraction of output whatever they fetch abroad, and the field
     #: is refused rather than silently ignored.
     export_price: np.ndarray | None = None
+
+    #: Commodity composition of investment. Non-negative, sums to one, one entry
+    #: per commodity. Absent, the base-year composition. This is which goods the
+    #: investment budget buys, not how investment is shared across capital stocks
+    #: -- that is ``Growth.allocation``.
+    investment_mix: np.ndarray | None = None
 
     #: (n_fac,) share of each factor's income owned by the rest of the world,
     #: overriding the SAM's. `run_path` sets it every year from the foreign-owned
@@ -109,6 +128,29 @@ class Scenario:
         """Return a copy with fields replaced -- for building a sweep from a base case."""
         import dataclasses
         return dataclasses.replace(self, **changes)
+
+
+def investment_shares(econ, scenario: Scenario) -> np.ndarray:
+    """Value shares of the investment budget, one per commodity.
+
+    Sums to one when the base year invests something. A SAM that invests nothing
+    returns a zero vector: there is no basket, and the investment block stays shut.
+    """
+    if scenario.investment_mix is None:
+        raw = np.asarray(econ.inv_dem, dtype=float)
+        total = float(raw.sum()) if raw.size else 0.0
+        # A closed textbook model invests nothing. There is no basket to split,
+        # and refusing it would make the published SAM unsolvable.
+        if total <= 0:
+            return np.zeros(econ.n_com)
+        return raw / total
+    raw = np.asarray(scenario.investment_mix, dtype=float)
+    total = float(raw.sum()) if raw.size else float("nan")
+    if raw.shape != (econ.n_com,) or np.any(raw < -1e-12) or abs(total - 1.0) > 1e-8:
+        raise ValueError(
+            "Scenario.investment_mix must be a non-negative vector over commodities "
+            f"summing to 1, got shape {raw.shape} summing to {total}")
+    return raw / total
 
 
 def consumer_wedge(econ, rates: Mapping[str, float], households=None) -> np.ndarray:

@@ -97,6 +97,17 @@ class Economy:
     #: transfers paid abroad. Equal to `hh_income0` when nothing is sent abroad.
     hh_gross0: np.ndarray | None = field(default=None, repr=False)
 
+    #: Interregional nest. None when the model was not given ``regions``.
+    regional: object | None = field(default=None, repr=False)
+
+    #: Import tariff at the base year, Hosoe's ``revenue / imports``. None means
+    #: the instrument was not calibrated, and a scenario tariff is refused.
+    tm0: np.ndarray | None = None
+    #: Indirect tax on domestic sales, ad valorem. The reference rate is the
+    #: account's receipt divided by commodity output. None means the instrument
+    #: was not calibrated.
+    tauz0: np.ndarray | None = None
+
     def zeros_if_none(self, name: str, n: int) -> np.ndarray:
         v = getattr(self, name)
         return np.zeros(n) if v is None else np.asarray(v, dtype=float)
@@ -143,9 +154,77 @@ class Economy:
                 f"{self.n_hh} households, {self.n_fac} factors)")
 
 
+def _tariff_and_output_tax(sam, spec, coms, gov, imp0, Q0, tariffs, output_taxes):
+    """Base-year tariff and output-tax rates, or None when the instrument is absent."""
+    nc = len(coms)
+    if spec.tariff_account is not None and tariffs is not None:
+        raise ValueError(
+            "pass ModelSpec.tariff_account or calibrate(..., tariffs=), not both")
+    if spec.indirect_tax_account is not None and output_taxes is not None:
+        raise ValueError(
+            "pass ModelSpec.indirect_tax_account or calibrate(..., output_taxes=), "
+            "not both")
+    tm0 = None
+    if spec.tariff_account is not None:
+        if spec.tariff_account not in sam.accounts:
+            raise KeyError(f"tariff account {spec.tariff_account!r} is not in the SAM")
+        revenue = sam.block([spec.tariff_account], coms).ravel()
+        tm0 = _rates_from_revenue(revenue, imp0, coms, "tariff", "does not import")
+    elif tariffs is not None:
+        tm0 = _reference_rates(tariffs, nc, "tariffs")
+        gov_com = sam.block([gov], coms).ravel()
+        bad = [coms[i] for i in np.where(tm0 * imp0 > gov_com + 1e-8)[0]]
+        if bad:
+            raise ValueError(
+                "tariff revenue implied by the rate exceeds what government already "
+                f"receives from the commodity, for {bad}")
+    tauz0 = None
+    if spec.indirect_tax_account is not None:
+        if spec.indirect_tax_account not in sam.accounts:
+            raise KeyError(
+                f"indirect tax account {spec.indirect_tax_account!r} is not in the SAM")
+        revenue = sam.block([spec.indirect_tax_account], coms).ravel()
+        tauz0 = _rates_from_revenue(revenue, Q0, coms, "indirect tax",
+                                    "has no output to tax")
+    elif output_taxes is not None:
+        tauz0 = _reference_rates(output_taxes, nc, "output_taxes")
+        gov_com = sam.block([gov], coms).ravel()
+        bad = [coms[i] for i in np.where(tauz0 * Q0 > gov_com + 1e-8)[0]]
+        if bad:
+            raise ValueError(
+                "output-tax revenue implied by the rate exceeds what government "
+                f"already receives from the commodity, for {bad}")
+    return tm0, tauz0
+
+
+def _reference_rates(rates, n, label):
+    out = np.asarray(rates, dtype=float)
+    if out.shape != (n,):
+        raise ValueError(f"{label} must have length {n}, got shape {out.shape}")
+    if np.any(out <= -1.0):
+        raise ValueError(f"a {label} rate must be greater than -1")
+    return out
+
+
+def _rates_from_revenue(revenue, base, names, label, empty):
+    rates = np.zeros(len(names))
+    for i, name in enumerate(names):
+        if abs(revenue[i]) <= 1e-12:
+            continue
+        if base[i] <= 1e-12:
+            raise ValueError(
+                f"commodity {name!r} pays a {label} of {revenue[i]:.6g} but {empty}")
+        rates[i] = revenue[i] / base[i]
+    if np.any(rates <= -1.0):
+        raise ValueError(f"a {label} rate must be greater than -1")
+    return rates
+
+
 def calibrate(sam: SAM, spec: ModelSpec | None = None, *,
               income_elasticities: Mapping[str, float] | None = None,
               population: Mapping[str, float] | None = None,
+              tariffs=None,
+              output_taxes=None,
               check_balance: bool = True) -> Economy:
     """Build an :class:`Economy` from a balanced SAM.
 
@@ -161,10 +240,15 @@ def calibrate(sam: SAM, spec: ModelSpec | None = None, *,
         expenditure share. Getting it wrong reverses the distributional sign of
         any lump-sum recycling, so it is a separate input rather than a default
         derived from money.
+    tariffs, output_taxes : array, optional
+        Reference rates, one per commodity, when the SAM has no separate
+        tariff or indirect-tax account. At those rates the base year is
+        unchanged. A scenario then moves one instrument.
     """
     spec = spec or ModelSpec()
     if check_balance:
         sam.check_balance()
+    spec = spec.prepare(sam)
     layout = spec.classify(sam)
     acts, coms, hhs, facs = (layout.activities, layout.commodities,
                              layout.households, layout.factors)
@@ -231,7 +315,20 @@ def calibrate(sam: SAM, spec: ModelSpec | None = None, *,
     margin_in = CC.sum(axis=0)
 
     # -- taxes -------------------------------------------------------------
+    # Purchaser prices already contain every indirect tax buyers paid. The
+    # reference rates below do not change that deflator: a scenario collects
+    # the change from the calibrated rate, and the base year stays put.
+    # A named account (TRF, IDT) is money buyers paid and government received,
+    # recorded on its own row. Folding the receipt into the product tax keeps
+    # 1 + ptax equal to the SAM's purchaser price. The account's payment back
+    # to government is that same receipt, not a second one.
+    tm0, tauz0 = _tariff_and_output_tax(
+        sam, spec, coms, gov, imp0, Q0, tariffs, output_taxes)
     tax_c = sam.block([gov], coms).ravel()
+    if spec.tariff_account is not None:
+        tax_c = tax_c + sam.block([spec.tariff_account], coms).ravel()
+    if spec.indirect_tax_account is not None:
+        tax_c = tax_c + sam.block([spec.indirect_tax_account], coms).ravel()
     A0 = dom0 + imp0 + margin_in
     ptax = np.where(A0 > 0, tax_c / np.maximum(A0, 1e-12), 0.0)
     tax_a = sam.block([gov], acts).ravel()
@@ -304,12 +401,19 @@ def calibrate(sam: SAM, spec: ModelSpec | None = None, *,
         hh_dtax=hh_dtax, hh_gov_transfer=gov_tr, hh_remit_net=remit_in - remit_out,
         fac_gov_share=fac_gov_share, fac_row_share=fac_row_share,
         hh_spend0=hh_com.sum(axis=1), hh_gross0=gross0,
+        tm0=tm0, tauz0=tauz0,
         diagnostics=dict(negative_value_added=negative,
                          negative_value_added_treatment=spec.negative_value_added,
                          n_leontief=int(leontief.sum()),
                          own_account=[acts[j] for j in np.where(own_account)[0]],
-                         unmodelled_flows=_unmodelled_flows(sam, layout)),
+                         unmodelled_flows=_unmodelled_flows(
+                             sam, layout,
+                             [a for a in (spec.tariff_account,
+                                          spec.indirect_tax_account) if a])),
     )
+    if spec.regions:
+        from .regional import build_regional
+        econ.regional = build_regional(econ, sam)
     return econ
 
 
@@ -367,10 +471,11 @@ _READ_BLOCKS = {
     ("hh", "f"), ("gov", "f"), ("row", "f"), ("a", "hh"),
     ("inv", "hh"), ("inv", "gov"), ("inv", "row"),
     ("gov", "hh"), ("hh", "gov"), ("hh", "row"), ("row", "hh"),
+    ("tax", "c"), ("gov", "tax"),
 }
 
 
-def _unmodelled_flows(sam: SAM, layout: AccountLayout) -> list:
+def _unmodelled_flows(sam: SAM, layout: AccountLayout, tax_accounts=()) -> list:
     group = {}
     for a in layout.activities:
         group[a] = "a"
@@ -383,6 +488,8 @@ def _unmodelled_flows(sam: SAM, layout: AccountLayout) -> list:
     group[layout.government] = "gov"
     group[layout.investment] = "inv"
     group[layout.rest_of_world] = "row"
+    for account in tax_accounts:
+        group[account] = "tax"
     out = []
     for r, c, v in sam.frame.itertuples(index=False):
         if abs(v) < 1e-12:

@@ -6,8 +6,10 @@ trinta linhas. Abre num navegador direto do disco.
 
 ```
 site/
-  index.html        a página em inglês (padrão)
-  pt-br/index.html  a página em português
+  index.html                 a página em inglês (padrão)
+  replications.html          replicações, em inglês
+  pt-br/index.html           a página em português
+  pt-br/replications.html    replicações, em português
   style.css         tema claro e escuro, seguindo a preferência do sistema
   highlight.js      realce de Python e shell, sem dependências
   .nojekyll         impede o GitHub de processar a pasta com Jekyll
@@ -15,7 +17,9 @@ site/
 
 ## Os dois idiomas
 
-As duas páginas têm o mesmo conteúdo e os mesmos exemplos. Cada uma tem um seletor de idioma no
+As duas versões de cada página têm o mesmo conteúdo e os mesmos exemplos. A página de
+replicações entra no mesmo verificador: o bloco do ano-base de Hosoe roda, e o número de blocos
+executáveis tem de coincidir entre o par de idiomas. Cada versão tem um seletor de idioma no
 topo e marcações `hreflang` apontando para a outra. Ao mudar uma, mude a outra: o teste
 `test_the_language_versions_have_the_same_examples` falha se o número de exemplos executáveis
 divergir. A seção de citação muda de propósito: ABNT em português, APA em inglês.

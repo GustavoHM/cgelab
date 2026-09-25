@@ -3,6 +3,43 @@
 All notable changes to `cgekit`. Versions follow [semantic versioning](https://semver.org/);
 before 1.0, a minor version may add to the API and a patch version only fixes.
 
+## Unreleased
+
+### Added
+
+- Import tariff and indirect tax on domestic sales, separate from the product
+  tax on absorption. `calibrate(..., tariffs=)` or `ModelSpec.tariff_account`
+  sets the reference tariff (Hosoe's `taum`); `calibrate(..., output_taxes=)`
+  or `ModelSpec.indirect_tax_account` sets the output tax (Hosoe's `tauz` /
+  IDT). `Scenario.tariff` and `Scenario.output_tax` move one rate without
+  moving the other. At the calibrated rate the base year is unchanged, because
+  a named account's receipt stays inside the product tax. Government income
+  receives the change from that rate. The output tax falls on domestic sales;
+  exports sold at the producer price are outside it. The JuMP replica carries
+  the same wedge.
+- Several regions. `ModelSpec.regions` and `sigma_interregional`: a CES across
+  regions of origin under the Armington nest. Accounts are `region:local`.
+  Factors clear where they are; one national numeraire stays unsolved. A single
+  labelled region reproduces the legacy solver, including on the plain toy with
+  taxes and intermediates. `examples.regions` is a hand-written two-region SAM.
+  Margins, CET, LES, migration, non-default closures, `run_path` and `to_jump`
+  are refused by name on this slice.
+- `factor_demand_by_activity`, `real_gdp` and `sectoral_path`: employment by
+  activity, real GDP from both sides with the tax gap named, and a tidy sectoral
+  panel along a path. `PeriodResult.factor_demand_by_activity` holds the matrix
+  the solver used.
+- A replications page on the site (`site/replications.html`, and the Portuguese pair).
+  The benchmark of Hosoe, Gasawa and Hashimoto (2004), chapter 5, as printed in the
+  GAMS library file `splcge`, reproduces: output 15 and 35, prices 1. A SAM that
+  invests nothing no longer raises on an empty investment basket.
+- `Scenario.investment_mix`: commodity composition of the investment budget.
+  Absent, the base-year mix. Distinct from `Growth.allocation`, which shares
+  investment across capital stocks.
+- `Closure.labour`: `full_employment` (unchanged default), `fixed_real_wage`,
+  `wage_curve` and `elastic_supply`. The three new closures refuse a labour
+  numeraire. Unemployment is not paid. `PeriodResult.employment`,
+  `unemployment` and `real_wage`. The JuMP export carries the same equations.
+
 ## 0.2.0 — 2026-09-25
 
 The first release as a standalone package. Four gaps and two bugs, found while building a

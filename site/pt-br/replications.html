@@ -1,0 +1,154 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>cgekit — replicações</title>
+<meta name="description" content="Modelos EGC publicados refeitos no cgekit a partir da matriz de contabilidade social do próprio artigo. Uma região primeiro; várias regiões quando o artigo precisa delas.">
+<link rel="alternate" hreflang="en" href="https://gustavohm.github.io/cgekit/replications.html">
+<link rel="alternate" hreflang="pt-BR" href="https://gustavohm.github.io/cgekit/pt-br/replications.html">
+<link rel="alternate" hreflang="x-default" href="https://gustavohm.github.io/cgekit/replications.html">
+<link rel="stylesheet" href="../style.css">
+</head>
+<body>
+
+<header class="hero">
+  <div class="wrap">
+    <p class="lang"><a href="../replications.html" hreflang="en" lang="en">English</a> · <strong>Português</strong></p>
+    <h1>Replicações</h1>
+    <p class="tag">Um modelo publicado, refeito a partir da matriz de contabilidade social que o
+    artigo usou. A página registra o número que bateu e o mecanismo que o pacote não tem.</p>
+    <p class="tag"><a href="./">cgekit</a> · <a href="https://github.com/GustavoHM/cgekit">github.com/GustavoHM/cgekit</a></p>
+  </div>
+</header>
+
+<nav class="toc"><div class="wrap"><ul>
+  <li><a href="#criterio">O que conta</a></li>
+  <li><a href="#regioes">Várias regiões</a></li>
+  <li><a href="#hosoe">Um exemplo feito</a></li>
+  <li><a href="#fila">A fila</a></li>
+</ul></div></nav>
+
+<main>
+
+<section id="criterio"><div class="wrap">
+  <h2>O que conta como replicação</h2>
+  <p class="lede">A mesma matriz, o mesmo fechamento, as mesmas elasticidades, o mesmo choque,
+  confrontados com um número publicado. O ano-base tem de voltar. Um desvio sai com a causa.</p>
+  <p>Dois tipos de artigo vêm primeiro. O que entrega a matriz, o código e uma tabela. Depois o
+  que usa uma matriz pública, quando o choque e as elasticidades estão descritos o bastante para
+  serem refeitos. Base licenciada, a GTAP em particular, fica para uma fila posterior: o código
+  GAMS do GTAP padrão está publicado, e a base não. Ela não entra no repositório.</p>
+</div></section>
+
+<section id="regioes"><div class="wrap">
+  <h2>Várias regiões são uma extensão à parte</h2>
+  <p>Uma região basta para um modelo nacional. O exemplo abaixo é uma economia fechada, e os
+  próximos arquivos da fila também são nacionais. Várias regiões, no que o pacote faz hoje, são
+  um ninho de origem: cada região produz, quem compra paga um composto nacional dessas origens,
+  e o Armington continua misturando esse composto com a importação do exterior. Os fatores não
+  migram. Um artigo de GTAP ou um modelo inter-regional no estilo B-MARIA ou TERM também pede
+  migração, e o GTAP pede a base licenciada. Um resultado desses não sai só do ninho de origem.
+  O <a href="https://github.com/GustavoHM/cgekit/blob/main/ROADMAP.md">roadmap</a> guarda o
+  resto do item, e o catálogo diz isso na linha.</p>
+</div></section>
+
+<section id="hosoe"><div class="wrap">
+  <h2>Exemplo feito: Hosoe, Gasawa e Hashimoto, capítulo 5</h2>
+  <p>A matriz abaixo é a impressa em <code>splcge</code>, o EGC simples da
+  <a href="https://www.gams.com/latest/gamslib_ml/libhtml/gamslib_splcge.html">biblioteca de modelos do GAMS</a>.
+  A citação nesse arquivo é Hosoe, Gasawa e Hashimoto, <em>Handbook of Computable General
+  Equilibrium Modeling</em>, University of Tokyo Press, 2004, capítulo 5. O programa publicado
+  resolve o ano-base e nenhum contrafactual, então a checagem é o ano-base.</p>
+  <p>Pão e leite, capital e trabalho, um domicílio. A produção é Cobb–Douglas nos dois fatores e
+  não há insumo intermediário, o que é <code>sigma_va=1</code> com o bloco intermediário vazio.
+  O trabalho é o numerário. A matriz publicada não tem governo, investimento nem resto do mundo;
+  o pacote exige essas três contas, então elas entram vazias. Investimento zero é um bloco
+  fechado, não uma cesta a repartir.</p>
+<pre><code>import pandas as pd
+import cgekit as ck
+
+entries = [
+    ("c_brd", "hh_1", 15.0), ("c_mlk", "hh_1", 35.0),
+    ("f_cap", "a_brd", 5.0), ("f_cap", "a_mlk", 20.0),
+    ("f_lab", "a_brd", 10.0), ("f_lab", "a_mlk", 15.0),
+    ("hh_1", "f_cap", 25.0), ("hh_1", "f_lab", 25.0),
+    ("a_brd", "c_brd", 15.0), ("a_mlk", "c_mlk", 35.0),
+    ("gov", "gov", 0.0), ("s_i", "s_i", 0.0), ("row", "row", 0.0),
+]
+sam = ck.SAM.from_long(pd.DataFrame(entries, columns=["row", "col", "value"]), name="hosoe")
+sam.check_balance(abs_tol=1e-9)
+spec = ck.ModelSpec(
+    activities=["a_brd", "a_mlk"], commodities=["c_brd", "c_mlk"],
+    households=["hh_1"], factors=("f_lab", "f_cap"),
+    government="gov", investment="s_i", rest_of_world="row",
+    sigma_va=1.0, margins=False, numeraire_factor="f_lab")
+econ = ck.calibrate(sam, spec)
+base = ck.solve_period(econ)
+assert base.converged and abs(base.walras) &lt; 1e-9
+assert abs(base.X[econ.activity("a_brd")] - 15) &lt; 1e-8
+assert abs(base.X[econ.activity("a_mlk")] - 35) &lt; 1e-8
+assert abs(base.pq[econ.commodity("c_brd")] - 1) &lt; 1e-8
+print(base.X, base.walras)</code></pre>
+  <p>A produção resolvida é 15 e 35, os preços ao comprador são 1, importação e poupança são 0, e
+  o resíduo de Walras no numerário é 0. Isso é o ano-base publicado, não uma tabela de política:
+  o arquivo GAMS não traz uma.</p>
+</div></section>
+
+<section id="fila"><div class="wrap">
+  <h2>A fila</h2>
+  <p>O status é o que já foi rodado neste pacote. "Arquivos localizados" quer dizer que a matriz
+  ou o código foram encontrados e ainda não foram resolvidos aqui.</p>
+  <table>
+    <thead><tr><th>Modelo</th><th>Dados</th><th>Regiões</th><th>Status</th></tr></thead>
+    <tbody>
+      <tr>
+        <td>Hosoe, Gasawa e Hashimoto (2004), cap. 5, biblioteca GAMS <code>splcge</code></td>
+        <td>Matriz impressa no arquivo da biblioteca</td>
+        <td>Uma, fechada</td>
+        <td>Ano-base reproduzido nesta página</td>
+      </tr>
+      <tr>
+        <td><a href="https://hdl.handle.net/10568/158026">Lofgren, Harris e Robinson (2002)</a>, EGC padrão do IFPRI em GAMS</td>
+        <td>O manual está aberto. A base de exemplo vinha com o livro e não está no PDF que o CGSpace publica agora</td>
+        <td>Um país, com comércio, margens e produção doméstica</td>
+        <td>O próximo, quando o arquivo da base estiver em mãos</td>
+      </tr>
+      <tr>
+        <td><a href="https://github.com/askarmukashov/senegal-cge-replication">Mukashov, Senegal</a>, GAMS no padrão IFPRI, artigo sobre equidade regional de renda</td>
+        <td>Matriz, elasticidades e cenários no repositório</td>
+        <td>Um modelo nacional na estrutura do IFPRI. Se "regional" é uma partição de domicílios ou várias regiões que comerciam entre si, isso se lê na matriz antes de qualquer número</td>
+        <td>Arquivos localizados, ainda não resolvido</td>
+      </tr>
+      <tr>
+        <td><a href="https://doi.org/10.21642/JGEA.030101AF">van der Mensbrugghe (2018)</a>, modelo GTAP padrão em GAMS, versão 7</td>
+        <td>Código GAMS com o artigo. A base GTAP é licenciada</td>
+        <td>Várias</td>
+        <td>Precisa da estrutura do GTAP e de uma licença. O ninho de origem não é esse modelo. A base não será commitada</td>
+      </tr>
+      <tr>
+        <td><a href="https://documents.worldbank.org/en/publication/documents-reports/documentdetail/781071513192965037">Cicowiez e Lofgren (2017)</a>, Banco Mundial WPS 8273</td>
+        <td>Método e matrizes macro para 133 países, públicos</td>
+        <td>Uma conta de produção por país</td>
+        <td>Dado público, sem choque publicado para confrontar. Segunda leva</td>
+      </tr>
+      <tr>
+        <td>Matrizes de contabilidade social Nexus do IFPRI</td>
+        <td>A matriz, CC-BY, não um experimento</td>
+        <td>Um país</td>
+        <td>Dado público. Segunda leva: calibrar, e só reivindicar uma tabela quando o choque do artigo estiver descrito por completo</td>
+      </tr>
+    </tbody>
+  </table>
+</div></section>
+
+</main>
+
+<footer><div class="wrap">
+  <p>cgekit 0.2.0 — MIT. <a href="./">Voltar ao pacote</a> ·
+  <a href="https://github.com/GustavoHM/cgekit">github.com/GustavoHM/cgekit</a>.</p>
+</div></footer>
+
+<script src="../highlight.js"></script>
+</body>
+</html>

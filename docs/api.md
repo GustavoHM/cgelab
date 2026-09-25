@@ -47,9 +47,22 @@ Constructors: `SAM.from_long(df, row="row", col="col", value="value", name="sam"
 | `household_demand`, `frisch` | `"cobb_douglas"`, `-1.5` | `"les"` uses `frisch` for subsistence |
 | `negative_value_added` | `"leontief"` | or `"net"` |
 | `margins` | `True` | read the commodity-to-commodity margin block |
+| `regions` | `None` | region names. Accounts are then `region:local`. Absent, the one-region model |
+| `sigma_interregional` | `2.0` | CES across regions of origin, under the Armington. Scalar or mapping by local commodity |
+| `tariff_account` | `None` | account that collects the import tariff from commodities (Hosoe's TRF) |
+| `indirect_tax_account` | `None` | account that collects the indirect tax on output (Hosoe's IDT) |
 
-Methods: `classify(sam) -> AccountLayout`, `sigma_va_vector(activities)`,
-`sigma_armington_vector(commodities)`.
+Methods: `classify(sam) -> AccountLayout`, `prepare(sam)` (expands regional
+accounts), `sigma_va_vector(activities)`, `sigma_armington_vector(commodities)`.
+
+With `regions` set, the numeraire is one factor in one region (`"r1:f_lab"`).
+Factors may be passed as local names and are expanded to every region. Buyers
+pay a national composite: a CES of origins, then the usual Armington against
+foreign imports. One region makes the CES a single variety. `PeriodResult.bilateral`
+is `(origin, destination, local commodity)` for households and activities;
+government and investment stay national. Margins, CET exports, LES, migration
+and non-default closures are refused by name rather than ignored. `to_jump` and
+`run_path` refuse more than one region.
 
 `AccountLayout`: `activities`, `commodities`, `households`, `factors`,
 `government`, `investment`, `rest_of_world`.
@@ -58,11 +71,13 @@ Methods: `classify(sam) -> AccountLayout`, `sigma_va_vector(activities)`,
 
 ## Calibration
 
-### `calibrate(sam, spec=None, *, income_elasticities=None, population=None, check_balance=True) -> Economy`
+### `calibrate(sam, spec=None, *, income_elasticities=None, population=None, tariffs=None, output_taxes=None, check_balance=True) -> Economy`
 
 `income_elasticities` maps commodity to income elasticity (LES only).
 `population` maps household account to a household count — the weight of a per
 capita transfer, and neither the income nor the expenditure share.
+`tariffs` and `output_taxes` are reference rates, one per commodity, when the
+SAM has no separate account for them. At those rates the base year is unchanged.
 
 ### `Economy`
 
@@ -94,6 +109,7 @@ Ordered name lists `acts`, `coms`, `hhs`, `factors`; counts `n_act`, `n_com`,
 | `fac_gov_share`, `fac_row_share` | `(nf,)` | share of each factor's income paid to government and abroad |
 | `hh_gross0`, `hh_spend0` | `(nh,)` | base gross income (net of transfers sent abroad); base commodity spending |
 | `sigma_cet` | `(nc,)` | CET elasticities, read under `export_rule="cet"` |
+| `tm0`, `tauz0` | `(nc,)` or absent | reference import tariff and indirect tax on domestic sales. Absent, a scenario rate is refused |
 | `diagnostics` | dict | negative-value-added activities and treatment, own-account list |
 
 ---
@@ -104,7 +120,15 @@ Ordered name lists `acts`, `coms`, `hhs`, `factors`; counts `n_act`, `n_com`,
 
 `investment` ∈ `{"savings_driven", "fixed_real"}`;
 `government` ∈ `{"real_fixed", "nominal_fixed"}`;
-`foreign` ∈ `{"fixed_saving", "fixed_rate"}`.
+`foreign` ∈ `{"fixed_saving", "fixed_rate"}`;
+`labour` ∈ `{"full_employment", "fixed_real_wage", "wage_curve", "elastic_supply"}`.
+
+`full_employment` is the default and clears every factor market. The other three
+apply to `labour_factor` (default `f_lab`) and refuse to use that factor as the
+numeraire. `real_wage` pins the real wage (1 is the calibrated wage).
+`wage_curve_elasticity` and `natural_unemployment` are the Blanchflower–Oswald
+curve; the base year sits at the natural rate, because the SAM records
+employment. `labour_supply_elasticity` is ε in `L = L0 * (w/P) ** ε`.
 Properties: `solves_exchange_rate`, `describe()`.
 
 ### `Scenario(...)`
@@ -116,13 +140,16 @@ Properties: `solves_exchange_rate`, `describe()`.
 | `factor_ownership` | `(nh, nf)` | ownership shares, columns sum to one |
 | `productivity` | `(na,)` | Hicks-neutral multiplier per activity |
 | `activity_scale` | mapping | own-account activity levels, as a multiple of the base year |
-| `product_tax`, `product_tax_firm` | `(nc,)` | consumer rate; non-creditable part facing firms |
+| `product_tax`, `product_tax_firm` | `(nc,)` | consumer rate; non-creditable part facing firms. Does not move the tariff or the output tax |
+| `tariff` | `(nc,)` | import tariff, ad valorem. Only if a base-year tariff was calibrated |
+| `output_tax` | `(nc,)` | indirect tax on domestic sales, ad valorem. Only if a base rate was calibrated (`output_taxes=` or `indirect_tax_account`) |
 | `consumer_wedge`, `government_wedge` | `(nh, nc)` | ad valorem wedges; the first is recycled to households, the second to the budget |
 | `wedge_revenue_to`, `wedge_revenue_factor` | str/float/callable, str | who receives the recycled revenue |
 | `transfers` | `(nh,)` | lump sum, positive for a receipt |
 | `government_absorbs` | scalar | cost charged to the budget |
 | `world_price` | `(nc,)` | import price multipliers |
 | `export_price` | `(nc,)` | world export price multipliers; `export_rule="cet"` only, refused otherwise |
+| `investment_mix` | `(nc,)` | commodity shares of the investment budget, summing to one; absent, the base-year mix |
 | `foreign_factor_share` | `(nf,)` | share of each factor owned abroad, overriding the SAM's; `run_path` sets it from the capital it tracks |
 | `fdi` | mapping | `{capital factor: amount}` in numeraire units: raises foreign saving, and `run_path` adds the capital it buys to the foreign-owned stock |
 
@@ -180,6 +207,29 @@ no value added, a commodity with no imports, a share vector summing to zero — 
 returns finite numbers, because one NaN in a 131-commodity system propagates
 everywhere and the traceback points at the solver instead of at the account that
 caused it.
+
+---
+
+## Results
+
+Read off a solved period or path. None of them re-solves.
+
+### `factor_demand_by_activity(period) -> DataFrame`
+
+Rows are factors, columns are activities. Row sums equal `period.factor_demand`.
+The matrix is the one the solver used, productivity included.
+
+### `real_gdp(period) -> dict`
+
+`expenditure` and `value_added` at base-year prices, and the `gap` between them.
+At the base year the gap is `product_tax` plus `activity_tax`. `own_account` is
+included in expenditure; without it the gap is short by that activity. `other`
+is what remains once quantities leave the base year.
+
+### `sectoral_path(path) -> DataFrame`
+
+One row per year and account. Commodities carry `Q`, `pd`, `pq`; activities
+carry `X`, `pa`. Also `PathResult.sectoral()`.
 
 ---
 

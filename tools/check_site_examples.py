@@ -22,7 +22,13 @@ import types
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
-PAGES = {"en": ROOT / "site" / "index.html", "pt-br": ROOT / "site" / "pt-br" / "index.html"}
+# Each language is a list of pages, in the same order, so a translation can be
+# checked against its pair rather than against a different page of the site.
+PAGES = {
+    "en": [ROOT / "site" / "index.html", ROOT / "site" / "replications.html"],
+    "pt-br": [ROOT / "site" / "pt-br" / "index.html",
+              ROOT / "site" / "pt-br" / "replications.html"],
+}
 BLOCK = re.compile(r'<pre><code(?P<attr>[^>]*)>(?P<src>.*?)</code></pre>', re.S)
 
 
@@ -65,9 +71,10 @@ def run(page: Path, verbose: bool = True) -> int:
 
 def main() -> int:
     failures = 0
-    for lang, page in PAGES.items():
-        print(f"\n{lang}: {page.relative_to(ROOT)}")
-        failures += run(page)
+    for lang, pages in PAGES.items():
+        for page in pages:
+            print(f"\n{lang}: {page.relative_to(ROOT)}")
+            failures += run(page)
     print(f"\n{'every example ran' if failures == 0 else f'{failures} block(s) failed'}")
     return 0 if failures == 0 else 1
 

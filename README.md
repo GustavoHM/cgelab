@@ -119,11 +119,12 @@ period.
 |---|---|
 | SAM container, balance gate, sign-preserving RAS | `SAM` |
 | Calibration: coefficients, nests, taxes, margins, LES subsistence, institutional flows, a list of cells the model does not read | `calibrate` |
-| Within-period equilibrium under five closure combinations | `solve_period` |
-| Counterfactuals: taxes, wedges, endowments, ownership, productivity, own-account levels, world prices, FDI | `Scenario` |
+| Within-period equilibrium: five macro closures, plus full employment, a fixed real wage, a wage curve or elastic labour supply | `solve_period`, `Closure` |
+| Counterfactuals: taxes, wedges, endowments, ownership, productivity, own-account levels, world prices, FDI, the investment basket | `Scenario` |
 | Recursive dynamics: several capital stocks, investment allocation, foreign-owned capital, a per-year economy | `run_path`, `Growth` |
 | Welfare: EV, CV and composition-immune group aggregation | `cgekit.welfare` |
 | Base-year reproduction, homogeneity, Walras | `cgekit.diagnostics` |
+| Employment by activity, real GDP on both sides, sectoral path | `cgekit.results` |
 | The same equilibrium as a JuMP model, for independent validation | `to_jump` |
 
 ## Documentation
@@ -177,10 +178,10 @@ python validation/roundtrip_jump.py            # or: CGEKIT_RUN_JULIA=1 pytest t
 
 ## Scope
 
-`cgekit` is a single-region, recursive-dynamic model with no forward-looking
-agent. It has no multi-region trade, no estimation of elasticities and none of
-the maturity of GAMS or GEMPACK. [`docs/comparison.md`](docs/comparison.md) says
-where it stands.
+`cgekit` is a recursive-dynamic model with no forward-looking agent. Several
+regions share one origin nest under the Armington, and factors do not migrate.
+It does not estimate elasticities, and it does not have the maturity of GAMS or
+GEMPACK. [`docs/comparison.md`](docs/comparison.md) says where it stands.
 
 ## Citing
 

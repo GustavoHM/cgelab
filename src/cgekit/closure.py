@@ -59,18 +59,62 @@ class Closure:
     #: the case where the starting point already IS the solution.
     tolerance: float = 1e-9
 
+    #: ``"full_employment"`` -- every factor market clears and a shock shows up
+    #: in the wage. ``"fixed_real_wage"`` -- the real wage is pinned and
+    #: employment adjusts (Keynesian). ``"wage_curve"`` -- the real wage falls
+    #: as unemployment rises above ``natural_unemployment``. ``"elastic_supply"``
+    #: -- labour supply rises with the real wage. The last three refuse to use
+    #: the labour factor as numeraire: that market is the Walras check, and a
+    #: closure that also pins its wage turns the check into an identity.
+    labour: str = "full_employment"
+    labour_factor: str = "f_lab"
+    #: Real wage under ``fixed_real_wage``, in base-year units (1 is the
+    #: calibrated wage). Absent, the calibrated real wage.
+    real_wage: float | None = None
+    #: Blanchflower–Oswald β > 0. Read only under ``wage_curve``.
+    wage_curve_elasticity: float = 0.1
+    #: Unemployment rate at which the wage curve pays the calibrated real wage.
+    #: The SAM records employment, not the labour force, so the force is
+    #: ``employment / (1 - u0)`` and the base year sits AT this rate. Zero is
+    #: refused: the log curve is undefined there.
+    natural_unemployment: float = 0.0
+    #: ε ≥ 0 of ``L = L0 * (real_wage / real_wage0) ** ε``. Zero is inelastic.
+    labour_supply_elasticity: float = 0.0
+
     def __post_init__(self):
         for name, allowed in (("investment", ("savings_driven", "fixed_real")),
                               ("government", ("real_fixed", "nominal_fixed")),
-                              ("foreign", ("fixed_saving", "fixed_rate"))):
+                              ("foreign", ("fixed_saving", "fixed_rate")),
+                              ("labour", ("full_employment", "fixed_real_wage",
+                                          "wage_curve", "elastic_supply"))):
             got = getattr(self, name)
             if got not in allowed:
                 raise ValueError(f"closure.{name} must be one of {allowed}, got {got!r}")
+        if self.labour == "wage_curve":
+            if not 0.0 < self.natural_unemployment < 1.0:
+                raise ValueError(
+                    "closure.natural_unemployment must lie strictly between 0 and 1 "
+                    f"under wage_curve, got {self.natural_unemployment}. The SAM records "
+                    "employment, and the base year sits at this rate; zero unemployment "
+                    "makes the log wage curve undefined.")
+            if self.wage_curve_elasticity <= 0:
+                raise ValueError(
+                    "closure.wage_curve_elasticity must be positive, "
+                    f"got {self.wage_curve_elasticity}")
+        if self.labour == "elastic_supply" and self.labour_supply_elasticity < 0:
+            raise ValueError(
+                "closure.labour_supply_elasticity must be >= 0, "
+                f"got {self.labour_supply_elasticity}")
+        if self.real_wage is not None and self.real_wage <= 0:
+            raise ValueError(f"closure.real_wage must be positive, got {self.real_wage}")
 
     @property
     def solves_exchange_rate(self) -> bool:
         return self.foreign == "fixed_saving"
 
     def describe(self) -> str:
-        return (f"numeraire={self.numeraire:g}; investment={self.investment}; "
+        text = (f"numeraire={self.numeraire:g}; investment={self.investment}; "
                 f"government={self.government}; foreign={self.foreign}")
+        if self.labour != "full_employment":
+            text += f"; labour={self.labour}({self.labour_factor})"
+        return text

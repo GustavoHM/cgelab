@@ -1,0 +1,157 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>cgekit — replications</title>
+<meta name="description" content="Published CGE models rerun in cgekit from their own social accounting matrix. One region first; several regions when the paper needs them.">
+<link rel="alternate" hreflang="en" href="https://gustavohm.github.io/cgekit/replications.html">
+<link rel="alternate" hreflang="pt-BR" href="https://gustavohm.github.io/cgekit/pt-br/replications.html">
+<link rel="alternate" hreflang="x-default" href="https://gustavohm.github.io/cgekit/replications.html">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<header class="hero">
+  <div class="wrap">
+    <p class="lang"><strong>English</strong> · <a href="pt-br/replications.html" hreflang="pt-BR" lang="pt-BR">Português</a></p>
+    <h1>Replications</h1>
+    <p class="tag">A published model, rerun from the social accounting matrix that paper used.
+    The page records the number that matched and the mechanism the package does not have.</p>
+    <p class="tag"><a href="./">cgekit</a> · <a href="https://github.com/GustavoHM/cgekit">github.com/GustavoHM/cgekit</a></p>
+  </div>
+</header>
+
+<nav class="toc"><div class="wrap"><ul>
+  <li><a href="#scope">What counts</a></li>
+  <li><a href="#regions">Several regions</a></li>
+  <li><a href="#hosoe">A worked example</a></li>
+  <li><a href="#queue">The queue</a></li>
+</ul></div></nav>
+
+<main>
+
+<section id="scope"><div class="wrap">
+  <h2>What counts as a replication</h2>
+  <p class="lede">The same matrix, the same closure, the same elasticities, the same shock, set
+  against one published number. The base year has to come back. A deviation is reported with
+  its cause.</p>
+  <p>Two kinds of paper come first. A paper that ships the matrix, the code and a table. Then a
+  paper that uses a public matrix, when the shock and the elasticities are described well enough
+  to be rebuilt. A licensed database, the GTAP Data Base in particular, is a later queue: the
+  code of the standard GTAP model in GAMS is published, and the database is not. It will not be
+  committed here.</p>
+</div></section>
+
+<section id="regions"><div class="wrap">
+  <h2>Several regions are a separate extension</h2>
+  <p>One region is enough for a national model. The worked example below is one closed economy,
+  and the next files in the queue are national too. Several regions, as far as the package
+  goes today, are an origin nest: each region produces, buyers pay a national composite of
+  those origins, and the Armington still mixes that composite with foreign imports. Factors
+  do not migrate. A GTAP paper or an interregional model in the tradition of B-MARIA or TERM
+  also wants migration, and GTAP wants its licensed database. A result of that kind will not
+  be claimed from the origin nest alone. The
+  <a href="https://github.com/GustavoHM/cgekit/blob/main/ROADMAP.md">roadmap</a> keeps the
+  rest of the item, and the catalog says so on the row.</p>
+</div></section>
+
+<section id="hosoe"><div class="wrap">
+  <h2>Worked example: Hosoe, Gasawa and Hashimoto, chapter 5</h2>
+  <p>The matrix below is the one printed in <code>splcge</code>, the simple CGE in the
+  <a href="https://www.gams.com/latest/gamslib_ml/libhtml/gamslib_splcge.html">GAMS model library</a>.
+  The citation in that file is Hosoe, Gasawa and Hashimoto, <em>Handbook of Computable General
+  Equilibrium Modeling</em>, University of Tokyo Press, 2004, chapter 5. The published program
+  solves the benchmark and no counterfactual, so the check is the benchmark.</p>
+  <p>Bread and milk, capital and labour, one household. Production is Cobb–Douglas in the two
+  factors and there are no intermediate inputs, which is <code>sigma_va=1</code> with an empty
+  intermediate block. Labour is the numeraire. The published matrix has no government, no
+  investment and no rest of the world; the package requires those three accounts, so they are
+  entered empty. Investment of zero is a shut block, not a basket to be split.</p>
+<pre><code>import pandas as pd
+import cgekit as ck
+
+entries = [
+    ("c_brd", "hh_1", 15.0), ("c_mlk", "hh_1", 35.0),
+    ("f_cap", "a_brd", 5.0), ("f_cap", "a_mlk", 20.0),
+    ("f_lab", "a_brd", 10.0), ("f_lab", "a_mlk", 15.0),
+    ("hh_1", "f_cap", 25.0), ("hh_1", "f_lab", 25.0),
+    ("a_brd", "c_brd", 15.0), ("a_mlk", "c_mlk", 35.0),
+    ("gov", "gov", 0.0), ("s_i", "s_i", 0.0), ("row", "row", 0.0),
+]
+sam = ck.SAM.from_long(pd.DataFrame(entries, columns=["row", "col", "value"]), name="hosoe")
+sam.check_balance(abs_tol=1e-9)
+spec = ck.ModelSpec(
+    activities=["a_brd", "a_mlk"], commodities=["c_brd", "c_mlk"],
+    households=["hh_1"], factors=("f_lab", "f_cap"),
+    government="gov", investment="s_i", rest_of_world="row",
+    sigma_va=1.0, margins=False, numeraire_factor="f_lab")
+econ = ck.calibrate(sam, spec)
+base = ck.solve_period(econ)
+assert base.converged and abs(base.walras) &lt; 1e-9
+assert abs(base.X[econ.activity("a_brd")] - 15) &lt; 1e-8
+assert abs(base.X[econ.activity("a_mlk")] - 35) &lt; 1e-8
+assert abs(base.pq[econ.commodity("c_brd")] - 1) &lt; 1e-8
+print(base.X, base.walras)</code></pre>
+  <p>Solved output is 15 and 35, purchaser prices are 1, imports and saving are 0, and the Walras
+  residual on the numeraire is 0. That is the published benchmark, not a policy table: the GAMS
+  file does not report one.</p>
+</div></section>
+
+<section id="queue"><div class="wrap">
+  <h2>The queue</h2>
+  <p>Status is what has been run in this package. "Files located" means the matrix or the code
+  was found and has not been solved here yet.</p>
+  <table>
+    <thead><tr><th>Model</th><th>Data</th><th>Regions</th><th>Status</th></tr></thead>
+    <tbody>
+      <tr>
+        <td>Hosoe, Gasawa and Hashimoto (2004), ch. 5, GAMS library <code>splcge</code></td>
+        <td>Matrix printed in the library file</td>
+        <td>One, closed</td>
+        <td>Benchmark reproduced on this page</td>
+      </tr>
+      <tr>
+        <td><a href="https://hdl.handle.net/10568/158026">Lofgren, Harris and Robinson (2002)</a>, IFPRI standard CGE in GAMS</td>
+        <td>The manual is open. The sample database was distributed with the book and is not in the PDF now on CGSpace</td>
+        <td>One country, with trade, margins and home production</td>
+        <td>Next, once the database file is in hand</td>
+      </tr>
+      <tr>
+        <td><a href="https://github.com/askarmukashov/senegal-cge-replication">Mukashov, Senegal</a>, IFPRI-standard GAMS, paper on regional income equity</td>
+        <td>Matrix, elasticities and scenarios shipped in the repository</td>
+        <td>One national model in the IFPRI structure. Whether "regional" is a household split or several trading regions is read off the matrix before any number is claimed</td>
+        <td>Files located, not yet solved</td>
+      </tr>
+      <tr>
+        <td><a href="https://doi.org/10.21642/JGEA.030101AF">van der Mensbrugghe (2018)</a>, standard GTAP model in GAMS, version 7</td>
+        <td>GAMS code with the article. The GTAP Data Base is licensed</td>
+        <td>Many</td>
+        <td>Needs the GTAP structure and a licence. The origin nest is not that model. The database will not be committed</td>
+      </tr>
+      <tr>
+        <td><a href="https://documents.worldbank.org/en/publication/documents-reports/documentdetail/781071513192965037">Cicowiez and Lofgren (2017)</a>, World Bank WPS 8273</td>
+        <td>Method and macro matrices for 133 countries, public</td>
+        <td>One production account per country</td>
+        <td>Public data, no published shock to match. Second wave</td>
+      </tr>
+      <tr>
+        <td>IFPRI Nexus social accounting matrices</td>
+        <td>The matrix, CC-BY, not an experiment</td>
+        <td>One country</td>
+        <td>Public data. Second wave: calibrate, and only claim a table when the paper's shock is fully described</td>
+      </tr>
+    </tbody>
+  </table>
+</div></section>
+
+</main>
+
+<footer><div class="wrap">
+  <p>cgekit 0.2.0 — MIT. <a href="./">Back to the package</a> ·
+  <a href="https://github.com/GustavoHM/cgekit">github.com/GustavoHM/cgekit</a>.</p>
+</div></footer>
+
+<script src="highlight.js"></script>
+</body>
+</html>

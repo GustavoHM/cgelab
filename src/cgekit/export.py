@@ -34,7 +34,7 @@ import numpy as np
 
 from .calibrate import Economy
 from .closure import Closure
-from .scenario import Scenario
+from .scenario import Scenario, investment_shares
 from .solve import _marginal_budget_shares, _recycle_shares
 
 __all__ = ["to_jump", "JUMP_TEMPLATE"]
@@ -42,6 +42,21 @@ __all__ = ["to_jump", "JUMP_TEMPLATE"]
 
 def _l(a):
     return np.asarray(a, dtype=float).tolist()
+
+
+def _instrument(base, scenario_value, n, name):
+    """Scenario rate when the base year calibrated one; otherwise a vector of zeros."""
+    if scenario_value is not None and base is None:
+        raise ValueError(
+            f"Scenario.{name} is read only when that instrument was calibrated.")
+    if base is None:
+        return np.zeros(n)
+    if scenario_value is None:
+        return base
+    value = np.asarray(scenario_value, dtype=float)
+    if value.shape != (n,):
+        raise ValueError(f"{name} must have length {n}, got shape {value.shape}")
+    return value
 
 
 def to_jump(econ: Economy, closure: Closure | None = None, scenario: Scenario | None = None, *,
@@ -56,8 +71,24 @@ def to_jump(econ: Economy, closure: Closure | None = None, scenario: Scenario | 
     """
     closure = closure or Closure()
     sc = scenario or Scenario()
+    if econ.regional is not None and len(econ.regional.regions) > 1:
+        raise ValueError(
+            "to_jump does not write the interregional nest. Exporting the "
+            "regional accounts as ordinary commodities would drop the origin "
+            "CES and the replica would be a different model.")
     nf, nc, nh, na = econ.n_fac, econ.n_com, econ.n_hh, econ.n_act
     num = econ.numeraire_index
+    lab = (econ.factor(closure.labour_factor)
+           if closure.labour_factor in econ.factors else None)
+    if closure.labour != "full_employment" and (lab is None or lab == num):
+        raise ValueError(
+            f"closure.labour={closure.labour!r} cannot use {closure.labour_factor!r} "
+            f"as the numeraire. That market is left to Walras' law, so pinning or "
+            f"linking its wage would turn the check into an identity or a leak. "
+            f"Set ModelSpec.numeraire_factor to another factor.")
+    value0 = (econ.hh_budget * np.asarray(econ.hh_spend0, float)[:, None]).sum(axis=0)
+    pq0 = 1.0 + econ.ptax
+    q_laspeyres = value0 / np.maximum(pq0, 1e-12)
 
     supply = econ.fac_supply if sc.factor_supply is None else np.asarray(sc.factor_supply, float)
     facshare = (econ.hh_facshare if sc.factor_ownership is None
@@ -121,6 +152,10 @@ def to_jump(econ: Economy, closure: Closure | None = None, scenario: Scenario | 
                      else econ.spec.sigma_cet_vector(econ.coms)),
         # tributos
         ptax_a=_l(ptax_a), ptax_f=_l(ptax_f), ptax_base=_l(econ.ptax), atax=_l(econ.atax * nu),
+        tm=_l(_instrument(econ.tm0, sc.tariff, nc, "tariff")),
+        tm0=_l(np.zeros(nc) if econ.tm0 is None else econ.tm0),
+        tauz=_l(_instrument(econ.tauz0, sc.output_tax, nc, "output_tax")),
+        tauz0=_l(np.zeros(nc) if econ.tauz0 is None else econ.tauz0),
         # famílias
         hh_budget=_l(econ.hh_budget), beta_les=_l(beta_les),
         demand_coef=_l(coef), g_cap=_l(g_cap), g_gov=_l(g_gov),
@@ -136,7 +171,10 @@ def to_jump(econ: Economy, closure: Closure | None = None, scenario: Scenario | 
         # blocos exógenos
         fac_supply=_l(supply), gov_dem=_l(econ.gov_dem), gov_q=(None if gov_q is None
                                                                 else _l(gov_q)),
-        inv_dem=_l(econ.inv_dem), inv_q_fixed=_l(econ.inv_dem / (1.0 + econ.ptax)),
+        inv_dem=_l(econ.inv_dem),
+        inv_w=_l(investment_shares(econ, sc)),
+        inv_q_fixed=_l(investment_shares(econ, sc) * float(econ.inv_dem.sum())
+                       / (1.0 + econ.ptax)),
         act_scale=_l(act_scale), own_account=[bool(b) for b in exog],
         X_exog=_l(X_exog), exog_intermediate=_l(io_eff @ X_exog),
         trade_balance0=float(econ.trade_balance0 * nu),
@@ -151,6 +189,13 @@ def to_jump(econ: Economy, closure: Closure | None = None, scenario: Scenario | 
         # fechamento
         investment=closure.investment, government=closure.government,
         foreign=closure.foreign, exchange_rate=float(closure.exchange_rate),
+        labour=closure.labour,
+        labour_index=0 if lab is None else int(lab) + 1,
+        real_wage_target=1.0 if closure.real_wage is None else float(closure.real_wage),
+        wage_curve_elasticity=float(closure.wage_curve_elasticity),
+        natural_unemployment=float(closure.natural_unemployment),
+        labour_supply_elasticity=float(closure.labour_supply_elasticity),
+        q_laspeyres=_l(q_laspeyres), pq0=_l(pq0),
         scenario_name=sc.name,
     )
 
@@ -193,6 +238,13 @@ d = JSON3.read(read(ARQ, String))
 const na, nc, nh, nf = d.na, d.nc, d.nh, d.nf
 const NUM = d.numeraire_index                 # índice 1-based do fator numerário
 const nu = Float64(d.numeraire)
+const LAB = Int(d.labour_index)               # 1-based; 0 se o fator de trabalho não existe
+const LABOUR = String(d.labour)
+const labour_slack = LABOUR == "fixed_real_wage" || LABOUR == "wage_curve"
+const real_wage_target = Float64(d.real_wage_target)
+const beta_w = Float64(d.wage_curve_elasticity)
+const u0 = Float64(d.natural_unemployment)
+const eps_ls = Float64(d.labour_supply_elasticity)
 
 io = mat(d.io); msh = mat(d.msh); theta = mat(d.theta); aunit = mat(d.aunit); mq = mat(d.mq)
 vunit = vecf(d.vunit); leo = collect(Bool, d.leontief)
@@ -205,6 +257,7 @@ wpe = vecf(d.export_price); scet = vecf(d.sigma_cet)
 dtax = vecf(d.hh_dtax); gov_tr = vecf(d.gov_transfer); remit = vecf(d.remit_net)
 gsh = vecf(d.fac_gov_share); rsh = vecf(d.fac_row_share)
 ptax_a = vecf(d.ptax_a); ptax_f = vecf(d.ptax_f); ptax_b = vecf(d.ptax_base); atax = vecf(d.atax)
+tm = vecf(d.tm); tm0 = vecf(d.tm0); tauz = vecf(d.tauz); tauz0 = vecf(d.tauz0)
 hh_budget = mat(d.hh_budget); beta_les = mat(d.beta_les); gamma = mat(d.hh_committed)
 coef = mat(d.demand_coef); Wt = mat(d.Wt)
 g_cap = vecf(d.g_cap); g_gov = vecf(d.g_gov)
@@ -214,13 +267,14 @@ transfers = vecf(d.transfers); les = Bool(d.les); popsh = vecf(d.pop_share)
 W = mat(d.wedge); Wg = mat(d.wedge_gov); alpha = vecf(d.recycle_share)
 gov_absorbs = Float64(d.gov_absorbs)
 supply = vecf(d.fac_supply); inv_dem = vecf(d.inv_dem); inv_q_fix = vecf(d.inv_q_fixed)
+inv_w = vecf(d.inv_w)
+q_lasp = vecf(d.q_laspeyres); pq0_lasp = vecf(d.pq0)
 act_scale = vecf(d.act_scale); X_exog = vecf(d.X_exog); exog_int = vecf(d.exog_intermediate)
 own = collect(Bool, d.own_account)
 tb0 = Float64(d.trade_balance0); fsav0 = Float64(d.foreign_sav)
 gov_dem = vecf(d.gov_dem)
 
 Bmat = io * msh
-inv_w = inv_dem ./ max(sum(inv_dem), 1e-12)
 
 @printf("cenário=%s  %d atividades, %d mercadorias, %d domicílios, %d fatores\n",
         d.scenario_name, na, nc, nh, nf)
@@ -248,6 +302,11 @@ q0(campo, padrao) = QUENTE === nothing ? padrao : Float64(QUENTE[campo])
 
 @variable(m, w[f = 1:nf] >= 1e-8, start = q("w", f, f == NUM ? nu : 0.85 * nu))
 fix(w[NUM], nu; force = true)
+# Emprego pago. Sob salário real fixo ou curva salarial a renda usa a DEMANDA, não a força de
+# trabalho: pagar o desempregado fabrica renda e o resíduo de Walras deixa de ser verificação.
+if labour_slack
+    @variable(m, emp >= 0, start = supply[LAB])
+end
 @variable(m, pva[j = 1:na] >= 0, start = 1.0)
 @variable(m, pa[j = 1:na] >= 1e-8, start = q("pa", j, 1.0))
 @variable(m, pd[c = 1:nc] >= 1e-8, start = q("pd", c, 1.0))
@@ -279,6 +338,18 @@ else
 end
 
 @expression(m, pq[c = 1:nc], pbase[c] * (1 + ptax_a[c]))     # preço ao consumidor FINAL
+# Índice de Laspeyres dos preços ao comprador. No ano-base vale o numerário, e o salário real é
+# o salário nominal dividido por ele. Os pesos são as quantidades do ano-base.
+@expression(m, P, sum(pq[c] * q_lasp[c] for c in 1:nc) / sum(pq0_lasp[c] * q_lasp[c] for c in 1:nc))
+function paid_supply(f)
+    if labour_slack && f == LAB
+        return emp
+    elseif LABOUR == "elastic_supply" && f == LAB
+        return supply[f] * (w[f] / P) ^ eps_ls
+    else
+        return supply[f]
+    end
+end
 
 # Preço das vendas DOMÉSTICAS e repartição do produto entre mercado interno e exportação. Sob CET
 # a receita da fronteira iguala o preço ao produtor; sob parcelas fixas, vende-se ao preço do
@@ -329,10 +400,10 @@ end
 
 # ---- 4-5. Armington
 @constraint(m, [c = 1:nc],
-            arm[c]^(1 - sarm[c]) == domsh[c] * pdom[c]^(1 - sarm[c])
-                                  + (1 - domsh[c]) * (er * wp[c])^(1 - sarm[c]))
-@constraint(m, [c = 1:nc], dsh[c] == domsh[c] * (arm[c] / pdom[c])^sarm[c])
-@constraint(m, [c = 1:nc], mshm[c] == (1 - domsh[c]) * (arm[c] / (er * wp[c]))^sarm[c])
+            arm[c]^(1 - sarm[c]) == domsh[c] * (pdom[c] * (1 + tauz[c]) / (1 + tauz0[c]))^(1 - sarm[c])
+                                  + (1 - domsh[c]) * (er * wp[c] * (1 + tm[c]) / (1 + tm0[c]))^(1 - sarm[c]))
+@constraint(m, [c = 1:nc], dsh[c] == domsh[c] * (arm[c] / (pdom[c] * (1 + tauz[c]) / (1 + tauz0[c])))^sarm[c])
+@constraint(m, [c = 1:nc], mshm[c] == (1 - domsh[c]) * (arm[c] / (er * wp[c] * (1 + tm[c]) / (1 + tm0[c])))^sarm[c])
 
 # ---- 6. preço de ENTREGA. As margens são elas mesmas precificadas a preço de entrega, donde o
 # ponto fixo que o cgekit itera e que aqui é apenas uma restrição.
@@ -345,7 +416,7 @@ end
 # reciclada do gravame pela regra do cenário: são pesos distintos, e trocá-los inverteria o sinal
 # distributivo de um dos dois.
 @constraint(m, [h = 1:nh],
-            hh_income[h] == sum(facshare[h, f] * w[f] * supply[f] * (1 - gsh[f] - rsh[f])
+            hh_income[h] == sum(facshare[h, f] * w[f] * paid_supply(f) * (1 - gsh[f] - rsh[f])
                               for f in 1:nf)
                           + transfers[h] - levy * popsh[h] + uplift_rev * alpha[h]
                           + gov_tr[h] + remit[h])
@@ -386,7 +457,7 @@ end
 # Renda do governo que o bloco tributário não vê: imposto direto e renda de fatores, menos o que
 # ele transfere às famílias.
 @expression(m, gov_inst, sum(hh_income[h] * dtax[h] for h in 1:nh)
-                       + sum(w[f] * supply[f] * gsh[f] for f in 1:nf) - sum(gov_tr))
+                       + sum(w[f] * paid_supply(f) * gsh[f] for f in 1:nf) - sum(gov_tr))
 
 if d.investment == "savings_driven"
     @expression(m, inv_q[c = 1:nc], inv_w[c] * savings / pqf[c])
@@ -415,7 +486,9 @@ end
 @expression(m, tax_rev,
             sum(pbase[c] * ((Aabs[c] - fin_c[c]) * ptax_f[c] + fin_c[c] * ptax_a[c])
                 for c in 1:nc)
-            + sum(atax[j] * Xraw[j] for j in 1:na))
+            + sum(atax[j] * Xraw[j] for j in 1:na)
+            + sum(((tm[c] - tm0[c]) / (1 + tm0[c])) * er * wp[c] * mshm[c] * armsh[c] * Aabs[c] for c in 1:nc)
+            + sum(((tauz[c] - tauz0[c]) / (1 + tauz0[c])) * pdom[c] * dsh[c] * armsh[c] * Aabs[c] for c in 1:nc))
 @constraint(m, savings == hh_sav + levy + tax_rev + gov_inst - gov_spend - gov_cost + fsav)
 
 # ---- 10. demanda de fatores
@@ -423,11 +496,25 @@ end
             leo[j] ? (vunit[j] != 0 ? aunit[f, j] / vunit[j] : 0.0)
                    : (theta[f, j] > 0 ? theta[f, j] * (pva[j] / w[f])^sva[j] : 0.0))
 @expression(m, facdem[f = 1:nf], sum(facint[f, j] * vunit[j] * X[j] for j in 1:na))
+if labour_slack
+    @constraint(m, emp == facdem[LAB])
+end
 
 # ---- 11. os mercados resolvidos. O do NUMERÁRIO fica de fora, para a lei de Walras.
 for f in 1:nf
     f == NUM && continue
-    @constraint(m, facdem[f] == supply[f])
+    if LABOUR == "fixed_real_wage" && f == LAB
+        continue
+    elseif LABOUR == "wage_curve" && f == LAB
+        @constraint(m, log(w[f] / P) + beta_w * log((1 - facdem[f] / (supply[f] / (1 - u0))) / u0) == 0)
+    elseif LABOUR == "elastic_supply" && f == LAB
+        @constraint(m, facdem[f] == supply[f] * (w[f] / P) ^ eps_ls)
+    else
+        @constraint(m, facdem[f] == supply[f])
+    end
+end
+if LABOUR == "fixed_real_wage"
+    @constraint(m, w[LAB] == real_wage_target * P)
 end
 @expression(m, imports[c = 1:nc], mshm[c] * armsh[c] * Aabs[c])
 @expression(m, exports[c = 1:nc], expfrac[c] * Q[c])
@@ -436,7 +523,7 @@ end
 # A meta é a CONTA CORRENTE, igual à poupança externa (fixa sob "fixed_saving", incógnita sob
 # "fixed_rate"): balança comercial, mais a renda de fatores paga ao exterior, menos as
 # transferências líquidas recebidas. `trade_balance0` fica no JSON só como registro do ano-base.
-@expression(m, current, trade + sum(w[f] * supply[f] * rsh[f] for f in 1:nf) - sum(remit))
+@expression(m, current, trade + sum(w[f] * paid_supply(f) * rsh[f] for f in 1:nf) - sum(remit))
 @constraint(m, current == fsav)
 
 @objective(m, Min, 0.0)

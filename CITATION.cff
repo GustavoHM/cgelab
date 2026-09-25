@@ -5,8 +5,8 @@ title: "cgekit: a general toolkit for SAM-based computable general equilibrium m
 abstract: >-
   Social accounting matrix handling and balancing, calibration, configurable nests and closures, CET and Armington trade, direct taxes, transfers and foreign ownership, within-period solution, recursive dynamics with several capital stocks and FDI, and welfare measurement, with base-year reproduction, homogeneity and Walras checks built in and an independent JuMP replica for validation.
 authors:
-  - family-names: "Hoffmann Moreira"
-    given-names: "Gustavo"
+  - family-names: "Moreira"
+    given-names: "Gustavo Hoffmann"
     email: "gustavo@gakusai.net"
     # orcid: "https://orcid.org/0000-0000-0000-0000"   # fill in
 version: "0.2.0"

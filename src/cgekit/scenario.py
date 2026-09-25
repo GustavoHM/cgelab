@@ -86,6 +86,12 @@ class Scenario:
     #: World price of each imported commodity, as a multiple of the base year.
     world_price: np.ndarray | None = None
 
+    #: World price of each EXPORTED commodity, as a multiple of the base year.
+    #: Read only under ``export_rule="cet"``: with fixed export shares exports
+    #: are a fixed fraction of output whatever they fetch abroad, and the field
+    #: is refused rather than silently ignored.
+    export_price: np.ndarray | None = None
+
     def with_(self, **changes) -> "Scenario":
         """Return a copy with fields replaced -- for building a sweep from a base case."""
         import dataclasses

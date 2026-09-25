@@ -30,7 +30,8 @@ from .closure import Closure
 from .diagnostics import base_year_reproduction, homogeneity_test, report, walras_check
 from .export import to_jump
 from .dynamics import Growth, PathResult, run_path
-from .functions import armington, ces_intensity, ces_price, cet, cobb_douglas_price
+from .functions import (armington, ces_intensity, ces_price, cet, cet_domestic_price,
+                        cobb_douglas_price)
 from .sam import SAM, BalanceError
 from .scenario import Scenario, consumer_wedge
 from .solve import PeriodResult, factor_intensity, solve_period, value_added_price
@@ -49,6 +50,6 @@ __all__ = [
     "equivalent_variation", "ev_by_group", "compensating_variation",
     "base_year_reproduction", "homogeneity_test", "walras_check", "report",
     "to_jump",
-    "ces_price", "ces_intensity", "cobb_douglas_price", "armington", "cet",
+    "ces_price", "ces_intensity", "cobb_douglas_price", "armington", "cet", "cet_domestic_price",
     "__version__",
 ]

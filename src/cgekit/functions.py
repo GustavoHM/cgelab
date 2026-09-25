@@ -15,7 +15,7 @@ from __future__ import annotations
 
 import numpy as np
 
-__all__ = ["ces_price", "ces_intensity", "leontief_price", "armington", "cet",
+__all__ = ["ces_price", "ces_intensity", "leontief_price", "armington", "cet", "cet_domestic_price",
            "cobb_douglas_price"]
 
 
@@ -109,3 +109,34 @@ def cet(export_share: np.ndarray, p_domestic: np.ndarray, p_export: np.ndarray,
         dsh = np.where(pz > 0, sd * (p_domestic / pz) ** sigma, 0.0)
         esh = np.where(pz > 0, se * (p_export / pz) ** sigma, 0.0)
     return pz, dsh, esh
+
+
+def cet_domestic_price(export_share: np.ndarray, p_output: np.ndarray, p_export: np.ndarray,
+                       sigma) -> np.ndarray:
+    """Domestic sales price that makes the CET revenue function equal ``p_output``.
+
+    The inverse of :func:`cet` in its domestic-price argument. Under constant
+    returns the producer price of a commodity is its unit cost, so what the
+    transformation frontier determines is not that price but how it splits:
+    given the output price and the export price, the domestic price is the one
+    at which ``pz(p_domestic, p_export) = p_output``.
+
+    Degenerate cases return finite numbers: a commodity with no exports sells at
+    its output price, and one that is exported whole has no domestic sale, so its
+    domestic price is set to the output price as well (it multiplies zero).
+    When the export price is so high that no positive domestic price satisfies
+    the frontier, the domestic price is floored near zero and domestic sales
+    vanish -- the economic content of that corner.
+    """
+    sigma = np.asarray(sigma, dtype=float)
+    if sigma.ndim == 0:
+        sigma = np.full(export_share.shape, float(sigma))
+    se = export_share
+    sd = 1.0 - se
+    e = 1.0 + sigma
+    with np.errstate(divide="ignore", invalid="ignore"):
+        inner = (p_output ** e - se * p_export ** e) / np.where(sd > 0, sd, 1.0)
+        inner = np.maximum(inner, 1e-300)
+        pd = inner ** (1.0 / e)
+    interior = (se > 0) & (sd > 0)
+    return np.where(interior, pd, p_output)

@@ -92,7 +92,11 @@ name (with `"__default__"` as a fallback).
 **`export_rule`.** `"fixed_shares"` is the default because the CET elasticity is
 the one parameter of a standard CGE with no input–output source. If no headline
 number may rest on an invented parameter, the baseline keeps it out entirely and
-`"cet"` enters as a robustness variant.
+`"cet"` enters as a robustness variant. Under `"cet"` output splits between the
+home market and exports along a transformation frontier with elasticity
+`sigma_cet`, exports are sold at `exchange_rate × Scenario.export_price`, and the
+domestic price is the one at which the frontier's revenue equals unit cost.
+`export_price` is refused under fixed shares, where it would do nothing.
 
 **`negative_value_added`.** An activity can have a negative operating surplus,
 and that is real data, not an error to clean. No CES nest accepts a negative
@@ -231,7 +235,7 @@ Walras residual rather than a solver failure.
 |---|---|---|
 | `investment="savings_driven"` | nothing | investment absorbs household, government and foreign saving |
 | `investment="fixed_real"` | investment quantities | forced household saving (a per-capita levy) |
-| `foreign="fixed_saving"` | the current account | the exchange rate |
+| `foreign="fixed_saving"` | the current account, equal to `econ.foreign_sav` | the exchange rate |
 | `foreign="fixed_rate"` | the exchange rate | foreign saving |
 | `government="real_fixed"` | real public purchases | public spending moves with prices |
 | `government="nominal_fixed"` | the public budget | real purchases move instead |
@@ -261,6 +265,7 @@ sc = ck.Scenario(
     transfers=lump_sum_by_household,
     government_absorbs=cost_charged_to_the_budget,
     world_price=import_price_multipliers,
+    export_price=export_price_multipliers,  # export_rule="cet" only
 )
 sc2 = sc.with_(wedge_revenue_to="lumpsum")     # a copy with one field replaced
 ```

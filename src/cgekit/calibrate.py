@@ -76,6 +76,9 @@ class Economy:
 
     diagnostics: dict = field(default_factory=dict, repr=False)
 
+    #: CET elasticities by commodity. Used only when ``spec.export_rule == "cet"``.
+    sigma_cet: np.ndarray | None = field(default=None, repr=False)
+
     # -- shorthands ------------------------------------------------------
     @property
     def acts(self) -> list: return self.layout.activities
@@ -251,6 +254,7 @@ def calibrate(sam: SAM, spec: ModelSpec | None = None, *,
         hh_direct=hh_direct, hh_committed=hh_committed, hh_income0=hh_income0,
         pop_share=pop_share, gov_dem=gov_dem, inv_dem=inv_dem, fac_supply=fac_supply,
         trade_balance0=trade_balance0, foreign_sav=trade_balance0,
+        sigma_cet=spec.sigma_cet_vector(coms),
         diagnostics=dict(negative_value_added=negative,
                          negative_value_added_treatment=spec.negative_value_added,
                          n_leontief=int(leontief.sum()),

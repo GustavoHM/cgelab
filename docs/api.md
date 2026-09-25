@@ -43,7 +43,7 @@ Constructors: `SAM.from_long(df, row="row", col="col", value="value", name="sam"
 | `numeraire_factor` | first factor | its price is fixed and its market left to Walras |
 | `value_added` | `"ces"` | `"ces"`, `"cobb_douglas"` or `"leontief"` |
 | `sigma_va`, `sigma_armington` | `0.5`, `2.0` | scalar or mapping by account name |
-| `export_rule`, `sigma_cet` | `"fixed_shares"`, `2.0` | `"cet"` is a robustness variant |
+| `export_rule`, `sigma_cet` | `"fixed_shares"`, `2.0` | `"cet"` is a robustness variant; `sigma_cet` scalar or mapping by commodity |
 | `household_demand`, `frisch` | `"cobb_douglas"`, `-1.5` | `"les"` uses `frisch` for subsistence |
 | `negative_value_added` | `"leontief"` | or `"net"` |
 | `margins` | `True` | read the commodity-to-commodity margin block |
@@ -87,7 +87,9 @@ Ordered name lists `acts`, `coms`, `hhs`, `factors`; counts `n_act`, `n_com`,
 | `hh_direct` | `(nh, na)` | payments made straight to an activity |
 | `gov_dem`, `inv_dem` | `(nc,)` | government and investment demand, purchaser prices |
 | `fac_supply` | `(nf,)` | factor endowments |
-| `trade_balance0`, `foreign_sav` | scalar | the external position |
+| `foreign_sav` | scalar | foreign saving, and so the current-account target under `foreign="fixed_saving"`: the one field to move |
+| `trade_balance0` | scalar | base-year trade balance, a record only; the solver does not read it |
+| `sigma_cet` | `(nc,)` | CET elasticities, read under `export_rule="cet"` |
 | `diagnostics` | dict | negative-value-added activities and treatment, own-account list |
 
 ---
@@ -116,6 +118,7 @@ Properties: `solves_exchange_rate`, `describe()`.
 | `transfers` | `(nh,)` | lump sum, positive for a receipt |
 | `government_absorbs` | scalar | cost charged to the budget |
 | `world_price` | `(nc,)` | import price multipliers |
+| `export_price` | `(nc,)` | world export price multipliers; `export_rule="cet"` only, refused otherwise |
 
 `sc.with_(**changes)` returns a copy with fields replaced.
 
@@ -141,6 +144,7 @@ that finances the fixed investment.
 |---|---|
 | `factor_prices`, `exchange_rate`, `z` | the solved unknowns |
 | `pa`, `pd`, `pq`, `pqf`, `pbase` | activity, domestic, consumer, firm and pre-tax commodity prices |
+| `pe` | price received for exports: `exchange_rate × export_price` under CET, `pd` under fixed shares |
 | `Q`, `X`, `absorption`, `imports`, `exports` | the quantity system |
 | `hh_quantity`, `hh_income`, `hh_commodity_spend`, `hh_direct_outlay`, `hh_wedge_paid` | the household block |
 | `gov_quantity`, `investment_quantity`, `savings`, `factor_demand` | the rest of final demand |
@@ -161,7 +165,8 @@ must see both.
 `ces_price(shares, prices, sigma)`, `ces_intensity(shares, prices, unit_cost, sigma)`,
 `cobb_douglas_price(shares, prices)`,
 `armington(domestic_share, p_domestic, p_import, sigma) -> (pq, dsh, msh)`,
-`cet(export_share, p_domestic, p_export, sigma) -> (pz, dsh, esh)`.
+`cet(export_share, p_domestic, p_export, sigma) -> (pz, dsh, esh)`,
+`cet_domestic_price(export_share, p_output, p_export, sigma) -> p_domestic` (the inverse of `cet` in its domestic price).
 
 Every nest survives the degenerate cases a real SAM contains — an activity with
 no value added, a commodity with no imports, a share vector summing to zero — and

@@ -61,7 +61,7 @@ class ModelSpec:
     sigma_va: float | Mapping[str, float] = 0.5
     sigma_armington: float | Mapping[str, float] = 2.0
     export_rule: str = "fixed_shares"        # "fixed_shares" | "cet"
-    sigma_cet: float = 2.0
+    sigma_cet: float | Mapping[str, float] = 2.0
     household_demand: str = "cobb_douglas"   # "cobb_douglas" | "les"
     frisch: float = -1.5                     # LES only: Frisch parameter, sets subsistence
     margins: bool = True
@@ -133,6 +133,13 @@ class ModelSpec:
 
     def sigma_armington_vector(self, commodities: Sequence[str]):
         return _as_vector(self.sigma_armington, commodities, "sigma_armington")
+
+    def sigma_cet_vector(self, commodities: Sequence[str]):
+        import numpy as np
+        v = _as_vector(self.sigma_cet, commodities, "sigma_cet")
+        if np.any(~np.isfinite(v)) or np.any(v < 0):
+            raise ValueError("sigma_cet must be finite and non-negative for every commodity")
+        return v
 
 
 def _as_vector(value, names, label):

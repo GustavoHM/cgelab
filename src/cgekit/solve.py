@@ -38,7 +38,8 @@ from scipy.optimize import root
 
 from .calibrate import Economy
 from .closure import Closure
-from .functions import armington, ces_intensity, ces_price, cobb_douglas_price
+from .functions import (armington, ces_intensity, ces_price, cet, cet_domestic_price,
+                        cobb_douglas_price)
 from .scenario import Scenario
 
 __all__ = ["PeriodResult", "solve_period", "value_added_price", "factor_intensity"]
@@ -112,6 +113,7 @@ class PeriodResult:
     converged: bool
     attempt: str = ""
     message: str = ""
+    pe: np.ndarray | None = None      # price received for exports
 
     def price(self, commodity: str) -> float:
         return float(self.pq[self.econ.commodity(commodity)])
@@ -168,6 +170,15 @@ def solve_period(econ: Economy, closure: Closure | None = None,
     ptax_a = econ.ptax if sc.product_tax is None else np.asarray(sc.product_tax, float)
     ptax_f = ptax_a if sc.product_tax_firm is None else np.asarray(sc.product_tax_firm, float)
     world_p = np.ones(nc) if sc.world_price is None else np.asarray(sc.world_price, float)
+    cet_on = econ.spec.export_rule == "cet"
+    if sc.export_price is not None and not cet_on:
+        raise ValueError(
+            "Scenario.export_price is read only under export_rule='cet'. With fixed export "
+            "shares exports are a fixed fraction of output whatever they fetch abroad, so a "
+            "world export price would be silently ignored.")
+    world_pe = np.ones(nc) if sc.export_price is None else np.asarray(sc.export_price, float)
+    sigma_cet = (econ.sigma_cet if econ.sigma_cet is not None
+                 else econ.spec.sigma_cet_vector(econ.coms))
     W = np.zeros((nh, nc)) if sc.consumer_wedge is None else np.asarray(sc.consumer_wedge, float)
     Wg = (np.zeros((nh, nc)) if sc.government_wedge is None
           else np.asarray(sc.government_wedge, float))
@@ -191,7 +202,11 @@ def solve_period(econ: Economy, closure: Closure | None = None,
 
     # Nominal magnitudes denominated in the numeraire co-scale with it.
     nu = closure.numeraire
-    trade_target = econ.trade_balance0 * nu
+    # The current-account target IS foreign saving: one magnitude, read from one
+    # field. `trade_balance0` stays on the Economy as the base-year record, but a
+    # scenario that moved `foreign_sav` alone used to leave the target at its old
+    # value, and the gap surfaced as a Walras residual.
+    trade_target = econ.foreign_sav * nu
     atax = econ.atax * nu
     ext_scale = max(abs(trade_target), 1.0)
     sav_scale = max(abs(float(econ.inv_dem.sum())) * nu, 1.0)
@@ -214,6 +229,10 @@ def solve_period(econ: Economy, closure: Closure | None = None,
     beta_les = _marginal_budget_shares(econ)
     state: dict = {}
 
+    def domestic_price(pz, pe):
+        """Price of domestic sales: the output price itself, or its CET split."""
+        return cet_domestic_price(econ.exp_share, pz, pe, sigma_cet) if cet_on else pz
+
     def residuals(z):
         z = np.atleast_1d(np.asarray(z, dtype=float))
         w = np.full(nf, nu)
@@ -227,6 +246,7 @@ def solve_period(econ: Economy, closure: Closure | None = None,
             foreign_sav = trade_target + float(z[i_ext]) * ext_scale
         levy = float(z[i_inv]) * sav_scale if closure.investment == "fixed_real" else 0.0
         pm = er * world_p
+        pe = er * world_pe
 
         # --- prices: a fixed point, because margins are themselves delivered goods
         pva = value_added_price(econ, w)
@@ -234,7 +254,8 @@ def solve_period(econ: Economy, closure: Closure | None = None,
         for _ in range(_PRICE_ITERS):
             pa = io_eff.T @ pqf + pva * vunit_eff + atax
             pd_ = econ.msh.T @ pa
-            arm, dsh, msh_ = armington(econ.dom_share, pd_, pm, econ.sigma_arm)
+            arm, dsh, msh_ = armington(econ.dom_share, domestic_price(pd_, pe), pm,
+                                       econ.sigma_arm)
             pbase = arm * econ.arm_share + pqf @ econ.mq
             new = pbase * (1 + ptax_f)
             if np.max(np.abs(new - pqf)) < 1e-14:
@@ -243,7 +264,16 @@ def solve_period(econ: Economy, closure: Closure | None = None,
             pqf = new
         pa = io_eff.T @ pqf + pva * vunit_eff + atax
         pd_ = econ.msh.T @ pa
-        arm, dsh, msh_ = armington(econ.dom_share, pd_, pm, econ.sigma_arm)
+        p_dom = domestic_price(pd_, pe)
+        arm, dsh, msh_ = armington(econ.dom_share, p_dom, pm, econ.sigma_arm)
+        # How output splits between the home market and exports. Under CET the
+        # split answers to the export price relative to the domestic one; under
+        # fixed shares it is the base-year split and exports fetch the output price.
+        if cet_on:
+            _, dom_frac, exp_frac = cet(econ.exp_share, p_dom, pe, sigma_cet)
+            p_exp = pe
+        else:
+            dom_frac, exp_frac, p_exp = 1.0 - econ.exp_share, econ.exp_share, pd_
         pbase = arm * econ.arm_share + pqf @ econ.mq
         pqf = pbase * (1 + ptax_f)
         pq = pbase * (1 + ptax_a)
@@ -304,7 +334,7 @@ def solve_period(econ: Economy, closure: Closure | None = None,
 
         # --- quantity system
         with np.errstate(divide="ignore", invalid="ignore"):
-            Gp = np.diag(dsh * econ.arm_share / np.maximum(1.0 - econ.exp_share, 1e-12))
+            Gp = np.diag(dsh * econ.arm_share / np.maximum(dom_frac, 1e-12))
         Bm = io_eff @ econ.msh
         M = np.linalg.inv(np.eye(nc) - Bm @ Gp - econ.mq)
         inv_w = econ.inv_dem / max(econ.inv_dem.sum(), 1e-12)
@@ -342,10 +372,10 @@ def solve_period(econ: Economy, closure: Closure | None = None,
 
         arm_q = econ.arm_share * A
         imports = msh_ * arm_q
-        exports = econ.exp_share * Q
+        exports = exp_frac * Q
         fac_dem = (factor_intensity(econ, w, vunit=vunit_eff, aunit=aunit_eff)
                    * (vunit_eff * X)[None, :]).sum(axis=1)
-        trade = float((pm * imports).sum() - (pd_ * exports).sum())
+        trade = float((pm * imports).sum() - (p_exp * exports).sum())
 
         gaps = (fac_dem - supply) / np.maximum(np.abs(supply), 1.0)
         out = [gaps[i] for i in others]
@@ -369,7 +399,7 @@ def solve_period(econ: Economy, closure: Closure | None = None,
             wedge_paid=wedge_paid, wedge_rev=wedge_rev, gov_cost=gov_cost,
             gov_q=gov_q, inv_q=inv_q, savings=savings, fac_dem=fac_dem,
             imports=imports, exports=exports, trade=trade, gaps=gaps,
-            walras=float(gaps[num]), levy=levy, foreign_sav=foreign_sav,
+            walras=float(gaps[num]), levy=levy, foreign_sav=foreign_sav, pe=p_exp,
             real=dict(hh_real=float(p_base_yard @ hh_q.sum(axis=0)),
                       gov_real=float(p_base_yard @ gov_q),
                       inv_real=float(p_base_yard @ inv_q),
@@ -431,7 +461,8 @@ def solve_period(econ: Economy, closure: Closure | None = None,
         savings=state["savings"], wedge_revenue=state["wedge_rev"],
         government_cost=state["gov_cost"], real=state["real"],
         gaps={f: float(g) for f, g in zip(econ.factors, state["gaps"])},
-        walras=state["walras"], residual=res, converged=ok, attempt=label, message=message)
+        walras=state["walras"], residual=res, converged=ok, attempt=label, message=message,
+        pe=state["pe"])
 
 
 # ---------------------------------------------------------------------------

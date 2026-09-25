@@ -56,6 +56,12 @@ def to_jump(econ: Economy, closure: Closure | None = None, scenario: Scenario | 
     """
     closure = closure or Closure()
     sc = scenario or Scenario()
+    if econ.spec.export_rule == "cet":
+        # A réplica escreve as exportações como parcela fixa do produto. Exportar um modelo CET
+        # para ela produziria outra economia, e a comparação acusaria um erro que não existe.
+        raise NotImplementedError(
+            "to_jump ainda não replica export_rule='cet'; a réplica em JuMP usa parcelas fixas "
+            "de exportação.")
     nf, nc, nh, na = econ.n_fac, econ.n_com, econ.n_hh, econ.n_act
     num = econ.numeraire_index
 
@@ -375,11 +381,9 @@ end
 @expression(m, exports[c = 1:nc], expsh[c] * Q[c])
 @expression(m, trade, sum(er * wp[c] * imports[c] for c in 1:nc)
                     - sum(pd[c] * exports[c] for c in 1:nc))
-if d.foreign == "fixed_saving"
-    @constraint(m, trade == tb0)
-else
-    @constraint(m, trade == fsav)
-end
+# A meta da conta corrente É a poupança externa: fixa sob "fixed_saving", incógnita sob
+# "fixed_rate". `trade_balance0` fica no JSON só como registro do ano-base.
+@constraint(m, trade == fsav)
 
 @objective(m, Min, 0.0)
 @printf("variáveis=%d  restrições=%d\n", num_variables(m),

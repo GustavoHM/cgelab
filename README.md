@@ -108,7 +108,7 @@ period.
 
 ## Verification
 
-`pytest` runs 48 tests against three hand-built SAMs whose every entry is written
+`pytest` runs 72 tests against three hand-built SAMs whose every entry is written
 out, so the checks compare the solver with arithmetic rather than with its own
 previous output:
 
@@ -118,6 +118,10 @@ previous output:
 - zero-degree homogeneity in prices, in all three;
 - Walras' law under a shock in **every** closure combination, and at every date
   along a growing path;
+- the same three gates with CET exports, plus the CET revenue identity and an
+  export response that grows with the elasticity;
+- moving foreign saving alone keeps Walras, since it is the single
+  current-account target;
 - wedge revenue recycled equals wedge revenue paid, exactly;
 - group welfare aggregation returning the zero that is there when identical
   households merely migrate between accounts, while the per-account measure

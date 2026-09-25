@@ -7,11 +7,12 @@ e uma inversão de Leontief. Cada uma é uma dedução do autor. Em JuMP nada di
 bloco é uma restrição e o Ipopt encontra o ponto fixo. Um erro na álgebra do Python não pode,
 portanto, ser reproduzido do outro lado por construção.
 
-Roda sobre as três economias de brinquedo do pacote — sem margens, com bloco de margens, e com
-atividade de conta própria —, em cenário-base e com gravame, e em dois fechamentos.
+Roda 16 casos sobre as economias de brinquedo do pacote: sem margens, com bloco de margens, com
+atividade de conta própria, com CET e com instituições (impostos diretos, transferências, remessas,
+capital do governo e do exterior, IED), em cenário-base e com choques, em vários fechamentos.
 
-    julia --project=. -e 'using Pkg; Pkg.instantiate()'
-    python roundtrip_jump.py
+    cd validation && julia --project=. -e 'using Pkg; Pkg.instantiate()' && cd ..
+    python validation/roundtrip_jump.py
 """
 from __future__ import annotations
 

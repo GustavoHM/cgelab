@@ -4,8 +4,8 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "cgekit"
-version = "0.1.0"
-description = "General-purpose toolkit for SAM-based computable general equilibrium models: balancing, calibration, closures, within-period solution, recursive dynamics and welfare."
+version = "0.2.0"
+description = "General-purpose toolkit for SAM-based computable general equilibrium models: balancing, calibration, closures, CET trade, institutions and foreign ownership, recursive dynamics with several capital stocks, and welfare."
 readme = "README.md"
 requires-python = ">=3.10"
 license = {text = "MIT"}
@@ -15,6 +15,8 @@ classifiers = [
     "Programming Language :: Python :: 3",
     "Topic :: Scientific/Engineering",
     "Intended Audience :: Science/Research",
+    "License :: OSI Approved :: MIT License",
+    "Topic :: Scientific/Engineering :: Mathematics",
 ]
 dependencies = [
     "numpy>=1.24",
@@ -23,13 +25,11 @@ dependencies = [
 ]
 
 [project.urls]
-# O pacote mora num subdiretorio do repositorio de pesquisa que o originou; a URL
-# aponta para ele, e nao para a raiz, porque e ali que estao o codigo, os testes e
-# a documentacao. Ao publicar como projeto proprio, trocar por repositorio dedicado
-# e acrescentar o DOI do Zenodo -- uma URL de repositorio nao e referencia arquivavel.
-Homepage = "https://github.com/GustavoHM/cgelab"
-Repository = "https://github.com/GustavoHM/cgelab"
-Issues = "https://github.com/GustavoHM/cgelab/issues"
+Homepage = "https://gustavohm.github.io/cgekit/"
+Documentation = "https://github.com/GustavoHM/cgekit/tree/main/docs"
+Repository = "https://github.com/GustavoHM/cgekit"
+Issues = "https://github.com/GustavoHM/cgekit/issues"
+Changelog = "https://github.com/GustavoHM/cgekit/blob/main/CHANGELOG.md"
 
 [project.optional-dependencies]
 parquet = ["pyarrow>=14"]
@@ -43,7 +43,6 @@ where = ["src"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
-# importlib import mode lets both packages be tested in one run: the
-# default mode keys modules by basename and two suites with a
-# test_calibrate.py would collide.
+# importlib import mode tests the source tree without an install and keeps
+# test modules from colliding with same-named modules elsewhere on the path.
 addopts = "--import-mode=importlib"

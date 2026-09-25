@@ -1,4 +1,15 @@
-.pytest_cache/
+# Python
+__pycache__/
+*.py[cod]
 *.egg-info/
-.DS_Store
+build/
+dist/
+.venv/
+venv/
+.pytest_cache/
+
+# Julia validation output
 validation/out/
+
+# OS
+.DS_Store

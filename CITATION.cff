@@ -1,20 +1,21 @@
 cff-version: 1.2.0
-message: "Se este software for usado numa publicação, cite-o como abaixo."
+message: "If you use this software in a publication, please cite it as below."
 type: software
 title: "cgekit: a general toolkit for SAM-based computable general equilibrium models in Python"
 abstract: >-
-  Social accounting matrix handling and balancing, calibration, configurable nests and closures, within-period solution, recursive dynamics, and welfare measurement, with base-year reproduction, homogeneity and Walras checks built in.
+  Social accounting matrix handling and balancing, calibration, configurable nests and closures, CET and Armington trade, direct taxes, transfers and foreign ownership, within-period solution, recursive dynamics with several capital stocks and FDI, and welfare measurement, with base-year reproduction, homogeneity and Walras checks built in and an independent JuMP replica for validation.
 authors:
   - family-names: "Hoffmann Moreira"
     given-names: "Gustavo"
     email: "gustavo@gakusai.net"
-    # orcid: "https://orcid.org/0000-0000-0000-0000"   # preencha
-version: "0.1.0"
-date-released: "2026-09-09"
+    # orcid: "https://orcid.org/0000-0000-0000-0000"   # fill in
+version: "0.2.0"
+date-released: "2026-09-25"
 license: MIT
-# Preencha ao publicar. Um DOI do Zenodo, obtido ligando o repositório e criando um release,
-# é o que torna a citação estável — uma URL de repositório não é uma referência arquivável.
-repository-code: "https://github.com/GustavoHM/cgelab"
+# A repository URL is not an archivable reference. Connect the repository to Zenodo, cut a
+# release, and add the DOI below; that is what makes the citation stable.
+repository-code: "https://github.com/GustavoHM/cgekit"
+url: "https://gustavohm.github.io/cgekit/"
 # doi: "10.5281/zenodo.XXXXXXX"
 keywords:
   - "computable general equilibrium"

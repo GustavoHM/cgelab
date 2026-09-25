@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>cgekit — modelos de equilíbrio geral computável em Python</title>
-<meta name="description" content="Biblioteca geral para modelos EGC sobre matriz de contabilidade social: balanceamento, calibração, fechamentos, solução por período, dinâmica recursiva e bem-estar.">
+<meta name="description" content="Biblioteca geral para modelos EGC sobre matriz de contabilidade social: balanceamento, calibração, fechamentos, CET, instituições e capital estrangeiro, dinâmica recursiva com vários estoques de capital e bem-estar.">
 <link rel="stylesheet" href="style.css">
 </head>
 <body>
@@ -16,12 +16,15 @@
     padrão a partir dela, resolve cada período, percorre uma trajetória dinâmica recursiva e mede
     bem-estar — com as verificações contábeis que tornam qualquer disso crível já embutidas, em vez
     de deixadas ao usuário.</p>
+    <p class="tag"><a href="https://github.com/GustavoHM/cgekit">github.com/GustavoHM/cgekit</a></p>
     <div class="pills">
       <span class="pill">Python 3.10+</span>
       <span class="pill">numpy, scipy, pandas</span>
       <span class="pill">Walras como verificação</span>
       <span class="pill">5 fechamentos</span>
-      <span class="pill">validado a 1e-13</span>
+      <span class="pill">CET, IED, vários capitais</span>
+      <span class="pill">conferido contra JuMP a 3e-12</span>
+      <span class="pill">MIT · v0.2.0</span>
     </div>
   </div>
 </header>
@@ -59,10 +62,13 @@
 
 <section id="instalar"><div class="wrap">
   <h2>Instalar</h2>
-<pre><code class="plain">pip install -e packages/cgekit
-pip install -e "packages/cgekit[parquet]"    # leitura de MCS em .parquet</code></pre>
+<pre><code class="plain">pip install "cgekit @ git+https://github.com/GustavoHM/cgekit"
+pip install "cgekit[parquet] @ git+https://github.com/GustavoHM/cgekit"   # MCS em .parquet</code></pre>
+  <p>Para desenvolver:</p>
+<pre><code class="plain">git clone https://github.com/GustavoHM/cgekit &amp;&amp; cd cgekit
+pip install -e ".[test]" &amp;&amp; pytest</code></pre>
 <pre><code class="plain">cgekit                       # roda a economia de brinquedo e imprime os diagnósticos
-cgekit data/sam_2021.parquet --sigma-armington 2.0 --sigma-va 0.5</code></pre>
+cgekit minha_mcs.parquet --sigma-armington 2.0 --sigma-va 0.5</code></pre>
 </div></section>
 
 <section id="exemplos"><div class="wrap">
@@ -161,10 +167,72 @@ ck.ev_by_group(ev2, grupos).ev_pct.abs().max()   # ~0 — o zero que de fato est
   migraram. Toda conta precisa estar no mapeamento: descartar uma em silêncio subestimaria o grupo, e
   o erro pareceria um resultado.</p>
 
-  <h3>6. Com a sua própria MCS</h3>
+  <h3>6. Exportações que respondem ao preço mundial</h3>
+<pre><code>import numpy as np
+
+_, econ_cet = toy.build(model_spec=toy.spec(export_rule="cet", sigma_cet=2.0))
+j = econ_cet.commodity("c_ind")
+pe = np.ones(econ_cet.n_com)
+pe[j] = 1.2                                        # o mundo paga 20% mais pela indústria
+
+antes = ck.solve_period(econ_cet)
+depois = ck.solve_period(econ_cet, scenario=ck.Scenario(export_price=pe))
+
+depois.exports[j] / depois.Q[j]    # 0,119: a parcela exportada sobe de 0,100
+depois.pe[j] / depois.pd[j]        # 1,09: exportar agora rende mais que vender em casa
+depois.exchange_rate               # 0,89: o câmbio se valoriza e absorve parte do choque</code></pre>
+  <p>Sob <code>export_rule="cet"</code> o produto se reparte entre mercado interno e exportação ao
+  longo de uma fronteira de transformação, e o preço doméstico é o que faz a receita dessa fronteira
+  igualar o custo unitário. Com participações fixas, o padrão, <code>export_price</code> é recusado
+  em vez de ignorado em silêncio.</p>
+
+  <h3>7. Impostos, transferências e capital estrangeiro</h3>
+<pre><code>import dataclasses
+
+_, econ_i = toy.build_with_institutions()
+econ_i.hh_dtax          # alíquota de imposto direto por domicílio, lida da MCS
+econ_i.fac_row_share    # parcela de cada fator que pertence ao exterior
+econ_i.foreign_sav      # 18: a conta corrente, e não só a balança comercial (10)
+
+cresc = ck.Growth(labour=0.01, tfp=0.01)
+anos = range(2021, 2031)
+ied = ck.run_path(econ_i, years=anos, growth=cresc,
+                  scenario=lambda ano, t: ck.Scenario(fdi={"f_cap": 3.0}))
+doado = ck.run_path(econ_i, years=anos, growth=cresc,
+                    economy=lambda ano, t: dataclasses.replace(
+                        econ_i, foreign_sav=econ_i.foreign_sav + 3.0))
+
+ied[2030].factor_income_abroad &gt; doado[2030].factor_income_abroad   # os lucros saem
+ied[2030].hh_income.sum() &lt; doado[2030].hh_income.sum()             # e a renda local é menor</code></pre>
+  <p>O mesmo fluxo de capital, duas leituras. Como <code>fdi</code>, ele financia investimento e
+  vira capital de propriedade estrangeira, cujo retorno sai pela conta corrente. Como mera poupança
+  externa, o capital fica com os residentes e todo o ganho que produz é creditado a eles. É a
+  diferença entre medir o efeito de um investimento estrangeiro e superestimá-lo.</p>
+
+  <h3>8. Vários estoques de capital e uma tecnologia que muda com o tempo</h3>
+<pre><code>_, econ_k = toy.build_with_specific_capital()     # a indústria usa um capital só dela
+
+g = ck.Growth(capital_factor=("f_cap", "f_kind"),
+              depreciation={"f_cap": 0.05, "f_kind": 0.08},
+              allocation=2.0)                     # o investimento segue o aluguel relativo
+
+def economia(ano, t):                             # a indústria poupa 2% de insumo agrícola ao ano
+    io = econ_k.io.copy()
+    io[econ_k.commodity("c_agr"), econ_k.activity("a_ind")] *= 0.98 ** t
+    return dataclasses.replace(econ_k, io=io)
+
+traj = ck.run_path(econ_k, years=range(2021, 2036), growth=g, economy=economia)
+traj.capital_stock[-1]     # um estoque por fator de capital
+traj.worst_walras          # continua à precisão de máquina</code></pre>
+  <p>Uma mudança que não é preço, tributo nem dotação (a adoção de uma tecnologia, um plano de
+  financiamento) entra pelo argumento <code>economy</code>, que devolve a economia de cada ano. É o
+  que um cenário de transição energética precisa: os coeficientes técnicos mudam, e os blocos de
+  preço e de quantidade continuam vendo a mesma tecnologia.</p>
+
+  <h3>9. Com a sua própria MCS</h3>
   <p>A economia de brinquedo existe para os exemplos rodarem. Com dados seus, o que muda são as duas
   primeiras linhas e o <code>ModelSpec</code>:</p>
-<pre><code class="plain">sam  = ck.SAM.read("dados/sam.parquet")        # ou SAM.from_long(df) / SAM.from_square(df)
+<pre><code class="plain">sam  = ck.SAM.read("minha_mcs.parquet")        # ou SAM.from_long(df) / SAM.from_square(df)
 sam.check_balance()                            # porta dura: nada roda sobre MCS desbalanceada
 
 spec = ck.ModelSpec(
@@ -174,14 +242,15 @@ spec = ck.ModelSpec(
     numeraire_factor="f_lab",         # o mercado dele fica para a lei de Walras
     value_added="ces", sigma_va=0.5,
     sigma_armington=2.0,              # escalar, ou um dicionário por mercadoria
-    export_rule="fixed_shares",       # a elasticidade CET não tem fonte de insumo-produto
+    export_rule="fixed_shares",       # ou "cet": a elasticidade CET não tem fonte de insumo-produto
     household_demand="cobb_douglas",  # ou "les", com o parâmetro de Frisch
     negative_value_added="leontief",  # um excedente operacional negativo é dado, não erro
 )
 econ = ck.calibrate(sam, spec, population={"hh_d1": 8.3e6, "hh_d2": 8.3e6})
 
 assert ck.base_year_reproduction(econ)["ok"]   # não prossiga sem isto
-assert ck.homogeneity_test(econ)["ok"]</code></pre>
+assert ck.homogeneity_test(econ)["ok"]
+econ.diagnostics["unmodelled_flows"]           # células da MCS que o modelo não lê</code></pre>
   <p>Contas são encontradas por prefixo, ou por listas explícitas — que são a escolha mais segura
   numa MCS cuja nomenclatura não é sistemática, já que uma regra de prefixo que perde uma conta em
   silêncio produz um modelo que balanceia e está errado.</p>
@@ -224,39 +293,59 @@ cgekit diagnostics -- Economy(3 activities, 3 commodities, 2 households, 2 facto
     <div class="card"><h4>MCS</h4><p>Leitura em formato longo ou quadrado, verificação de balanço
     como porta dura e RAS que preserva sinais, para as células negativas que MCS reais têm.</p></div>
     <div class="card"><h4>Calibração</h4><p>Coeficientes em preços básicos, bloco de margens,
-    valor adicionado negativo, subsistência LES, atividades de conta própria.</p></div>
+    valor adicionado negativo, subsistência LES, atividades de conta própria, e a lista das células
+    da MCS que o modelo não lê.</p></div>
     <div class="card"><h4>Produção</h4><p>Leontief entre agregado intermediário e valor adicionado,
     com CES, Cobb-Douglas ou Leontief no ninho de fatores.</p></div>
-    <div class="card"><h4>Comércio</h4><p>Armington CES; exportações por participações fixas, com CET
-    disponível como variante de robustez.</p></div>
+    <div class="card"><h4>Comércio</h4><p>Armington CES; exportações por participações fixas ou por
+    CET com preço mundial de exportação.</p></div>
+    <div class="card"><h4>Instituições</h4><p>Impostos diretos, transferências do governo, remessas,
+    renda de fatores do governo e do exterior; a poupança externa é a conta corrente.</p></div>
+    <div class="card"><h4>Dinâmica</h4><p>Recursiva, com um ou vários estoques de capital,
+    investimento repartido pelo retorno, IED que cria capital estrangeiro e economia por ano.</p></div>
     <div class="card"><h4>Fechamentos</h4><p>Investimento, governo e setor externo, cada um com a sua
     variável de ajuste. Cinco combinações testadas.</p></div>
     <div class="card"><h4>Bem-estar</h4><p>VE e VC, com agregação por grupo imune à composição e as
     duas réguas de preço explicitadas.</p></div>
+    <div class="card"><h4>Réplica em JuMP</h4><p>O mesmo equilíbrio escrito como modelo JuMP sem
+    aninhamento, para conferir a álgebra com o Ipopt.</p></div>
   </div>
   <h3>Uma advertência que o padrão codifica</h3>
   <p>A elasticidade de transformação (CET) é o único parâmetro de um EGC padrão que as fontes de
   insumo-produto não fornecem. Fixar participações de exportação mantém esse parâmetro fora do
-  cenário-base por inteiro, de modo que nenhum número de destaque repouse sobre um valor inventado;
-  <code>export_rule="cet"</code> permanece disponível como variante de robustez. É uma posição
-  metodológica, e o padrão a codifica.</p>
+  cenário-base por inteiro, de modo que nenhum número de destaque repouse sobre um valor inventado.
+  <code>export_rule="cet"</code> resolve a fronteira de transformação por inteiro, para quando o
+  exercício precisa que as exportações respondam a preço. É uma posição metodológica, e o padrão a
+  codifica.</p>
 </div></section>
 
 <section id="validacao"><div class="wrap">
   <h2>Validação</h2>
 
-  <h3>48 testes sobre MCS escritas à mão</h3>
-  <p>Três economias de brinquedo com cada entrada escrita no código, de modo que a comparação é
-  contra aritmética e não contra saída anterior: o caso simples, um com bloco de margens de
-  contabilidade nacional (serviços de margem vendidos na coluna de oferta das demais mercadorias,
-  contra uma entrada negativa na própria diagonal) e um com atividade de conta própria. Reprodução do
-  ano-base à precisão de máquina em todos, homogeneidade em todos, Walras sob choque em <em>todas</em>
-  as combinações de fechamento e em cada data ao longo de uma trajetória em crescimento.</p>
+  <h3>97 testes sobre MCS escritas à mão</h3>
+  <p>Seis economias de brinquedo com cada entrada escrita no código, de modo que a comparação é
+  contra aritmética e não contra saída anterior:</p>
+  <ul>
+    <li>o caso simples;</li>
+    <li>um com bloco de margens de contabilidade nacional (serviços de margem vendidos na coluna de
+    oferta das demais mercadorias, contra uma entrada negativa na própria diagonal);</li>
+    <li>um com atividade de conta própria;</li>
+    <li>um com contas gêmeas, para o teste de composição;</li>
+    <li>um com impostos diretos, transferências, remessas e capital do governo e do exterior;</li>
+    <li>um com capital específico de setor.</li>
+  </ul>
+  <p>Os testes cobrem reprodução do ano-base à precisão de máquina, homogeneidade, e Walras sob
+  choque em <em>todas</em> as combinações de fechamento e em cada data de uma trajetória em
+  crescimento. Cobrem também a identidade de receita da CET e a propriedade estrangeira do capital
+  comprado com IED. E todo exemplo executável desta página roda na suíte.</p>
 
   <h3>Uma réplica independente em JuMP</h3>
-  <p>E a trajetória inteira: calibração (20 campos) a <code>3,7e-16</code>, ano-base a
-  <code>1,1e-15</code>, período chocado a <code>1,1e-13</code>, 25 anos de trajetória recursiva a
-  <code>2,2e-13</code>, bem-estar a <code>3,8e-13</code>.</p>
+  <p><code>to_jump</code> escreve o mesmo equilíbrio como modelo JuMP em que nada é aninhado: o
+  ponto fixo de preços, a série da reciclagem e a relação entre poupança e arrecadação são
+  restrições comuns, e o Ipopt as resolve de um ponto de partida deslocado. Em 16 casos (margens,
+  conta própria, CET, impostos diretos, transferências, capital estrangeiro, IED, LES e fechamentos
+  alternativos), os dois resolvedores concordam a no máximo <code>3e-12</code>. Perturbar os dados
+  exportados faz a comparação divergir de 1e-3 a 3e-1, o que mostra que ela enxerga erro.</p>
 </div></section>
 
 <section id="comparacao"><div class="wrap">
@@ -273,7 +362,9 @@ cgekit diagnostics -- Economy(3 activities, 3 commodities, 2 households, 2 facto
       <tr><td>Fechamentos alternativos</td><td>5 combinações</td><td>?</td><td>—</td><td>—</td></tr>
       <tr><td>Walras como verificação, não equação</td><td>sim</td><td>?</td><td>—</td><td>—</td></tr>
       <tr><td>Reprodução do ano-base e homogeneidade automáticas</td><td>sim</td><td>parcial</td><td>—</td><td>—</td></tr>
-      <tr><td>Dinâmica recursiva</td><td>sim</td><td>—</td><td>sim</td><td>—</td></tr>
+      <tr><td>CET resolvida, com preço mundial de exportação</td><td>sim</td><td>?</td><td>sim</td><td>—</td></tr>
+      <tr><td>Impostos diretos, transferências, capital estrangeiro e IED</td><td>sim</td><td>?</td><td>?</td><td>?</td></tr>
+      <tr><td>Dinâmica recursiva</td><td>vários capitais</td><td>—</td><td>sim</td><td>—</td></tr>
       <tr><td>Bem-estar (VE, VC, por grupo)</td><td>sim</td><td>—</td><td>—</td><td>—</td></tr>
     </tbody>
   </table>
@@ -286,9 +377,9 @@ cgekit diagnostics -- Economy(3 activities, 3 commodities, 2 households, 2 facto
   <p>A afirmação defensável do <code>cgekit</code> é estreita: se você quer um EGC de escala aplicada
   <em>em Python</em>, sem licença comercial e com as portarias contábeis embutidas, não achei
   alternativa. Isso não é o mesmo que cobrir o que um GAMS cobre — não há múltiplas regiões, nem
-  estimação de elasticidades, nem trinta anos de uso. A tabela completa, com o que verifiquei lendo
-  código e o que apenas li na documentação, está em
-  <a href="../../COMPARISON.md">COMPARISON.md</a>.</p>
+  estimação de elasticidades, nem trinta anos de uso. A tabela completa, com o que foi verificado
+  lendo código e o que apenas se leu na documentação, está em
+  <a href="https://github.com/GustavoHM/cgekit/blob/main/docs/comparison.md">docs/comparison.md</a>.</p>
 </div></section>
 
 <section id="citar"><div class="wrap">
@@ -302,22 +393,22 @@ cgekit diagnostics -- Economy(3 activities, 3 commodities, 2 households, 2 facto
   author  = {Hoffmann Moreira, Gustavo},
   title   = {{cgekit}: a general toolkit for SAM-based computable general equilibrium models in Python},
   year    = {2026},
-  version = {0.1.0},
+  version = {0.2.0},
   license = {MIT},
-  url     = {https://github.com/USUARIO/REPO},
+  url     = {https://github.com/GustavoHM/cgekit},
   note    = {Pacote em Python}
 }</code></pre>
 
   <h3>ABNT</h3>
 <pre><code class="plain">HOFFMANN MOREIRA, Gustavo. cgekit: a general toolkit for SAM-based computable general equilibrium models in Python.
-Versão 0.1.0. 2026. Software em Python. Disponível em:
-https://github.com/USUARIO/REPO. Acesso em: [data].</code></pre>
+Versão 0.2.0. 2026. Software em Python. Disponível em:
+https://github.com/GustavoHM/cgekit. Acesso em: [data].</code></pre>
 
   <h3>No corpo do texto</h3>
   <p>Cite a versão junto do resultado, não só o nome:</p>
   <blockquote style="border-left:3px solid var(--rule); margin:1rem 0; padding:.2rem 0 .2rem 1.1rem;
-     color:var(--muted)">O modelo foi resolvido com o <code>cgekit</code> 0.1.0
-     (Hoffmann Moreira, 2026), em perturbação de segunda ordem.</blockquote>
+     color:var(--muted)">O modelo foi calibrado e resolvido com o <code>cgekit</code> 0.2.0
+     (Hoffmann Moreira, 2026), em dinâmica recursiva de 2021 a 2045.</blockquote>
 
   <div class="note"><p><strong>Antes de citar, arquive.</strong> Uma URL de repositório não é uma
   referência arquivável: o conteúdo muda e o link morre. Ligue o repositório ao
@@ -326,33 +417,36 @@ https://github.com/USUARIO/REPO. Acesso em: [data].</code></pre>
   preencha ali o DOI e o ORCID, e o botão "Cite this repository" passa a servir a entrada pronta.</p></div>
 
   <h3>E as ferramentas que este pacote usa</h3>
-  <p>Se o seu resultado passou por elas, elas também entram: o
-  <a href="https://www.dynare.org/">Dynare</a> quando o modelo foi exportado ou conferido lá, o
-  <a href="https://github.com/thorek1/MacroModelling.jl">MacroModelling.jl</a> na mesma situação, e
-  <a href="https://numpy.org/citing-numpy/">NumPy</a> e <a href="https://scipy.org/citing-scipy/">SciPy</a>,
-  que pedem citação explicitamente e sustentam tudo o que está aqui.</p>
+  <p><a href="https://numpy.org/citing-numpy/">NumPy</a> e <a href="https://scipy.org/citing-scipy/">SciPy</a>
+  pedem citação explicitamente e sustentam tudo o que está aqui; o
+  <a href="https://pandas.pydata.org/about/citing.html">pandas</a> lê e guarda a MCS. Se o resultado
+  foi conferido pela réplica, entram também o <a href="https://jump.dev/">JuMP</a> e o
+  <a href="https://coin-or.github.io/Ipopt/">Ipopt</a>.</p>
 </div></section>
 
 <section id="docs"><div class="wrap">
   <h2>Documentação</h2>
   <div class="cards">
-    <div class="card"><h4><a href="../docs/guide.md">Guia de uso</a></h4><p>Da MCS ao bem-estar, com
+    <div class="card"><h4><a href="https://github.com/GustavoHM/cgekit/blob/main/docs/guide.md">Guia de uso</a></h4><p>Da MCS ao bem-estar, com
     as armadilhas de cada etapa.</p></div>
-    <div class="card"><h4><a href="../docs/api.md">Referência da API</a></h4><p>Toda função, todo
+    <div class="card"><h4><a href="https://github.com/GustavoHM/cgekit/blob/main/docs/api.md">Referência da API</a></h4><p>Toda função, todo
     campo, toda forma de array.</p></div>
-    <div class="card"><h4><a href="../docs/design-notes.md">Notas de projeto</a></h4><p>As decisões
+    <div class="card"><h4><a href="https://github.com/GustavoHM/cgekit/blob/main/docs/design-notes.md">Notas de projeto</a></h4><p>As decisões
     contábeis e os erros que cada uma evita.</p></div>
-    <div class="card"><h4><a href="../docs/from-scripts.md">Portar um pipeline</a></h4><p>Tabela de
+    <div class="card"><h4><a href="https://github.com/GustavoHM/cgekit/blob/main/docs/from-scripts.md">Portar um pipeline</a></h4><p>Tabela de
     tradução de um solucionador existente para <code>Scenario</code> e <code>Closure</code>.</p></div>
+    <div class="card"><h4><a href="https://github.com/GustavoHM/cgekit/blob/main/docs/comparison.md">Comparação</a></h4><p>Onde o pacote está
+    frente aos outros EGC em Python e ao GAMS, e onde não ganha.</p></div>
+    <div class="card"><h4><a href="https://github.com/GustavoHM/cgekit/blob/main/CHANGELOG.md">Mudanças</a></h4><p>O que mudou de uma
+    versão para outra.</p></div>
   </div>
 </div></section>
 
 </main>
 
 <footer><div class="wrap">
-  <p>cgekit — MIT. Feito para o programa de pesquisa sobre geração distribuída, e não amarrado a
-  ele. <br>Os links da documentação apontam para os arquivos do repositório; ao publicar, veja
-  <code>site/README.md</code>.</p>
+  <p>cgekit 0.2.0 — MIT. Código, documentação e issues em
+  <a href="https://github.com/GustavoHM/cgekit">github.com/GustavoHM/cgekit</a>.</p>
 </div></footer>
 
 <script src="highlight.js"></script>

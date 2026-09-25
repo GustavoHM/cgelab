@@ -263,5 +263,5 @@ on paper and the reproduction test compares the solver against arithmetic.
 
 ```
 cgekit                              # the bundled toy economy plus diagnostics
-cgekit data/processed/sam.parquet --sigma-armington 2.0 --sigma-va 0.5
+cgekit my_sam.parquet --sigma-armington 2.0 --sigma-va 0.5
 ```

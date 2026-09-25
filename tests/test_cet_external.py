@@ -100,9 +100,14 @@ def test_cet_path_keeps_walras_at_every_date():
     assert path.worst_walras < 1e-9
 
 
-def test_to_jump_refuses_cet(tmp_path):
-    with pytest.raises(NotImplementedError, match="cet"):
-        ck.to_jump(cet_economy(), path=tmp_path / "m.jl")
+def test_to_jump_exports_the_cet_block(tmp_path):
+    econ = cet_economy(sigma=3.0)
+    pe = np.array([1.1, 0.9])
+    dados = ck.to_jump(econ, scenario=ck.Scenario(export_price=pe), path=tmp_path / "m.jl")
+    assert dados["cet"] is True
+    assert np.allclose(dados["export_price"], pe)
+    assert np.allclose(dados["sigma_cet"], 3.0)
+    assert "pdom" in (tmp_path / "m.jl").read_text()
 
 
 # ---------------------------------------------------------------------------

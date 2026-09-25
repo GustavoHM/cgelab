@@ -56,24 +56,6 @@ def to_jump(econ: Economy, closure: Closure | None = None, scenario: Scenario | 
     """
     closure = closure or Closure()
     sc = scenario or Scenario()
-    if econ.spec.export_rule == "cet":
-        # A réplica escreve as exportações como parcela fixa do produto. Exportar um modelo CET
-        # para ela produziria outra economia, e a comparação acusaria um erro que não existe.
-        raise NotImplementedError(
-            "to_jump ainda não replica export_rule='cet'; a réplica em JuMP usa parcelas fixas "
-            "de exportação.")
-    nao_replicado = [nome for nome, v in (
-        ("impostos diretos", econ.hh_dtax), ("transferências do governo", econ.hh_gov_transfer),
-        ("transferências do exterior", econ.hh_remit_net),
-        ("renda de fatores do governo", econ.fac_gov_share),
-        ("renda de fatores do exterior", econ.fac_row_share),
-        ("participação estrangeira nos fatores", sc.foreign_factor_share),
-    ) if v is not None and np.any(np.asarray(v) != 0)] + (["IED"] if sc.fdi else [])
-    if nao_replicado:
-        # Mesmo motivo da CET: a réplica não tem esses blocos, e uma réplica que os omite
-        # descreveria outra economia.
-        raise NotImplementedError(
-            "to_jump ainda não replica: " + ", ".join(nao_replicado) + ".")
     nf, nc, nh, na = econ.n_fac, econ.n_com, econ.n_hh, econ.n_act
     num = econ.numeraire_index
 
@@ -88,6 +70,9 @@ def to_jump(econ: Economy, closure: Closure | None = None, scenario: Scenario | 
     Wg = (np.zeros((nh, nc)) if sc.government_wedge is None
           else np.asarray(sc.government_wedge, float))
     transfers = np.zeros(nh) if sc.transfers is None else np.asarray(sc.transfers, float)
+    world_pe = np.ones(nc) if sc.export_price is None else np.asarray(sc.export_price, float)
+    fac_row = (econ.zeros_if_none("fac_row_share", nf) if sc.foreign_factor_share is None
+               else np.asarray(sc.foreign_factor_share, float))
 
     act_scale = np.ones(na)
     for nome, mult in sc.activity_scale.items():
@@ -131,6 +116,9 @@ def to_jump(econ: Economy, closure: Closure | None = None, scenario: Scenario | 
         # comércio e margens
         dom_share=_l(econ.dom_share), arm_share=_l(econ.arm_share),
         exp_share=_l(econ.exp_share), mq=_l(econ.mq), world_price=_l(world_p),
+        cet=bool(econ.spec.export_rule == "cet"), export_price=_l(world_pe),
+        sigma_cet=_l(econ.sigma_cet if econ.sigma_cet is not None
+                     else econ.spec.sigma_cet_vector(econ.coms)),
         # tributos
         ptax_a=_l(ptax_a), ptax_f=_l(ptax_f), ptax_base=_l(econ.ptax), atax=_l(econ.atax * nu),
         # famílias
@@ -152,7 +140,14 @@ def to_jump(econ: Economy, closure: Closure | None = None, scenario: Scenario | 
         act_scale=_l(act_scale), own_account=[bool(b) for b in exog],
         X_exog=_l(X_exog), exog_intermediate=_l(io_eff @ X_exog),
         trade_balance0=float(econ.trade_balance0 * nu),
-        foreign_sav=float(econ.foreign_sav * nu),
+        # a meta externa é a poupança externa do período, IED incluído
+        foreign_sav=float((econ.foreign_sav + float(sum(sc.fdi.values()))) * nu),
+        # instituições: imposto direto, transferências (em unidades do numerário) e a parte da
+        # renda de cada fator que vai ao governo e ao exterior
+        hh_dtax=_l(econ.zeros_if_none("hh_dtax", nh)),
+        gov_transfer=_l(econ.zeros_if_none("hh_gov_transfer", nh) * nu),
+        remit_net=_l(econ.zeros_if_none("hh_remit_net", nh) * nu),
+        fac_gov_share=_l(econ.zeros_if_none("fac_gov_share", nf)), fac_row_share=_l(fac_row),
         # fechamento
         investment=closure.investment, government=closure.government,
         foreign=closure.foreign, exchange_rate=float(closure.exchange_rate),
@@ -205,6 +200,10 @@ sva = vecf(d.sigma_va); sarm = vecf(d.sigma_arm)
 X0 = vecf(d.X0); Q0 = vecf(d.Q0); A0 = vecf(d.A0)
 domsh = vecf(d.dom_share); armsh = vecf(d.arm_share); expsh = vecf(d.exp_share)
 wp = vecf(d.world_price)
+const CET = Bool(d.cet)
+wpe = vecf(d.export_price); scet = vecf(d.sigma_cet)
+dtax = vecf(d.hh_dtax); gov_tr = vecf(d.gov_transfer); remit = vecf(d.remit_net)
+gsh = vecf(d.fac_gov_share); rsh = vecf(d.fac_row_share)
 ptax_a = vecf(d.ptax_a); ptax_f = vecf(d.ptax_f); ptax_b = vecf(d.ptax_base); atax = vecf(d.atax)
 hh_budget = mat(d.hh_budget); beta_les = mat(d.beta_les); gamma = mat(d.hh_committed)
 coef = mat(d.demand_coef); Wt = mat(d.Wt)
@@ -280,6 +279,33 @@ else
 end
 
 @expression(m, pq[c = 1:nc], pbase[c] * (1 + ptax_a[c]))     # preço ao consumidor FINAL
+
+# Preço das vendas DOMÉSTICAS e repartição do produto entre mercado interno e exportação. Sob CET
+# a receita da fronteira iguala o preço ao produtor; sob parcelas fixas, vende-se ao preço do
+# produtor na proporção do ano-base.
+if CET
+    @variable(m, pdom[c = 1:nc] >= 1e-8, start = q("pdom", c, 1.0))
+    for c in 1:nc
+        if 0 < expsh[c] < 1
+            @constraint(m, pd[c]^(1 + scet[c]) == (1 - expsh[c]) * pdom[c]^(1 + scet[c])
+                                                  + expsh[c] * (er * wpe[c])^(1 + scet[c]))
+        else
+            @constraint(m, pdom[c] == pd[c])
+        end
+    end
+    @expression(m, domfrac[c = 1:nc],
+                expsh[c] <= 0 ? 1.0 : expsh[c] >= 1 ? 0.0 :
+                (1 - expsh[c]) * (pdom[c] / pd[c])^scet[c])
+    @expression(m, expfrac[c = 1:nc],
+                expsh[c] <= 0 ? 0.0 : expsh[c] >= 1 ? 1.0 :
+                expsh[c] * (er * wpe[c] / pd[c])^scet[c])
+    @expression(m, pexp[c = 1:nc], er * wpe[c])
+else
+    @expression(m, pdom[c = 1:nc], pd[c])
+    @expression(m, domfrac[c = 1:nc], 1 - expsh[c])
+    @expression(m, expfrac[c = 1:nc], expsh[c])
+    @expression(m, pexp[c = 1:nc], pd[c])
+end
 @expression(m, pqf[c = 1:nc], pbase[c] * (1 + ptax_f[c]))    # preço à FIRMA (parcela não creditável)
 
 # ---- 1. preço do valor adicionado: CES sobre fatores, Leontief onde o excedente é negativo
@@ -303,9 +329,9 @@ end
 
 # ---- 4-5. Armington
 @constraint(m, [c = 1:nc],
-            arm[c]^(1 - sarm[c]) == domsh[c] * pd[c]^(1 - sarm[c])
+            arm[c]^(1 - sarm[c]) == domsh[c] * pdom[c]^(1 - sarm[c])
                                   + (1 - domsh[c]) * (er * wp[c])^(1 - sarm[c]))
-@constraint(m, [c = 1:nc], dsh[c] == domsh[c] * (arm[c] / pd[c])^sarm[c])
+@constraint(m, [c = 1:nc], dsh[c] == domsh[c] * (arm[c] / pdom[c])^sarm[c])
 @constraint(m, [c = 1:nc], mshm[c] == (1 - domsh[c]) * (arm[c] / (er * wp[c]))^sarm[c])
 
 # ---- 6. preço de ENTREGA. As margens são elas mesmas precificadas a preço de entrega, donde o
@@ -319,9 +345,13 @@ end
 # reciclada do gravame pela regra do cenário: são pesos distintos, e trocá-los inverteria o sinal
 # distributivo de um dos dois.
 @constraint(m, [h = 1:nh],
-            hh_income[h] == sum(facshare[h, f] * w[f] * supply[f] for f in 1:nf)
-                          + transfers[h] - levy * popsh[h] + uplift_rev * alpha[h])
-@constraint(m, [h = 1:nh], spend[h] == hh_income[h] * (1 - savrate[h]) - direct[h])
+            hh_income[h] == sum(facshare[h, f] * w[f] * supply[f] * (1 - gsh[f] - rsh[f])
+                              for f in 1:nf)
+                          + transfers[h] - levy * popsh[h] + uplift_rev * alpha[h]
+                          + gov_tr[h] + remit[h])
+# O gasto sai da renda DISPONÍVEL: imposto direto primeiro, poupança depois.
+@constraint(m, [h = 1:nh],
+            spend[h] == hh_income[h] * (1 - dtax[h]) * (1 - savrate[h]) - direct[h])
 
 # O bloco de famílias vai AGREGADO. Os coeficientes `coef = share/(1+W+Wg)` e as frações
 # capturadas `g_cap`, `g_gov` são constantes, calculadas na exportação, de modo que a demanda são
@@ -352,7 +382,11 @@ else
     @expression(m, gov_q[c = 1:nc], gov_dem[c] * nu / pq[c])
 end
 @expression(m, gov_spend, sum(pq[c] * gov_q[c] for c in 1:nc))
-@expression(m, hh_sav, sum(hh_income[h] * savrate[h] for h in 1:nh))
+@expression(m, hh_sav, sum(hh_income[h] * (1 - dtax[h]) * savrate[h] for h in 1:nh))
+# Renda do governo que o bloco tributário não vê: imposto direto e renda de fatores, menos o que
+# ele transfere às famílias.
+@expression(m, gov_inst, sum(hh_income[h] * dtax[h] for h in 1:nh)
+                       + sum(w[f] * supply[f] * gsh[f] for f in 1:nf) - sum(gov_tr))
 
 if d.investment == "savings_driven"
     @expression(m, inv_q[c = 1:nc], inv_w[c] * savings / pqf[c])
@@ -366,7 +400,13 @@ end
             Aabs[c] == sum(Bmat[c, mm] * Q[mm] for mm in 1:nc)
                      + sum(mq[c, mm] * Aabs[mm] for mm in 1:nc)
                      + hh_final[c] + gov_q[c] + inv_q[c] + exog_int[c])
-@constraint(m, [c = 1:nc], Q[c] == dsh[c] * armsh[c] / (1 - expsh[c]) * Aabs[c])
+for c in 1:nc
+    if expsh[c] >= 1
+        @constraint(m, Q[c] == 0)            # sem venda doméstica, como no cgekit
+    else
+        @constraint(m, Q[c] == dsh[c] * armsh[c] / domfrac[c] * Aabs[c])
+    end
+end
 @constraint(m, [j = 1:na], Xraw[j] == sum(msh[j, c] * Q[c] for c in 1:nc))
 @expression(m, X[j = 1:na], own[j] ? X_exog[j] : Xraw[j])
 
@@ -376,7 +416,7 @@ end
             sum(pbase[c] * ((Aabs[c] - fin_c[c]) * ptax_f[c] + fin_c[c] * ptax_a[c])
                 for c in 1:nc)
             + sum(atax[j] * Xraw[j] for j in 1:na))
-@constraint(m, savings == hh_sav + levy + tax_rev - gov_spend - gov_cost + fsav)
+@constraint(m, savings == hh_sav + levy + tax_rev + gov_inst - gov_spend - gov_cost + fsav)
 
 # ---- 10. demanda de fatores
 @expression(m, facint[f = 1:nf, j = 1:na],
@@ -390,12 +430,14 @@ for f in 1:nf
     @constraint(m, facdem[f] == supply[f])
 end
 @expression(m, imports[c = 1:nc], mshm[c] * armsh[c] * Aabs[c])
-@expression(m, exports[c = 1:nc], expsh[c] * Q[c])
+@expression(m, exports[c = 1:nc], expfrac[c] * Q[c])
 @expression(m, trade, sum(er * wp[c] * imports[c] for c in 1:nc)
-                    - sum(pd[c] * exports[c] for c in 1:nc))
-# A meta da conta corrente É a poupança externa: fixa sob "fixed_saving", incógnita sob
-# "fixed_rate". `trade_balance0` fica no JSON só como registro do ano-base.
-@constraint(m, trade == fsav)
+                    - sum(pexp[c] * exports[c] for c in 1:nc))
+# A meta é a CONTA CORRENTE, igual à poupança externa (fixa sob "fixed_saving", incógnita sob
+# "fixed_rate"): balança comercial, mais a renda de fatores paga ao exterior, menos as
+# transferências líquidas recebidas. `trade_balance0` fica no JSON só como registro do ano-base.
+@expression(m, current, trade + sum(w[f] * supply[f] * rsh[f] for f in 1:nf) - sum(remit))
+@constraint(m, current == fsav)
 
 @objective(m, Min, 0.0)
 @printf("variáveis=%d  restrições=%d\n", num_variables(m),
@@ -429,6 +471,7 @@ out = Dict{String,Any}(
     "hh_income" => value.(hh_income), "hh_com_spend" => value.(spend),
     "savings" => value(savings), "uplift_rev" => value(uplift_rev),
     "trade" => value(trade), "facdem" => [value(facdem[f]) for f in 1:nf],
+    "exports" => [value(exports[c]) for c in 1:nc], "pdom" => [value(pdom[c]) for c in 1:nc],
 )
 open(SAIDA, "w") do f
     JSON3.write(f, out)

@@ -15,6 +15,7 @@ atividade de conta própria —, em cenário-base e com gravame, e em dois fecha
 """
 from __future__ import annotations
 
+import dataclasses
 import json
 import os
 import subprocess
@@ -29,7 +30,7 @@ from cgekit.examples import toy
 AQUI = Path(__file__).resolve().parent
 OUT = AQUI / "out"
 CAMPOS = ("w", "er", "pa", "pd", "pbase", "Q", "X", "hh_income", "hh_com_spend",
-          "savings", "uplift_rev")
+          "savings", "uplift_rev", "exports")
 
 
 def _rel(a, b, piso=1.0):
@@ -43,7 +44,7 @@ def _referencia(res) -> dict:
                 pd=list(res.pd), pbase=list(res.pbase), Q=list(res.Q), X=list(res.X),
                 Aabs=list(res.absorption), hh_income=list(res.hh_income),
                 hh_com_spend=list(res.hh_commodity_spend), savings=res.savings,
-                uplift_rev=res.wedge_revenue)
+                uplift_rev=res.wedge_revenue, exports=list(res.exports))
 
 
 def roda_julia(jl: Path, dados: Path, saida: Path, quente: Path | None = None) -> dict:
@@ -97,6 +98,43 @@ def main() -> int:
             f"{etiqueta}_gravame", econ, ck.Closure(),
             ck.Scenario(name="gravame", consumer_wedge=W, wedge_revenue_to="capital",
                         wedge_revenue_factor="f_cap"))
+    # CET: a repartição do produto responde ao preço de exportação
+    _, econ = toy.build(model_spec=toy.spec(export_rule="cet", sigma_cet=2.0))
+    casos["cet_base"] = caso("cet_base", econ, ck.Closure(), None)
+    choque_cet = ck.Scenario(name="cet_choque", export_price=np.array([1.15, 0.9]),
+                             product_tax=econ.ptax * 1.2)
+    casos["cet_choque"] = caso("cet_choque", econ, ck.Closure(), choque_cet)
+    casos["cet_fechamento_alternativo"] = caso(
+        "cet_fechamento_alternativo", econ,
+        ck.Closure(investment="fixed_real", foreign="fixed_rate"), choque_cet)
+
+    # Instituições: imposto direto, transferências, remessas, capital do governo e estrangeiro
+    _, econ = toy.build_with_institutions()
+    casos["instituicoes_base"] = caso("instituicoes_base", econ, ck.Closure(), None)
+    casos["instituicoes_imposto"] = caso(
+        "instituicoes_imposto", dataclasses.replace(econ, hh_dtax=econ.hh_dtax * 1.5),
+        ck.Closure(), ck.Scenario(name="imposto"))
+    fsh = econ.fac_row_share.copy()
+    fsh[econ.factor("f_cap")] = 0.4
+    casos["instituicoes_ied"] = caso(
+        "instituicoes_ied", econ, ck.Closure(),
+        ck.Scenario(name="ied", foreign_factor_share=fsh, fdi={"f_cap": 5.0}))
+    casos["instituicoes_fechamento_alternativo"] = caso(
+        "instituicoes_fechamento_alternativo", econ,
+        ck.Closure(investment="fixed_real", foreign="fixed_rate", government="nominal_fixed"),
+        ck.Scenario(name="tributo", product_tax=econ.ptax * 1.2, foreign_factor_share=fsh))
+    _, econ = toy.build_with_institutions(model_spec=toy.spec(household_demand="les",
+                                                              frisch=-2.0))
+    W = ck.consumer_wedge(econ, {"c_ind": 0.08})
+    casos["instituicoes_les_gravame"] = caso(
+        "instituicoes_les_gravame", econ, ck.Closure(),
+        ck.Scenario(name="gravame", consumer_wedge=W, wedge_revenue_to="capital",
+                    wedge_revenue_factor="f_cap"))
+    _, econ = toy.build_with_institutions(model_spec=toy.spec(export_rule="cet"))
+    casos["instituicoes_cet_ied"] = caso(
+        "instituicoes_cet_ied", econ, ck.Closure(),
+        ck.Scenario(name="cet_ied", export_price=np.array([1.1, 1.0]), fdi={"f_cap": 3.0}))
+
     _, econ = toy.build()
     casos["fechamento_alternativo"] = caso(
         "fechamento_alternativo", econ,

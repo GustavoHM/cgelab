@@ -140,6 +140,19 @@ previous output:
 pip install -e "packages/cgekit[test]" && pytest packages/cgekit
 ```
 
+An independent check of the algebra: `to_jump` writes the same equilibrium as a
+JuMP model in which nothing is nested — the price fixed point, the wedge series
+and the saving–revenue relation are all plain constraints — and Ipopt solves it
+from a displaced start. `validation/roundtrip_jump.py` runs 16 cases (margins,
+own-account activities, CET, direct taxes, transfers, foreign-owned capital, FDI,
+LES, alternative closures) and agrees with the nested solver to at most 3e-12.
+
+```
+cd packages/cgekit/validation
+julia --project=. -e 'using Pkg; Pkg.instantiate()'
+python roundtrip_jump.py                       # or: CGEKIT_RUN_JULIA=1 pytest tests/test_jump_roundtrip.py
+```
+
 ## Citing
 
 If a published result went through this package, cite it — software is a methodological

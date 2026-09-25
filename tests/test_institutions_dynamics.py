@@ -109,9 +109,21 @@ def test_fdi_into_an_unknown_factor_is_refused():
         ck.solve_period(institutions(), scenario=ck.Scenario(fdi={"f_nope": 1.0}))
 
 
-def test_to_jump_refuses_what_the_replica_lacks(tmp_path):
-    with pytest.raises(NotImplementedError, match="impostos diretos"):
-        ck.to_jump(institutions(), path=tmp_path / "m.jl")
+def test_to_jump_exports_the_institutions(tmp_path):
+    econ = institutions()
+    kap = econ.factor("f_cap")
+    share = econ.fac_row_share.copy()
+    share[kap] = 0.4
+    nu = 2.0
+    dados = ck.to_jump(econ, ck.Closure(numeraire=nu),
+                       ck.Scenario(foreign_factor_share=share, fdi={"f_cap": 5.0}),
+                       path=tmp_path / "m.jl")
+    assert np.allclose(dados["hh_dtax"], econ.hh_dtax)
+    assert np.allclose(dados["gov_transfer"], econ.hh_gov_transfer * nu)   # numeraire units
+    assert np.allclose(dados["remit_net"], econ.hh_remit_net * nu)
+    assert np.allclose(dados["fac_row_share"], share)                      # the scenario's
+    assert dados["foreign_sav"] == pytest.approx((econ.foreign_sav + 5.0) * nu)
+    assert "current == fsav" in (tmp_path / "m.jl").read_text()
 
 
 # ---------------------------------------------------------------------------

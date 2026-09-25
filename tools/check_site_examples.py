@@ -1,11 +1,11 @@
 #!/usr/bin/env python
-"""check_site_examples.py — run every code block on the site, in order.
+"""check_site_examples.py — run every code block on the site, page by page, in order.
 
 An example that does not run is worse than no example: it invites the reader to copy something
 broken and suggests the documentation is not checked. This script extracts every
-``<pre><code>`` from ``site/index.html`` and executes it, in page order and in ONE shared
-namespace, because the examples form a narrative in which a block uses what an earlier one
-defined.
+``<pre><code>`` from each language version of the site (``site/index.html`` in English,
+``site/pt-br/index.html`` in Portuguese) and executes it, in page order and in one namespace per
+page, because the examples form a narrative in which a block uses what an earlier one defined.
 
 Blocks marked ``class="plain"`` are skipped on purpose: shell lines, syntax illustrations and
 snippets that need the reader's own data. The mark is what declares them not executable.
@@ -22,11 +22,11 @@ import types
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
-PAGE = ROOT / "site" / "index.html"
+PAGES = {"en": ROOT / "site" / "index.html", "pt-br": ROOT / "site" / "pt-br" / "index.html"}
 BLOCK = re.compile(r'<pre><code(?P<attr>[^>]*)>(?P<src>.*?)</code></pre>', re.S)
 
 
-def blocks(page: Path = PAGE):
+def blocks(page: Path):
     """The page's executable blocks, in order, with HTML escapes undone."""
     text = page.read_text(encoding="utf-8")
     for i, m in enumerate(BLOCK.finditer(text), start=1):
@@ -36,12 +36,12 @@ def blocks(page: Path = PAGE):
         yield i, line, html.unescape(m.group("src")).strip()
 
 
-def run(page: Path = PAGE, verbose: bool = True) -> int:
-    """Execute the blocks; return the number that failed."""
+def run(page: Path, verbose: bool = True) -> int:
+    """Execute one page's blocks in a fresh namespace; return the number that failed."""
     # A real MODULE registered in sys.modules, not a bare dict: `dataclasses` resolves
     # annotations through sys.modules[cls.__module__].__dict__, and an exec in an anonymous dict
     # makes that lookup return None. The example works in a script; the checker was wrong.
-    name = "__cgekit_site_examples__"
+    name = f"__cgekit_site_examples_{page.parent.name}__"
     module = types.ModuleType(name)
     sys.modules[name] = module
     ns = module.__dict__
@@ -64,7 +64,10 @@ def run(page: Path = PAGE, verbose: bool = True) -> int:
 
 
 def main() -> int:
-    failures = run()
+    failures = 0
+    for lang, page in PAGES.items():
+        print(f"\n{lang}: {page.relative_to(ROOT)}")
+        failures += run(page)
     print(f"\n{'every example ran' if failures == 0 else f'{failures} block(s) failed'}")
     return 0 if failures == 0 else 1
 

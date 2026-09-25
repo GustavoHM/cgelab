@@ -139,7 +139,7 @@ period.
 
 ## Verification
 
-`pytest` runs 97 tests against six hand-built SAMs whose every entry is written
+`pytest` runs 99 tests against six hand-built SAMs whose every entry is written
 out, so the checks compare the solver with arithmetic rather than with its own
 previous output:
 

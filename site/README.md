@@ -1,16 +1,24 @@
 # Site do `cgekit`
 
-Página estática de uma só peça, publicada em <https://gustavohm.github.io/cgekit/>. Não usa
-Jekyll, etapa de build nem CDN: são `index.html`, `style.css` e um realçador de sintaxe de trinta
-linhas. Abre num navegador direto do disco.
+Página estática em dois idiomas, publicada em <https://gustavohm.github.io/cgekit/>. Não usa
+Jekyll, etapa de build nem CDN: são duas páginas HTML, `style.css` e um realçador de sintaxe de
+trinta linhas. Abre num navegador direto do disco.
 
 ```
 site/
-  index.html      a página
-  style.css       tema claro e escuro, seguindo a preferência do sistema
-  highlight.js    realce de Python e shell, sem dependências
-  .nojekyll       impede o GitHub de processar a pasta com Jekyll
+  index.html        a página em inglês (padrão)
+  pt-br/index.html  a página em português
+  style.css         tema claro e escuro, seguindo a preferência do sistema
+  highlight.js      realce de Python e shell, sem dependências
+  .nojekyll         impede o GitHub de processar a pasta com Jekyll
 ```
+
+## Os dois idiomas
+
+As duas páginas têm o mesmo conteúdo e os mesmos exemplos. Cada uma tem um seletor de idioma no
+topo e marcações `hreflang` apontando para a outra. Ao mudar uma, mude a outra: o teste
+`test_the_language_versions_have_the_same_examples` falha se o número de exemplos executáveis
+divergir. A seção de citação muda de propósito: ABNT em português, APA em inglês.
 
 ## Publicar
 
@@ -24,8 +32,9 @@ Pages serviria o Markdown como texto puro.
 ## Os exemplos são verificados
 
 Todo bloco de código executável da página é extraído e executado por
-`tools/check_site_examples.py`, na ordem em que aparece e num espaço de nomes compartilhado. Os
-exemplos formam uma narrativa em que um bloco usa o que o anterior definiu.
+`tools/check_site_examples.py`, página por página, na ordem em que aparece e num espaço de nomes
+compartilhado dentro de cada página. Os exemplos formam uma narrativa em que um bloco usa o que o
+anterior definiu.
 
 ```bash
 python tools/check_site_examples.py

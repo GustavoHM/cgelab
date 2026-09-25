@@ -1,265 +1,269 @@
 <!doctype html>
-<html lang="pt-BR">
+<html lang="en">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>cgekit — modelos de equilíbrio geral computável em Python</title>
-<meta name="description" content="Biblioteca geral para modelos EGC sobre matriz de contabilidade social: balanceamento, calibração, fechamentos, CET, instituições e capital estrangeiro, dinâmica recursiva com vários estoques de capital e bem-estar.">
+<title>cgekit — computable general equilibrium models in Python</title>
+<meta name="description" content="A general library for CGE models built on a social accounting matrix: balancing, calibration, closures, CET, institutions and foreign capital, recursive dynamics with several capital stocks, and welfare.">
+<link rel="alternate" hreflang="en" href="https://gustavohm.github.io/cgekit/">
+<link rel="alternate" hreflang="pt-BR" href="https://gustavohm.github.io/cgekit/pt-br/">
+<link rel="alternate" hreflang="x-default" href="https://gustavohm.github.io/cgekit/">
 <link rel="stylesheet" href="style.css">
 </head>
 <body>
 
 <header class="hero">
   <div class="wrap">
+    <p class="lang"><strong>English</strong> · <a href="pt-br/" hreflang="pt-BR" lang="pt-BR">Português</a></p>
     <h1>cgekit</h1>
-    <p class="tag">Você fornece uma matriz de contabilidade social. O pacote calibra um EGC aninhado
-    padrão a partir dela, resolve cada período, percorre uma trajetória dinâmica recursiva e mede
-    bem-estar — com as verificações contábeis que tornam qualquer disso crível já embutidas, em vez
-    de deixadas ao usuário.</p>
+    <p class="tag">You supply a social accounting matrix. The package calibrates a standard nested
+    CGE from it, solves each period, runs a recursive-dynamic path and measures welfare. The
+    accounting checks that make any of it believable are built in rather than left to the user.</p>
     <p class="tag"><a href="https://github.com/GustavoHM/cgekit">github.com/GustavoHM/cgekit</a></p>
     <div class="pills">
       <span class="pill">Python 3.10+</span>
       <span class="pill">numpy, scipy, pandas</span>
-      <span class="pill">Walras como verificação</span>
-      <span class="pill">5 fechamentos</span>
-      <span class="pill">CET, IED, vários capitais</span>
-      <span class="pill">conferido contra JuMP a 3e-12</span>
+      <span class="pill">Walras as a check</span>
+      <span class="pill">5 closures</span>
+      <span class="pill">CET, FDI, several capital stocks</span>
+      <span class="pill">checked against JuMP to 3e-12</span>
       <span class="pill">MIT · v0.2.0</span>
     </div>
   </div>
 </header>
 
 <nav class="toc"><div class="wrap"><ul>
-  <li><a href="#tres">Três objetos</a></li>
-  <li><a href="#instalar">Instalar</a></li>
-  <li><a href="#exemplos">Exemplos</a></li>
-  <li><a href="#portarias">As três portarias</a></li>
-  <li><a href="#caixa">O que tem na caixa</a></li>
-  <li><a href="#validacao">Validação</a></li>
-  <li><a href="#comparacao">Comparação</a></li>
-  <li><a href="#citar">Como citar</a></li>
-  <li><a href="#docs">Documentação</a></li>
+  <li><a href="#objects">Three objects</a></li>
+  <li><a href="#install">Install</a></li>
+  <li><a href="#examples">Examples</a></li>
+  <li><a href="#gates">The three gates</a></li>
+  <li><a href="#box">What is in the box</a></li>
+  <li><a href="#validation">Validation</a></li>
+  <li><a href="#comparison">Comparison</a></li>
+  <li><a href="#cite">Citing</a></li>
+  <li><a href="#docs">Documentation</a></li>
 </ul></div></nav>
 
 <main>
 
-<section id="tres"><div class="wrap">
-  <h2>Três objetos separáveis, e mantê-los assim é o ponto</h2>
+<section id="objects"><div class="wrap">
+  <h2>Three separable objects, and keeping them separable is the point</h2>
   <table>
-    <thead><tr><th>Objeto</th><th>Diz</th></tr></thead>
+    <thead><tr><th>Object</th><th>Says</th></tr></thead>
     <tbody>
-      <tr><td><code>SAM</code></td><td>o que o ano-base <strong>foi</strong></td></tr>
-      <tr><td><code>ModelSpec</code></td><td>o que se <strong>supõe</strong> sobre substituição e forma funcional</td></tr>
-      <tr><td><code>Closure</code></td><td>quais balanços são impostos e <strong>quem se ajusta</strong></td></tr>
+      <tr><td><code>SAM</code></td><td>what the base year <strong>was</strong></td></tr>
+      <tr><td><code>ModelSpec</code></td><td>what is <strong>assumed</strong> about substitution and functional form</td></tr>
+      <tr><td><code>Closure</code></td><td>which balances are imposed and <strong>who adjusts</strong></td></tr>
     </tbody>
   </table>
-  <p>Resultados podem virar nos dois últimos, e por isso eles viajam junto com os resultados em vez
-  de morar num ramo dentro de um solucionador.</p>
-  <div class="note"><p><strong>O mercado do fator numerário não é resolvido.</strong> Fica para a
-  lei de Walras, de sorte que o seu resíduo é uma verificação independente da contabilidade e não
-  uma identidade que se mandou o solucionador satisfazer. É registrado em cada período.</p></div>
+  <p>Results can turn on the last two, so both travel with the results instead of living in a
+  branch inside a solver.</p>
+  <div class="note"><p><strong>The numeraire factor's market is not solved.</strong> It is left to
+  Walras' law, so its residual is an independent check on the accounting rather than an identity
+  the solver was told to satisfy. It is recorded on every period.</p></div>
 </div></section>
 
-<section id="instalar"><div class="wrap">
-  <h2>Instalar</h2>
+<section id="install"><div class="wrap">
+  <h2>Install</h2>
 <pre><code class="plain">pip install "cgekit @ git+https://github.com/GustavoHM/cgekit"
-pip install "cgekit[parquet] @ git+https://github.com/GustavoHM/cgekit"   # MCS em .parquet</code></pre>
-  <p>Para desenvolver:</p>
+pip install "cgekit[parquet] @ git+https://github.com/GustavoHM/cgekit"   # SAMs in .parquet</code></pre>
+  <p>For development:</p>
 <pre><code class="plain">git clone https://github.com/GustavoHM/cgekit &amp;&amp; cd cgekit
 pip install -e ".[test]" &amp;&amp; pytest</code></pre>
-<pre><code class="plain">cgekit                       # roda a economia de brinquedo e imprime os diagnósticos
-cgekit minha_mcs.parquet --sigma-armington 2.0 --sigma-va 0.5</code></pre>
+<pre><code class="plain">cgekit                       # runs the toy economy and prints the diagnostics
+cgekit my_sam.parquet --sigma-armington 2.0 --sigma-va 0.5</code></pre>
 </div></section>
 
-<section id="exemplos"><div class="wrap">
-  <h2>Exemplos</h2>
-  <p class="lede">Todos rodam como estão, logo depois do <code>pip install</code>: usam a economia de
-  brinquedo que vem no pacote, escrita entrada por entrada para que o ano-base seja conhecido no
-  papel. São os mesmos exemplos que a suíte de testes executa.</p>
+<section id="examples"><div class="wrap">
+  <h2>Examples</h2>
+  <p class="lede">All of them run as they are, right after <code>pip install</code>. They use the toy
+  economy shipped with the package, written entry by entry so the base year is known on paper. The
+  test suite runs these same examples.</p>
 
-  <h3>1. Da MCS ao equilíbrio</h3>
+  <h3>1. From the SAM to the equilibrium</h3>
 <pre><code>import cgekit as ck
 from cgekit.examples import toy
 
-sam, econ = toy.build()          # 2 atividades, 2 mercadorias, 2 fatores, 2 domicílios
-print(ck.report(econ))           # ano-base, Walras, homogeneidade
+sam, econ = toy.build()          # 2 activities, 2 commodities, 2 factors, 2 households
+print(ck.report(econ))           # base year, Walras, homogeneity
 
 base = ck.solve_period(econ)
 print(base.summary())
-base.pq                          # preços ao consumidor
-base.X                           # nível de cada atividade
-base.walras                      # o mercado que o solucionador NÃO resolveu</code></pre>
+base.pq                          # consumer prices
+base.X                           # level of each activity
+base.walras                      # the market the solver did NOT solve</code></pre>
 
-  <h3>2. Um contrafactual</h3>
-<pre><code>choque = ck.Scenario(name="tributo +50%", product_tax=econ.ptax * 1.5)
-alt = ck.solve_period(econ, scenario=choque)
+  <h3>2. A counterfactual</h3>
+<pre><code>shock = ck.Scenario(name="tax +50%", product_tax=econ.ptax * 1.5)
+alt = ck.solve_period(econ, scenario=shock)
 
-alt.pq / base.pq - 1                 # variação de preço, mercadoria a mercadoria
-alt.real["hh_real_income"]           # renda real por domicílio
-abs(alt.walras) &lt; 1e-9               # a contabilidade continua fechando</code></pre>
+alt.pq / base.pq - 1                 # price change, commodity by commodity
+alt.real["hh_real_income"]           # real income by household
+abs(alt.walras) &lt; 1e-9               # the accounting still closes</code></pre>
 
-  <h3>3. Um gravame ao consumidor, e a quem volta a receita</h3>
-<pre><code>W = ck.consumer_wedge(econ, {"c_ind": 0.08})       # 8% sobre uma mercadoria
+  <h3>3. A consumer wedge, and who gets the revenue back</h3>
+<pre><code>W = ck.consumer_wedge(econ, {"c_ind": 0.08})       # 8% on one commodity
 
 capital = ck.solve_period(econ, scenario=ck.Scenario(
-    consumer_wedge=W, wedge_revenue_to="capital"))   # devolve por propriedade do capital
+    consumer_wedge=W, wedge_revenue_to="capital"))   # returned by capital ownership
 percap  = ck.solve_period(econ, scenario=ck.Scenario(
-    consumer_wedge=W, wedge_revenue_to="lumpsum"))   # devolve per capita
-meio    = ck.solve_period(econ, scenario=ck.Scenario(
-    consumer_wedge=W, wedge_revenue_to=0.5))         # combinação convexa
+    consumer_wedge=W, wedge_revenue_to="lumpsum"))   # returned per capita
+half    = ck.solve_period(econ, scenario=ck.Scenario(
+    consumer_wedge=W, wedge_revenue_to=0.5))         # a convex combination
 
-capital.hh_income[0] &gt; percap.hh_income[0]           # o domicílio rico em capital ganha
-sum(capital.hh_wedge_paid) == capital.wedge_revenue  # a identidade vale exatamente</code></pre>
-  <div class="note"><p><strong>Isso não é detalhe de implementação.</strong> A propriedade do
-  capital é concentrada no topo: sob <code>"capital"</code> os pobres pagam o gravame nas suas
-  compras e os ricos o recebem como renda, e parte de qualquer regressividade medida é fabricada por
-  essa hipótese. A forma convexa existe para que o achado ganhe magnitude em vez de ser binário —
-  existe em geral um peso em que o gradiente distributivo cruza o zero, e é essa fração que diz se o
-  resultado tem folga.</p></div>
-  <p>A receita reciclada é uma série infinita: creditá-la à renda eleva o gasto, que eleva o gravame,
-  que eleva a renda de novo. A demanda é afim no gasto, logo a série é somada em forma fechada — e
-  iterá-la converge, mas deixa descontinuidades que arruínam a jacobiana do Newton externo.</p>
+capital.hh_income[0] &gt; percap.hh_income[0]           # the capital-rich household gains
+sum(capital.hh_wedge_paid) == capital.wedge_revenue  # the identity holds exactly</code></pre>
+  <div class="note"><p><strong>This is not an implementation detail.</strong> Capital ownership is
+  concentrated at the top. Under <code>"capital"</code> the poor pay the wedge on their purchases
+  and the rich receive it as income, so part of any measured regressivity is manufactured by that
+  assumption. The convex form exists so the finding gets a magnitude instead of being binary: there
+  is generally a weight at which the distributional gradient crosses zero, and that fraction says
+  whether the result has room.</p></div>
+  <p>The recycled revenue is an infinite series. Crediting it to income raises spending, which
+  raises the wedge, which raises income again. Demand is affine in spending, so the series is summed
+  in closed form. Iterating it converges, but leaves discontinuities that wreck the outer Newton's
+  Jacobian.</p>
 
-  <h3>4. Uma trajetória de 25 anos</h3>
-<pre><code>crescimento = ck.Growth(labour=0.005, tfp=0.010,
-                        depreciation=0.05, discount=0.05)
+  <h3>4. A 25-year path</h3>
+<pre><code>growth = ck.Growth(labour=0.005, tfp=0.010,
+                   depreciation=0.05, discount=0.05)
 
-def politica(ano, t):
-    return ck.Scenario(consumer_wedge=W) if ano &gt;= 2026 else ck.Scenario()
+def policy(year, t):
+    return ck.Scenario(consumer_wedge=W) if year &gt;= 2026 else ck.Scenario()
 
-ref = ck.run_path(econ, years=range(2021, 2046), growth=crescimento)
-alt = ck.run_path(econ, years=range(2021, 2046), growth=crescimento, scenario=politica)
+ref = ck.run_path(econ, years=range(2021, 2046), growth=growth)
+alt = ck.run_path(econ, years=range(2021, 2046), growth=growth, scenario=policy)
 
-ref.aggregates()          # preços, absorção real, poupança, Walras — uma linha por ano
-ref.worst_walras          # o número a olhar primeiro
-ref.capital_stock         # estoque, recuperado do custo de uso e não da MCS</code></pre>
-  <p>Um resíduo de Walras que <em>cresce</em> ao longo da trajetória é a assinatura de um coeficiente
-  que o bloco de preços viu e o de quantidades não. É invisível num período isolado e inconfundível
-  num horizonte de vinte e cinco anos.</p>
+ref.aggregates()          # prices, real absorption, saving, Walras: one row per year
+ref.worst_walras          # the number to look at first
+ref.capital_stock         # the stock, recovered from the user cost and not from the SAM</code></pre>
+  <p>A Walras residual that <em>grows</em> along the path is the signature of a coefficient the price
+  block saw and the quantity block did not. It is invisible in a single period and unmistakable over
+  twenty-five years.</p>
 
-  <h3>5. Bem-estar, sem confundir composição com bem-estar</h3>
+  <h3>5. Welfare, without mistaking composition for welfare</h3>
 <pre><code>ev = ck.equivalent_variation(ref, alt)
-ev.ev              # valorado aos preços do cenário de referência
-ev.ev_base         # valorado aos preços do ano-base
-ev.ev_pct_account  # por CONTA — leia a nota abaixo antes de usar</code></pre>
-  <p>Quando domicílios migram entre contas, a medida por conta reporta a migração como bem-estar. A
-  economia de brinquedo tem uma variante com duas contas gêmeas — mesmas preferências, mesma taxa de
-  poupança — justamente para mostrar isso:</p>
-<pre><code>sam, econ2 = toy.build_with_twin_accounts()   # hh_1, e hh_2 partido em hh_2a e hh_2b
+ev.ev              # valued at the reference scenario's prices
+ev.ev_base         # valued at base-year prices
+ev.ev_pct_account  # by ACCOUNT: read the note below before using it</code></pre>
+  <p>When households migrate between accounts, the per-account measure reports the migration as
+  welfare. The toy economy has a variant with two twin accounts (same preferences, same saving
+  rate) precisely to show this:</p>
+<pre><code>sam, econ2 = toy.build_with_twin_accounts()   # hh_1, and hh_2 split into hh_2a and hh_2b
 
-migrado = econ2.hh_facshare.copy()           # move renda entre as gêmeas, sem mudar o total
+moved = econ2.hh_facshare.copy()             # move income between the twins, total unchanged
 a, b = econ2.household("hh_2a"), econ2.household("hh_2b")
 for f in range(econ2.n_fac):
-    tot = migrado[a, f] + migrado[b, f]
-    migrado[a, f], migrado[b, f] = 0.6 * tot, 0.4 * tot
+    tot = moved[a, f] + moved[b, f]
+    moved[a, f], moved[b, f] = 0.6 * tot, 0.4 * tot
 
 r1 = ck.run_path(econ2, years=range(2021, 2024))
 r2 = ck.run_path(econ2, years=range(2021, 2024),
-                 scenario=ck.Scenario(factor_ownership=migrado))
+                 scenario=ck.Scenario(factor_ownership=moved))
 
 ev2 = ck.equivalent_variation(r1, r2)
-ev2.ev_pct_account.abs().max()               # &gt; 5% — composição, reportada como bem-estar
+ev2.ev_pct_account.abs().max()               # &gt; 5%: composition, reported as welfare
 
-grupos = {"hh_1": "g1", "hh_2a": "g2", "hh_2b": "g2"}
-ck.ev_by_group(ev2, grupos).ev_pct.abs().max()   # ~0 — o zero que de fato está lá</code></pre>
-  <p><code>ev_by_group</code> soma rendas reais <em>dentro</em> do grupo antes de dividir, de modo
-  que o conjunto de domicílios somado é o mesmo nos dois cenários e a razão não depende de quantos
-  migraram. Toda conta precisa estar no mapeamento: descartar uma em silêncio subestimaria o grupo, e
-  o erro pareceria um resultado.</p>
+groups = {"hh_1": "g1", "hh_2a": "g2", "hh_2b": "g2"}
+ck.ev_by_group(ev2, groups).ev_pct.abs().max()   # ~0: the zero that is really there</code></pre>
+  <p><code>ev_by_group</code> sums real incomes <em>within</em> the group before dividing, so the set
+  of households summed over is the same in both scenarios and the ratio does not depend on how many
+  migrated. Every account must be in the mapping: dropping one silently would understate the group,
+  and the error would look like a result.</p>
 
-  <h3>6. Exportações que respondem ao preço mundial</h3>
+  <h3>6. Exports that answer to the world price</h3>
 <pre><code>import numpy as np
 
 _, econ_cet = toy.build(model_spec=toy.spec(export_rule="cet", sigma_cet=2.0))
 j = econ_cet.commodity("c_ind")
 pe = np.ones(econ_cet.n_com)
-pe[j] = 1.2                                        # o mundo paga 20% mais pela indústria
+pe[j] = 1.2                                        # the world pays 20% more for industry
 
-antes = ck.solve_period(econ_cet)
-depois = ck.solve_period(econ_cet, scenario=ck.Scenario(export_price=pe))
+before = ck.solve_period(econ_cet)
+after = ck.solve_period(econ_cet, scenario=ck.Scenario(export_price=pe))
 
-depois.exports[j] / depois.Q[j]    # 0,119: a parcela exportada sobe de 0,100
-depois.pe[j] / depois.pd[j]        # 1,09: exportar agora rende mais que vender em casa
-depois.exchange_rate               # 0,89: o câmbio se valoriza e absorve parte do choque</code></pre>
-  <p>Sob <code>export_rule="cet"</code> o produto se reparte entre mercado interno e exportação ao
-  longo de uma fronteira de transformação, e o preço doméstico é o que faz a receita dessa fronteira
-  igualar o custo unitário. Com participações fixas, o padrão, <code>export_price</code> é recusado
-  em vez de ignorado em silêncio.</p>
+after.exports[j] / after.Q[j]    # 0.119: the exported share rises from 0.100
+after.pe[j] / after.pd[j]        # 1.09: exporting now pays more than selling at home
+after.exchange_rate              # 0.89: the currency appreciates and absorbs part of the shock</code></pre>
+  <p>Under <code>export_rule="cet"</code> output splits between the home market and exports along a
+  transformation frontier, and the domestic price is the one at which the frontier's revenue equals
+  unit cost. Under fixed shares, the default, <code>export_price</code> is refused instead of being
+  silently ignored.</p>
 
-  <h3>7. Impostos, transferências e capital estrangeiro</h3>
+  <h3>7. Taxes, transfers and foreign capital</h3>
 <pre><code>import dataclasses
 
 _, econ_i = toy.build_with_institutions()
-econ_i.hh_dtax          # alíquota de imposto direto por domicílio, lida da MCS
-econ_i.fac_row_share    # parcela de cada fator que pertence ao exterior
-econ_i.foreign_sav      # 18: a conta corrente, e não só a balança comercial (10)
+econ_i.hh_dtax          # direct tax rate by household, read from the SAM
+econ_i.fac_row_share    # share of each factor owned abroad
+econ_i.foreign_sav      # 18: the current account, not just the trade balance (10)
 
-cresc = ck.Growth(labour=0.01, tfp=0.01)
-anos = range(2021, 2031)
-ied = ck.run_path(econ_i, years=anos, growth=cresc,
-                  scenario=lambda ano, t: ck.Scenario(fdi={"f_cap": 3.0}))
-doado = ck.run_path(econ_i, years=anos, growth=cresc,
-                    economy=lambda ano, t: dataclasses.replace(
-                        econ_i, foreign_sav=econ_i.foreign_sav + 3.0))
+growth_i = ck.Growth(labour=0.01, tfp=0.01)
+years = range(2021, 2031)
+fdi = ck.run_path(econ_i, years=years, growth=growth_i,
+                  scenario=lambda year, t: ck.Scenario(fdi={"f_cap": 3.0}))
+gift = ck.run_path(econ_i, years=years, growth=growth_i,
+                   economy=lambda year, t: dataclasses.replace(
+                       econ_i, foreign_sav=econ_i.foreign_sav + 3.0))
 
-ied[2030].factor_income_abroad &gt; doado[2030].factor_income_abroad   # os lucros saem
-ied[2030].hh_income.sum() &lt; doado[2030].hh_income.sum()             # e a renda local é menor</code></pre>
-  <p>O mesmo fluxo de capital, duas leituras. Como <code>fdi</code>, ele financia investimento e
-  vira capital de propriedade estrangeira, cujo retorno sai pela conta corrente. Como mera poupança
-  externa, o capital fica com os residentes e todo o ganho que produz é creditado a eles. É a
-  diferença entre medir o efeito de um investimento estrangeiro e superestimá-lo.</p>
+fdi[2030].factor_income_abroad &gt; gift[2030].factor_income_abroad   # the profits leave
+fdi[2030].hh_income.sum() &lt; gift[2030].hh_income.sum()             # and local income is lower</code></pre>
+  <p>The same capital inflow, read two ways. As <code>fdi</code>, it finances investment and becomes
+  foreign-owned capital, whose return leaves through the current account. As plain foreign saving,
+  the capital stays with residents and every gain it produces is credited to them. It is the
+  difference between measuring the effect of a foreign investment and overstating it.</p>
 
-  <h3>8. Vários estoques de capital e uma tecnologia que muda com o tempo</h3>
-<pre><code>_, econ_k = toy.build_with_specific_capital()     # a indústria usa um capital só dela
+  <h3>8. Several capital stocks and a technology that changes over time</h3>
+<pre><code>_, econ_k = toy.build_with_specific_capital()     # industry uses capital of its own
 
 g = ck.Growth(capital_factor=("f_cap", "f_kind"),
               depreciation={"f_cap": 0.05, "f_kind": 0.08},
-              allocation=2.0)                     # o investimento segue o aluguel relativo
+              allocation=2.0)                     # investment follows the relative rent
 
-def economia(ano, t):                             # a indústria poupa 2% de insumo agrícola ao ano
+def economy(year, t):                             # industry saves 2% of farm input a year
     io = econ_k.io.copy()
     io[econ_k.commodity("c_agr"), econ_k.activity("a_ind")] *= 0.98 ** t
     return dataclasses.replace(econ_k, io=io)
 
-traj = ck.run_path(econ_k, years=range(2021, 2036), growth=g, economy=economia)
-traj.capital_stock[-1]     # um estoque por fator de capital
-traj.worst_walras          # continua à precisão de máquina</code></pre>
-  <p>Uma mudança que não é preço, tributo nem dotação (a adoção de uma tecnologia, um plano de
-  financiamento) entra pelo argumento <code>economy</code>, que devolve a economia de cada ano. É o
-  que um cenário de transição energética precisa: os coeficientes técnicos mudam, e os blocos de
-  preço e de quantidade continuam vendo a mesma tecnologia.</p>
+path = ck.run_path(econ_k, years=range(2021, 2036), growth=g, economy=economy)
+path.capital_stock[-1]     # one stock per capital factor
+path.worst_walras          # still at machine precision</code></pre>
+  <p>A change that is not a price, a tax or an endowment (a technology being adopted, a financing
+  plan) enters through the <code>economy</code> argument, which returns each year's economy. That is
+  what an energy-transition scenario needs: the input coefficients change, and the price and
+  quantity blocks keep seeing the same technology.</p>
 
-  <h3>9. Com a sua própria MCS</h3>
-  <p>A economia de brinquedo existe para os exemplos rodarem. Com dados seus, o que muda são as duas
-  primeiras linhas e o <code>ModelSpec</code>:</p>
-<pre><code class="plain">sam  = ck.SAM.read("minha_mcs.parquet")        # ou SAM.from_long(df) / SAM.from_square(df)
-sam.check_balance()                            # porta dura: nada roda sobre MCS desbalanceada
+  <h3>9. With your own SAM</h3>
+  <p>The toy economy exists so the examples run. With your own data, what changes is the first two
+  lines and the <code>ModelSpec</code>:</p>
+<pre><code class="plain">sam  = ck.SAM.read("my_sam.parquet")           # or SAM.from_long(df) / SAM.from_square(df)
+sam.check_balance()                            # a hard gate: nothing runs on an unbalanced SAM
 
 spec = ck.ModelSpec(
     activity_prefix="a_", commodity_prefix="c_", household_prefix="hh_",
     factors=("f_lab", "f_cap"),
     government="gov", investment="s_i", rest_of_world="row",
-    numeraire_factor="f_lab",         # o mercado dele fica para a lei de Walras
+    numeraire_factor="f_lab",         # its market is left to Walras' law
     value_added="ces", sigma_va=0.5,
-    sigma_armington=2.0,              # escalar, ou um dicionário por mercadoria
-    export_rule="fixed_shares",       # ou "cet": a elasticidade CET não tem fonte de insumo-produto
-    household_demand="cobb_douglas",  # ou "les", com o parâmetro de Frisch
-    negative_value_added="leontief",  # um excedente operacional negativo é dado, não erro
+    sigma_armington=2.0,              # a scalar, or a mapping by commodity
+    export_rule="fixed_shares",       # or "cet": input-output sources supply no CET elasticity
+    household_demand="cobb_douglas",  # or "les", with the Frisch parameter
+    negative_value_added="leontief",  # a negative operating surplus is data, not an error
 )
 econ = ck.calibrate(sam, spec, population={"hh_d1": 8.3e6, "hh_d2": 8.3e6})
 
-assert ck.base_year_reproduction(econ)["ok"]   # não prossiga sem isto
+assert ck.base_year_reproduction(econ)["ok"]   # do not go on without this
 assert ck.homogeneity_test(econ)["ok"]
-econ.diagnostics["unmodelled_flows"]           # células da MCS que o modelo não lê</code></pre>
-  <p>Contas são encontradas por prefixo, ou por listas explícitas — que são a escolha mais segura
-  numa MCS cuja nomenclatura não é sistemática, já que uma regra de prefixo que perde uma conta em
-  silêncio produz um modelo que balanceia e está errado.</p>
+econ.diagnostics["unmodelled_flows"]           # SAM cells the model does not read</code></pre>
+  <p>Accounts are found by prefix, or by explicit lists. Explicit lists are the safer choice for a
+  SAM whose naming is not systematic: a prefix rule that silently misses an account produces a model
+  that balances and is wrong.</p>
 </div></section>
 
-<section id="portarias"><div class="wrap">
-  <h2>As três portarias</h2>
-  <p class="lede">Não são formalidades. Um modelo que falha a primeira não está calibrado.</p>
-<pre><code class="plain"># ck.report(econ) em toy.build_with_margins()
+<section id="gates"><div class="wrap">
+  <h2>The three gates</h2>
+  <p class="lede">They are not formalities. A model that fails the first one is not calibrated.</p>
+<pre><code class="plain"># ck.report(econ) on toy.build_with_margins()
 cgekit diagnostics -- Economy(3 activities, 3 commodities, 2 households, 2 factors)
   base-year reproduction : PASS (worst 7.11e-16)
       imports                7.11e-16
@@ -269,124 +273,123 @@ cgekit diagnostics -- Economy(3 activities, 3 commodities, 2 households, 2 facto
   Walras residual        : -2.41e-16 [f_lab]
   price homogeneity      : PASS (worst 3.72e-16)</code></pre>
   <table>
-    <thead><tr><th>Portaria</th><th>O que pega</th></tr></thead>
+    <thead><tr><th>Gate</th><th>What it catches</th></tr></thead>
     <tbody>
-      <tr><td><strong>Reprodução do ano-base</strong></td><td>Sem choque, o modelo tem de devolver a
-      MCS: todo preço em um, toda quantidade no seu valor de base. É o que pega um erro de unidade na
-      calibração — um preço de comprador tratado como preço básico, um tributo lançado sobre a base
-      errada — antes que ele seja absorvido num resultado.</td></tr>
-      <tr><td><strong>Lei de Walras</strong></td><td>Resíduo não nulo significa renda sendo perdida
-      ou fabricada em algum lugar, e o tamanho do vazamento não limita o tamanho do erro que
-      causa.</td></tr>
-      <tr><td><strong>Homogeneidade</strong></td><td>Escalar o numerário tem de deixar toda
-      magnitude real intacta. Falha significa que uma magnitude nominal denominada no numerário ficou
-      presa enquanto o nível de preços se moveu — poupança externa, meta de balança comercial, um
-      tributo específico que entra aditivamente. Cada uma desloca uma alocação real, e nenhuma é
-      visível na saída.</td></tr>
+      <tr><td><strong>Base-year reproduction</strong></td><td>With no shock the model must return the
+      SAM: every price one, every quantity at its base value. This catches a units error in the
+      calibration (a purchaser price treated as a basic price, a tax levied on the wrong base) before
+      it is absorbed into a result.</td></tr>
+      <tr><td><strong>Walras' law</strong></td><td>A nonzero residual means income is being lost or
+      manufactured somewhere, and the size of the leak bounds nothing about the size of the error it
+      causes.</td></tr>
+      <tr><td><strong>Homogeneity</strong></td><td>Scaling the numeraire must leave every real magnitude
+      untouched. A failure means a nominal magnitude denominated in the numeraire was held fixed while
+      the price level moved: foreign saving, a trade-balance target, a specific tax that enters
+      additively. Each shifts a real allocation, and none is visible in the output.</td></tr>
     </tbody>
   </table>
 </div></section>
 
-<section id="caixa"><div class="wrap">
-  <h2>O que tem na caixa</h2>
+<section id="box"><div class="wrap">
+  <h2>What is in the box</h2>
   <div class="cards">
-    <div class="card"><h4>MCS</h4><p>Leitura em formato longo ou quadrado, verificação de balanço
-    como porta dura e RAS que preserva sinais, para as células negativas que MCS reais têm.</p></div>
-    <div class="card"><h4>Calibração</h4><p>Coeficientes em preços básicos, bloco de margens,
-    valor adicionado negativo, subsistência LES, atividades de conta própria, e a lista das células
-    da MCS que o modelo não lê.</p></div>
-    <div class="card"><h4>Produção</h4><p>Leontief entre agregado intermediário e valor adicionado,
-    com CES, Cobb-Douglas ou Leontief no ninho de fatores.</p></div>
-    <div class="card"><h4>Comércio</h4><p>Armington CES; exportações por participações fixas ou por
-    CET com preço mundial de exportação.</p></div>
-    <div class="card"><h4>Instituições</h4><p>Impostos diretos, transferências do governo, remessas,
-    renda de fatores do governo e do exterior; a poupança externa é a conta corrente.</p></div>
-    <div class="card"><h4>Dinâmica</h4><p>Recursiva, com um ou vários estoques de capital,
-    investimento repartido pelo retorno, IED que cria capital estrangeiro e economia por ano.</p></div>
-    <div class="card"><h4>Fechamentos</h4><p>Investimento, governo e setor externo, cada um com a sua
-    variável de ajuste. Cinco combinações testadas.</p></div>
-    <div class="card"><h4>Bem-estar</h4><p>VE e VC, com agregação por grupo imune à composição e as
-    duas réguas de preço explicitadas.</p></div>
-    <div class="card"><h4>Réplica em JuMP</h4><p>O mesmo equilíbrio escrito como modelo JuMP sem
-    aninhamento, para conferir a álgebra com o Ipopt.</p></div>
+    <div class="card"><h4>SAM</h4><p>Read in long or square form, a balance check as a hard gate, and
+    a sign-preserving RAS for the negative cells real SAMs have.</p></div>
+    <div class="card"><h4>Calibration</h4><p>Coefficients at basic prices, margin block, negative
+    value added, LES subsistence, own-account activities, and the list of SAM cells the model does
+    not read.</p></div>
+    <div class="card"><h4>Production</h4><p>Leontief between the intermediate bundle and value added,
+    with CES, Cobb–Douglas or Leontief in the factor nest.</p></div>
+    <div class="card"><h4>Trade</h4><p>Armington CES; exports by fixed shares or by CET with a world
+    export price.</p></div>
+    <div class="card"><h4>Institutions</h4><p>Direct taxes, government transfers, remittances, factor
+    income of government and abroad; foreign saving is the current account.</p></div>
+    <div class="card"><h4>Dynamics</h4><p>Recursive, with one or several capital stocks, investment
+    shared by return, FDI that builds foreign-owned capital, and a per-year economy.</p></div>
+    <div class="card"><h4>Closures</h4><p>Investment, government and the external sector, each with
+    its own adjusting variable. Five combinations tested.</p></div>
+    <div class="card"><h4>Welfare</h4><p>EV and CV, with composition-immune group aggregation and the
+    two price yardsticks made explicit.</p></div>
+    <div class="card"><h4>JuMP replica</h4><p>The same equilibrium written as a JuMP model with no
+    nesting, to check the algebra with Ipopt.</p></div>
   </div>
-  <h3>Uma advertência que o padrão codifica</h3>
-  <p>A elasticidade de transformação (CET) é o único parâmetro de um EGC padrão que as fontes de
-  insumo-produto não fornecem. Fixar participações de exportação mantém esse parâmetro fora do
-  cenário-base por inteiro, de modo que nenhum número de destaque repouse sobre um valor inventado.
-  <code>export_rule="cet"</code> resolve a fronteira de transformação por inteiro, para quando o
-  exercício precisa que as exportações respondam a preço. É uma posição metodológica, e o padrão a
-  codifica.</p>
+  <h3>A caution the default encodes</h3>
+  <p>The transformation elasticity (CET) is the one parameter of a standard CGE that input–output
+  sources do not supply. Fixing export shares keeps it out of the baseline entirely, so no headline
+  number rests on an invented value. <code>export_rule="cet"</code> solves the full transformation
+  frontier for when an exercise needs exports to respond to price. It is a methodological position,
+  and the default encodes it.</p>
 </div></section>
 
-<section id="validacao"><div class="wrap">
-  <h2>Validação</h2>
+<section id="validation"><div class="wrap">
+  <h2>Validation</h2>
 
-  <h3>97 testes sobre MCS escritas à mão</h3>
-  <p>Seis economias de brinquedo com cada entrada escrita no código, de modo que a comparação é
-  contra aritmética e não contra saída anterior:</p>
+  <h3>99 tests on hand-written SAMs</h3>
+  <p>Six toy economies with every entry written in the code, so the comparison is against arithmetic
+  and not against previous output:</p>
   <ul>
-    <li>o caso simples;</li>
-    <li>um com bloco de margens de contabilidade nacional (serviços de margem vendidos na coluna de
-    oferta das demais mercadorias, contra uma entrada negativa na própria diagonal);</li>
-    <li>um com atividade de conta própria;</li>
-    <li>um com contas gêmeas, para o teste de composição;</li>
-    <li>um com impostos diretos, transferências, remessas e capital do governo e do exterior;</li>
-    <li>um com capital específico de setor.</li>
+    <li>the plain case;</li>
+    <li>one with a national-accounts margin block (margin services sold into the supply column of the
+    other commodities, against a negative entry on their own diagonal);</li>
+    <li>one with an own-account activity;</li>
+    <li>one with twin accounts, for the composition test;</li>
+    <li>one with direct taxes, transfers, remittances, and capital owned by government and abroad;</li>
+    <li>one with sector-specific capital.</li>
   </ul>
-  <p>Os testes cobrem reprodução do ano-base à precisão de máquina, homogeneidade, e Walras sob
-  choque em <em>todas</em> as combinações de fechamento e em cada data de uma trajetória em
-  crescimento. Cobrem também a identidade de receita da CET e a propriedade estrangeira do capital
-  comprado com IED. E todo exemplo executável desta página roda na suíte.</p>
+  <p>The tests cover base-year reproduction to machine precision, homogeneity, and Walras under a
+  shock in <em>every</em> closure combination and at every date of a growing path. They also cover
+  the CET revenue identity and the foreign ownership of capital bought with FDI. And every executable
+  example on this page runs in the suite.</p>
 
-  <h3>Uma réplica independente em JuMP</h3>
-  <p><code>to_jump</code> escreve o mesmo equilíbrio como modelo JuMP em que nada é aninhado: o
-  ponto fixo de preços, a série da reciclagem e a relação entre poupança e arrecadação são
-  restrições comuns, e o Ipopt as resolve de um ponto de partida deslocado. Em 16 casos (margens,
-  conta própria, CET, impostos diretos, transferências, capital estrangeiro, IED, LES e fechamentos
-  alternativos), os dois resolvedores concordam a no máximo <code>3e-12</code>. Perturbar os dados
-  exportados faz a comparação divergir de 1e-3 a 3e-1, o que mostra que ela enxerga erro.</p>
+  <h3>An independent JuMP replica</h3>
+  <p><code>to_jump</code> writes the same equilibrium as a JuMP model in which nothing is nested: the
+  price fixed point, the wedge series and the saving–revenue relation are plain constraints, and
+  Ipopt solves them from a displaced start. In 16 cases (margins, own-account activities, CET, direct
+  taxes, transfers, foreign capital, FDI, LES and alternative closures) the two solvers agree to at
+  most <code>3e-12</code>. Perturbing the exported data makes the comparison diverge by 1e-3 to
+  3e-1, which shows it can see an error.</p>
 </div></section>
 
-<section id="comparacao"><div class="wrap">
-  <h2>Como se compara ao que já existe</h2>
-  <p class="lede">Aqui a diferença não é de opinião: é de escala.</p>
+<section id="comparison"><div class="wrap">
+  <h2>How it compares with what exists</h2>
+  <p class="lede">Here the difference is not a matter of opinion: it is one of scale.</p>
   <table>
-    <thead><tr><th>Capacidade</th><th>cgekit</th><th>pycge</th><th>PSLmodels/CGE</th><th>python-cge</th></tr></thead>
+    <thead><tr><th>Capability</th><th>cgekit</th><th>pycge</th><th>PSLmodels/CGE</th><th>python-cge</th></tr></thead>
     <tbody>
-      <tr><td><strong>Escala demonstrada</strong></td><td class="num">MCS aplicada<br>ainda não pública</td><td class="num">didática</td><td class="num">MCS 16×18<br>4 setores</td><td class="num">2 bens</td></tr>
-      <tr><td>Origem</td><td>MCS aplicada</td><td>porte do <code>splcge.gams</code></td><td>Hosoe et al. (2010)</td><td>Hosoe et al., p. 72</td></tr>
-      <tr><td>Bloco de margens de comércio e transporte</td><td>sim</td><td>?</td><td>—</td><td>—</td></tr>
-      <tr><td>Valor adicionado negativo tratado</td><td>sim</td><td>?</td><td>—</td><td>—</td></tr>
-      <tr><td>Atividades de conta própria</td><td>sim</td><td>—</td><td>—</td><td>—</td></tr>
-      <tr><td>Fechamentos alternativos</td><td>5 combinações</td><td>?</td><td>—</td><td>—</td></tr>
-      <tr><td>Walras como verificação, não equação</td><td>sim</td><td>?</td><td>—</td><td>—</td></tr>
-      <tr><td>Reprodução do ano-base e homogeneidade automáticas</td><td>sim</td><td>parcial</td><td>—</td><td>—</td></tr>
-      <tr><td>CET resolvida, com preço mundial de exportação</td><td>sim</td><td>?</td><td>sim</td><td>—</td></tr>
-      <tr><td>Impostos diretos, transferências, capital estrangeiro e IED</td><td>sim</td><td>?</td><td>?</td><td>?</td></tr>
-      <tr><td>Dinâmica recursiva</td><td>vários capitais</td><td>—</td><td>sim</td><td>—</td></tr>
-      <tr><td>Bem-estar (VE, VC, por grupo)</td><td>sim</td><td>—</td><td>—</td><td>—</td></tr>
+      <tr><td><strong>Demonstrated scale</strong></td><td class="num">applied SAM<br>not public yet</td><td class="num">teaching</td><td class="num">16×18 SAM<br>4 sectors</td><td class="num">2 goods</td></tr>
+      <tr><td>Origin</td><td>applied SAM</td><td>port of <code>splcge.gams</code></td><td>Hosoe et al. (2010)</td><td>Hosoe et al., p. 72</td></tr>
+      <tr><td>Trade and transport margin block</td><td>yes</td><td>?</td><td>—</td><td>—</td></tr>
+      <tr><td>Negative value added handled</td><td>yes</td><td>?</td><td>—</td><td>—</td></tr>
+      <tr><td>Own-account activities</td><td>yes</td><td>—</td><td>—</td><td>—</td></tr>
+      <tr><td>Alternative closures</td><td>5 combinations</td><td>?</td><td>—</td><td>—</td></tr>
+      <tr><td>Walras as a check, not an equation</td><td>yes</td><td>?</td><td>—</td><td>—</td></tr>
+      <tr><td>Automatic base-year and homogeneity tests</td><td>yes</td><td>partial</td><td>—</td><td>—</td></tr>
+      <tr><td>CET solved, with a world export price</td><td>yes</td><td>?</td><td>yes</td><td>—</td></tr>
+      <tr><td>Direct taxes, transfers, foreign capital and FDI</td><td>yes</td><td>?</td><td>?</td><td>?</td></tr>
+      <tr><td>Recursive dynamics</td><td>several capital stocks</td><td>—</td><td>yes</td><td>—</td></tr>
+      <tr><td>Welfare (EV, CV, by group)</td><td>yes</td><td>—</td><td>—</td><td>—</td></tr>
     </tbody>
   </table>
-  <div class="note"><p><strong>Quem faz EGC aplicado usa GAMS ou GEMPACK</strong>, e com bons motivos:
-  resolvedores dedicados, comunidade, bases como a GTAP. Os três pacotes de EGC em Python que
-  encontrei são implementações do modelo-texto de Hosoe, Gawana e Hashimoto (2010) ou do
-  <code>splcge</code> da biblioteca do GAMS — dois a quatro setores; o
-  <a href="https://github.com/PSLmodels/CGE">PSLmodels/CGE</a> diz de si mesmo, no README, que é
-  "muito preliminar" e pede que não seja citado.</p></div>
-  <p>A afirmação defensável do <code>cgekit</code> é estreita: se você quer um EGC de escala aplicada
-  <em>em Python</em>, sem licença comercial e com as portarias contábeis embutidas, não achei
-  alternativa. Isso não é o mesmo que cobrir o que um GAMS cobre — não há múltiplas regiões, nem
-  estimação de elasticidades, nem trinta anos de uso. A tabela completa, com o que foi verificado
-  lendo código e o que apenas se leu na documentação, está em
-  <a href="https://github.com/GustavoHM/cgekit/blob/main/docs/comparison.md">docs/comparison.md</a>.</p>
+  <div class="note"><p><strong>Applied CGE work is done in GAMS or GEMPACK</strong>, and for good
+  reasons: dedicated solvers, a community, databases such as GTAP. The three Python CGE packages
+  found are implementations of the textbook model of Hosoe, Gawana and Hashimoto (2010) or of the
+  GAMS library's <code>splcge</code>, with two to four sectors. The
+  <a href="https://github.com/PSLmodels/CGE">PSLmodels/CGE</a> README calls it "very preliminary"
+  and asks not to be cited.</p></div>
+  <p>The defensible claim for <code>cgekit</code> is narrow: for an applied-scale CGE <em>in
+  Python</em>, with no commercial licence and with the accounting gates built in, no alternative was
+  found. That is not the same as covering what GAMS covers: there are no multiple regions, no
+  estimation of elasticities, and no thirty years of use. The full table, marking what was verified
+  by reading code and what was only read in documentation, is in
+  <a href="https://github.com/GustavoHM/cgekit/blob/main/docs/comparison.md">docs/comparison.md</a>
+  (in Portuguese).</p>
 </div></section>
 
-<section id="citar"><div class="wrap">
-  <h2>Como citar</h2>
-  <p class="lede">Se o pacote entrou num resultado publicado, ele entra nas referências. Software é
-  um insumo metodológico como qualquer outro, e a versão importa: um número que só se reproduz numa
-  versão específica não é reproduzível sem ela.</p>
+<section id="cite"><div class="wrap">
+  <h2>Citing</h2>
+  <p class="lede">If the package went into a published result, it goes into the references. Software
+  is a methodological input like any other, and the version matters: a number that only reproduces
+  under one version is not reproducible without it.</p>
 
   <h3>BibTeX</h3>
 <pre><code class="plain">@software{cgekit_2026,
@@ -396,56 +399,56 @@ cgekit diagnostics -- Economy(3 activities, 3 commodities, 2 households, 2 facto
   version = {0.2.0},
   license = {MIT},
   url     = {https://github.com/GustavoHM/cgekit},
-  note    = {Pacote em Python}
+  note    = {Python package}
 }</code></pre>
 
-  <h3>ABNT</h3>
-<pre><code class="plain">MOREIRA, Gustavo Hoffmann. cgekit: a general toolkit for SAM-based computable general equilibrium models in Python.
-Versão 0.2.0. 2026. Software em Python. Disponível em:
-https://github.com/GustavoHM/cgekit. Acesso em: [data].</code></pre>
+  <h3>APA</h3>
+<pre><code class="plain">Moreira, G. H. (2026). cgekit: A general toolkit for SAM-based computable general equilibrium
+models in Python (Version 0.2.0) [Computer software]. https://github.com/GustavoHM/cgekit</code></pre>
 
-  <h3>No corpo do texto</h3>
-  <p>Cite a versão junto do resultado, não só o nome:</p>
+  <h3>In the text</h3>
+  <p>Cite the version next to the result, not only the name:</p>
   <blockquote style="border-left:3px solid var(--rule); margin:1rem 0; padding:.2rem 0 .2rem 1.1rem;
-     color:var(--muted)">O modelo foi calibrado e resolvido com o <code>cgekit</code> 0.2.0
-     (Moreira, 2026), em dinâmica recursiva de 2021 a 2045.</blockquote>
+     color:var(--muted)">The model was calibrated and solved with <code>cgekit</code> 0.2.0
+     (Moreira, 2026), as a recursive-dynamic path from 2021 to 2045.</blockquote>
 
-  <div class="note"><p><strong>Antes de citar, arquive.</strong> Uma URL de repositório não é uma
-  referência arquivável: o conteúdo muda e o link morre. Ligue o repositório ao
-  <a href="https://zenodo.org/">Zenodo</a>, crie um <em>release</em>, e o DOI que sai daí é o que se
-  cita. O arquivo <code>CITATION.cff</code> na raiz do pacote já está no formato que o GitHub lê —
-  preencha ali o DOI e o ORCID, e o botão "Cite this repository" passa a servir a entrada pronta.</p></div>
+  <div class="note"><p><strong>Archive before citing.</strong> A repository URL is not an archivable
+  reference: the content changes and the link dies. Connect the repository to
+  <a href="https://zenodo.org/">Zenodo</a>, cut a <em>release</em>, and cite the DOI that comes out
+  of it. The <code>CITATION.cff</code> file at the package root is already in the format GitHub
+  reads: fill in the DOI and ORCID there, and the "Cite this repository" button serves the entry.</p></div>
 
-  <h3>E as ferramentas que este pacote usa</h3>
-  <p><a href="https://numpy.org/citing-numpy/">NumPy</a> e <a href="https://scipy.org/citing-scipy/">SciPy</a>
-  pedem citação explicitamente e sustentam tudo o que está aqui; o
-  <a href="https://pandas.pydata.org/about/citing.html">pandas</a> lê e guarda a MCS. Se o resultado
-  foi conferido pela réplica, entram também o <a href="https://jump.dev/">JuMP</a> e o
-  <a href="https://coin-or.github.io/Ipopt/">Ipopt</a>.</p>
+  <h3>And the tools this package uses</h3>
+  <p><a href="https://numpy.org/citing-numpy/">NumPy</a> and <a href="https://scipy.org/citing-scipy/">SciPy</a>
+  ask to be cited and carry everything here; <a href="https://pandas.pydata.org/about/citing.html">pandas</a>
+  reads and holds the SAM. If the result was checked with the replica, <a href="https://jump.dev/">JuMP</a>
+  and <a href="https://coin-or.github.io/Ipopt/">Ipopt</a> go in as well.</p>
 </div></section>
 
 <section id="docs"><div class="wrap">
-  <h2>Documentação</h2>
+  <h2>Documentation</h2>
   <div class="cards">
-    <div class="card"><h4><a href="https://github.com/GustavoHM/cgekit/blob/main/docs/guide.md">Guia de uso</a></h4><p>Da MCS ao bem-estar, com
-    as armadilhas de cada etapa.</p></div>
-    <div class="card"><h4><a href="https://github.com/GustavoHM/cgekit/blob/main/docs/api.md">Referência da API</a></h4><p>Toda função, todo
-    campo, toda forma de array.</p></div>
-    <div class="card"><h4><a href="https://github.com/GustavoHM/cgekit/blob/main/docs/design-notes.md">Notas de projeto</a></h4><p>As decisões
-    contábeis e os erros que cada uma evita.</p></div>
-    <div class="card"><h4><a href="https://github.com/GustavoHM/cgekit/blob/main/docs/from-scripts.md">Portar um pipeline</a></h4><p>Tabela de
-    tradução de um solucionador existente para <code>Scenario</code> e <code>Closure</code>.</p></div>
-    <div class="card"><h4><a href="https://github.com/GustavoHM/cgekit/blob/main/docs/comparison.md">Comparação</a></h4><p>Onde o pacote está
-    frente aos outros EGC em Python e ao GAMS, e onde não ganha.</p></div>
-    <div class="card"><h4><a href="https://github.com/GustavoHM/cgekit/blob/main/CHANGELOG.md">Mudanças</a></h4><p>O que mudou de uma
-    versão para outra.</p></div>
+    <div class="card"><h4><a href="https://github.com/GustavoHM/cgekit/blob/main/docs/guide.md">User guide</a></h4><p>From the SAM to
+    welfare, with the traps at each step.</p></div>
+    <div class="card"><h4><a href="https://github.com/GustavoHM/cgekit/blob/main/docs/api.md">API reference</a></h4><p>Every function,
+    every field, every array shape.</p></div>
+    <div class="card"><h4><a href="https://github.com/GustavoHM/cgekit/blob/main/docs/design-notes.md">Design notes</a></h4><p>The
+    accounting decisions and the errors each one prevents.</p></div>
+    <div class="card"><h4><a href="https://github.com/GustavoHM/cgekit/blob/main/docs/from-scripts.md">Porting a pipeline</a></h4><p>A
+    translation table from an existing solver to <code>Scenario</code> and <code>Closure</code>.</p></div>
+    <div class="card"><h4><a href="https://github.com/GustavoHM/cgekit/blob/main/docs/comparison.md">Comparison</a></h4><p>Where the
+    package stands against other Python CGEs and GAMS, and where it does not win (in Portuguese).</p></div>
+    <div class="card"><h4><a href="https://github.com/GustavoHM/cgekit/blob/main/CHANGELOG.md">Changelog</a></h4><p>What changed from
+    one version to the next.</p></div>
+    <div class="card"><h4><a href="https://github.com/GustavoHM/cgekit/blob/main/ROADMAP.md">Roadmap</a></h4><p>What is still
+    missing, and why it matters.</p></div>
   </div>
 </div></section>
 
 </main>
 
 <footer><div class="wrap">
-  <p>cgekit 0.2.0 — MIT. Código, documentação e issues em
+  <p>cgekit 0.2.0 — MIT. Code, documentation and issues at
   <a href="https://github.com/GustavoHM/cgekit">github.com/GustavoHM/cgekit</a>.</p>
 </div></footer>
 

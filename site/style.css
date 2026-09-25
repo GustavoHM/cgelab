@@ -29,6 +29,8 @@ body {
 header.hero { border-bottom: 1px solid var(--rule); padding: 4rem 0 3rem; }
 .hero h1 { font: 700 3rem/1.05 var(--serif); margin: 0 0 .5rem; letter-spacing: -.02em; }
 .hero .tag { font-size: 1.2rem; color: var(--muted); max-width: 40rem; margin: 0 0 1.5rem; }
+.hero .lang { font-size: .85rem; color: var(--muted); margin: 0 0 1.5rem; }
+.hero .lang a { color: var(--muted); }
 .hero .pills { display: flex; flex-wrap: wrap; gap: .5rem; }
 .pill {
   font: 500 .8rem var(--sans); padding: .25rem .7rem; border-radius: 999px;

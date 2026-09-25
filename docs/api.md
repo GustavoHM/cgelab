@@ -89,6 +89,10 @@ Ordered name lists `acts`, `coms`, `hhs`, `factors`; counts `n_act`, `n_com`,
 | `fac_supply` | `(nf,)` | factor endowments |
 | `foreign_sav` | scalar | foreign saving, and so the current-account target under `foreign="fixed_saving"`: the one field to move |
 | `trade_balance0` | scalar | base-year trade balance, a record only; the solver does not read it |
+| `hh_dtax` | `(nh,)` | direct tax rate on gross income (`gov <- hh`) |
+| `hh_gov_transfer`, `hh_remit_net` | `(nh,)` | transfers from government; net transfers from abroad; numeraire units |
+| `fac_gov_share`, `fac_row_share` | `(nf,)` | share of each factor's income paid to government and abroad |
+| `hh_gross0`, `hh_spend0` | `(nh,)` | base gross income (net of transfers sent abroad); base commodity spending |
 | `sigma_cet` | `(nc,)` | CET elasticities, read under `export_rule="cet"` |
 | `diagnostics` | dict | negative-value-added activities and treatment, own-account list |
 
@@ -119,6 +123,8 @@ Properties: `solves_exchange_rate`, `describe()`.
 | `government_absorbs` | scalar | cost charged to the budget |
 | `world_price` | `(nc,)` | import price multipliers |
 | `export_price` | `(nc,)` | world export price multipliers; `export_rule="cet"` only, refused otherwise |
+| `foreign_factor_share` | `(nf,)` | share of each factor owned abroad, overriding the SAM's; `run_path` sets it from the capital it tracks |
+| `fdi` | mapping | `{capital factor: amount}` in numeraire units: raises foreign saving, and `run_path` adds the capital it buys to the foreign-owned stock |
 
 `sc.with_(**changes)` returns a copy with fields replaced.
 
@@ -145,6 +151,7 @@ that finances the fixed investment.
 | `factor_prices`, `exchange_rate`, `z` | the solved unknowns |
 | `pa`, `pd`, `pq`, `pqf`, `pbase` | activity, domestic, consumer, firm and pre-tax commodity prices |
 | `pe` | price received for exports: `exchange_rate × export_price` under CET, `pd` under fixed shares |
+| `hh_direct_tax`, `factor_income_abroad`, `foreign_saving` | direct tax by household; factor income paid abroad; the period's foreign saving, FDI included |
 | `Q`, `X`, `absorption`, `imports`, `exports` | the quantity system |
 | `hh_quantity`, `hh_income`, `hh_commodity_spend`, `hh_direct_outlay`, `hh_wedge_paid` | the household block |
 | `gov_quantity`, `investment_quantity`, `savings`, `factor_demand` | the rest of final demand |
@@ -178,19 +185,27 @@ caused it.
 
 ## Dynamics
 
-### `Growth(labour=0.0, tfp=0.0, depreciation=0.05, discount=0.05, labour_factor="f_lab", capital_factor="f_cap")`
+### `Growth(labour=0.0, tfp=0.0, depreciation=0.05, discount=0.05, labour_factor="f_lab", capital_factor="f_cap", allocation="proportional")`
 
+`capital_factor` is one factor or a sequence of them, each accumulated from its
+own service flow; `depreciation` is a rate or a mapping by capital factor.
+`allocation` shares domestic investment among them: `"proportional"` to the
+stocks, or a number `e` making shares proportional to `K_k (r_k / r_mean)^e`.
 `user_cost` is `discount + depreciation`, the rate that converts the SAM's
 capital service flow into a stock.
 
-### `run_path(econ, closure=None, *, years, scenario=None, growth=None, raise_on_fail=True) -> PathResult`
+### `run_path(econ, closure=None, *, years, scenario=None, growth=None, economy=None, raise_on_fail=True) -> PathResult`
 
 `scenario` is a single `Scenario` or `f(year, index) -> Scenario`. Factor supplies
-set inside a per-year scenario override the accumulated ones.
+set inside a per-year scenario override the accumulated ones. `economy` is
+`f(year, index) -> Economy`, for changes that are not scenario fields (input
+coefficients, foreign saving, transfer rules); it must keep the accounts of
+`econ`, e.g. `dataclasses.replace(econ, io=...)`.
 
 ### `PathResult`
 
-`years`, `periods`, `capital_stock`, `converged`, `worst_walras`;
+`years`, `periods`, `capital_stock` (`(T,)`, or `(T, k)` with several capital
+factors), `foreign_capital` (same shape), `capital_factors`, `converged`, `worst_walras`;
 `path[year]` gives the `PeriodResult`;
 `aggregates()`, `households()`, `commodity(name)` return tidy frames.
 
@@ -236,6 +251,8 @@ sam, econ = toy.build()                        # two sectors, no margins
 sam, econ = toy.build_with_margins()           # national-accounts margin block
 sam, econ = toy.build_with_own_production()    # an activity selling to households
 sam, econ = toy.build_with_twin_accounts()     # identical accounts, for composition tests
+sam, econ = toy.build_with_institutions()      # direct taxes, transfers, remittances, foreign capital
+sam, econ = toy.build_with_specific_capital()  # industry on a capital factor of its own
 spec = toy.spec(household_demand="les", frisch=-2.0)
 ```
 

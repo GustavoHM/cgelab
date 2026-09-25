@@ -114,6 +114,9 @@ class PeriodResult:
     attempt: str = ""
     message: str = ""
     pe: np.ndarray | None = None      # price received for exports
+    hh_direct_tax: np.ndarray | None = None     # direct tax paid, by household
+    factor_income_abroad: float = 0.0           # factor income paid to the rest of the world
+    foreign_saving: float = 0.0                 # the period's foreign saving (FDI included)
 
     def price(self, commodity: str) -> float:
         return float(self.pq[self.econ.commodity(commodity)])
@@ -184,6 +187,15 @@ def solve_period(econ: Economy, closure: Closure | None = None,
           else np.asarray(sc.government_wedge, float))
     Wt = W + Wg
     base_transfers = np.zeros(nh) if sc.transfers is None else np.asarray(sc.transfers, float)
+    dtax = econ.zeros_if_none("hh_dtax", nh)
+    fac_gov_sh = econ.zeros_if_none("fac_gov_share", nf)
+    fac_row_sh = (econ.zeros_if_none("fac_row_share", nf) if sc.foreign_factor_share is None
+                  else np.asarray(sc.foreign_factor_share, float))
+    if np.any(fac_gov_sh + fac_row_sh > 1.0 + 1e-12) or np.any(fac_row_sh < 0):
+        raise ValueError("factor shares paid to government and abroad must lie in [0, 1] "
+                         "and sum to at most one for every factor")
+    for f in sc.fdi:
+        econ.factor(f)                    # a KeyError naming the factor, not a silent no-op
 
     # Own-account activities are exogenous by construction, at their base level
     # unless a scenario scales them: they are absent from the commodity balance,
@@ -206,7 +218,10 @@ def solve_period(econ: Economy, closure: Closure | None = None,
     # field. `trade_balance0` stays on the Economy as the base-year record, but a
     # scenario that moved `foreign_sav` alone used to leave the target at its old
     # value, and the gap surfaced as a Walras residual.
-    trade_target = econ.foreign_sav * nu
+    # FDI is foreign saving that arrives this period, so it is part of the target.
+    trade_target = (econ.foreign_sav + float(sum(sc.fdi.values()))) * nu
+    gov_tr = econ.zeros_if_none("hh_gov_transfer", nh) * nu     # fixed in numeraire units,
+    remit = econ.zeros_if_none("hh_remit_net", nh) * nu         # like foreign saving
     atax = econ.atax * nu
     ext_scale = max(abs(trade_target), 1.0)
     sav_scale = max(abs(float(econ.inv_dem.sum())) * nu, 1.0)
@@ -240,7 +255,7 @@ def solve_period(econ: Economy, closure: Closure | None = None,
             w[i] = nu * float(np.exp(z[k]))
         if closure.solves_exchange_rate:
             er = float(np.exp(z[i_ext]))
-            foreign_sav = econ.foreign_sav * nu
+            foreign_sav = trade_target
         else:
             er = closure.exchange_rate
             foreign_sav = trade_target + float(z[i_ext]) * ext_scale
@@ -279,8 +294,11 @@ def solve_period(econ: Economy, closure: Closure | None = None,
         pq = pbase * (1 + ptax_a)
 
         # --- household budgets, with the wedge recycled in closed form
-        transfers = base_transfers - levy * econ.pop_share
-        base_income = facshare @ (w * supply) + transfers
+        transfers = base_transfers - levy * econ.pop_share + gov_tr + remit
+        fac_inc = w * supply
+        gov_fac = float(fac_inc @ fac_gov_sh)
+        row_fac = float(fac_inc @ fac_row_sh)
+        base_income = facshare @ (fac_inc * (1.0 - fac_gov_sh - fac_row_sh)) + transfers
         direct = econ.hh_direct @ (pa * act_scale)
         eff_p = pq[None, :] * (1.0 + Wt)
         gamma = econ.hh_committed
@@ -300,7 +318,7 @@ def solve_period(econ: Economy, closure: Closure | None = None,
         A_cap = (gamma * W * pq[None, :]).sum(axis=1) - B_cap * committed_value
         A_gov = (gamma * Wg * pq[None, :]).sum(axis=1) - B_gov * committed_value
 
-        net = 1.0 - econ.hh_savrate
+        net = (1.0 - dtax) * (1.0 - econ.hh_savrate)
         const_spend = base_income * net - direct
         denom = 1.0 - float((B_cap * net * alpha_recycle).sum())
         wedge_rev = ((A_cap.sum() + float((B_cap * const_spend).sum())) / denom
@@ -330,7 +348,11 @@ def solve_period(econ: Economy, closure: Closure | None = None,
         else:
             gov_q = econ.gov_dem * nu / np.maximum(pq, 1e-12)
         gov_spend = float(pq @ gov_q)
-        hh_sav = float((hh_income * econ.hh_savrate).sum())
+        hh_dtax_paid = hh_income * dtax
+        hh_sav = float(((hh_income - hh_dtax_paid) * econ.hh_savrate).sum())
+        # Government income the tax block does not see: direct taxes and its own
+        # factor income, net of what it transfers to households.
+        gov_inst = float(hh_dtax_paid.sum()) + gov_fac - float(gov_tr.sum())
 
         # --- quantity system
         with np.errstate(divide="ignore", invalid="ignore"):
@@ -355,7 +377,7 @@ def solve_period(econ: Economy, closure: Closure | None = None,
             A_slope = M @ (inv_w / np.maximum(pqf, 1e-12))
             c1 = (float((pbase * A_slope * ptax_f).sum())
                   + float((atax * (econ.msh @ (Gp @ A_slope))).sum()))
-            c0 = hh_sav + levy + tax_of(A_const) - gov_spend - gov_cost + foreign_sav
+            c0 = hh_sav + levy + tax_of(A_const) + gov_inst - gov_spend - gov_cost + foreign_sav
             savings = c0 / (1.0 - c1)
             inv_q = inv_w * savings / np.maximum(pqf, 1e-12)
             A = M @ (fin_c + other_fixed + inv_q)
@@ -363,7 +385,8 @@ def solve_period(econ: Economy, closure: Closure | None = None,
             inv_q = econ.inv_dem / (1.0 + econ.ptax)      # fixed in QUANTITIES
             A = M @ (fin_c + other_fixed + inv_q)
             required = float(pqf @ inv_q)
-            available = (hh_sav + levy + tax_of(A) - gov_spend - gov_cost + foreign_sav)
+            available = (hh_sav + levy + tax_of(A) + gov_inst - gov_spend - gov_cost
+                         + foreign_sav)
             savings = required
             sav_gap = (available - required) / sav_scale
 
@@ -376,17 +399,21 @@ def solve_period(econ: Economy, closure: Closure | None = None,
         fac_dem = (factor_intensity(econ, w, vunit=vunit_eff, aunit=aunit_eff)
                    * (vunit_eff * X)[None, :]).sum(axis=1)
         trade = float((pm * imports).sum() - (p_exp * exports).sum())
+        # The current account: trade plus factor income paid abroad, less net
+        # transfers received from abroad. It is this, not trade alone, that
+        # foreign saving finances.
+        current = trade + row_fac - float(remit.sum())
 
         gaps = (fac_dem - supply) / np.maximum(np.abs(supply), 1.0)
         out = [gaps[i] for i in others]
         if closure.solves_exchange_rate:
-            out.append((trade - trade_target) / ext_scale)
+            out.append((current - trade_target) / ext_scale)
         else:
             # The exchange rate is exogenous, so the current account is whatever
             # it turns out to be and foreign saving must equal it. Holding
             # foreign saving at its base value instead leaves the shortfall
             # nowhere, and it surfaces as a Walras residual.
-            out.append((trade - foreign_sav) / ext_scale)
+            out.append((current - foreign_sav) / ext_scale)
         if sav_gap is not None:
             out.append(sav_gap)
 
@@ -400,6 +427,7 @@ def solve_period(econ: Economy, closure: Closure | None = None,
             gov_q=gov_q, inv_q=inv_q, savings=savings, fac_dem=fac_dem,
             imports=imports, exports=exports, trade=trade, gaps=gaps,
             walras=float(gaps[num]), levy=levy, foreign_sav=foreign_sav, pe=p_exp,
+            hh_dtax_paid=hh_dtax_paid, row_fac=row_fac, gov_fac=gov_fac,
             real=dict(hh_real=float(p_base_yard @ hh_q.sum(axis=0)),
                       gov_real=float(p_base_yard @ gov_q),
                       inv_real=float(p_base_yard @ inv_q),
@@ -462,7 +490,8 @@ def solve_period(econ: Economy, closure: Closure | None = None,
         government_cost=state["gov_cost"], real=state["real"],
         gaps={f: float(g) for f, g in zip(econ.factors, state["gaps"])},
         walras=state["walras"], residual=res, converged=ok, attempt=label, message=message,
-        pe=state["pe"])
+        pe=state["pe"], hh_direct_tax=state["hh_dtax_paid"],
+        factor_income_abroad=state["row_fac"], foreign_saving=state["foreign_sav"])
 
 
 # ---------------------------------------------------------------------------
@@ -477,7 +506,11 @@ def _marginal_budget_shares(econ: Economy) -> np.ndarray:
     Ystar = -1.0 / econ.spec.frisch
     value_q = econ.hh_budget                                  # shares of total outlay
     committed = econ.hh_committed * (1.0 + econ.ptax)[None, :]
-    total = np.maximum(econ.hh_income0 * (1 - econ.hh_savrate), 1e-12)
+    # The LES was calibrated on commodity spending. Income net of saving equals it
+    # only with no direct tax, no transfers abroad and no purchases made straight
+    # from an activity, so the calibrated budget is used when it is known.
+    total = np.maximum(econ.hh_spend0 if econ.hh_spend0 is not None
+                       else econ.hh_income0 * (1 - econ.hh_savrate), 1e-12)
     share_committed = committed / total[:, None]
     beta = (value_q - share_committed) / Ystar
     beta = np.maximum(beta, 0.0)

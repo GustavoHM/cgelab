@@ -62,6 +62,18 @@ def to_jump(econ: Economy, closure: Closure | None = None, scenario: Scenario | 
         raise NotImplementedError(
             "to_jump ainda não replica export_rule='cet'; a réplica em JuMP usa parcelas fixas "
             "de exportação.")
+    nao_replicado = [nome for nome, v in (
+        ("impostos diretos", econ.hh_dtax), ("transferências do governo", econ.hh_gov_transfer),
+        ("transferências do exterior", econ.hh_remit_net),
+        ("renda de fatores do governo", econ.fac_gov_share),
+        ("renda de fatores do exterior", econ.fac_row_share),
+        ("participação estrangeira nos fatores", sc.foreign_factor_share),
+    ) if v is not None and np.any(np.asarray(v) != 0)] + (["IED"] if sc.fdi else [])
+    if nao_replicado:
+        # Mesmo motivo da CET: a réplica não tem esses blocos, e uma réplica que os omite
+        # descreveria outra economia.
+        raise NotImplementedError(
+            "to_jump ainda não replica: " + ", ".join(nao_replicado) + ".")
     nf, nc, nh, na = econ.n_fac, econ.n_com, econ.n_hh, econ.n_act
     num = econ.numeraire_index
 

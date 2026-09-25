@@ -362,6 +362,36 @@ Factor supplies set inside a per-year scenario **override** the accumulated ones
 an exercise that fixes an endowment by hand should not have the growth block
 quietly undo it. Anything the scenario leaves as `None` is filled from the path.
 
+### Changes that are not scenario fields
+
+A technology adopted over time changes input coefficients; a financing plan
+changes foreign saving. Neither is a price, a tax or an endowment, so neither is
+a `Scenario` field. Pass the whole economy for the year instead:
+
+```python
+path = ck.run_path(econ, years=years, growth=growth,
+                   economy=lambda year, t: dataclasses.replace(econ, io=io_path[t]))
+```
+
+### Several capital stocks, and who owns them
+
+```python
+growth = ck.Growth(capital_factor=("f_cap", "f_cap_h2"),
+                   depreciation={"f_cap": 0.05, "f_cap_h2": 0.065},
+                   allocation=2.0)          # investment follows relative rents
+path = ck.run_path(econ, years=years, growth=growth,
+                   scenario=lambda year, t: ck.Scenario(fdi={"f_cap_h2": capex[t]}))
+```
+
+Each capital factor is accumulated from its own service flow. Domestic
+investment is shared by `allocation`. FDI raises that year's foreign saving —
+so it finances investment — and the capital it buys is added to the
+**foreign-owned** part of the stock it targets. `path.foreign_capital` records
+that part, each year's `foreign_factor_share` is set from it, and its returns
+leave through the current account. Counting FDI only as foreign saving would hand
+residents a capital stock they did not pay for, and every gain it produced would
+be credited to them.
+
 ### Reading a path
 
 ```python

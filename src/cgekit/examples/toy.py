@@ -25,7 +25,8 @@ from ..calibrate import calibrate
 from ..sam import SAM
 from ..spec import ModelSpec
 
-__all__ = ["build", "build_with_margins", "build_with_own_production", "spec"]
+__all__ = ["build", "build_with_margins", "build_with_own_production", "build_with_twin_accounts",
+           "build_with_institutions", "build_with_specific_capital", "spec"]
 
 
 def _frame(entries) -> SAM:
@@ -145,4 +146,52 @@ def build_with_twin_accounts(model_spec: ModelSpec | None = None, **kwargs):
                     ("s_i", f"hh_{tag}", 2.5)]
     sam = _frame(entries)
     econ = calibrate(sam, model_spec or spec(), **kwargs)
+    return sam, econ
+
+
+def build_with_institutions(model_spec: ModelSpec | None = None, **kwargs):
+    """Same economy with the flows between institutions that a real SAM carries.
+
+    * capital income of 60 goes 35 to ``hh_1``, 11 to ``hh_2``, 4 to government
+      (public enterprises) and 10 abroad (foreign-owned capital);
+    * direct taxes of 12 (``hh_1``) and 2 (``hh_2``);
+    * a government transfer of 8 to ``hh_2``;
+    * remittances of 3 from abroad to ``hh_2`` and of 1 from ``hh_1`` abroad.
+
+    Savings close each account: ``hh_1`` 105 - 85 - 12 - 1 = 7, ``hh_2``
+    62 - 50 - 2 = 10, government 43 - 20 - 8 = 15, and foreign saving is the
+    current account, 40 + 10 + 1 - 30 - 3 = 18. They sum to the investment of 50.
+    """
+    drop = {("hh_1", "f_cap", 45.0), ("hh_2", "f_cap", 15.0), ("s_i", "hh_1", 30.0),
+            ("s_i", "hh_2", 5.0), ("s_i", "gov", 5.0), ("s_i", "row", 10.0)}
+    entries = [e for e in _BASE if tuple(e) not in drop]
+    entries += [
+        ("hh_1", "f_cap", 35.0), ("hh_2", "f_cap", 11.0),
+        ("gov", "f_cap", 4.0), ("row", "f_cap", 10.0),
+        ("gov", "hh_1", 12.0), ("gov", "hh_2", 2.0),
+        ("hh_2", "gov", 8.0),
+        ("hh_2", "row", 3.0), ("row", "hh_1", 1.0),
+        ("s_i", "hh_1", 7.0), ("s_i", "hh_2", 10.0), ("s_i", "gov", 15.0), ("s_i", "row", 18.0),
+    ]
+    sam = _frame(entries)
+    econ = calibrate(sam, model_spec or spec(), **kwargs)
+    return sam, econ
+
+
+def build_with_specific_capital(model_spec: ModelSpec | None = None, **kwargs):
+    """Same economy with the industrial capital a factor of its own, ``f_kind``.
+
+    ``a_ind`` uses 35 of ``f_kind`` instead of mobile ``f_cap``, the way a
+    sector-specific stock (a refinery, an electrolyser park) is represented.
+    Household capital income is unchanged in total: ``hh_1`` 19 + 26, ``hh_2`` 6 + 9.
+    """
+    drop = {("f_cap", "a_ind", 35.0), ("hh_1", "f_cap", 45.0), ("hh_2", "f_cap", 15.0)}
+    entries = [e for e in _BASE if tuple(e) not in drop]
+    entries += [
+        ("f_kind", "a_ind", 35.0),
+        ("hh_1", "f_cap", 19.0), ("hh_2", "f_cap", 6.0),
+        ("hh_1", "f_kind", 26.0), ("hh_2", "f_kind", 9.0),
+    ]
+    sam = _frame(entries)
+    econ = calibrate(sam, model_spec or spec(factors=("f_lab", "f_cap", "f_kind")), **kwargs)
     return sam, econ

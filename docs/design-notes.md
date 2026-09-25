@@ -50,6 +50,24 @@ government or abroad, and anything else the SAM credits to it. Summing a chosen
 list of columns instead silently drops whatever was not listed, and the saving
 rate computed from it is then wrong in a way no check downstream will find.
 
+The solver reads every one of those flows back: direct taxes (`gov <- hh`) as a
+rate on gross income, government transfers and net transfers from abroad as
+amounts fixed in numeraire units, and factor income paid to government or
+abroad as shares of each factor. The saving rate is a share of **disposable**
+income. An earlier version read the row total but modelled only factor income,
+so a SAM with a direct tax or a transfer missed its own base year — by 12% on the
+bundled `build_with_institutions` economy. Cells the model does not read at all
+(a `gov <- row` grant, a stock-change account) are listed in
+`econ.diagnostics["unmodelled_flows"]`, because the reproduction test can say
+that the base year failed but not why.
+
+## Foreign saving is the current account
+
+The external target is foreign saving, and foreign saving is the current-account
+deficit: trade, plus factor income paid abroad, less net transfers received. With
+foreign-owned capital in the SAM, a trade-balance target would leave the profit
+remittance nowhere, and it would surface as a Walras residual.
+
 ---
 
 ## The quantity system is written on commodity output

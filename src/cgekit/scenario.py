@@ -92,6 +92,19 @@ class Scenario:
     #: is refused rather than silently ignored.
     export_price: np.ndarray | None = None
 
+    #: (n_fac,) share of each factor's income owned by the rest of the world,
+    #: overriding the SAM's. `run_path` sets it every year from the foreign-owned
+    #: capital stock it tracks, unless the scenario sets it explicitly.
+    foreign_factor_share: np.ndarray | None = None
+
+    #: Foreign direct investment this period, ``{capital factor: amount}`` in
+    #: numeraire units. It raises foreign saving by the amount -- so it finances
+    #: investment -- and `run_path` adds the capital it buys to the FOREIGN-owned
+    #: stock of that factor, whose returns then leave the economy. FDI that only
+    #: raised foreign saving would hand residents a capital stock paid for from
+    #: abroad, and every gain it produced would be counted as theirs.
+    fdi: Mapping[str, float] = field(default_factory=dict)
+
     def with_(self, **changes) -> "Scenario":
         """Return a copy with fields replaced -- for building a sweep from a base case."""
         import dataclasses

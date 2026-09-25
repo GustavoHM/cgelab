@@ -36,7 +36,8 @@ def base_year_reproduction(econ: Economy, closure: Closure | None = None,
         "consumer_price": _rel(res.pq, 1.0 + econ.ptax),
         "factor_price": _rel(res.factor_prices, np.ones_like(res.factor_prices)),
         "factor_demand": _rel(res.factor_demand, econ.fac_supply),
-        "household_income": _rel(res.hh_income, econ.hh_income0),
+        "household_income": _rel(res.hh_income, econ.hh_income0 if econ.hh_gross0 is None
+                                 else econ.hh_gross0),
         "exchange_rate": abs(res.exchange_rate - 1.0),
     }
     worst = max(checks.values())

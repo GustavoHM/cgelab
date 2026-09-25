@@ -19,7 +19,7 @@ scale with the stock.
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Callable, Sequence
+from typing import Callable, Mapping, Sequence
 
 import numpy as np
 import pandas as pd
@@ -38,10 +38,23 @@ class Growth:
 
     labour: float = 0.0            # annual growth rate of the labour endowment
     tfp: float = 0.0               # annual productivity growth; see `productivity`
-    depreciation: float = 0.05
+    #: A rate, or a mapping from capital factor to rate when there are several.
+    depreciation: float | Mapping[str, float] = 0.05
     discount: float = 0.05
     labour_factor: str = "f_lab"
-    capital_factor: str = "f_cap"
+    #: One capital factor, or several -- sector-specific capital, a vintage, a
+    #: public stock. Each is accumulated separately from its own base-year service
+    #: flow, and domestic investment is shared among them by `allocation`.
+    capital_factor: str | Sequence[str] = "f_cap"
+
+    #: How domestic investment is shared among several capital factors.
+    #: ``"proportional"`` keeps each factor's share of the aggregate stock, so
+    #: with no shock the composition of capital never moves. A number ``e`` makes
+    #: the share of factor k proportional to ``K_k * (r_k / r_mean) ** e``, with
+    #: ``r`` the factor's rental price: investment flows toward capital that earns
+    #: more, as in the recursive models of Dervis, de Melo and Robinson. It is the
+    #: behavioural parameter of the allocation, and it has no input-output source.
+    allocation: str | float = "proportional"
 
     #: How productivity growth enters. ``"hicks_neutral"`` scales every input
     #: requirement of every activity, which is technical change proper.
@@ -71,6 +84,9 @@ class Growth:
     investment_deflator: str = "base_price"
 
     def __post_init__(self):
+        if isinstance(self.allocation, str) and self.allocation != "proportional":
+            raise ValueError("Growth.allocation must be 'proportional' or a number, "
+                             f"got {self.allocation!r}")
         for name, allowed in (("productivity", ("hicks_neutral", "factor_augmenting")),
                               ("investment_deflator", ("base_price", "own_price"))):
             got = getattr(self, name)
@@ -78,8 +94,22 @@ class Growth:
                 raise ValueError(f"Growth.{name} must be one of {allowed}, got {got!r}")
 
     @property
+    def capital_factors(self) -> list:
+        cf = self.capital_factor
+        return [cf] if isinstance(cf, str) else list(cf)
+
+    def depreciation_of(self, factor: str) -> float:
+        d = self.depreciation
+        if isinstance(d, Mapping):
+            if factor not in d:
+                raise KeyError(f"no depreciation rate given for capital factor {factor!r}")
+            return float(d[factor])
+        return float(d)
+
+    @property
     def user_cost(self) -> float:
-        return self.discount + self.depreciation
+        """Discount plus depreciation, for the single-capital case."""
+        return self.discount + self.depreciation_of(self.capital_factors[0])
 
 
 @dataclass
@@ -91,6 +121,9 @@ class PathResult:
     econ: Economy = field(repr=False)
     growth: Growth = field(repr=False)
     capital_stock: np.ndarray = field(repr=False, default=None)
+    #: Foreign-owned part of each capital stock, same shape as `capital_stock`.
+    foreign_capital: np.ndarray = field(repr=False, default=None)
+    capital_factors: list = field(repr=False, default=None)
 
     def __getitem__(self, year) -> PeriodResult:
         return self.periods[self.years.index(year)]
@@ -128,6 +161,8 @@ class PathResult:
                     "commodity_spend": float(p.hh_commodity_spend[i]),
                     "price_index": float(p.real["hh_price_index"][i]),
                     "wedge_paid": float(p.hh_wedge_paid[i]),
+                    "direct_tax": (0.0 if p.hh_direct_tax is None
+                                   else float(p.hh_direct_tax[i])),
                 })
         return pd.DataFrame(rows)
 
@@ -142,7 +177,9 @@ class PathResult:
 
 def run_path(econ: Economy, closure: Closure | None = None, *, years: Sequence,
              scenario: Scenario | Callable | None = None,
-             growth: Growth | None = None, raise_on_fail: bool = True) -> PathResult:
+             growth: Growth | None = None,
+             economy: Callable | None = None,
+             raise_on_fail: bool = True) -> PathResult:
     """Solve a sequence of years, accumulating capital between them.
 
     Parameters
@@ -151,7 +188,14 @@ def run_path(econ: Economy, closure: Closure | None = None, *, years: Sequence,
         A single scenario applied every year, or ``f(year, index) -> Scenario``.
         The callable form is what a policy with a statutory CALENDAR needs.
     growth : Growth
-        Laws of motion for labour, productivity and the capital stock.
+        Laws of motion for labour, productivity and the capital stock(s).
+    economy : callable, optional
+        ``f(year, index) -> Economy``: the economy to solve that year. It is how
+        a change that is not a price, tax or endowment enters -- a technology
+        adopted over time (input coefficients), a foreign-saving path, a new
+        transfer rule. The economy returned must have the same accounts as
+        ``econ``; build it with ``dataclasses.replace(econ, ...)``. The base
+        ``econ`` fixes the initial capital stocks and labour endowment.
 
     Notes
     -----
@@ -159,25 +203,43 @@ def run_path(econ: Economy, closure: Closure | None = None, *, years: Sequence,
     which is deliberate: an exercise that fixes an endowment by hand should not
     have the growth block quietly undo it. Anything the scenario leaves as
     ``None`` is filled from the path.
+
+    Foreign ownership is tracked per capital factor: the base-year foreign share
+    comes from the SAM (``row <- factor`` cells), FDI adds to the foreign-owned
+    stock, both depreciate, and each year's ``foreign_factor_share`` is the
+    foreign part of the stock -- so the returns to capital that foreigners paid
+    for leave the economy through the current account.
     """
     closure = closure or Closure()
     growth = growth or Growth()
     years = list(years)
-    ki = econ.factor(growth.capital_factor)
+    caps = growth.capital_factors
+    ki = np.array([econ.factor(k) for k in caps])
     li = econ.factor(growth.labour_factor)
+    dep = np.array([growth.depreciation_of(k) for k in caps])
+    user_cost = growth.discount + dep
 
-    services0 = float(econ.fac_supply[ki])
-    stock = services0 / growth.user_cost
+    stock = econ.fac_supply[ki] / user_cost
+    row_share0 = econ.zeros_if_none("fac_row_share", econ.n_fac)
+    foreign = stock * row_share0[ki]
     labour0 = float(econ.fac_supply[li])
 
-    periods, stocks = [], []
+    periods, stocks, foreigns = [], [], []
     warm = None
     for t, year in enumerate(years):
+        e_t = economy(year, t) if economy is not None else econ
+        if e_t.factors != econ.factors or e_t.coms != econ.coms or e_t.acts != econ.acts:
+            raise ValueError(f"economy({year!r}, {t}) returned an Economy with different "
+                             f"accounts; build it from the base with dataclasses.replace")
         sc = scenario(year, t) if callable(scenario) else (scenario or Scenario())
+        unknown = [k for k in sc.fdi if k not in caps]
+        if unknown:
+            raise ValueError(f"FDI into {unknown}, which Growth does not accumulate as capital "
+                             f"(capital factors: {caps})")
         level = (1.0 + growth.tfp) ** t
-        supply = econ.fac_supply.copy()
+        supply = e_t.fac_supply.copy()
         supply[li] = labour0 * (1.0 + growth.labour) ** t
-        supply[ki] = stock * growth.user_cost
+        supply[ki] = stock * user_cost
         if growth.productivity == "factor_augmenting":
             supply = supply * level
             tfp = np.ones(econ.n_act)
@@ -187,23 +249,52 @@ def run_path(econ: Economy, closure: Closure | None = None, *, years: Sequence,
             supply = np.asarray(sc.factor_supply, dtype=float)
         if sc.productivity is not None:
             tfp = tfp * np.asarray(sc.productivity, dtype=float)
-        sc = sc.with_(factor_supply=supply, productivity=tfp)
+        changes = dict(factor_supply=supply, productivity=tfp)
+        if sc.foreign_factor_share is None and (foreign.any() or row_share0.any()):
+            share = e_t.zeros_if_none("fac_row_share", econ.n_fac).copy()
+            share[ki] = np.where(stock > 0, foreign / np.maximum(stock, 1e-300), 0.0)
+            changes["foreign_factor_share"] = share
+        sc = sc.with_(**changes)
 
-        res = solve_period(econ, closure, sc, warm_start=warm, raise_on_fail=raise_on_fail)
+        res = solve_period(e_t, closure, sc, warm_start=warm, raise_on_fail=raise_on_fail)
         periods.append(res)
-        stocks.append(stock)
+        stocks.append(stock.copy())
+        foreigns.append(foreign.copy())
         warm = res
 
         # Real investment adds to the stock. The flow-onto-flow error this avoids
         # -- adding nominal saving to the capital SERVICE payment -- is the single
         # most common bug in a recursive dynamic.
         if growth.investment_deflator == "own_price":
-            inv_w = econ.inv_dem / max(float(econ.inv_dem.sum()), 1e-12)
+            inv_w = e_t.inv_dem / max(float(e_t.inv_dem.sum()), 1e-12)
             p_inv = float(inv_w @ res.pqf)
             inv_real = res.savings / max(p_inv, 1e-12)
         else:
             inv_real = float(res.real["inv_real"])
-        stock = (1.0 - growth.depreciation) * stock + inv_real
+        # FDI is part of this year's saving; the capital it buys is foreign-owned
+        # and goes to the factor it was aimed at. The rest is domestic and is
+        # shared by the allocation rule.
+        real_per_nominal = inv_real / res.savings if abs(res.savings) > 1e-12 else 0.0
+        fdi_real = np.array([float(sc.fdi.get(k, 0.0)) * closure.numeraire * real_per_nominal
+                             for k in caps])
+        domestic = inv_real - float(fdi_real.sum())
+        weights = _allocation(growth.allocation, stock, res.factor_prices[ki])
+        stock = (1.0 - dep) * stock + domestic * weights + fdi_real
+        foreign = (1.0 - dep) * foreign + fdi_real
 
+    single = len(caps) == 1
+    shape = (lambda a: np.array(a)[:, 0]) if single else np.array
     return PathResult(years=years, periods=periods, econ=econ, growth=growth,
-                      capital_stock=np.array(stocks))
+                      capital_stock=shape(stocks), foreign_capital=shape(foreigns),
+                      capital_factors=caps)
+
+
+def _allocation(rule, stock: np.ndarray, rent: np.ndarray) -> np.ndarray:
+    """Shares of domestic investment going to each capital factor."""
+    if stock.size == 1:
+        return np.ones(1)
+    weights = stock.copy()
+    if rule != "proportional":
+        mean = float(rent @ stock) / max(float(stock.sum()), 1e-300)
+        weights = stock * (rent / max(mean, 1e-300)) ** float(rule)
+    return weights / max(float(weights.sum()), 1e-300)

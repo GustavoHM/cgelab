@@ -79,6 +79,28 @@ class Economy:
     #: CET elasticities by commodity. Used only when ``spec.export_rule == "cet"``.
     sigma_cet: np.ndarray | None = field(default=None, repr=False)
 
+    # -- institutions beyond the circular flow. Every one defaults to zero, so an
+    # Economy built by hand, or from a SAM without these cells, behaves as before.
+    #: (n_hh,) direct tax rate on gross income, from the SAM's gov <- hh cells.
+    hh_dtax: np.ndarray | None = field(default=None, repr=False)
+    #: (n_hh,) transfers from government, in base-year numeraire units (hh <- gov).
+    hh_gov_transfer: np.ndarray | None = field(default=None, repr=False)
+    #: (n_hh,) net transfers from abroad (hh <- row minus row <- hh), numeraire units.
+    hh_remit_net: np.ndarray | None = field(default=None, repr=False)
+    #: (n_fac,) shares of each factor's income paid to government and to the rest of
+    #: the world. The household shares in `hh_facshare` apply to what is left.
+    fac_gov_share: np.ndarray | None = field(default=None, repr=False)
+    fac_row_share: np.ndarray | None = field(default=None, repr=False)
+    #: (n_hh,) base-year spending on commodities -- the budget the LES was calibrated on.
+    hh_spend0: np.ndarray | None = field(default=None, repr=False)
+    #: (n_hh,) base-year gross income in the solver's sense: receipts net of
+    #: transfers paid abroad. Equal to `hh_income0` when nothing is sent abroad.
+    hh_gross0: np.ndarray | None = field(default=None, repr=False)
+
+    def zeros_if_none(self, name: str, n: int) -> np.ndarray:
+        v = getattr(self, name)
+        return np.zeros(n) if v is None else np.asarray(v, dtype=float)
+
     # -- shorthands ------------------------------------------------------
     @property
     def acts(self) -> list: return self.layout.activities
@@ -229,9 +251,29 @@ def calibrate(sam: SAM, spec: ModelSpec | None = None, *,
     # a chosen list of columns instead silently drops whatever was not listed.
     hh_income0 = np.array([float(receipts.get(h, 0.0)) for h in hhs])
     hh_sav = sam.block([inv], hhs).ravel()
-    hh_savrate = hh_sav / np.maximum(hh_income0, 1e-12)
+    hh_tax = sam.block([gov], hhs).ravel()              # direct taxes
+    gov_tr = sam.block(hhs, [gov]).ravel()              # transfers from government
+    remit_in = sam.block(hhs, [row]).ravel()
+    remit_out = sam.block([row], hhs).ravel()
+    # Gross income in the model's sense: what the household disposes of before
+    # tax and saving. Payments abroad are netted against receipts from abroad,
+    # so they leave the budget without being taxed, saved or consumed.
+    gross0 = hh_income0 - remit_out
+    hh_dtax = np.where(gross0 > 0, hh_tax / np.maximum(gross0, 1e-12), 0.0)
+    # Saving is a share of DISPOSABLE income. With no direct tax the two coincide
+    # and the rate is the one every earlier version computed.
+    hh_savrate = hh_sav / np.maximum(gross0 - hh_tax, 1e-12)
     hh_fac = sam.block(hhs, facs)
     hh_facshare = hh_fac / np.maximum(hh_fac.sum(axis=0, keepdims=True), 1e-12)
+    # Factor income that does not reach resident households: to government
+    # (public enterprises, land) and abroad (profits of foreign-owned capital,
+    # cross-border wages). Dropping it would credit households with income they
+    # never receive, and the base year would not reproduce.
+    fac_gov = sam.block([gov], facs).ravel()
+    fac_row = sam.block([row], facs).ravel()
+    fac_tot = hh_fac.sum(axis=0) + fac_gov + fac_row
+    fac_gov_share = np.where(fac_tot > 0, fac_gov / np.maximum(fac_tot, 1e-12), 0.0)
+    fac_row_share = np.where(fac_tot > 0, fac_row / np.maximum(fac_tot, 1e-12), 0.0)
     hh_direct = sam.block(acts, hhs).T                    # payments straight to an activity
 
     gov_dem = sam.block(coms, [gov]).ravel()
@@ -242,6 +284,10 @@ def calibrate(sam: SAM, spec: ModelSpec | None = None, *,
                                     income_elasticities, coms)
 
     trade_balance0 = float(imp0.sum() - exp0.sum())
+    # Foreign saving is the current-account deficit, not the trade deficit: factor
+    # income paid abroad and net transfers abroad are part of it.
+    foreign_sav0 = (trade_balance0 + float(fac_row.sum())
+                    + float(remit_out.sum()) - float(remit_in.sum()))
     dom_share = np.where(dom0 + imp0 > 0, dom0 / np.maximum(dom0 + imp0, 1e-12), 1.0)
 
     econ = Economy(
@@ -253,12 +299,16 @@ def calibrate(sam: SAM, spec: ModelSpec | None = None, *,
         hh_budget=hh_budget, hh_savrate=hh_savrate, hh_facshare=hh_facshare,
         hh_direct=hh_direct, hh_committed=hh_committed, hh_income0=hh_income0,
         pop_share=pop_share, gov_dem=gov_dem, inv_dem=inv_dem, fac_supply=fac_supply,
-        trade_balance0=trade_balance0, foreign_sav=trade_balance0,
+        trade_balance0=trade_balance0, foreign_sav=foreign_sav0,
         sigma_cet=spec.sigma_cet_vector(coms),
+        hh_dtax=hh_dtax, hh_gov_transfer=gov_tr, hh_remit_net=remit_in - remit_out,
+        fac_gov_share=fac_gov_share, fac_row_share=fac_row_share,
+        hh_spend0=hh_com.sum(axis=1), hh_gross0=gross0,
         diagnostics=dict(negative_value_added=negative,
                          negative_value_added_treatment=spec.negative_value_added,
                          n_leontief=int(leontief.sum()),
-                         own_account=[acts[j] for j in np.where(own_account)[0]]),
+                         own_account=[acts[j] for j in np.where(own_account)[0]],
+                         unmodelled_flows=_unmodelled_flows(sam, layout)),
     )
     return econ
 
@@ -305,3 +355,38 @@ def _les_subsistence(spec, hh_com, hh_budget, ptax, income_elasticities, coms) -
             "commodity, which is not a calibration but a contradiction: make `frisch` less "
             "negative (smaller supernumerary income) or supply income elasticities.")
     return np.maximum(gamma, 0.0)
+
+
+# Cells the model reads, as (row block, column block). A SAM entry outside this set
+# is money the model never sees: it is not an error in itself (a stock-change
+# account, a gov <- row grant), but the base year cannot reproduce with it and the
+# reproduction test will say so without saying why. This list says why.
+_READ_BLOCKS = {
+    ("c", "a"), ("f", "a"), ("gov", "a"), ("a", "c"), ("row", "c"), ("gov", "c"),
+    ("c", "c"), ("c", "hh"), ("c", "gov"), ("c", "inv"), ("c", "row"),
+    ("hh", "f"), ("gov", "f"), ("row", "f"), ("a", "hh"),
+    ("inv", "hh"), ("inv", "gov"), ("inv", "row"),
+    ("gov", "hh"), ("hh", "gov"), ("hh", "row"), ("row", "hh"),
+}
+
+
+def _unmodelled_flows(sam: SAM, layout: AccountLayout) -> list:
+    group = {}
+    for a in layout.activities:
+        group[a] = "a"
+    for c in layout.commodities:
+        group[c] = "c"
+    for f in layout.factors:
+        group[f] = "f"
+    for h in layout.households:
+        group[h] = "hh"
+    group[layout.government] = "gov"
+    group[layout.investment] = "inv"
+    group[layout.rest_of_world] = "row"
+    out = []
+    for r, c, v in sam.frame.itertuples(index=False):
+        if abs(v) < 1e-12:
+            continue
+        if (group.get(r), group.get(c)) not in _READ_BLOCKS:
+            out.append((r, c, float(v)))
+    return out

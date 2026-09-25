@@ -31,7 +31,10 @@ __all__ = ["equivalent_variation", "ev_by_group", "compensating_variation"]
 
 def _panel(path) -> pd.DataFrame:
     df = path.households().copy()
-    df["welfare_income"] = df["income"] - df["direct_outlay"]
+    # Direct tax is not spendable. The column is absent from panels built before
+    # direct taxes existed, and zero whenever the SAM has none.
+    tax = df["direct_tax"] if "direct_tax" in df else 0.0
+    df["welfare_income"] = df["income"] - df["direct_outlay"] - tax
     df["real_income"] = df["welfare_income"] / df["price_index"]
     return df
 

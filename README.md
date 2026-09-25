@@ -76,8 +76,12 @@ cgekit                    # runs the bundled toy economy and prints the diagnost
 * **Exports** — fixed shares by default; CET available as a robustness variant.
   The default is deliberate: the CET elasticity is the one parameter of a
   standard CGE that input–output sources do not supply.
-* **Households** — Cobb–Douglas or LES over commodities, on income net of saving
-  and of any payment made straight to an activity.
+* **Households** — Cobb–Douglas or LES over commodities, on income net of direct
+  tax, saving and any payment made straight to an activity. Income includes
+  government transfers and net transfers from abroad.
+* **Ownership** — factor income is shared among households, government and the
+  rest of the world. Returns to foreign-owned capital leave through the current
+  account, and foreign saving is the current account, not the trade balance.
 * **Government, investment, foreign** — see `Closure`.
 
 The **numeraire factor's market is deliberately not solved**. It is left to
@@ -93,7 +97,7 @@ period.
 | Calibration: coefficients, nests, taxes, margins, LES subsistence | `calibrate` |
 | Within-period equilibrium under five closure combinations | `solve_period` |
 | Counterfactuals: taxes, wedges, endowments, ownership, productivity, own-account levels | `Scenario` |
-| Recursive dynamics with capital accumulation | `run_path` |
+| Recursive dynamics: one or several capital stocks, investment allocation, FDI with foreign ownership, a per-year economy | `run_path`, `Growth` |
 | Welfare: EV, CV, and composition-immune group aggregation | `cgekit.welfare` |
 | Base-year reproduction, homogeneity, Walras | `cgekit.diagnostics` |
 
@@ -108,7 +112,7 @@ period.
 
 ## Verification
 
-`pytest` runs 72 tests against three hand-built SAMs whose every entry is written
+`pytest` runs 96 tests against three hand-built SAMs whose every entry is written
 out, so the checks compare the solver with arithmetic rather than with its own
 previous output:
 
@@ -122,6 +126,11 @@ previous output:
   export response that grows with the elasticity;
 - moving foreign saving alone keeps Walras, since it is the single
   current-account target;
+- a SAM with direct taxes, government transfers, remittances and factor income
+  paid to government and abroad reproduces its base year (the previous version
+  missed it by 12%); FDI-financed capital is foreign-owned and its returns leave;
+- several capital stocks keep their composition with no shock and tilt toward
+  the higher rent when allocation responds to it;
 - wedge revenue recycled equals wedge revenue paid, exactly;
 - group welfare aggregation returning the zero that is there when identical
   households merely migrate between accounts, while the per-account measure

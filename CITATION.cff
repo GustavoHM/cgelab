@@ -1,0 +1,23 @@
+cff-version: 1.2.0
+message: "Se este software for usado numa publicação, cite-o como abaixo."
+type: software
+title: "cgekit: a general toolkit for SAM-based computable general equilibrium models in Python"
+abstract: >-
+  Social accounting matrix handling and balancing, calibration, configurable nests and closures, within-period solution, recursive dynamics, and welfare measurement, with base-year reproduction, homogeneity and Walras checks built in.
+authors:
+  - family-names: "Hoffmann Moreira"
+    given-names: "Gustavo"
+    email: "gustavo@gakusai.net"
+    # orcid: "https://orcid.org/0000-0000-0000-0000"   # preencha
+version: "0.1.0"
+date-released: "2026-09-09"
+license: MIT
+# Preencha ao publicar. Um DOI do Zenodo, obtido ligando o repositório e criando um release,
+# é o que torna a citação estável — uma URL de repositório não é uma referência arquivável.
+repository-code: "https://github.com/GustavoHM/cgelab"
+# doi: "10.5281/zenodo.XXXXXXX"
+keywords:
+  - "computable general equilibrium"
+  - "social accounting matrix"
+  - "input-output"
+  - "Python"

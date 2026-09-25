@@ -1,0 +1,487 @@
+"""Within-period general equilibrium.
+
+Structure of one period
+-----------------------
+* **Production.** Leontief between the intermediate bundle and value added, and
+  within the intermediate bundle; a configurable nest (CES, Cobb-Douglas or
+  Leontief) over factors inside value added.
+* **Make.** Commodity market shares are fixed at base-year proportions, so
+  activity levels follow from commodity output, ``X = MSH @ Q``.
+* **Armington.** Domestic and imported varieties combine by CES.
+* **Households.** Cobb-Douglas or LES over commodities, on income net of saving
+  and of any payment made straight to an activity.
+* **Closure.** See :class:`cgekit.closure.Closure`.
+
+Why the quantity system is written on COMMODITY output
+------------------------------------------------------
+With more commodities than activities the commodity balances cannot determine
+activity levels directly: that system is overdetermined, and solving it by least
+squares would be arithmetic dressed as economics. So the balances determine
+commodity output and activity levels follow from the market shares::
+
+    (I - B G - MQ) A = final,   G = diag(dsh * arm_share / (1 - export share)),
+    B = IO @ MSH,               Q = G A,   X = MSH @ Q
+
+What is deliberately NOT solved
+-------------------------------
+The numeraire factor's market. It is left to Walras' law so that its residual is
+an independent check on the accounting rather than an identity the solver was
+told to satisfy, and it is recorded on every period.
+"""
+
+from __future__ import annotations
+
+from dataclasses import dataclass, field
+
+import numpy as np
+from scipy.optimize import root
+
+from .calibrate import Economy
+from .closure import Closure
+from .functions import armington, ces_intensity, ces_price, cobb_douglas_price
+from .scenario import Scenario
+
+__all__ = ["PeriodResult", "solve_period", "value_added_price", "factor_intensity"]
+
+_PRICE_ITERS = 200
+_RECYCLE_TOL = 1e-13
+
+
+# ---------------------------------------------------------------------------
+# Price blocks
+# ---------------------------------------------------------------------------
+
+def value_added_price(econ: Economy, w: np.ndarray) -> np.ndarray:
+    """Unit cost index of value added, by activity."""
+    if econ.spec.value_added == "cobb_douglas":
+        nest = cobb_douglas_price(econ.theta, w)
+    else:
+        nest = ces_price(econ.theta, w, econ.sigma_va)
+    leo = w @ econ.aunit
+    with np.errstate(divide="ignore", invalid="ignore"):
+        leo_unit = np.where(econ.vunit != 0, leo / np.where(econ.vunit == 0, 1.0, econ.vunit), 0.0)
+    return np.where(econ.leontief, leo_unit, nest)
+
+
+def factor_intensity(econ: Economy, w: np.ndarray, *, vunit=None, aunit=None) -> np.ndarray:
+    """Factor input per unit of value added, ``(n_fac, n_act)``.
+
+    ``vunit`` and ``aunit`` override the calibrated coefficients, which is how a
+    productivity path enters: the CES branch is scale-free and unaffected, but
+    the fixed-proportions branch is a ratio of the two and must see both.
+    """
+    vunit = econ.vunit if vunit is None else vunit
+    aunit = econ.aunit if aunit is None else aunit
+    pva = value_added_price(econ, w)
+    if econ.spec.value_added == "cobb_douglas":
+        with np.errstate(divide="ignore", invalid="ignore"):
+            nest = np.where(econ.theta > 0, econ.theta * pva[None, :] / w[:, None], 0.0)
+    else:
+        nest = ces_intensity(econ.theta, w, pva, econ.sigma_va)
+    with np.errstate(divide="ignore", invalid="ignore"):
+        leo = np.where(vunit != 0, aunit / np.where(vunit == 0, 1.0, vunit), 0.0)
+    return np.where(econ.leontief[None, :], leo, nest)
+
+
+# ---------------------------------------------------------------------------
+# Result
+# ---------------------------------------------------------------------------
+
+@dataclass
+class PeriodResult:
+    """Solved equilibrium for one period, with its own convergence evidence."""
+
+    econ: Economy = field(repr=False)
+    closure: Closure = field(repr=False)
+    scenario: Scenario = field(repr=False)
+    z: np.ndarray
+    factor_prices: np.ndarray
+    exchange_rate: float
+    pa: np.ndarray; pd: np.ndarray; pq: np.ndarray; pqf: np.ndarray; pbase: np.ndarray
+    Q: np.ndarray; X: np.ndarray; absorption: np.ndarray
+    imports: np.ndarray; exports: np.ndarray
+    hh_quantity: np.ndarray; hh_income: np.ndarray; hh_commodity_spend: np.ndarray
+    hh_direct_outlay: np.ndarray; hh_wedge_paid: np.ndarray
+    gov_quantity: np.ndarray; investment_quantity: np.ndarray
+    factor_demand: np.ndarray; savings: float; wedge_revenue: float
+    government_cost: float
+    real: dict
+    gaps: dict
+    walras: float
+    residual: float
+    converged: bool
+    attempt: str = ""
+    message: str = ""
+
+    def price(self, commodity: str) -> float:
+        return float(self.pq[self.econ.commodity(commodity)])
+
+    def household_real_income(self) -> np.ndarray:
+        return self.real["hh_real_income"]
+
+    def summary(self) -> str:
+        e = self.econ
+        lines = [f"equilibrium ({self.scenario.name}): {self.closure.describe()}",
+                 f"  residual        : {self.residual:.3e} "
+                 f"({'converged' if self.converged else 'NOT CONVERGED'}, {self.attempt})",
+                 f"  Walras residual : {self.walras:.3e}  "
+                 f"[{e.spec.numeraire_factor}, not solved for]"]
+        for f, p in zip(e.factors, self.factor_prices):
+            lines.append(f"  price {f:<12}: {p:.6f}")
+        lines.append(f"  exchange rate   : {self.exchange_rate:.6f}")
+        lines.append(f"  savings         : {self.savings:,.1f}")
+        return "\n".join(lines)
+
+
+# ---------------------------------------------------------------------------
+# Solver
+# ---------------------------------------------------------------------------
+
+def solve_period(econ: Economy, closure: Closure | None = None,
+                 scenario: Scenario | None = None, *, warm_start=None,
+                 raise_on_fail: bool = True) -> PeriodResult:
+    """Solve one period's general equilibrium.
+
+    Unknowns
+    --------
+    One price per non-numeraire factor, plus one unknown for the external
+    closure -- the exchange rate under ``foreign="fixed_saving"``, foreign saving
+    itself under ``"fixed_rate"`` -- plus, under ``investment="fixed_real"``, the
+    forced household saving that finances the fixed investment. Every closure
+    therefore carries its own adjusting variable; a closure that pins a magnitude
+    without freeing one somewhere else does not close the model, and the symptom
+    is a Walras residual rather than a solver failure.
+    """
+    closure = closure or Closure()
+    sc = scenario or Scenario()
+    nf, nc, nh, na = econ.n_fac, econ.n_com, econ.n_hh, econ.n_act
+    num = econ.numeraire_index
+    others = [i for i in range(nf) if i != num]
+    i_ext = len(others)                       # external-closure unknown
+    i_inv = i_ext + 1                         # forced-saving unknown, when present
+    n_unknown = i_ext + 1 + (1 if closure.investment == "fixed_real" else 0)
+
+    supply = econ.fac_supply if sc.factor_supply is None else np.asarray(sc.factor_supply, float)
+    facshare = (econ.hh_facshare if sc.factor_ownership is None
+                else np.asarray(sc.factor_ownership, float))
+    tfp = np.ones(na) if sc.productivity is None else np.asarray(sc.productivity, float)
+    ptax_a = econ.ptax if sc.product_tax is None else np.asarray(sc.product_tax, float)
+    ptax_f = ptax_a if sc.product_tax_firm is None else np.asarray(sc.product_tax_firm, float)
+    world_p = np.ones(nc) if sc.world_price is None else np.asarray(sc.world_price, float)
+    W = np.zeros((nh, nc)) if sc.consumer_wedge is None else np.asarray(sc.consumer_wedge, float)
+    Wg = (np.zeros((nh, nc)) if sc.government_wedge is None
+          else np.asarray(sc.government_wedge, float))
+    Wt = W + Wg
+    base_transfers = np.zeros(nh) if sc.transfers is None else np.asarray(sc.transfers, float)
+
+    # Own-account activities are exogenous by construction, at their base level
+    # unless a scenario scales them: they are absent from the commodity balance,
+    # so `X = MSH @ Q` cannot recover them and would silently return zero.
+    act_scale = np.ones(na)
+    exog = econ.own_account.copy()
+    for name, mult in sc.activity_scale.items():
+        j = econ.activity(name) if isinstance(name, str) else name
+        if not econ.own_account[j]:
+            raise ValueError(
+                f"activity {econ.acts[j]!r} has a market share in the commodity block, so its "
+                f"level is determined by the commodity balance and cannot also be set "
+                f"exogenously. `activity_scale` is for own-account production sold straight "
+                f"to households.")
+        act_scale[j] = float(mult)
+
+    # Nominal magnitudes denominated in the numeraire co-scale with it.
+    nu = closure.numeraire
+    trade_target = econ.trade_balance0 * nu
+    atax = econ.atax * nu
+    ext_scale = max(abs(trade_target), 1.0)
+    sav_scale = max(abs(float(econ.inv_dem.sum())) * nu, 1.0)
+
+    # Hicks-neutral productivity scales EVERY input requirement, so it enters the
+    # coefficient matrices and not only the price block. Applying it to the unit
+    # cost alone leaves factor and intermediate demand at the old intensities:
+    # the price system then says one thing and the quantity system another, and
+    # the difference surfaces as a Walras residual that GROWS with the
+    # productivity path -- invisible in a single period, unmistakable over a
+    # twenty-five year horizon.
+    io_eff = econ.io / tfp[None, :]
+    vunit_eff = econ.vunit / tfp
+    aunit_eff = econ.aunit / tfp[None, :]
+
+    X_exog = econ.X0 * act_scale * exog
+    exog_intermediate = io_eff @ X_exog           # this block's own input demand
+
+    alpha_recycle = _recycle_shares(econ, sc, facshare, supply)
+    beta_les = _marginal_budget_shares(econ)
+    state: dict = {}
+
+    def residuals(z):
+        z = np.atleast_1d(np.asarray(z, dtype=float))
+        w = np.full(nf, nu)
+        for k, i in enumerate(others):
+            w[i] = nu * float(np.exp(z[k]))
+        if closure.solves_exchange_rate:
+            er = float(np.exp(z[i_ext]))
+            foreign_sav = econ.foreign_sav * nu
+        else:
+            er = closure.exchange_rate
+            foreign_sav = trade_target + float(z[i_ext]) * ext_scale
+        levy = float(z[i_inv]) * sav_scale if closure.investment == "fixed_real" else 0.0
+        pm = er * world_p
+
+        # --- prices: a fixed point, because margins are themselves delivered goods
+        pva = value_added_price(econ, w)
+        pqf = 1.0 + ptax_f
+        for _ in range(_PRICE_ITERS):
+            pa = io_eff.T @ pqf + pva * vunit_eff + atax
+            pd_ = econ.msh.T @ pa
+            arm, dsh, msh_ = armington(econ.dom_share, pd_, pm, econ.sigma_arm)
+            pbase = arm * econ.arm_share + pqf @ econ.mq
+            new = pbase * (1 + ptax_f)
+            if np.max(np.abs(new - pqf)) < 1e-14:
+                pqf = new
+                break
+            pqf = new
+        pa = io_eff.T @ pqf + pva * vunit_eff + atax
+        pd_ = econ.msh.T @ pa
+        arm, dsh, msh_ = armington(econ.dom_share, pd_, pm, econ.sigma_arm)
+        pbase = arm * econ.arm_share + pqf @ econ.mq
+        pqf = pbase * (1 + ptax_f)
+        pq = pbase * (1 + ptax_a)
+
+        # --- household budgets, with the wedge recycled in closed form
+        transfers = base_transfers - levy * econ.pop_share
+        base_income = facshare @ (w * supply) + transfers
+        direct = econ.hh_direct @ (pa * act_scale)
+        eff_p = pq[None, :] * (1.0 + Wt)
+        gamma = econ.hh_committed
+        committed_value = (eff_p * gamma).sum(axis=1)
+
+        # Crediting the wedge to income raises spending, which raises the wedge,
+        # which raises income -- an infinite series, not a single pass. Demand is
+        # affine in spending under both demand systems, so revenue_h = A_h + B_h
+        # spend_h exactly and the series is summed in closed form. Iterating it
+        # converges but leaves small discontinuities that wreck the outer
+        # Newton's finite-difference Jacobian.
+        with np.errstate(divide="ignore", invalid="ignore"):
+            capture = np.where(1.0 + Wt > 0, W / (1.0 + Wt), 0.0)
+            capture_g = np.where(1.0 + Wt > 0, Wg / (1.0 + Wt), 0.0)
+        B_cap = (beta_les * capture).sum(axis=1)
+        B_gov = (beta_les * capture_g).sum(axis=1)
+        A_cap = (gamma * W * pq[None, :]).sum(axis=1) - B_cap * committed_value
+        A_gov = (gamma * Wg * pq[None, :]).sum(axis=1) - B_gov * committed_value
+
+        net = 1.0 - econ.hh_savrate
+        const_spend = base_income * net - direct
+        denom = 1.0 - float((B_cap * net * alpha_recycle).sum())
+        wedge_rev = ((A_cap.sum() + float((B_cap * const_spend).sum())) / denom
+                     if np.any(W != 0.0) else 0.0)
+        hh_income = base_income + wedge_rev * alpha_recycle
+        spend = hh_income * net
+        hh_com_spend = spend - direct
+        if np.any(hh_com_spend < -1e-9):
+            bad = [econ.hhs[i] for i in np.where(hh_com_spend < -1e-9)[0]]
+            raise ValueError(
+                f"household(s) {bad} spend more on direct purchases from activities than "
+                f"their whole budget. Clipping this to zero would destroy income and break "
+                f"Walras' law silently.")
+
+        # --- demand
+        if econ.spec.household_demand == "les":
+            supernum = hh_com_spend - committed_value
+            hh_q = gamma + beta_les * supernum[:, None] / np.maximum(eff_p, 1e-12)
+        else:
+            hh_q = econ.hh_budget * hh_com_spend[:, None] / np.maximum(eff_p, 1e-12)
+        hh_final = hh_q.sum(axis=0)
+        wedge_paid = (hh_q * W * pq[None, :]).sum(axis=1)
+        gov_cost = float(-(hh_q * Wg * pq[None, :]).sum()) + sc.government_absorbs
+
+        if closure.government == "real_fixed":
+            gov_q = econ.gov_dem / (1.0 + econ.ptax)
+        else:
+            gov_q = econ.gov_dem * nu / np.maximum(pq, 1e-12)
+        gov_spend = float(pq @ gov_q)
+        hh_sav = float((hh_income * econ.hh_savrate).sum())
+
+        # --- quantity system
+        with np.errstate(divide="ignore", invalid="ignore"):
+            Gp = np.diag(dsh * econ.arm_share / np.maximum(1.0 - econ.exp_share, 1e-12))
+        Bm = io_eff @ econ.msh
+        M = np.linalg.inv(np.eye(nc) - Bm @ Gp - econ.mq)
+        inv_w = econ.inv_dem / max(econ.inv_dem.sum(), 1e-12)
+        fin_c = hh_final + gov_q                      # taxed at the CONSUMER rate
+        other_fixed = exog_intermediate               # taxed at the firm rate
+
+        def tax_of(a_vec):
+            firm_part = a_vec - fin_c
+            return (float((pbase * (firm_part * ptax_f + fin_c * ptax_a)).sum())
+                    + float((atax * (econ.msh @ (Gp @ a_vec))).sum()))
+
+        sav_gap = None
+        if closure.investment == "savings_driven":
+            # Saving funds investment, investment drives output, output drives tax
+            # revenue and revenue is government saving. Affine in saving, so it is
+            # solved in closed form rather than iterated.
+            A_const = M @ (fin_c + other_fixed)
+            A_slope = M @ (inv_w / np.maximum(pqf, 1e-12))
+            c1 = (float((pbase * A_slope * ptax_f).sum())
+                  + float((atax * (econ.msh @ (Gp @ A_slope))).sum()))
+            c0 = hh_sav + levy + tax_of(A_const) - gov_spend - gov_cost + foreign_sav
+            savings = c0 / (1.0 - c1)
+            inv_q = inv_w * savings / np.maximum(pqf, 1e-12)
+            A = M @ (fin_c + other_fixed + inv_q)
+        else:
+            inv_q = econ.inv_dem / (1.0 + econ.ptax)      # fixed in QUANTITIES
+            A = M @ (fin_c + other_fixed + inv_q)
+            required = float(pqf @ inv_q)
+            available = (hh_sav + levy + tax_of(A) - gov_spend - gov_cost + foreign_sav)
+            savings = required
+            sav_gap = (available - required) / sav_scale
+
+        Q = Gp @ A
+        X = econ.msh @ Q + X_exog
+
+        arm_q = econ.arm_share * A
+        imports = msh_ * arm_q
+        exports = econ.exp_share * Q
+        fac_dem = (factor_intensity(econ, w, vunit=vunit_eff, aunit=aunit_eff)
+                   * (vunit_eff * X)[None, :]).sum(axis=1)
+        trade = float((pm * imports).sum() - (pd_ * exports).sum())
+
+        gaps = (fac_dem - supply) / np.maximum(np.abs(supply), 1.0)
+        out = [gaps[i] for i in others]
+        if closure.solves_exchange_rate:
+            out.append((trade - trade_target) / ext_scale)
+        else:
+            # The exchange rate is exogenous, so the current account is whatever
+            # it turns out to be and foreign saving must equal it. Holding
+            # foreign saving at its base value instead leaves the shortfall
+            # nowhere, and it surfaces as a Walras residual.
+            out.append((trade - foreign_sav) / ext_scale)
+        if sav_gap is not None:
+            out.append(sav_gap)
+
+        p_base_yard = 1.0 + econ.ptax          # constant-price yardstick, scenario independent
+        gov_sav = savings - hh_sav - levy - foreign_sav
+        lam = float(p_base_yard @ inv_q) / savings if abs(savings) > 1e-12 else 0.0
+        state.update(
+            w=w, er=er, pa=pa, pd=pd_, pq=pq, pqf=pqf, pbase=pbase, Q=Q, X=X, A=A,
+            hh_q=hh_q, hh_income=hh_income, hh_com_spend=hh_com_spend, direct=direct,
+            wedge_paid=wedge_paid, wedge_rev=wedge_rev, gov_cost=gov_cost,
+            gov_q=gov_q, inv_q=inv_q, savings=savings, fac_dem=fac_dem,
+            imports=imports, exports=exports, trade=trade, gaps=gaps,
+            walras=float(gaps[num]), levy=levy, foreign_sav=foreign_sav,
+            real=dict(hh_real=float(p_base_yard @ hh_q.sum(axis=0)),
+                      gov_real=float(p_base_yard @ gov_q),
+                      inv_real=float(p_base_yard @ inv_q),
+                      hh_sav_real=lam * hh_sav, gov_sav_real=lam * gov_sav,
+                      for_sav_real=lam * foreign_sav,
+                      hh_real_income=hh_com_spend / _price_index(econ, eff_p, beta_les),
+                      hh_price_index=_price_index(econ, eff_p, beta_les),
+                      hh_committed_value=committed_value))
+        return out
+
+    # Convergence is judged on the residual, never on the solver's success flag:
+    # `hybr` reports failure whenever its finite-difference Jacobian stops
+    # improving, which includes the case where the start point already IS the
+    # solution, and it terminates early from a warm start that sits exactly on
+    # the previous period's answer.
+    attempts = []
+    if warm_start is not None:
+        z0 = warm_start.z if isinstance(warm_start, PeriodResult) else np.asarray(warm_start)
+        z0 = np.asarray(z0, dtype=float)
+        if z0.size == n_unknown:
+            attempts.append(("warm", z0, "hybr"))
+    attempts += [("cold", np.zeros(n_unknown), "hybr"),
+                 ("perturbed", np.full(n_unknown, 1e-4), "hybr"),
+                 ("lm", np.zeros(n_unknown), "lm")]
+
+    best = None
+    for label, start, method in attempts:
+        try:
+            sol = root(residuals, start, method=method,
+                       options={"xtol": 1e-14} if method == "hybr"
+                       else {"xtol": 1e-14, "ftol": 1e-14})
+        except ValueError:
+            continue
+        res = float(np.max(np.abs(residuals(sol.x))))
+        if best is None or res < best[0]:
+            best = (res, sol.x, label, sol.message)
+        if res < closure.tolerance:
+            break
+    if best is None:
+        raise RuntimeError("solve_period: every start point failed before a residual was formed")
+
+    res, x, label, message = best
+    residuals(x)
+    ok = res < closure.tolerance
+    if not ok and raise_on_fail:
+        raise RuntimeError(
+            f"solve_period: residual {res:.3e} above tolerance {closure.tolerance:.1e} "
+            f"after {len(attempts)} start points. Solver message: {message}")
+
+    return PeriodResult(
+        econ=econ, closure=closure, scenario=sc, z=np.asarray(x, dtype=float),
+        factor_prices=state["w"], exchange_rate=state["er"], pa=state["pa"],
+        pd=state["pd"], pq=state["pq"], pqf=state["pqf"], pbase=state["pbase"],
+        Q=state["Q"], X=state["X"], absorption=state["A"], imports=state["imports"],
+        exports=state["exports"], hh_quantity=state["hh_q"], hh_income=state["hh_income"],
+        hh_commodity_spend=state["hh_com_spend"], hh_direct_outlay=state["direct"],
+        hh_wedge_paid=state["wedge_paid"], gov_quantity=state["gov_q"],
+        investment_quantity=state["inv_q"], factor_demand=state["fac_dem"],
+        savings=state["savings"], wedge_revenue=state["wedge_rev"],
+        government_cost=state["gov_cost"], real=state["real"],
+        gaps={f: float(g) for f, g in zip(econ.factors, state["gaps"])},
+        walras=state["walras"], residual=res, converged=ok, attempt=label, message=message)
+
+
+# ---------------------------------------------------------------------------
+# helpers
+# ---------------------------------------------------------------------------
+
+def _marginal_budget_shares(econ: Economy) -> np.ndarray:
+    """Marginal budget shares: the LES betas, or the Cobb-Douglas shares themselves."""
+    if econ.spec.household_demand != "les":
+        return econ.hh_budget
+    # Recovered from the calibration: p*gamma = p*q - beta*Y*, so beta = (p*q - p*gamma)/Y*.
+    Ystar = -1.0 / econ.spec.frisch
+    value_q = econ.hh_budget                                  # shares of total outlay
+    committed = econ.hh_committed * (1.0 + econ.ptax)[None, :]
+    total = np.maximum(econ.hh_income0 * (1 - econ.hh_savrate), 1e-12)
+    share_committed = committed / total[:, None]
+    beta = (value_q - share_committed) / Ystar
+    beta = np.maximum(beta, 0.0)
+    return beta / np.maximum(beta.sum(axis=1, keepdims=True), 1e-12)
+
+
+def _price_index(econ: Economy, eff_p: np.ndarray, beta: np.ndarray) -> np.ndarray:
+    """Cost-of-living index per household: the exact CD index, the LES marginal one."""
+    with np.errstate(divide="ignore", invalid="ignore"):
+        logs = np.where(beta > 0, beta * np.log(np.maximum(eff_p, 1e-300)), 0.0)
+    return np.exp(logs.sum(axis=1))
+
+
+def _recycle_shares(econ: Economy, sc: Scenario, facshare: np.ndarray,
+                    supply: np.ndarray) -> np.ndarray:
+    """Shares in which recycled wedge revenue reaches households."""
+    rule = sc.wedge_revenue_to
+    if callable(rule):
+        out = np.asarray(rule(econ), dtype=float)
+    elif rule == "lumpsum":
+        out = econ.pop_share.copy()
+    elif rule == "capital" or isinstance(rule, (int, float)):
+        fname = sc.wedge_revenue_factor or econ.factors[-1]
+        fi = econ.factor(fname)
+        inc = facshare[:, fi] * supply[fi]
+        owner = inc / max(float(inc.sum()), 1e-12)
+        if rule == "capital":
+            out = owner
+        else:
+            lam = float(rule)
+            if not 0.0 <= lam <= 1.0:
+                raise ValueError(f"the recycling weight must lie in [0, 1], got {lam}")
+            out = lam * owner + (1.0 - lam) * econ.pop_share
+    else:
+        raise ValueError(f"unknown wedge_revenue_to: {rule!r}")
+    if out.shape != (econ.n_hh,):
+        raise ValueError(f"recycling shares must have {econ.n_hh} entries, got {out.shape}")
+    return out

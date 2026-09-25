@@ -1,0 +1,49 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "cgekit"
+version = "0.1.0"
+description = "General-purpose toolkit for SAM-based computable general equilibrium models: balancing, calibration, closures, within-period solution, recursive dynamics and welfare."
+readme = "README.md"
+requires-python = ">=3.10"
+license = {text = "MIT"}
+authors = [{name = "Gustavo Hoffmann Moreira", email = "gustavo@gakusai.net"}]
+keywords = ["cge", "general equilibrium", "social accounting matrix", "input-output", "armington"]
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "Topic :: Scientific/Engineering",
+    "Intended Audience :: Science/Research",
+]
+dependencies = [
+    "numpy>=1.24",
+    "scipy>=1.10",
+    "pandas>=2.0",
+]
+
+[project.urls]
+# O pacote mora num subdiretorio do repositorio de pesquisa que o originou; a URL
+# aponta para ele, e nao para a raiz, porque e ali que estao o codigo, os testes e
+# a documentacao. Ao publicar como projeto proprio, trocar por repositorio dedicado
+# e acrescentar o DOI do Zenodo -- uma URL de repositorio nao e referencia arquivavel.
+Homepage = "https://github.com/GustavoHM/cgelab"
+Repository = "https://github.com/GustavoHM/cgelab"
+Issues = "https://github.com/GustavoHM/cgelab/issues"
+
+[project.optional-dependencies]
+parquet = ["pyarrow>=14"]
+test = ["pytest>=7"]
+
+[project.scripts]
+cgekit = "cgekit.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+# importlib import mode lets both packages be tested in one run: the
+# default mode keys modules by basename and two suites with a
+# test_calibrate.py would collide.
+addopts = "--import-mode=importlib"

@@ -79,6 +79,40 @@ cobre. O ninho de várias regiões não tem migração de fatores, e o pacote n�
 elasticidades, não tem expectativas racionais, nem a maturidade de uma plataforma com trinta
 anos de uso.
 
+---
+
+## Lacunas, também contra plataformas de outras linguagens
+
+A tabela acima compara com pacotes em Python. Esta seção amplia a régua para GAMS/MPSGE, GEMPACK,
+GTAP e os modelos-padrão do IFPRI e do PEP, que não estão instalados aqui: as células vêm da
+literatura e da documentação, e são **📄**. Desde 11 de outubro de 2026 o objetivo é cobrir toda a
+lista até a 1.0; a versão de cada item é a do [`ROADMAP.md`](../ROADMAP.md).
+
+| Item | Quem tem | Estado no `cgelab` | Versão |
+|---|---|---|---|
+| Instituições da MCS: impostos diretos, transferências, remessas, renda de fatores ao governo e ao exterior | 📄 IFPRI, PEP | **feito** na 0.2.0 | 0.2 |
+| Fechamentos do mercado de trabalho | 📄 IFPRI, ORANI | **feito**: salário real fixo, curva de salário, oferta elástica | 0.2 |
+| Tarifa e imposto indireto separados do imposto sobre produtos | 📄 Hosoe (`stdcge`), IFPRI | **feito** em torno da alíquota calibrada; falta a tarifa dentro do preço de importação do ano-base | 0.2 |
+| Exportador JuMP convergindo a frio em escala aplicada | — | falta: converge a frio nas economias de brinquedo e, numa MCS aplicada, só com partida quente | 0.2 |
+| Demanda de exportação com elasticidade finita | 📄 Hosoe (`lrgcge`) | em andamento no ramo `wip/export-demand` | 0.2 |
+| Decomposição de resultados por choque (*subtotals*) | 📄 GEMPACK | falta | 0.3 |
+| Sensibilidade sistemática (quadratura, Monte Carlo) | 📄 GEMPACK | falta | 0.3 |
+| Contas e relatórios: PIB por despesa e renda, índices de preço, termos de troca | 📄 GEMPACK, GTAP | `real_gdp` feito; o resto falta | 0.3 |
+| Decomposição do bem-estar (Huff e Hertel) | 📄 GTAP | falta | 0.3 |
+| Multiplicadores da MCS e insumo-produto | 📄 Pyatt e Round; Defourny e Thorbecke | falta | 0.3 |
+| Ninhos de energia (KLEM), emissões, imposto de carbono | 📄 ENVISAGE, EPPA, GTAP-E | falta | 0.4 |
+| Fechamentos do governo | 📄 IFPRI | falta | 0.4 |
+| Ponte com o `dsgelab` | — | falta | 0.4 |
+| Mobilidade imperfeita de fatores; informalidade | 📄 IFPRI, ORANI | falta | 0.6 |
+| Elo com microssimulação; Gini e FGT | 📄 prática corrente | falta | 0.6 |
+| Calibração dinâmica da linha de base; capital setorial e safras | 📄 MONASH, GDyn, LINKAGE | falta | 0.6 |
+| Construção e desagregação de MCS | 📄 IFPRI, PEP | falta | 0.6 |
+| Múltiplas regiões | 📄 GTAP, TERM, ORANI-G | ninho de origem feito; migração, fechamentos regionais e comércio bilateral faltam | 0.7 |
+| Dados do GTAP | 📄 GTAPAgg, FlexAgg | falta | 0.7 |
+| Complementaridade (MCP); resolvedores alternativos | 📄 GAMS/MPSGE com PATH; pycge (Pyomo) | falta | 0.8 |
+| Troca de fechamento genérica; entropia cruzada; EGC intertemporal; concorrência imperfeita; uso da terra; exportar para GAMS e GEMPACK | 📄 GEMPACK, MPSGE, GTAP-AEZ | falta | 0.9 |
+
+
 ## Fontes
 
 - [pycge](https://github.com/juanfung/pycge), [PSLmodels/CGE](https://github.com/PSLmodels/CGE),

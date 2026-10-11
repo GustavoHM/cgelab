@@ -1,9 +1,94 @@
 # Roadmap
 
-What `cgelab` does not do yet, in rough order of priority. Each item says why it matters. Most of them came up when the package met applied models. What had to be done by hand there
-is the clearest evidence of what is missing.
+Plan revised on 11 October 2026. The goal is to make `cgelab` **as complete as possible**:
+**version 1.0** covers what the reference platforms offer — GAMS/MPSGE, GEMPACK, GTAP and the
+IFPRI and PEP standard models — together with the gaps the applied models exposed. The **public
+release** is **version 0.5**. Until 11 October this file said that nothing in it was a promise and
+that items moved only when an applied model needed them; that rule is withdrawn. The arguments
+behind it now stand as design conditions of the items they concerned.
 
-Nothing here is a promise or a date. Items move when an applied model needs them.
+`dsgelab` moves through the same milestones in its own roadmap: "0.3" means the 0.3 of each.
+Most items below came up when the package met applied models. What had to be done by hand
+there is the clearest evidence of what is missing.
+
+## What counts as done
+
+An item leaves this list when it meets all six conditions. The one guarantee the package offers
+is that every number was checked against an independent reference.
+
+1. Implemented, with a public API in `__all__`.
+2. **Validated against an independent reference**: another implementation (GAMS, GEMPACK, JuMP,
+   a published replication package), a closed form or a published result, in a script anyone
+   can run.
+3. Tested in the package's suite without external tools; what needs Julia or GAMS lives in
+   `validation/`.
+4. Documented in the guide and the API reference, with a runnable example on the site.
+5. The matching row of `docs/comparison.md` updated.
+6. A `CHANGELOG.md` entry.
+
+## Milestones
+
+Each item is described in the sections further down; this is the order.
+
+**0.2 — done.** SAM institutions (direct taxes, transfers, remittances, factor income to
+government and abroad, FDI), several capital stocks, per-year economies, CET exports actually
+solved, labour closures, the tariff and the indirect tax on domestic sales, the origin nest for
+several regions, the result helpers, and the JuMP export replicating all of it. Open from 0.2:
+
+- [ ] the JuMP export converging from a cold start on an applied SAM (it does on the toy
+  economies, and on an applied SAM only from a warm start);
+- [ ] downward-sloping export demand (work in progress on the `wip/export-demand` branch);
+- [ ] the base-year tariff inside the import price, and the indirect tax on all of output.
+
+**0.3 — results, decompositions and accounts.**
+
+- [ ] **Subtotals**: decomposing a result by shock (Harrison, Horridge and Pearson, 2000).
+- [ ] **Systematic sensitivity**: Gaussian quadrature and Monte Carlo over elasticities (see
+  *Parameter sensitivity*).
+- [ ] **Accounts and reports**: GDP by expenditure and by income, Laspeyres, Paasche and Fisher
+  price indices, terms of trade, government accounts. `real_gdp` is the first of these.
+- [ ] **Welfare decomposition** into allocative efficiency, terms of trade and endowments (Huff
+  and Hertel, 2000). Validation against GTAP.
+- [ ] **SAM multipliers and input–output analysis**: Leontief and fixed-price multipliers,
+  backward and forward linkages, structural path analysis.
+
+**0.4 — energy and the bridge to dsgelab.**
+
+- [ ] **KLEM nesting**, **emissions accounts**, a **carbon tax** with revenue recycling, and
+  **physical units for energy** (see *Then: model structure*).
+- [ ] **Government closures**: a deficit or saving target, revenue-neutral tax replacement.
+- [ ] **The bridge to dsgelab** (see *Extensions that call dsgelab*).
+
+**0.5 — public release.** No new features. Blocking:
+
+- [x] **Rename**: `cgekit` was taken on PyPI; the package is now `cgelab`, free on PyPI on
+  11 October 2026. The name still has to be reserved with a first upload to TestPyPI and PyPI.
+- [x] **One canonical repository**: `https://github.com/GustavoHM/cgelab`. The copies in the
+  research repository are archived.
+- [ ] **Language**, **reproducible validation**, release engineering: see *Infrastructure*.
+
+**0.6 — the distributional side and the labour market.** Imperfect factor mobility and the
+proximity matrix; segmentation and informality; a link to microsimulation with Gini and FGT
+indices; dynamic calibration of the baseline to an observed or projected GDP path; sectoral
+capital and vintages (putty-clay); building and disaggregating a SAM from supply-use tables
+and household surveys (see *Tools around the model*).
+
+**0.7 — several regions, completed.** Factor migration, regional investment and government
+closures, margins and CET inside the origin nest, a capital stock per region in `run_path`;
+bilateral trade with transport margins; reading and aggregating GTAP data. Validation against
+GTAP and ORANI-G/TERM.
+
+**0.8 — complementarity and solvers.** Activities that can switch off, quotas with rents, price
+floors and ceilings, as a mixed complementarity problem; Pyomo with IPOPT and PATH besides
+`scipy`. Validation against GAMS/MPSGE with PATH. Analytic derivatives and sparse algebra for
+large SAMs.
+
+**0.9 — the frontier.** A generic closure swap in the GEMPACK manner; SAM estimation by cross
+entropy; an intertemporal CGE with expectations, on the dsgelab bridge; imperfect competition
+and Melitz firms; asymmetric Armington; export taxes; capital utilization; AIDS and CDE demand;
+land use allocated by CET; export to GAMS/MPSGE and GEMPACK.
+
+**1.0.** All of the above, the API frozen, strict semantic versioning from then on.
 
 ## Next: gaps an applied model hit
 
@@ -118,8 +203,8 @@ A news shock to a world price uses the same bridge.
 **Aggregate uncertainty.** The states to perturb are the capital stocks `Growth` already
 accumulates, plus a short list of aggregate processes: productivity, a world price, a public
 spending shock. Impulse responses come from `solve`. Second-order risk corrections come from
-`solve_second_order`. This does not turn cgelab into an estimation package. The likelihood and
-the Kalman filter stay where the dsgelab roadmap leaves them, with gEconpy or pydsge.
+`solve_second_order`. This does not turn cgelab into an estimation package: the likelihood and
+the Kalman filter stay in dsgelab.
 
 **Risk-adjusted welfare.** `equivalent_variation` compares two deterministic paths. The
 displacement of that variation that comes from aggregate risk, rather than from the mean path,
@@ -169,8 +254,12 @@ sparse linear algebra.
   Markdown docs on the site instead of linking to GitHub.
 - **Validation in CI:** an optional job that installs Julia and runs
   `validation/roundtrip_jump.py`, which today runs only locally.
-- **Language:** the site and `docs/comparison.md` are in Portuguese and the rest in English.
-  Pick one, or keep both, but consistently.
+- **Language:** the site has English and Portuguese versions; `docs/comparison.md` is still in
+  Portuguese only.
+- **Packaging:** tests on Python 3.10–3.14 on Linux, macOS and Windows; installation tested from
+  the wheel (an editable install can break silently on Python 3.14 on macOS); `python -m build`,
+  `twine check`, trusted publishing through TestPyPI first; `CONTRIBUTING.md`, issue and pull
+  request templates; `py.typed`; a known-limitations section in the README.
 - **External cross-check:** replicate a published standard model against someone else's code.
   Started on the site: the Hosoe, Gasawa and Hashimoto (2004) benchmark from the GAMS library
   file `splcge`. The same authors' `stdcge` is the nearest policy experiment (tariff abolition,

@@ -3,11 +3,11 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>cgekit — modelos de equilíbrio geral computável em Python</title>
+<title>cgelab — modelos de equilíbrio geral computável em Python</title>
 <meta name="description" content="Biblioteca geral para modelos EGC sobre matriz de contabilidade social: balanceamento, calibração, fechamentos, CET, instituições e capital estrangeiro, dinâmica recursiva com vários estoques de capital e bem-estar.">
-<link rel="alternate" hreflang="en" href="https://gustavohm.github.io/cgekit/">
-<link rel="alternate" hreflang="pt-BR" href="https://gustavohm.github.io/cgekit/pt-br/">
-<link rel="alternate" hreflang="x-default" href="https://gustavohm.github.io/cgekit/">
+<link rel="alternate" hreflang="en" href="https://gustavohm.github.io/cgelab/">
+<link rel="alternate" hreflang="pt-BR" href="https://gustavohm.github.io/cgelab/pt-br/">
+<link rel="alternate" hreflang="x-default" href="https://gustavohm.github.io/cgelab/">
 <link rel="stylesheet" href="../style.css">
 </head>
 <body>
@@ -15,12 +15,12 @@
 <header class="hero">
   <div class="wrap">
     <p class="lang"><a href="../" hreflang="en" lang="en">English</a> · <strong>Português</strong></p>
-    <h1>cgekit</h1>
+    <h1>cgelab</h1>
     <p class="tag">Você fornece uma matriz de contabilidade social. O pacote calibra um EGC aninhado
     padrão a partir dela, resolve cada período, percorre uma trajetória dinâmica recursiva e mede
     bem-estar — com as verificações contábeis que tornam qualquer disso crível já embutidas, em vez
     de deixadas ao usuário.</p>
-    <p class="tag"><a href="https://github.com/GustavoHM/cgekit">github.com/GustavoHM/cgekit</a></p>
+    <p class="tag"><a href="https://github.com/GustavoHM/cgelab">github.com/GustavoHM/cgelab</a></p>
     <div class="pills">
       <span class="pill">Python 3.10+</span>
       <span class="pill">numpy, scipy, pandas</span>
@@ -67,13 +67,13 @@
 
 <section id="instalar"><div class="wrap">
   <h2>Instalar</h2>
-<pre><code class="plain">pip install "cgekit @ git+https://github.com/GustavoHM/cgekit"
-pip install "cgekit[parquet] @ git+https://github.com/GustavoHM/cgekit"   # MCS em .parquet</code></pre>
+<pre><code class="plain">pip install "cgelab @ git+https://github.com/GustavoHM/cgelab"
+pip install "cgelab[parquet] @ git+https://github.com/GustavoHM/cgelab"   # MCS em .parquet</code></pre>
   <p>Para desenvolver:</p>
-<pre><code class="plain">git clone https://github.com/GustavoHM/cgekit &amp;&amp; cd cgekit
+<pre><code class="plain">git clone https://github.com/GustavoHM/cgelab &amp;&amp; cd cgelab
 pip install -e ".[test]" &amp;&amp; pytest</code></pre>
-<pre><code class="plain">cgekit                       # roda a economia de brinquedo e imprime os diagnósticos
-cgekit minha_mcs.parquet --sigma-armington 2.0 --sigma-va 0.5</code></pre>
+<pre><code class="plain">cgelab                       # roda a economia de brinquedo e imprime os diagnósticos
+cgelab minha_mcs.parquet --sigma-armington 2.0 --sigma-va 0.5</code></pre>
 </div></section>
 
 <section id="exemplos"><div class="wrap">
@@ -83,8 +83,8 @@ cgekit minha_mcs.parquet --sigma-armington 2.0 --sigma-va 0.5</code></pre>
   papel. São os mesmos exemplos que a suíte de testes executa.</p>
 
   <h3>1. Da MCS ao equilíbrio</h3>
-<pre><code>import cgekit as ck
-from cgekit.examples import toy
+<pre><code>import cgelab as ck
+from cgelab.examples import toy
 
 sam, econ = toy.build()          # 2 atividades, 2 mercadorias, 2 fatores, 2 domicílios
 print(ck.report(econ))           # ano-base, Walras, homogeneidade
@@ -265,7 +265,7 @@ econ.diagnostics["unmodelled_flows"]           # células da MCS que o modelo n�
   <h2>As três portarias</h2>
   <p class="lede">Não são formalidades. Um modelo que falha a primeira não está calibrado.</p>
 <pre><code class="plain"># ck.report(econ) em toy.build_with_margins()
-cgekit diagnostics -- Economy(3 activities, 3 commodities, 2 households, 2 factors)
+cgelab diagnostics -- Economy(3 activities, 3 commodities, 2 households, 2 factors)
   base-year reproduction : PASS (worst 7.11e-16)
       imports                7.11e-16
       activity_output        4.26e-16
@@ -357,7 +357,7 @@ cgekit diagnostics -- Economy(3 activities, 3 commodities, 2 households, 2 facto
   <h2>Como se compara ao que já existe</h2>
   <p class="lede">Aqui a diferença não é de opinião: é de escala.</p>
   <table>
-    <thead><tr><th>Capacidade</th><th>cgekit</th><th>pycge</th><th>PSLmodels/CGE</th><th>python-cge</th></tr></thead>
+    <thead><tr><th>Capacidade</th><th>cgelab</th><th>pycge</th><th>PSLmodels/CGE</th><th>python-cge</th></tr></thead>
     <tbody>
       <tr><td><strong>Escala demonstrada</strong></td><td class="num">MCS aplicada<br>ainda não pública</td><td class="num">didática</td><td class="num">MCS 16×18<br>4 setores</td><td class="num">2 bens</td></tr>
       <tr><td>Origem</td><td>MCS aplicada</td><td>porte do <code>splcge.gams</code></td><td>Hosoe et al. (2010)</td><td>Hosoe et al., p. 72</td></tr>
@@ -379,12 +379,12 @@ cgekit diagnostics -- Economy(3 activities, 3 commodities, 2 households, 2 facto
   <code>splcge</code> da biblioteca do GAMS — dois a quatro setores; o
   <a href="https://github.com/PSLmodels/CGE">PSLmodels/CGE</a> diz de si mesmo, no README, que é
   "muito preliminar" e pede que não seja citado.</p></div>
-  <p>A afirmação defensável do <code>cgekit</code> é estreita: se você quer um EGC de escala aplicada
+  <p>A afirmação defensável do <code>cgelab</code> é estreita: se você quer um EGC de escala aplicada
   <em>em Python</em>, sem licença comercial e com as portarias contábeis embutidas, não achei
   alternativa. Isso não é o mesmo que cobrir o que um GAMS cobre — não há múltiplas regiões, nem
   estimação de elasticidades, nem trinta anos de uso. A tabela completa, com o que foi verificado
   lendo código e o que apenas se leu na documentação, está em
-  <a href="https://github.com/GustavoHM/cgekit/blob/main/docs/comparison.md">docs/comparison.md</a>.</p>
+  <a href="https://github.com/GustavoHM/cgelab/blob/main/docs/comparison.md">docs/comparison.md</a>.</p>
 </div></section>
 
 <section id="citar"><div class="wrap">
@@ -394,25 +394,25 @@ cgekit diagnostics -- Economy(3 activities, 3 commodities, 2 households, 2 facto
   versão específica não é reproduzível sem ela.</p>
 
   <h3>BibTeX</h3>
-<pre><code class="plain">@software{cgekit_2026,
+<pre><code class="plain">@software{cgelab_2026,
   author  = {Moreira, Gustavo Hoffmann},
-  title   = {{cgekit}: a general toolkit for SAM-based computable general equilibrium models in Python},
+  title   = {{cgelab}: a general toolkit for SAM-based computable general equilibrium models in Python},
   year    = {2026},
   version = {0.2.0},
   license = {MIT},
-  url     = {https://github.com/GustavoHM/cgekit},
+  url     = {https://github.com/GustavoHM/cgelab},
   note    = {Pacote em Python}
 }</code></pre>
 
   <h3>ABNT</h3>
-<pre><code class="plain">MOREIRA, Gustavo Hoffmann. cgekit: a general toolkit for SAM-based computable general equilibrium models in Python.
+<pre><code class="plain">MOREIRA, Gustavo Hoffmann. cgelab: a general toolkit for SAM-based computable general equilibrium models in Python.
 Versão 0.2.0. 2026. Software em Python. Disponível em:
-https://github.com/GustavoHM/cgekit. Acesso em: [data].</code></pre>
+https://github.com/GustavoHM/cgelab. Acesso em: [data].</code></pre>
 
   <h3>No corpo do texto</h3>
   <p>Cite a versão junto do resultado, não só o nome:</p>
   <blockquote style="border-left:3px solid var(--rule); margin:1rem 0; padding:.2rem 0 .2rem 1.1rem;
-     color:var(--muted)">O modelo foi calibrado e resolvido com o <code>cgekit</code> 0.2.0
+     color:var(--muted)">O modelo foi calibrado e resolvido com o <code>cgelab</code> 0.2.0
      (Moreira, 2026), em dinâmica recursiva de 2021 a 2045.</blockquote>
 
   <div class="note"><p><strong>Antes de citar, arquive.</strong> Uma URL de repositório não é uma
@@ -433,19 +433,19 @@ https://github.com/GustavoHM/cgekit. Acesso em: [data].</code></pre>
   <h2>Documentação</h2>
   <p class="lede">A documentação detalhada está em inglês, exceto a comparação.</p>
   <div class="cards">
-    <div class="card"><h4><a href="https://github.com/GustavoHM/cgekit/blob/main/docs/guide.md">Guia de uso</a></h4><p>Da MCS ao bem-estar, com
+    <div class="card"><h4><a href="https://github.com/GustavoHM/cgelab/blob/main/docs/guide.md">Guia de uso</a></h4><p>Da MCS ao bem-estar, com
     as armadilhas de cada etapa.</p></div>
-    <div class="card"><h4><a href="https://github.com/GustavoHM/cgekit/blob/main/docs/api.md">Referência da API</a></h4><p>Toda função, todo
+    <div class="card"><h4><a href="https://github.com/GustavoHM/cgelab/blob/main/docs/api.md">Referência da API</a></h4><p>Toda função, todo
     campo, toda forma de array.</p></div>
-    <div class="card"><h4><a href="https://github.com/GustavoHM/cgekit/blob/main/docs/design-notes.md">Notas de projeto</a></h4><p>As decisões
+    <div class="card"><h4><a href="https://github.com/GustavoHM/cgelab/blob/main/docs/design-notes.md">Notas de projeto</a></h4><p>As decisões
     contábeis e os erros que cada uma evita.</p></div>
-    <div class="card"><h4><a href="https://github.com/GustavoHM/cgekit/blob/main/docs/from-scripts.md">Portar um pipeline</a></h4><p>Tabela de
+    <div class="card"><h4><a href="https://github.com/GustavoHM/cgelab/blob/main/docs/from-scripts.md">Portar um pipeline</a></h4><p>Tabela de
     tradução de um solucionador existente para <code>Scenario</code> e <code>Closure</code>.</p></div>
-    <div class="card"><h4><a href="https://github.com/GustavoHM/cgekit/blob/main/docs/comparison.md">Comparação</a></h4><p>Onde o pacote está
+    <div class="card"><h4><a href="https://github.com/GustavoHM/cgelab/blob/main/docs/comparison.md">Comparação</a></h4><p>Onde o pacote está
     frente aos outros EGC em Python e ao GAMS, e onde não ganha.</p></div>
-    <div class="card"><h4><a href="https://github.com/GustavoHM/cgekit/blob/main/CHANGELOG.md">Mudanças</a></h4><p>O que mudou de uma
+    <div class="card"><h4><a href="https://github.com/GustavoHM/cgelab/blob/main/CHANGELOG.md">Mudanças</a></h4><p>O que mudou de uma
     versão para outra.</p></div>
-    <div class="card"><h4><a href="https://github.com/GustavoHM/cgekit/blob/main/ROADMAP.md">Roadmap</a></h4><p>O que ainda falta
+    <div class="card"><h4><a href="https://github.com/GustavoHM/cgelab/blob/main/ROADMAP.md">Roadmap</a></h4><p>O que ainda falta
     no pacote, e por que importa.</p></div>
     <div class="card"><h4><a href="replications.html">Replicações</a></h4><p>Modelos publicados refeitos
     a partir da matriz de contabilidade social deles, e onde um resultado ainda não pode ser reivindicado.</p></div>
@@ -455,8 +455,8 @@ https://github.com/GustavoHM/cgekit. Acesso em: [data].</code></pre>
 </main>
 
 <footer><div class="wrap">
-  <p>cgekit 0.2.0 — MIT. Código, documentação e issues em
-  <a href="https://github.com/GustavoHM/cgekit">github.com/GustavoHM/cgekit</a>.</p>
+  <p>cgelab 0.2.0 — MIT. Código, documentação e issues em
+  <a href="https://github.com/GustavoHM/cgelab">github.com/GustavoHM/cgelab</a>.</p>
 </div></footer>
 
 <script src="../highlight.js"></script>

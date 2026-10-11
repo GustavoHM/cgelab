@@ -1,6 +1,6 @@
-# Site do `cgekit`
+# Site do `cgelab`
 
-Página estática em dois idiomas, publicada em <https://gustavohm.github.io/cgekit/>. Não usa
+Página estática em dois idiomas, publicada em <https://gustavohm.github.io/cgelab/>. Não usa
 Jekyll, etapa de build nem CDN: são duas páginas HTML, `style.css` e um realçador de sintaxe de
 trinta linhas. Abre num navegador direto do disco.
 

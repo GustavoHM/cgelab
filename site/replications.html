@@ -3,11 +3,11 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>cgekit — replications</title>
-<meta name="description" content="Published CGE models rerun in cgekit from their own social accounting matrix. One region first; several regions when the paper needs them.">
-<link rel="alternate" hreflang="en" href="https://gustavohm.github.io/cgekit/replications.html">
-<link rel="alternate" hreflang="pt-BR" href="https://gustavohm.github.io/cgekit/pt-br/replications.html">
-<link rel="alternate" hreflang="x-default" href="https://gustavohm.github.io/cgekit/replications.html">
+<title>cgelab — replications</title>
+<meta name="description" content="Published CGE models rerun in cgelab from their own social accounting matrix. One region first; several regions when the paper needs them.">
+<link rel="alternate" hreflang="en" href="https://gustavohm.github.io/cgelab/replications.html">
+<link rel="alternate" hreflang="pt-BR" href="https://gustavohm.github.io/cgelab/pt-br/replications.html">
+<link rel="alternate" hreflang="x-default" href="https://gustavohm.github.io/cgelab/replications.html">
 <link rel="stylesheet" href="style.css">
 </head>
 <body>
@@ -18,7 +18,7 @@
     <h1>Replications</h1>
     <p class="tag">A published model, rerun from the social accounting matrix that paper used.
     The page records the number that matched and the mechanism the package does not have.</p>
-    <p class="tag"><a href="./">cgekit</a> · <a href="https://github.com/GustavoHM/cgekit">github.com/GustavoHM/cgekit</a></p>
+    <p class="tag"><a href="./">cgelab</a> · <a href="https://github.com/GustavoHM/cgelab">github.com/GustavoHM/cgelab</a></p>
   </div>
 </header>
 
@@ -52,7 +52,7 @@
   do not migrate. A GTAP paper or an interregional model in the tradition of B-MARIA or TERM
   also wants migration, and GTAP wants its licensed database. A result of that kind will not
   be claimed from the origin nest alone. The
-  <a href="https://github.com/GustavoHM/cgekit/blob/main/ROADMAP.md">roadmap</a> keeps the
+  <a href="https://github.com/GustavoHM/cgelab/blob/main/ROADMAP.md">roadmap</a> keeps the
   rest of the item, and the catalog says so on the row.</p>
 </div></section>
 
@@ -69,7 +69,7 @@
   investment and no rest of the world; the package requires those three accounts, so they are
   entered empty. Investment of zero is a shut block, not a basket to be split.</p>
 <pre><code>import pandas as pd
-import cgekit as ck
+import cgelab as ck
 
 entries = [
     ("c_brd", "hh_1", 15.0), ("c_mlk", "hh_1", 35.0),
@@ -148,8 +148,8 @@ print(base.X, base.walras)</code></pre>
 </main>
 
 <footer><div class="wrap">
-  <p>cgekit 0.2.0 — MIT. <a href="./">Back to the package</a> ·
-  <a href="https://github.com/GustavoHM/cgekit">github.com/GustavoHM/cgekit</a>.</p>
+  <p>cgelab 0.2.0 — MIT. <a href="./">Back to the package</a> ·
+  <a href="https://github.com/GustavoHM/cgelab">github.com/GustavoHM/cgelab</a>.</p>
 </div></footer>
 
 <script src="highlight.js"></script>

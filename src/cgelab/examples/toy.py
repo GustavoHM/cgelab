@@ -135,7 +135,7 @@ def build_with_twin_accounts(model_spec: ModelSpec | None = None, **kwargs):
     and informal. Because the twins are identical, moving income between them
     changes no aggregate and no price, so any welfare difference a measure
     reports for that move is composition and not welfare. That is what makes this
-    the right fixture for :func:`cgekit.welfare.ev_by_group`.
+    the right fixture for :func:`cgelab.welfare.ev_by_group`.
     """
     drop = {("hh_2", "f_lab", 40.0), ("hh_2", "f_cap", 15.0),
             ("c_agr", "hh_2", 20.0), ("c_ind", "hh_2", 30.0), ("s_i", "hh_2", 5.0)}

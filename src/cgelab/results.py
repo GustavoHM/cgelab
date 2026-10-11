@@ -2,7 +2,7 @@
 
 Three numbers kept drifting apart between users of the same solved path: employment
 by sector, real GDP, and the sectoral price and output panel. Each is a function
-of a :class:`~cgekit.solve.PeriodResult` or a :class:`~cgekit.dynamics.PathResult`,
+of a :class:`~cgelab.solve.PeriodResult` or a :class:`~cgelab.dynamics.PathResult`,
 not a second pass of the solver, so two people reading one equilibrium get the
 same figure.
 """

@@ -42,7 +42,7 @@ def _panel(path) -> pd.DataFrame:
 def equivalent_variation(reference, alternative, *, base_price_index=None) -> pd.DataFrame:
     """EV of moving from ``reference`` to ``alternative``, per year and account.
 
-    Both arguments are :class:`~cgekit.dynamics.PathResult` objects. ``ev`` is
+    Both arguments are :class:`~cgelab.dynamics.PathResult` objects. ``ev`` is
     valued at the reference scenario's prices, ``ev_base`` at base-year prices.
     """
     ref = _panel(reference)

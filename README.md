@@ -1,7 +1,7 @@
-# cgekit
+# cgelab
 
-[![tests](https://github.com/GustavoHM/cgekit/actions/workflows/tests.yml/badge.svg)](https://github.com/GustavoHM/cgekit/actions/workflows/tests.yml)
-[![site](https://img.shields.io/badge/site-gustavohm.github.io%2Fcgekit-2b6cb0)](https://gustavohm.github.io/cgekit/)
+[![tests](https://github.com/GustavoHM/cgelab/actions/workflows/tests.yml/badge.svg)](https://github.com/GustavoHM/cgelab/actions/workflows/tests.yml)
+[![site](https://img.shields.io/badge/site-gustavohm.github.io%2Fcgelab-2b6cb0)](https://gustavohm.github.io/cgelab/)
 [![license: MIT](https://img.shields.io/badge/license-MIT-blue)](LICENSE)
 
 A general toolkit for SAM-based computable general equilibrium models in Python.
@@ -25,21 +25,21 @@ living in a branch inside a solver.
 ## Install
 
 ```
-pip install "cgekit @ git+https://github.com/GustavoHM/cgekit"
-pip install "cgekit[parquet] @ git+https://github.com/GustavoHM/cgekit"   # adds pyarrow for .parquet SAMs
+pip install "cgelab @ git+https://github.com/GustavoHM/cgelab"
+pip install "cgelab[parquet] @ git+https://github.com/GustavoHM/cgelab"   # adds pyarrow for .parquet SAMs
 ```
 
 For development:
 
 ```
-git clone https://github.com/GustavoHM/cgekit && cd cgekit
+git clone https://github.com/GustavoHM/cgelab && cd cgelab
 pip install -e ".[test]" && pytest
 ```
 
 Requires Python 3.10+, numpy, scipy and pandas. Try it with no data at all:
 
 ```
-cgekit                    # runs the bundled toy economy and prints the diagnostics
+cgelab                    # runs the bundled toy economy and prints the diagnostics
 ```
 
 ## Quick start
@@ -48,8 +48,8 @@ The bundled toy economy has every SAM entry written out, so the base year is
 known on paper and this runs as it is:
 
 ```python
-import cgekit as ck
-from cgekit.examples import toy
+import cgelab as ck
+from cgelab.examples import toy
 
 sam, econ = toy.build()
 print(ck.report(econ))            # base-year reproduction, Walras, homogeneity
@@ -122,14 +122,14 @@ period.
 | Within-period equilibrium: five macro closures, plus full employment, a fixed real wage, a wage curve or elastic labour supply | `solve_period`, `Closure` |
 | Counterfactuals: taxes, wedges, endowments, ownership, productivity, own-account levels, world prices, FDI, the investment basket | `Scenario` |
 | Recursive dynamics: several capital stocks, investment allocation, foreign-owned capital, a per-year economy | `run_path`, `Growth` |
-| Welfare: EV, CV and composition-immune group aggregation | `cgekit.welfare` |
-| Base-year reproduction, homogeneity, Walras | `cgekit.diagnostics` |
-| Employment by activity, real GDP on both sides, sectoral path | `cgekit.results` |
+| Welfare: EV, CV and composition-immune group aggregation | `cgelab.welfare` |
+| Base-year reproduction, homogeneity, Walras | `cgelab.diagnostics` |
+| Employment by activity, real GDP on both sides, sectoral path | `cgelab.results` |
 | The same equilibrium as a JuMP model, for independent validation | `to_jump` |
 
 ## Documentation
 
-- [Site](https://gustavohm.github.io/cgekit/): an overview with runnable examples, in Portuguese
+- [Site](https://gustavohm.github.io/cgelab/): an overview with runnable examples, in Portuguese
 - [`docs/whitepaper.md`](docs/whitepaper.md): the mathematics of calibration, the period equilibrium, recursive dynamics and welfare
 - [`docs/guide.md`](docs/guide.md): the user guide, from SAM to welfare
 - [`docs/api.md`](docs/api.md): API reference
@@ -174,12 +174,12 @@ Ipopt agree to at most 3e-12.
 
 ```
 cd validation && julia --project=. -e 'using Pkg; Pkg.instantiate()' && cd ..
-python validation/roundtrip_jump.py            # or: CGEKIT_RUN_JULIA=1 pytest tests/test_jump_roundtrip.py
+python validation/roundtrip_jump.py            # or: CGELAB_RUN_JULIA=1 pytest tests/test_jump_roundtrip.py
 ```
 
 ## Scope
 
-`cgekit` is a recursive-dynamic model with no forward-looking agent. Several
+`cgelab` is a recursive-dynamic model with no forward-looking agent. Several
 regions share one origin nest under the Armington, and factors do not migrate.
 It does not estimate elasticities, and it does not have the maturity of GAMS or
 GEMPACK. [`docs/comparison.md`](docs/comparison.md) says where it stands.

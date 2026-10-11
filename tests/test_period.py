@@ -3,8 +3,8 @@
 import numpy as np
 import pytest
 
-import cgekit as ck
-from cgekit.examples import toy
+import cgelab as ck
+from cgelab.examples import toy
 
 VARIANTS = [("plain", toy.build), ("margins", toy.build_with_margins),
             ("own_account", toy.build_with_own_production)]

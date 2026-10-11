@@ -7,13 +7,13 @@ has one variety, and its price is that variety's price.
 import numpy as np
 import pytest
 
-import cgekit as ck
-from cgekit.examples import regions
+import cgelab as ck
+from cgelab.examples import regions
 
 
 def test_one_labelled_region_matches_the_legacy_solver():
     import pandas as pd
-    from cgekit.examples import toy
+    from cgelab.examples import toy
     sam, econ = toy.build()
     legacy = ck.solve_period(econ)
     keep = {econ.layout.government, econ.layout.investment, econ.layout.rest_of_world}
@@ -94,7 +94,7 @@ def test_swapping_region_names_swaps_a_shock():
 
 def test_a_missing_origin_is_named():
     import pandas as pd
-    from cgekit.sam import SAM
+    from cgelab.sam import SAM
     rows = [e for e in regions.ENTRIES if "r2:c" not in (e[0], e[1])]
     sam = SAM.from_long(pd.DataFrame(rows, columns=["row", "col", "value"]))
     with pytest.raises(KeyError, match="r2:c"):

@@ -12,8 +12,8 @@ import json
 import numpy as np
 import pytest
 
-import cgekit as ck
-from cgekit.examples import toy
+import cgelab as ck
+from cgelab.examples import toy
 
 
 def _exporta(tmp_path, econ, closure=None, scenario=None):

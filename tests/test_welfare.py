@@ -3,8 +3,8 @@
 import numpy as np
 import pytest
 
-import cgekit as ck
-from cgekit.examples import toy
+import cgelab as ck
+from cgelab.examples import toy
 
 
 def _paths(econ, scenario=None, years=range(2021, 2031)):

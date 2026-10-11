@@ -1,6 +1,6 @@
-# Como o cgekit se compara ao que já existe
+# Como o cgelab se compara ao que já existe
 
-O levantamento dos outros pacotes foi feito em 9 de setembro de 2026. As colunas do `cgekit`
+O levantamento dos outros pacotes foi feito em 9 de setembro de 2026. As colunas do `cgelab`
 foram revistas em 25 de setembro de 2026, para a versão 0.2.0. As linhas que mudaram nessa
 revisão estão marcadas com †. As colunas dos outros pacotes **não** foram refeitas.
 
@@ -22,7 +22,7 @@ célula **📄** pode estar errada.
 
 ## A tabela
 
-| Capacidade | cgekit 0.2 | pycge | PSLmodels/CGE | python-cge | GAMS / GEMPACK (ref.) |
+| Capacidade | cgelab 0.2 | pycge | PSLmodels/CGE | python-cge | GAMS / GEMPACK (ref.) |
 |---|---|---|---|---|---|
 | **Origem** | escrito para uma MCS aplicada | ✅ porte do `splcge.gams` da biblioteca do GAMS | ✅ "o modelo CGE mais simples de Hosoe, Gawana e Hashimoto (2010)" | ✅ transcrição direta do livro de Hosoe, p. 72 | plataformas de propósito geral |
 | **Escala demonstrada** | ✅ a MCS aplicada para a qual foi escrito, ainda não pública; em público, exemplos didáticos | ✅ 3 exemplos didáticos e um regional | ✅ MCS de **16×18**: 4 setores, 3 fatores | ✅ **2 bens** (`BRD`, `MLK`) | milhares de contas (GTAP) |
@@ -60,14 +60,14 @@ Hashimoto (2010) ou o `splcge` da biblioteca do GAMS, com dois a quatro setores.
 diz de si mesmo, no README, que é "muito preliminar" e pede que não seja citado. Até onde se apurou,
 não há pacote de EGC em Python em escala aplicada.
 
-Isso não faz do `cgekit` uma contribuição por si. Ele preenche uma lacuna que existe porque quem
+Isso não faz do `cgelab` uma contribuição por si. Ele preenche uma lacuna que existe porque quem
 faz EGC aplicado usa GAMS ou GEMPACK, e com bons motivos: resolvedores dedicados, comunidade e
 bases como a GTAP. A afirmação defensável é estreita. Para um EGC de escala aplicada em Python, sem
 licença comercial e com as verificações contábeis embutidas, não se achou alternativa.
 
 ## Uma advertência
 
-O `cgekit` foi validado de três formas:
+O `cgelab` foi validado de três formas:
 
 - contra uma réplica independente em JuMP/Ipopt do mesmo equilíbrio, em 16 casos;
 - contra o pipeline de pesquisa que o originou, na versão 0.1.0;

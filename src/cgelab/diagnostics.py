@@ -84,7 +84,7 @@ def report(econ: Economy, closure: Closure | None = None) -> str:
     """Run every check and render a short verdict, for a log or a referee appendix."""
     base = base_year_reproduction(econ, closure)
     homo = homogeneity_test(econ, closure)
-    lines = [f"cgekit diagnostics -- {econ!r}",
+    lines = [f"cgelab diagnostics -- {econ!r}",
              f"  base-year reproduction : {'PASS' if base['ok'] else 'FAIL'} "
              f"(worst {base['worst']:.2e})"]
     for name, v in sorted(base["checks"].items(), key=lambda kv: -kv[1])[:4]:

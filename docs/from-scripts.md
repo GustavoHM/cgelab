@@ -3,7 +3,7 @@
 A research CGE pipeline usually grows as a chain of numbered scripts loaded by
 `importlib` — `00_config.py`, `06_calibrate.py`, `06_solve.py`, `07_scenarios.py`
 — with the model's assumptions spread between a large config module and branches
-inside the solver. This note is about moving the model core to `cgekit` and what
+inside the solver. This note is about moving the model core to `cgelab` and what
 that changes.
 
 ## What stays where it is
@@ -103,7 +103,7 @@ Each of the old solver's keyword arguments maps to a `Scenario` field:
 Anything genuinely specific to your policy — a rule that computes a transfer
 from your own accounts, an eligibility rule by group — stays in
 your own module. Its **output** is a wedge matrix, a transfer vector or a tax
-vector, and that is what crosses into `cgekit`. Keeping the policy logic outside
+vector, and that is what crosses into `cgelab`. Keeping the policy logic outside
 is the right boundary: it is where your paper's contribution is, and it is the
 part no general package should own.
 

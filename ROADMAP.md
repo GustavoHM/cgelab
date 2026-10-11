@@ -1,6 +1,6 @@
 # Roadmap
 
-What `cgekit` does not do yet, in rough order of priority. Each item says why it matters. Most of them came up when the package met applied models. What had to be done by hand there
+What `cgelab` does not do yet, in rough order of priority. Each item says why it matters. Most of them came up when the package met applied models. What had to be done by hand there
 is the clearest evidence of what is missing.
 
 Nothing here is a promise or a date. Items move when an applied model needs them.
@@ -90,26 +90,26 @@ national model stands in for the regions it does not have.
 `irscge` and `twocge` add monopoly rent, an import quota, a fixed cost of capital, or a second
 country. The solver has none of these. They wait until an applied model asks.
 
-## Extensions that call dsgekit
+## Extensions that call dsgelab
 
 `run_path` solves one within-period equilibrium after another. Between periods it updates
 capital, labour and productivity, and no agent looks ahead. That function stays as it is. The
 extensions in this section are a different object, and they are the reason to keep the two
 packages apart rather than fold one into the other: the period equilibrium remains a SAM model
-solved here, and the intertemporal residual is solved by dsgekit.
+solved here, and the intertemporal residual is solved by dsgelab.
 
-dsgekit never reads a SAM. cgekit would take it as an optional dependency, imported only by the
+dsgelab never reads a SAM. cgelab would take it as an optional dependency, imported only by the
 bridge, so a static model keeps today's install (numpy, scipy, pandas). The bridge is one
-residual. Given the predetermined stocks and the forward-looking guesses, cgekit returns the
+residual. Given the predetermined stocks and the forward-looking guesses, cgelab returns the
 period equilibrium: rentals, purchaser prices, investment, household consumption. The residual
-dsgekit sees is the Euler gap, or Tobin's q. Commodity balances stay inside `solve_period`,
+dsgelab sees is the Euler gap, or Tobin's q. Commodity balances stay inside `solve_period`,
 which is where Walras, homogeneity and the base year are already checked. A SAM of a few
 hundred accounts does not become a DSGE with a few hundred states. The static block is
 substituted out by the period solver, and the perturbation runs in the aggregate states.
 
 **Announced policy.** A tax, a tariff or a carbon price that agents know will change on a
 dated schedule leaves year-1 investment where it was, under `run_path`.
-`dsgekit.perfect_foresight` already stacks one residual over a horizon and already accepts a
+`dsgelab.perfect_foresight` already stacks one residual over a horizon and already accepts a
 parameter path of length `T+1`. The extension is that residual calling `solve_period`. The
 instrument stays a `Scenario` field. An emissions account and a carbon-tax field are still the
 gaps under model structure; this item is the anticipation of a path those fields would supply.
@@ -118,8 +118,8 @@ A news shock to a world price uses the same bridge.
 **Aggregate uncertainty.** The states to perturb are the capital stocks `Growth` already
 accumulates, plus a short list of aggregate processes: productivity, a world price, a public
 spending shock. Impulse responses come from `solve`. Second-order risk corrections come from
-`solve_second_order`. This does not turn cgekit into an estimation package. The likelihood and
-the Kalman filter stay where the dsgekit roadmap leaves them, with gEconpy or pydsge.
+`solve_second_order`. This does not turn cgelab into an estimation package. The likelihood and
+the Kalman filter stay where the dsgelab roadmap leaves them, with gEconpy or pydsge.
 
 **Risk-adjusted welfare.** `equivalent_variation` compares two deterministic paths. The
 displacement of that variation that comes from aggregate risk, rather than from the mean path,
@@ -128,18 +128,18 @@ utility is the one the household block already has, Cobb–Douglas or LES.
 
 **The forward-looking steady state is another point.** The base year is the accounting
 equilibrium the SAM records. The steady state of a Ramsey or Tobin's q system is the point
-where the Euler holds and capital is constant. `dsgekit.steady_state` solves that point, with
+where the Euler holds and capital is constant. `dsgelab.steady_state` solves that point, with
 the period residual inside it. A published table has to say which of the two it reports. The
 bridge keeps both, and writes neither over the other.
 
 **Forward-looking migration, after the regional closure.** The open regional item asks for
-myopic factor migration, which is a closure inside cgekit and does not need dsgekit. Migration
+myopic factor migration, which is a closure inside cgelab and does not need dsgelab. Migration
 that answers to expected utility differences is the same bridge as the Euler: the period labour
-market stays a closure, and the migration decision is an asset equation dsgekit can stack. It
+market stays a closure, and the migration decision is an asset equation dsgelab can stack. It
 waits on that closure.
 
 KLEM nesting, tariff accounting, several regions, government closures and a GTAP-style global
-bank stay in the sections above. They change the period equilibrium. dsgekit has no
+bank stay in the sections above. They change the period equilibrium. dsgelab has no
 representation for a SAM, and calling it does not close those gaps.
 
 ## Tools around the model

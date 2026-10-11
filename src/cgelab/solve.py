@@ -10,7 +10,7 @@ Structure of one period
 * **Armington.** Domestic and imported varieties combine by CES.
 * **Households.** Cobb-Douglas or LES over commodities, on income net of saving
   and of any payment made straight to an activity.
-* **Closure.** See :class:`cgekit.closure.Closure`.
+* **Closure.** See :class:`cgelab.closure.Closure`.
 
 Why the quantity system is written on COMMODITY output
 ------------------------------------------------------

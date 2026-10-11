@@ -3,7 +3,7 @@ requires = ["setuptools>=68", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "cgekit"
+name = "cgelab"
 version = "0.2.0"
 description = "General-purpose toolkit for SAM-based computable general equilibrium models: balancing, calibration, closures, CET trade, institutions and foreign ownership, recursive dynamics with several capital stocks, and welfare."
 readme = "README.md"
@@ -25,18 +25,18 @@ dependencies = [
 ]
 
 [project.urls]
-Homepage = "https://gustavohm.github.io/cgekit/"
-Documentation = "https://github.com/GustavoHM/cgekit/tree/main/docs"
-Repository = "https://github.com/GustavoHM/cgekit"
-Issues = "https://github.com/GustavoHM/cgekit/issues"
-Changelog = "https://github.com/GustavoHM/cgekit/blob/main/CHANGELOG.md"
+Homepage = "https://gustavohm.github.io/cgelab/"
+Documentation = "https://github.com/GustavoHM/cgelab/tree/main/docs"
+Repository = "https://github.com/GustavoHM/cgelab"
+Issues = "https://github.com/GustavoHM/cgelab/issues"
+Changelog = "https://github.com/GustavoHM/cgelab/blob/main/CHANGELOG.md"
 
 [project.optional-dependencies]
 parquet = ["pyarrow>=14"]
 test = ["pytest>=7"]
 
 [project.scripts]
-cgekit = "cgekit.cli:main"
+cgelab = "cgelab.cli:main"
 
 [tool.setuptools.packages.find]
 where = ["src"]

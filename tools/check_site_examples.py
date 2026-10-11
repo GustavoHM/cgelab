@@ -47,7 +47,7 @@ def run(page: Path, verbose: bool = True) -> int:
     # A real MODULE registered in sys.modules, not a bare dict: `dataclasses` resolves
     # annotations through sys.modules[cls.__module__].__dict__, and an exec in an anonymous dict
     # makes that lookup return None. The example works in a script; the checker was wrong.
-    name = f"__cgekit_site_examples_{page.parent.name}__"
+    name = f"__cgelab_site_examples_{page.parent.name}__"
     module = types.ModuleType(name)
     sys.modules[name] = module
     ns = module.__dict__

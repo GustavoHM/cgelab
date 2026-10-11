@@ -3,8 +3,8 @@
 import numpy as np
 import pytest
 
-import cgekit as ck
-from cgekit.examples import toy
+import cgelab as ck
+from cgelab.examples import toy
 
 GROWTH = [ck.Growth(), ck.Growth(labour=0.01), ck.Growth(tfp=0.015),
           ck.Growth(labour=0.01, tfp=0.015)]

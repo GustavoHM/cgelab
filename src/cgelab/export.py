@@ -1,6 +1,6 @@
 """Exportar uma economia calibrada para uma réplica em JuMP, resolvida SIMULTANEAMENTE.
 
-Por que isto vale a pena, e não é só conveniência. O :mod:`cgekit.solve` resolve o equilíbrio por
+Por que isto vale a pena, e não é só conveniência. O :mod:`cgelab.solve` resolve o equilíbrio por
 ANINHAMENTO: um Newton externo sobre poucas incógnitas e, dentro dele, um ponto fixo sobre o preço
 de entrega, duas somas em forma fechada — a série infinita da reciclagem do gravame e a relação
 afim entre poupança e arrecadação — e uma inversão de Leontief para a absorção. Cada uma dessas
@@ -207,16 +207,16 @@ def to_jump(econ: Economy, closure: Closure | None = None, scenario: Scenario | 
     return dados
 
 
-JUMP_TEMPLATE = r"""# modelo_cge.jl — réplica em JuMP de uma economia calibrada pelo cgekit.
+JUMP_TEMPLATE = r"""# modelo_cge.jl — réplica em JuMP de uma economia calibrada pelo cgelab.
 #
-# GERADO por cgekit.export.to_jump. Arquivo FIXO: serve a qualquer economia, lendo o JSON.
+# GERADO por cgelab.export.to_jump. Arquivo FIXO: serve a qualquer economia, lendo o JSON.
 #
-# O cgekit resolve este mesmo equilíbrio por ANINHAMENTO — um Newton sobre poucas incógnitas e,
+# O cgelab resolve este mesmo equilíbrio por ANINHAMENTO — um Newton sobre poucas incógnitas e,
 # dentro dele, um ponto fixo sobre o preço de entrega, duas somas em forma fechada e uma inversão
 # de Leontief. Aqui nada é aninhado: cada um desses blocos é uma restrição, e o Ipopt acha o ponto
 # fixo. É por isso que a comparação verifica a ÁLGEBRA e não apenas a aritmética.
 #
-# O mercado do fator NUMERÁRIO fica deliberadamente de fora, exatamente como no cgekit, de modo que
+# O mercado do fator NUMERÁRIO fica deliberadamente de fora, exatamente como no cgelab, de modo que
 # o seu resíduo continue a ser verificação pela lei de Walras e não identidade imposta.
 #
 #   uso:  julia --project=. modelo_cge.jl dados.json [saida.json]
@@ -406,7 +406,7 @@ end
 @constraint(m, [c = 1:nc], mshm[c] == (1 - domsh[c]) * (arm[c] / (er * wp[c] * (1 + tm[c]) / (1 + tm0[c])))^sarm[c])
 
 # ---- 6. preço de ENTREGA. As margens são elas mesmas precificadas a preço de entrega, donde o
-# ponto fixo que o cgekit itera e que aqui é apenas uma restrição.
+# ponto fixo que o cgelab itera e que aqui é apenas uma restrição.
 @constraint(m, [c = 1:nc],
             pbase[c] == arm[c] * armsh[c] + sum(pqf[mm] * mq[mm, c] for mm in 1:nc))
 
@@ -438,7 +438,7 @@ end
 @expression(m, hh_val[c = 1:nc], sum(coef[h, c] * super[h] for h in 1:nh))
 
 # A série infinita da reciclagem: creditar a receita à renda eleva o gasto, que eleva o gravame,
-# que eleva a renda. O cgekit soma isso em forma fechada; aqui é uma restrição e o resolvedor
+# que eleva a renda. O cgelab soma isso em forma fechada; aqui é uma restrição e o resolvedor
 # encontra o ponto fixo.
 @constraint(m, uplift_rev == sum(g_cap[h] * super[h] for h in 1:nh)
                            + sum(gam_W[c] * pq[c] for c in 1:nc))
@@ -473,7 +473,7 @@ end
                      + hh_final[c] + gov_q[c] + inv_q[c] + exog_int[c])
 for c in 1:nc
     if expsh[c] >= 1
-        @constraint(m, Q[c] == 0)            # sem venda doméstica, como no cgekit
+        @constraint(m, Q[c] == 0)            # sem venda doméstica, como no cgelab
     else
         @constraint(m, Q[c] == dsh[c] * armsh[c] / domfrac[c] * Aabs[c])
     end
@@ -481,7 +481,7 @@ end
 @constraint(m, [j = 1:na], Xraw[j] == sum(msh[j, c] * Q[c] for c in 1:nc))
 @expression(m, X[j = 1:na], own[j] ? X_exog[j] : Xraw[j])
 
-# ---- 9. poupança. O cgekit precisa decompor esta relação em parte afim; aqui é a identidade.
+# ---- 9. poupança. O cgelab precisa decompor esta relação em parte afim; aqui é a identidade.
 @expression(m, fin_c[c = 1:nc], hh_final[c] + gov_q[c])
 @expression(m, tax_rev,
             sum(pbase[c] * ((Aabs[c] - fin_c[c]) * ptax_f[c] + fin_c[c] * ptax_a[c])

@@ -1,9 +1,15 @@
 # Changelog
 
-All notable changes to `cgekit`. Versions follow [semantic versioning](https://semver.org/);
+All notable changes to `cgelab`. Versions follow [semantic versioning](https://semver.org/);
 before 1.0, a minor version may add to the API and a patch version only fixes.
 
 ## Unreleased
+
+### Changed
+
+- Renamed from `cgekit` to `cgelab`: `cgekit` is taken on PyPI by an
+  unrelated project. The import name, distribution name, CLI entry point,
+  the `CGELAB_RUN_JULIA` switch and the URLs all move together.
 
 ### Added
 
@@ -79,7 +85,7 @@ zero, so a SAM without the new flows gives the same results as 0.1.0.
   scenario fields (input coefficients, a foreign-saving path).
 - `econ.diagnostics["unmodelled_flows"]` lists SAM cells the model does not read.
 - The JuMP export replicates all of the above; `validation/roundtrip_jump.py` runs 16 cases
-  against Ipopt (worst deviation 3e-12). Opt-in pytest cases with `CGEKIT_RUN_JULIA=1`.
+  against Ipopt (worst deviation 3e-12). Opt-in pytest cases with `CGELAB_RUN_JULIA=1`.
 - `toy.build_with_institutions` and `toy.build_with_specific_capital`.
 - A `LICENSE` file, continuous integration, a published site, and the comparison with other
   packages as `docs/comparison.md`.

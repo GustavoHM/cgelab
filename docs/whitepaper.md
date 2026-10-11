@@ -1,6 +1,6 @@
-# A matemática do cgekit
+# A matemática do cgelab
 
-Nota técnica do equilíbrio que o pacote calibra e resolve. As fórmulas são as de `src/cgekit`, na versão que lê uma matriz de contabilidade social e devolve um equilíbrio de período, uma trajetória recursiva e uma variação equivalente. Onde uma convenção alternativa mudaria o sinal de um resultado, o texto registra a que está no código.
+Nota técnica do equilíbrio que o pacote calibra e resolve. As fórmulas são as de `src/cgelab`, na versão que lê uma matriz de contabilidade social e devolve um equilíbrio de período, uma trajetória recursiva e uma variação equivalente. Onde uma convenção alternativa mudaria o sinal de um resultado, o texto registra a que está no código.
 
 ## 1. Três objetos
 
@@ -234,7 +234,7 @@ Uma conta não é a mesma população em dois cenários quando famílias mudam d
 
 ## 9. O que este sistema não resolve
 
-A trajetória da seção 7 é recursiva. Uma política anunciada para uma data futura não move o investimento do primeiro ano, porque nenhum agente a vê. Levar esse efeito a sério é outro objeto. O equilíbrio do período continua sendo o desta nota. O resíduo intertemporal, uma Euler ou um \(q\) de Tobin ao longo de uma trajetória anunciada, seria resolvido pelo `dsgekit`, que já empilha uma função de resíduos e já aceita uma sequência de parâmetros. A matriz não entraria naquele pacote. A dependência seria opcional. O desenho está no `ROADMAP.md`, na seção *Extensions that call dsgekit*.
+A trajetória da seção 7 é recursiva. Uma política anunciada para uma data futura não move o investimento do primeiro ano, porque nenhum agente a vê. Levar esse efeito a sério é outro objeto. O equilíbrio do período continua sendo o desta nota. O resíduo intertemporal, uma Euler ou um \(q\) de Tobin ao longo de uma trajetória anunciada, seria resolvido pelo `dsgelab`, que já empilha uma função de resíduos e já aceita uma sequência de parâmetros. A matriz não entraria naquele pacote. A dependência seria opcional. O desenho está no `ROADMAP.md`, na seção *Extensions that call dsgelab*.
 
 Ninhos além do valor adicionado, contas de emissões, unidades físicas de energia e um banco global no estilo GTAP também não estão nas equações acima. São extensões do equilíbrio de período, não do bloco intertemporal.
 

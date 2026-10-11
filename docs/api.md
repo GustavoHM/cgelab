@@ -1,7 +1,7 @@
-# cgekit API reference
+# cgelab API reference
 
 Everything listed here is importable from the top-level package
-(`import cgekit as ck`).
+(`import cgelab as ck`).
 
 ---
 
@@ -295,7 +295,7 @@ Columns `year`, `account`, `cv`.
 ## Bundled examples
 
 ```python
-from cgekit.examples import toy
+from cgelab.examples import toy
 
 sam, econ = toy.build()                        # two sectors, no margins
 sam, econ = toy.build_with_margins()           # national-accounts margin block
@@ -312,6 +312,6 @@ on paper and the reproduction test compares the solver against arithmetic.
 ## Command line
 
 ```
-cgekit                              # the bundled toy economy plus diagnostics
-cgekit my_sam.parquet --sigma-armington 2.0 --sigma-va 0.5
+cgelab                              # the bundled toy economy plus diagnostics
+cgelab my_sam.parquet --sigma-armington 2.0 --sigma-va 0.5
 ```

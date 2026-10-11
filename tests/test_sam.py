@@ -4,7 +4,7 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from cgekit import SAM, BalanceError
+from cgelab import SAM, BalanceError
 
 
 def _long(entries):
@@ -12,7 +12,7 @@ def _long(entries):
 
 
 def test_balanced_sam_passes():
-    from cgekit.examples import toy
+    from cgelab.examples import toy
     sam, _ = toy.build()
     assert sam.check_balance()["ok"]
     assert sam.imbalance().abs().max() < 1e-12
@@ -39,7 +39,7 @@ def test_sign_preserving_ras_handles_negative_entries():
 
 
 def test_square_and_long_forms_agree():
-    from cgekit.examples import toy
+    from cgelab.examples import toy
     sam, _ = toy.build()
     square = sam.matrix()
     again = SAM.from_square(square)

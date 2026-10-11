@@ -1,16 +1,16 @@
-"""cgekit -- a general toolkit for SAM-based computable general equilibrium models.
+"""cgelab -- a general toolkit for SAM-based computable general equilibrium models.
 
 A model is assembled from three separable objects, and keeping them separable is
-the point: the :class:`~cgekit.sam.SAM` says what the base year WAS, the
-:class:`~cgekit.spec.ModelSpec` says what is ASSUMED about substitution and
-functional form, and the :class:`~cgekit.closure.Closure` says which balances are
+the point: the :class:`~cgelab.sam.SAM` says what the base year WAS, the
+:class:`~cgelab.spec.ModelSpec` says what is ASSUMED about substitution and
+functional form, and the :class:`~cgelab.closure.Closure` says which balances are
 imposed and WHO adjusts. Results can turn on the last two, so both travel with
 the results instead of living in a branch inside a solver.
 
 Quick start::
 
-    import cgekit as ck
-    from cgekit.examples import toy
+    import cgelab as ck
+    from cgelab.examples import toy
 
     sam, econ = toy.build()
     print(ck.report(econ))                       # base year, Walras, homogeneity

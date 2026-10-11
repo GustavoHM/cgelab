@@ -1,7 +1,7 @@
 """Round trip through Julia: export, solve with Ipopt, compare with the nested solver.
 
 Slow (Julia start-up and compilation), so it runs only when asked for:
-``CGEKIT_RUN_JULIA=1 pytest tests/test_jump_roundtrip.py``, with Julia on the PATH (or in
+``CGELAB_RUN_JULIA=1 pytest tests/test_jump_roundtrip.py``, with Julia on the PATH (or in
 ``JULIA``) and the environment in ``validation/`` instantiated. The full set of cases is
 ``validation/roundtrip_jump.py``.
 """
@@ -15,16 +15,16 @@ from pathlib import Path
 import numpy as np
 import pytest
 
-import cgekit as ck
-from cgekit.examples import toy
+import cgelab as ck
+from cgelab.examples import toy
 
 VALIDATION = Path(__file__).resolve().parents[1] / "validation"
 JULIA = os.environ.get("JULIA") or shutil.which("julia")
 
 pytestmark = pytest.mark.skipif(
-    os.environ.get("CGEKIT_RUN_JULIA") != "1" or JULIA is None
+    os.environ.get("CGELAB_RUN_JULIA") != "1" or JULIA is None
     or not (VALIDATION / "Manifest.toml").exists(),
-    reason="set CGEKIT_RUN_JULIA=1, put julia on the PATH and instantiate validation/")
+    reason="set CGELAB_RUN_JULIA=1, put julia on the PATH and instantiate validation/")
 
 
 @pytest.fixture(scope="module")

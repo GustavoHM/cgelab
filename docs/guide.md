@@ -1,4 +1,4 @@
-# cgekit user guide
+# cgelab user guide
 
 1. [The SAM](#1-the-sam)
 2. [Specifying the model](#2-specifying-the-model)
@@ -15,7 +15,7 @@
 
 ## 1. The SAM
 
-A SAM is square and every account's receipts must equal its outlays. `cgekit`
+A SAM is square and every account's receipts must equal its outlays. `cgelab`
 holds it in long form: `row`, `col`, `value`, where the entry is the payment
 **from** the column account **to** the row account — a column is an account's
 outlays, a row its receipts.
@@ -158,7 +158,7 @@ print(ck.report(econ))
 ```
 
 ```
-cgekit diagnostics -- Economy(2 activities, 2 commodities, 2 households, 2 factors)
+cgelab diagnostics -- Economy(2 activities, 2 commodities, 2 households, 2 factors)
   base-year reproduction : PASS (worst 1.42e-16)
   Walras residual        : 0.00e+00 [f_lab]
   price homogeneity      : PASS (worst 1.14e-15)

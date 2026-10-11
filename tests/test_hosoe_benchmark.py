@@ -8,7 +8,7 @@ check is the benchmark: output 15 and 35, prices equal to one, Walras at zero.
 import pandas as pd
 import pytest
 
-import cgekit as ck
+import cgelab as ck
 
 
 def hosoe_economy():

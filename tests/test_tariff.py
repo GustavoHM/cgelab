@@ -3,8 +3,8 @@
 import numpy as np
 import pytest
 
-import cgekit as ck
-from cgekit.examples import toy
+import cgelab as ck
+from cgelab.examples import toy
 
 
 def _with_tariff(rate=0.05):
@@ -74,7 +74,7 @@ def test_tariff_revenue_cannot_exceed_the_commodity_tax():
 
 def _named_tax_sam(account, take):
     """Move `take` of each commodity's product tax onto its own account."""
-    from cgekit.examples.toy import _BASE, _frame
+    from cgelab.examples.toy import _BASE, _frame
 
     entries = []
     total = 0.0
@@ -90,7 +90,7 @@ def _named_tax_sam(account, take):
 
 
 def test_a_named_tariff_account_keeps_the_base_year():
-    from cgekit.examples.toy import _frame, _BASE, spec
+    from cgelab.examples.toy import _frame, _BASE, spec
 
     sam = _named_tax_sam("trf", {"c_agr": 1.0, "c_ind": 2.0})
     plain = ck.calibrate(_frame(_BASE), spec())
@@ -107,7 +107,7 @@ def test_a_named_tariff_account_keeps_the_base_year():
 
 
 def test_a_named_output_tax_keeps_the_base_year_and_a_rise_shifts_demand_to_imports():
-    from cgekit.examples.toy import spec
+    from cgelab.examples.toy import spec
 
     sam = _named_tax_sam("idt", {"c_agr": 2.0, "c_ind": 4.0})
     econ = ck.calibrate(sam, spec(indirect_tax_account="idt"))

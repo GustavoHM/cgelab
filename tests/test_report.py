@@ -1,7 +1,7 @@
 """The diagnostic report itself."""
 
-import cgekit as ck
-from cgekit.examples import toy
+import cgelab as ck
+from cgelab.examples import toy
 
 
 def test_report_renders_and_names_the_numeraire():

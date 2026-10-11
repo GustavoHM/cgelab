@@ -1,6 +1,6 @@
-"""roundtrip_jump.py — exportar do cgekit para JuMP, resolver no Julia, e comparar de volta.
+"""roundtrip_jump.py — exportar do cgelab para JuMP, resolver no Julia, e comparar de volta.
 
-Por que este confronto é forte. O cgekit resolve o equilíbrio por ANINHAMENTO: um Newton sobre
+Por que este confronto é forte. O cgelab resolve o equilíbrio por ANINHAMENTO: um Newton sobre
 poucas incógnitas e, dentro dele, um ponto fixo sobre o preço de entrega, duas somas em forma
 fechada — a série infinita da reciclagem do gravame e a relação afim entre poupança e arrecadação —
 e uma inversão de Leontief. Cada uma é uma dedução do autor. Em JuMP nada disso é deduzido: cada
@@ -25,8 +25,8 @@ from pathlib import Path
 
 import numpy as np
 
-import cgekit as ck
-from cgekit.examples import toy
+import cgelab as ck
+from cgelab.examples import toy
 
 AQUI = Path(__file__).resolve().parent
 OUT = AQUI / "out"
@@ -80,14 +80,14 @@ def caso(nome: str, econ, closure, scenario) -> dict:
         d = _rel(jlres[k], ref[k])
         pior = max(pior, d)
         print(f"  {k:<16}{d:>14.2e}")
-    print(f"  {'Walras cgekit':<16}{ck.solve_period(econ, closure, scenario).walras:>14.2e}"
+    print(f"  {'Walras cgelab':<16}{ck.solve_period(econ, closure, scenario).walras:>14.2e}"
           f"   JuMP {jlres['walras']:>10.2e}")
     return {"pior": pior, "viol": jlres["violacao_max"], "ok": pior < 1e-8}
 
 
 def main() -> int:
     print("=" * 78)
-    print("IDA E VOLTA — o cgekit escreve o modelo JuMP, o Ipopt resolve, comparamos de volta")
+    print("IDA E VOLTA — o cgelab escreve o modelo JuMP, o Ipopt resolve, comparamos de volta")
     print("=" * 78)
     casos = {}
     for etiqueta, build in (("simples", toy.build), ("margens", toy.build_with_margins),

@@ -167,7 +167,7 @@ class PathResult:
         return pd.DataFrame(rows)
 
     def sectoral(self) -> pd.DataFrame:
-        """Output and prices of every account along the path. See :func:`cgekit.results.sectoral_path`."""
+        """Output and prices of every account along the path. See :func:`cgelab.results.sectoral_path`."""
         from .results import sectoral_path
         return sectoral_path(self)
 

@@ -130,6 +130,7 @@ period.
 ## Documentation
 
 - [Site](https://gustavohm.github.io/cgekit/): an overview with runnable examples, in Portuguese
+- [`docs/whitepaper.md`](docs/whitepaper.md): the mathematics of calibration, the period equilibrium, recursive dynamics and welfare
 - [`docs/guide.md`](docs/guide.md): the user guide, from SAM to welfare
 - [`docs/api.md`](docs/api.md): API reference
 - [`docs/design-notes.md`](docs/design-notes.md): the accounting decisions and the errors they prevent

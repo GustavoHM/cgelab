@@ -191,6 +191,18 @@ depois.exchange_rate               # 0,89: o câmbio se valoriza e absorve parte
   igualar o custo unitário. Com participações fixas, o padrão, <code>export_price</code> é recusado
   em vez de ignorado em silêncio.</p>
 
+<pre><code>_, econ_big = toy.build(model_spec=toy.spec(export_rule="cet", sigma_cet=2.0,
+                                           export_demand={"c_ind": 2.0}))
+big = ck.solve_period(econ_big, scenario=ck.Scenario(export_price=pe))
+
+big.world_export_price[j]        # 1.12: vender mais desce pela curva de demanda do comprador
+big.exports[j] / econ_big.exp0[j]    # 1.14: as exportações sobem 14%, contra 22% do tomador de preço</code></pre>
+  <p>Uma região que vende boa parte de um produto não é tomadora de preço.
+  <code>ModelSpec.export_demand</code> põe as suas exportações numa curva de demanda,
+  <code>E / E0 = (pWe / export_price)^(-η)</code>, a forma do <code>lrgcge</code> de Hosoe;
+  <code>import_supply</code> faz o mesmo com o preço mundial de importação. No ano-base as duas
+  curvas passam pelo ponto calibrado.</p>
+
   <h3>7. Impostos, transferências e capital estrangeiro</h3>
 <pre><code>import dataclasses
 
@@ -347,7 +359,7 @@ cgelab diagnostics -- Economy(3 activities, 3 commodities, 2 households, 2 facto
   <h3>Uma réplica independente em JuMP</h3>
   <p><code>to_jump</code> escreve o mesmo equilíbrio como modelo JuMP em que nada é aninhado: o
   ponto fixo de preços, a série da reciclagem e a relação entre poupança e arrecadação são
-  restrições comuns, e o Ipopt as resolve de um ponto de partida deslocado. Em 16 casos (margens,
+  restrições comuns, e o Ipopt as resolve de um ponto de partida deslocado. Em 19 casos (margens, curvas de demanda de exportação e de oferta de importação,
   conta própria, CET, impostos diretos, transferências, capital estrangeiro, IED, LES e fechamentos
   alternativos), os dois resolvedores concordam a no máximo <code>3e-12</code>. Perturbar os dados
   exportados faz a comparação divergir de 1e-3 a 3e-1, o que mostra que ela enxerga erro.</p>

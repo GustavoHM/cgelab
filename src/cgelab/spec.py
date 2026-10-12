@@ -73,6 +73,18 @@ class ModelSpec:
     sigma_armington: float | Mapping[str, float] = 2.0
     export_rule: str = "fixed_shares"        # "fixed_shares" | "cet"
     sigma_cet: float | Mapping[str, float] = 2.0
+    #: Export-demand elasticity. None: the economy is a price taker abroad and
+    #: ``Scenario.export_price`` is what its exports fetch. A positive number η
+    #: puts each exported commodity on a demand curve,
+    #: ``E / E0 = (pWe / export_price)^(-η)``, the form of Hosoe's ``lrgcge``.
+    #: At the base year ``E = E0`` and the world price is the calibrated one.
+    #: A scalar, or a mapping by commodity in which a missing commodity (and no
+    #: ``"__default__"``) stays a price taker. Read only under ``export_rule="cet"``.
+    export_demand: float | Mapping[str, float] | None = None
+    #: Import-supply elasticity, the mirror of ``export_demand``: None keeps the
+    #: world import price exogenous (``Scenario.world_price``); a positive ψ
+    #: makes it rise with the volume bought, ``M / M0 = (pWm / world_price)^ψ``.
+    import_supply: float | Mapping[str, float] | None = None
     household_demand: str = "cobb_douglas"   # "cobb_douglas" | "les"
     frisch: float = -1.5                     # LES only: Frisch parameter, sets subsistence
     margins: bool = True
@@ -136,6 +148,20 @@ class ModelSpec:
             got = getattr(self, field_name)
             if got not in allowed:
                 raise ValueError(f"{field_name} must be one of {allowed}, got {got!r}")
+        for field_name in ("export_demand", "import_supply"):
+            got = getattr(self, field_name)
+            if got is None:
+                continue
+            values = got.values() if isinstance(got, Mapping) else [got]
+            if any(not float(v) > 0 for v in values):
+                raise ValueError(
+                    f"{field_name} must be a positive elasticity, got {got!r}. "
+                    f"Omit it to keep the economy a price taker.")
+        if self.export_demand is not None and self.export_rule != "cet":
+            raise ValueError(
+                "export_demand needs export_rule='cet'. With fixed export shares the "
+                "export volume is a fixed fraction of output, so no world price could "
+                "clear a demand curve for it.")
 
     # -- helpers ---------------------------------------------------------
     def classify(self, sam) -> AccountLayout:
@@ -250,6 +276,24 @@ class ModelSpec:
         if np.any(~np.isfinite(v)) or np.any(v < 0):
             raise ValueError("sigma_cet must be finite and non-negative for every commodity")
         return v
+
+    def export_demand_vector(self, commodities: Sequence[str]):
+        """η by commodity; ``inf`` marks a price taker."""
+        return _elasticity_or_inf(self.export_demand, commodities)
+
+    def import_supply_vector(self, commodities: Sequence[str]):
+        """ψ by commodity; ``inf`` marks a price taker."""
+        return _elasticity_or_inf(self.import_supply, commodities)
+
+
+def _elasticity_or_inf(value, names):
+    import numpy as np
+    if value is None:
+        return np.full(len(names), np.inf)
+    if isinstance(value, Mapping):
+        default = value.get("__default__", np.inf)
+        return np.array([float(value.get(n, default)) for n in names])
+    return np.full(len(names), float(value))
 
 
 def _as_vector(value, names, label):

@@ -44,6 +44,8 @@ Constructors: `SAM.from_long(df, row="row", col="col", value="value", name="sam"
 | `value_added` | `"ces"` | `"ces"`, `"cobb_douglas"` or `"leontief"` |
 | `sigma_va`, `sigma_armington` | `0.5`, `2.0` | scalar or mapping by account name |
 | `export_rule`, `sigma_cet` | `"fixed_shares"`, `2.0` | `"cet"` is a robustness variant; `sigma_cet` scalar or mapping by commodity |
+| `export_demand` | `None` | export-demand elasticity η, `E / E0 = (pWe / export_price)^(-η)`; scalar or mapping by commodity, a missing commodity stays a price taker; `export_rule="cet"` only |
+| `import_supply` | `None` | import-supply elasticity ψ, `M / M0 = (pWm / world_price)^ψ`; scalar or mapping by commodity |
 | `household_demand`, `frisch` | `"cobb_douglas"`, `-1.5` | `"les"` uses `frisch` for subsistence |
 | `negative_value_added` | `"leontief"` | or `"net"` |
 | `margins` | `True` | read the commodity-to-commodity margin block |
@@ -147,8 +149,8 @@ Properties: `solves_exchange_rate`, `describe()`.
 | `wedge_revenue_to`, `wedge_revenue_factor` | str/float/callable, str | who receives the recycled revenue |
 | `transfers` | `(nh,)` | lump sum, positive for a receipt |
 | `government_absorbs` | scalar | cost charged to the budget |
-| `world_price` | `(nc,)` | import price multipliers |
-| `export_price` | `(nc,)` | world export price multipliers; `export_rule="cet"` only, refused otherwise |
+| `world_price` | `(nc,)` | import price multipliers; under `ModelSpec.import_supply`, the shift of the supply curve |
+| `export_price` | `(nc,)` | world export price multipliers; `export_rule="cet"` only, refused otherwise; under `ModelSpec.export_demand`, the shift of the demand curve |
 | `investment_mix` | `(nc,)` | commodity shares of the investment budget, summing to one; absent, the base-year mix |
 | `foreign_factor_share` | `(nf,)` | share of each factor owned abroad, overriding the SAM's; `run_path` sets it from the capital it tracks |
 | `fdi` | mapping | `{capital factor: amount}` in numeraire units: raises foreign saving, and `run_path` adds the capital it buys to the foreign-owned stock |
@@ -169,7 +171,8 @@ restricted to a subset of household accounts.
 Unknowns: one price per non-numeraire factor, one for the external closure (the
 exchange rate under `foreign="fixed_saving"`, foreign saving under
 `"fixed_rate"`), and under `investment="fixed_real"` the forced household saving
-that finances the fixed investment.
+that finances the fixed investment. Under `ModelSpec.export_demand` or
+`import_supply`, the log world price of each commodity on a curve.
 
 ### `PeriodResult`
 
@@ -177,7 +180,8 @@ that finances the fixed investment.
 |---|---|
 | `factor_prices`, `exchange_rate`, `z` | the solved unknowns |
 | `pa`, `pd`, `pq`, `pqf`, `pbase` | activity, domestic, consumer, firm and pre-tax commodity prices |
-| `pe` | price received for exports: `exchange_rate × export_price` under CET, `pd` under fixed shares |
+| `pe` | price received for exports: `exchange_rate × world_export_price` under CET, `pd` under fixed shares |
+| `world_export_price`, `world_import_price` | world prices in foreign currency, as multiples of the base year: the scenario's, moved along the curves of `export_demand` and `import_supply` |
 | `hh_direct_tax`, `factor_income_abroad`, `foreign_saving` | direct tax by household; factor income paid abroad; the period's foreign saving, FDI included |
 | `Q`, `X`, `absorption`, `imports`, `exports` | the quantity system |
 | `hh_quantity`, `hh_income`, `hh_commodity_spend`, `hh_direct_outlay`, `hh_wedge_paid` | the household block |

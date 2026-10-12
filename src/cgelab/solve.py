@@ -133,6 +133,11 @@ class PeriodResult:
     #: ``(origin, destination, local commodity)``. Government and investment are
     #: national and are not a destination. None when the model has no regions.
     bilateral: np.ndarray | None = None
+    #: World prices in foreign currency, as multiples of the base year: the
+    #: scenario's ``export_price`` and ``world_price``, moved along the demand
+    #: and supply curves of ``ModelSpec.export_demand`` and ``import_supply``.
+    world_export_price: np.ndarray | None = None
+    world_import_price: np.ndarray | None = None
 
     def price(self, commodity: str) -> float:
         return float(self.pq[self.econ.commodity(commodity)])
@@ -238,6 +243,13 @@ def solve_period(econ: Economy, closure: Closure | None = None,
     world_pe = np.ones(nc) if sc.export_price is None else np.asarray(sc.export_price, float)
     sigma_cet = (econ.sigma_cet if econ.sigma_cet is not None
                  else econ.spec.sigma_cet_vector(econ.coms))
+    # Large-country trade. A commodity on a curve has its world price as an
+    # outer unknown, in logs relative to the scenario's shift, and the curve is
+    # its residual. A commodity the base year neither exports nor imports has no
+    # base volume to anchor a curve on and stays a price taker.
+    eta_x, psi_m, curve_x, curve_m = _trade_curves(econ)
+    i_curve = n_unknown
+    n_unknown += curve_x.size + curve_m.size
     W = np.zeros((nh, nc)) if sc.consumer_wedge is None else np.asarray(sc.consumer_wedge, float)
     Wg = (np.zeros((nh, nc)) if sc.government_wedge is None
           else np.asarray(sc.government_wedge, float))
@@ -318,11 +330,17 @@ def solve_period(econ: Economy, closure: Closure | None = None,
             er = closure.exchange_rate
             foreign_sav = trade_target + float(z[i_ext]) * ext_scale
         levy = float(z[i_inv]) * sav_scale if closure.investment == "fixed_real" else 0.0
+        log_px = z[i_curve:i_curve + curve_x.size]
+        log_pm = z[i_curve + curve_x.size:n_unknown]
+        world_p_now = world_p.copy()
+        world_p_now[curve_m] *= np.exp(log_pm)
+        world_pe_now = world_pe.copy()
+        world_pe_now[curve_x] *= np.exp(log_px)
         # Border price is what the balance of payments pays. The Armington import
         # price carries the tariff, normalised so that at the calibrated rate it
         # is 1, the same unit the rest of the base year uses. An output tax is
         # the same kind of normalisation on the domestic price.
-        pm_border = er * world_p
+        pm_border = er * world_p_now
         if tm is None:
             pm = pm_border
         else:
@@ -331,7 +349,7 @@ def solve_period(econ: Economy, closure: Closure | None = None,
             out_wedge = 1.0
         else:
             out_wedge = (1.0 + tauz) / (1.0 + tauz0)
-        pe = er * world_pe
+        pe = er * world_pe_now
 
         # --- prices: a fixed point, because margins are themselves delivered goods.
         # A fixed real wage joins the same loop: the wage is the purchaser-price
@@ -545,6 +563,12 @@ def solve_period(econ: Economy, closure: Closure | None = None,
                 out.append((current - foreign_sav) / ext_scale)
             if sav_gap is not None:
                 out.append(sav_gap)
+            # The curves, in logs: log(E/E0) = -η log(pWe/shift), and the mirror
+            # for imports. A volume driven to zero gives a large finite residual.
+            out.extend(np.log(np.maximum(exports[curve_x], 1e-300) / econ.exp0[curve_x])
+                       + eta_x[curve_x] * log_px)
+            out.extend(np.log(np.maximum(imports[curve_m], 1e-300) / econ.imp0[curve_m])
+                       - psi_m[curve_m] * log_pm)
 
             p_base_yard = 1.0 + econ.ptax          # constant-price yardstick, scenario independent
             gov_sav = savings - hh_sav - levy - foreign_sav
@@ -570,6 +594,7 @@ def solve_period(econ: Economy, closure: Closure | None = None,
                 gov_q=gov_q, inv_q=inv_q, savings=savings, fac_dem=fac_dem,
                 fac_by_act=fac_by_act,
                 imports=imports, exports=exports, trade=trade, gaps=gaps,
+                world_pe=world_pe_now, world_pm=world_p_now,
                 walras=float(gaps[num]), levy=levy, foreign_sav=foreign_sav, pe=p_exp,
                 hh_dtax_paid=hh_dtax_paid, row_fac=row_fac, gov_fac=gov_fac,
                 real=dict(hh_real=float(p_base_yard @ hh_q.sum(axis=0)),
@@ -666,12 +691,25 @@ def solve_period(econ: Economy, closure: Closure | None = None,
         pe=state["pe"], hh_direct_tax=state["hh_dtax_paid"],
         factor_income_abroad=state["row_fac"], foreign_saving=state["foreign_sav"],
         employment=state["employment"], unemployment=state["unemployment"],
-        real_wage=state["real_wage"])
+        real_wage=state["real_wage"], world_export_price=state["world_pe"],
+        world_import_price=state["world_pm"])
 
 
 # ---------------------------------------------------------------------------
 # helpers
 # ---------------------------------------------------------------------------
+
+def _trade_curves(econ: Economy):
+    """Elasticities and the commodities on an export-demand or import-supply curve."""
+    spec = econ.spec
+    eta_x = spec.export_demand_vector(econ.coms)
+    psi_m = spec.import_supply_vector(econ.coms)
+    if np.isfinite(eta_x).any() and spec.export_rule != "cet":
+        raise ValueError("export_demand is read only under export_rule='cet'")
+    curve_x = np.where(np.isfinite(eta_x) & (econ.exp0 > 0))[0]
+    curve_m = np.where(np.isfinite(psi_m) & (econ.imp0 > 0))[0]
+    return eta_x, psi_m, curve_x, curve_m
+
 
 def _marginal_budget_shares(econ: Economy) -> np.ndarray:
     """Marginal budget shares: the LES betas, or the Cobb-Douglas shares themselves."""

@@ -37,7 +37,8 @@ several regions, the result helpers, and the JuMP export replicating all of it. 
 
 - [ ] the JuMP export converging from a cold start on an applied SAM (it does on the toy
   economies, and on an applied SAM only from a warm start);
-- [ ] downward-sloping export demand (work in progress on the `wip/export-demand` branch);
+- [x] downward-sloping export demand, and its mirror, an upward-sloping import supply
+  (`ModelSpec.export_demand`, `import_supply`);
 - [ ] the base-year tariff inside the import price, and the indirect tax on all of output.
 
 **0.3 — results, decompositions and accounts.**
@@ -92,12 +93,6 @@ land use allocated by CET; export to GAMS/MPSGE and GEMPACK.
 
 ## Next: gaps an applied model hit
 
-**Downward-sloping export demand.** Under CET the world export price is exogenous: the economy
-is a price taker abroad. A region selling a large share of a product (a state within a country,
-a dominant exporter) needs a demand curve with an elasticity instead. World import prices are
-scenario data in the same way. The GAMS library model `lrgcge` clears them, on the same SAM
-and the same tariff abolition as `stdcge`.
-
 **Base-year tariff inside the import price.** `Scenario.tariff` moves the power
 `(1 + tm) / (1 + tm0)` around a reference rate. At the calibrated rate that power is 1, the
 receipt of a named tariff account stays inside the product tax, and government income receives
@@ -113,7 +108,10 @@ Armington nest, and the base is domestic sales. Exports sold at the producer pri
 it. Hosoe's IDT is `tauz` on `pz × Z`, applied inside the CET, so the base is all of output.
 With exports, removing one is a different experiment from removing the other.
 
-Done, and no longer gaps: labour-market closures (`Closure.labour`: fixed real wage, wage curve,
+Done, and no longer gaps: export demand and import supply with finite elasticities
+(`ModelSpec.export_demand`, `import_supply`, the equations of `lrgcge`; replicating `lrgcge`
+itself waits on the base-year tariff below, since its experiment is the same tariff abolition as
+`stdcge`), labour-market closures (`Closure.labour`: fixed real wage, wage curve,
 elastic supply), the three result helpers (`factor_demand_by_activity`, `real_gdp`,
 `sectoral_path`), `Scenario.investment_mix` for the commodity basket of investment, and
 the split of an import tariff (`Scenario.tariff`) from an indirect tax on domestic sales

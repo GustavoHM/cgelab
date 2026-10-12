@@ -98,6 +98,21 @@ home market and exports along a transformation frontier with elasticity
 domestic price is the one at which the frontier's revenue equals unit cost.
 `export_price` is refused under fixed shares, where it would do nothing.
 
+**`export_demand` and `import_supply`.** Under CET the economy is still a price
+taker abroad: `export_price` is what its exports fetch, whatever the volume. A
+region that sells a large share of a product faces a demand curve instead.
+`export_demand=η` gives every exported commodity one,
+`E / E0 = (pWe / export_price)^(-η)`, and `import_supply=ψ` gives every imported
+commodity a supply curve, `M / M0 = (pWm / world_price)^ψ`. These are the
+equations of Hosoe's `lrgcge`. The scenario fields become the shifts of the
+curves, and the solved world prices are `PeriodResult.world_export_price` and
+`world_import_price`. Both take a scalar or a mapping by commodity; a commodity
+missing from the mapping, or with no base-year volume, stays a price taker. Each
+commodity on a curve adds one unknown to the outer solve, so on an applied SAM
+put on curves only the commodities the study is about. `export_demand` requires
+`export_rule="cet"`: with fixed shares, the export volume is set by output and
+no world price could clear a demand curve for it.
+
 **`negative_value_added`.** An activity can have a negative operating surplus,
 and that is real data, not an error to clean. No CES nest accepts a negative
 exponent, so either the activity goes on fixed proportions (`"leontief"`, the

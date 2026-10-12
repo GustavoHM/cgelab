@@ -191,6 +191,18 @@ after.exchange_rate              # 0.89: the currency appreciates and absorbs pa
   unit cost. Under fixed shares, the default, <code>export_price</code> is refused instead of being
   silently ignored.</p>
 
+<pre><code>_, econ_big = toy.build(model_spec=toy.spec(export_rule="cet", sigma_cet=2.0,
+                                           export_demand={"c_ind": 2.0}))
+big = ck.solve_period(econ_big, scenario=ck.Scenario(export_price=pe))
+
+big.world_export_price[j]        # 1.12: selling more moves the buyer down its demand curve
+big.exports[j] / econ_big.exp0[j]    # 1.14: exports rise 14%, against 22% for the price taker</code></pre>
+  <p>A region that sells a large share of a product is not a price taker.
+  <code>ModelSpec.export_demand</code> puts its exports on a demand curve,
+  <code>E / E0 = (pWe / export_price)^(-η)</code>, the form of Hosoe's <code>lrgcge</code>;
+  <code>import_supply</code> does the same for the world import price. At the base year both
+  curves pass through the calibrated point.</p>
+
   <h3>7. Taxes, transfers and foreign capital</h3>
 <pre><code>import dataclasses
 
@@ -345,7 +357,7 @@ cgelab diagnostics -- Economy(3 activities, 3 commodities, 2 households, 2 facto
   <h3>An independent JuMP replica</h3>
   <p><code>to_jump</code> writes the same equilibrium as a JuMP model in which nothing is nested: the
   price fixed point, the wedge series and the saving–revenue relation are plain constraints, and
-  Ipopt solves them from a displaced start. In 16 cases (margins, own-account activities, CET, direct
+  Ipopt solves them from a displaced start. In 19 cases (margins, own-account activities, CET, export demand and import supply curves, direct
   taxes, transfers, foreign capital, FDI, LES and alternative closures) the two solvers agree to at
   most <code>3e-12</code>. Perturbing the exported data makes the comparison diverge by 1e-3 to
   3e-1, which shows it can see an error.</p>

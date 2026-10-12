@@ -13,6 +13,15 @@ before 1.0, a minor version may add to the API and a patch version only fixes.
 
 ### Added
 
+- Large-country trade. `ModelSpec.export_demand` puts exports on a demand curve,
+  `E / E0 = (pWe / export_price)^(-η)`, and `ModelSpec.import_supply` puts
+  imports on a supply curve, `M / M0 = (pWm / world_price)^ψ`: the equations of
+  Hosoe's `lrgcge`. A scalar or a mapping by commodity; the rest stay price
+  takers. The scenario prices become the shifts of the curves, and
+  `PeriodResult.world_export_price` and `world_import_price` hold the solved
+  world prices. The base year is unchanged. `export_demand` needs
+  `export_rule="cet"`; the regional slice refuses both. The JuMP replica carries
+  the curves as constraints, and three new round-trip cases match it to 1e-12.
 - Import tariff and indirect tax on domestic sales, separate from the product
   tax on absorption. `calibrate(..., tariffs=)` or `ModelSpec.tariff_account`
   sets the reference tariff (Hosoe's `taum`); `calibrate(..., output_taxes=)`

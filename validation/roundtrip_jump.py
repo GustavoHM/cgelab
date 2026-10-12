@@ -7,8 +7,9 @@ e uma inversão de Leontief. Cada uma é uma dedução do autor. Em JuMP nada di
 bloco é uma restrição e o Ipopt encontra o ponto fixo. Um erro na álgebra do Python não pode,
 portanto, ser reproduzido do outro lado por construção.
 
-Roda 16 casos sobre as economias de brinquedo do pacote: sem margens, com bloco de margens, com
-atividade de conta própria, com CET e com instituições (impostos diretos, transferências, remessas,
+Roda 19 casos sobre as economias de brinquedo do pacote: sem margens, com bloco de margens, com
+atividade de conta própria, com CET, com curvas de demanda de exportação e de oferta de
+importação (país grande, como o `lrgcge`), e com instituições (impostos diretos, transferências, remessas,
 capital do governo e do exterior, IED), em cenário-base e com choques, em vários fechamentos.
 
     cd validation && julia --project=. -e 'using Pkg; Pkg.instantiate()' && cd ..
@@ -31,7 +32,7 @@ from cgelab.examples import toy
 AQUI = Path(__file__).resolve().parent
 OUT = AQUI / "out"
 CAMPOS = ("w", "er", "pa", "pd", "pbase", "Q", "X", "hh_income", "hh_com_spend",
-          "savings", "uplift_rev", "exports")
+          "savings", "uplift_rev", "exports", "world_pe", "world_pm")
 
 
 def _rel(a, b, piso=1.0):
@@ -45,7 +46,8 @@ def _referencia(res) -> dict:
                 pd=list(res.pd), pbase=list(res.pbase), Q=list(res.Q), X=list(res.X),
                 Aabs=list(res.absorption), hh_income=list(res.hh_income),
                 hh_com_spend=list(res.hh_commodity_spend), savings=res.savings,
-                uplift_rev=res.wedge_revenue, exports=list(res.exports))
+                uplift_rev=res.wedge_revenue, exports=list(res.exports),
+                world_pe=list(res.world_export_price), world_pm=list(res.world_import_price))
 
 
 def roda_julia(jl: Path, dados: Path, saida: Path, quente: Path | None = None) -> dict:
@@ -108,6 +110,20 @@ def main() -> int:
     casos["cet_fechamento_alternativo"] = caso(
         "cet_fechamento_alternativo", econ,
         ck.Closure(investment="fixed_real", foreign="fixed_rate"), choque_cet)
+
+    # País grande: demanda de exportação e oferta de importação com elasticidade finita
+    _, econ = toy.build(model_spec=toy.spec(export_rule="cet", export_demand=2.0,
+                                            import_supply=2.0))
+    casos["pais_grande_choque"] = caso("pais_grande_choque", econ, ck.Closure(), choque_cet)
+    casos["pais_grande_fechamento_alternativo"] = caso(
+        "pais_grande_fechamento_alternativo", econ,
+        ck.Closure(investment="fixed_real", foreign="fixed_rate"), choque_cet)
+    _, econ = toy.build_with_margins(model_spec=toy.spec(
+        export_rule="cet", export_demand={"c_ind": 0.8}, import_supply={"c_agr": 3.0}))
+    casos["pais_grande_margens_parcial"] = caso(
+        "pais_grande_margens_parcial", econ, ck.Closure(),
+        ck.Scenario(name="parcial", world_price=np.array([1.2, 1.0, 1.0]),
+                    export_price=np.array([1.0, 1.1, 1.0])))
 
     # Instituições: imposto direto, transferências, remessas, capital do governo e estrangeiro
     _, econ = toy.build_with_institutions()

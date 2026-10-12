@@ -48,3 +48,12 @@ def test_institutions_with_fdi_and_a_tax_change(roundtrip):
     r = roundtrip.caso("pytest_instituicoes", econ, ck.Closure(foreign="fixed_rate"),
                        ck.Scenario(fdi={"f_cap": 4.0}))
     assert r["ok"], r
+
+
+def test_large_country_curves(roundtrip):
+    _, econ = toy.build(model_spec=toy.spec(export_rule="cet", export_demand=1.5,
+                                            import_supply={"c_agr": 2.0}))
+    r = roundtrip.caso("pytest_pais_grande", econ, ck.Closure(foreign="fixed_rate"),
+                       ck.Scenario(export_price=np.array([1.15, 0.9]),
+                                   world_price=np.array([1.1, 1.0])))
+    assert r["ok"], r

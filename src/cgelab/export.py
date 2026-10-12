@@ -35,7 +35,7 @@ import numpy as np
 from .calibrate import Economy
 from .closure import Closure
 from .scenario import Scenario, investment_shares
-from .solve import _marginal_budget_shares, _recycle_shares
+from .solve import _marginal_budget_shares, _recycle_shares, _trade_curves
 
 __all__ = ["to_jump", "JUMP_TEMPLATE"]
 
@@ -128,6 +128,14 @@ def to_jump(econ: Economy, closure: Closure | None = None, scenario: Scenario | 
     gam_W = (econ.hh_committed * W).sum(axis=0)
     gam_Wg = (econ.hh_committed * Wg).sum(axis=0)
 
+    # Curvas de país grande. JSON não tem infinito: elasticidade 0 marca o tomador de preço, e
+    # só as mercadorias com volume no ano-base entram, como no cgelab.
+    eta_x, psi_m, curve_x, curve_m = _trade_curves(econ)
+    eta_json = np.zeros(nc)
+    eta_json[curve_x] = eta_x[curve_x]
+    psi_json = np.zeros(nc)
+    psi_json[curve_m] = psi_m[curve_m]
+
     io_eff = econ.io / tfp[None, :]
     vunit_eff = econ.vunit / tfp
     aunit_eff = econ.aunit / tfp[None, :]
@@ -150,6 +158,8 @@ def to_jump(econ: Economy, closure: Closure | None = None, scenario: Scenario | 
         cet=bool(econ.spec.export_rule == "cet"), export_price=_l(world_pe),
         sigma_cet=_l(econ.sigma_cet if econ.sigma_cet is not None
                      else econ.spec.sigma_cet_vector(econ.coms)),
+        export_demand=_l(eta_json), import_supply=_l(psi_json),
+        exp0=_l(econ.exp0), imp0=_l(econ.imp0),
         # tributos
         ptax_a=_l(ptax_a), ptax_f=_l(ptax_f), ptax_base=_l(econ.ptax), atax=_l(econ.atax * nu),
         tm=_l(_instrument(econ.tm0, sc.tariff, nc, "tariff")),
@@ -254,6 +264,10 @@ domsh = vecf(d.dom_share); armsh = vecf(d.arm_share); expsh = vecf(d.exp_share)
 wp = vecf(d.world_price)
 const CET = Bool(d.cet)
 wpe = vecf(d.export_price); scet = vecf(d.sigma_cet)
+# Curvas de país grande: elasticidade positiva põe a mercadoria numa curva, zero a deixa
+# tomadora de preço. O preço mundial é então uma variável, deslocada pelo cenário.
+eta_x = vecf(d.export_demand); psi_m = vecf(d.import_supply)
+E0 = vecf(d.exp0); M0 = vecf(d.imp0)
 dtax = vecf(d.hh_dtax); gov_tr = vecf(d.gov_transfer); remit = vecf(d.remit_net)
 gsh = vecf(d.fac_gov_share); rsh = vecf(d.fac_row_share)
 ptax_a = vecf(d.ptax_a); ptax_f = vecf(d.ptax_f); ptax_b = vecf(d.ptax_base); atax = vecf(d.atax)
@@ -331,6 +345,13 @@ else
     @expression(m, er, er_fixo)
     @variable(m, fsav, start = fsav0)
 end
+# Preços mundiais em moeda estrangeira. Fora de uma curva são os do cenário.
+@variable(m, pwe[c = 1:nc] >= 1e-8, start = q("world_pe", c, wpe[c]))
+@variable(m, pwm[c = 1:nc] >= 1e-8, start = q("world_pm", c, wp[c]))
+for c in 1:nc
+    eta_x[c] > 0 || fix(pwe[c], wpe[c]; force = true)
+    psi_m[c] > 0 || fix(pwm[c], wp[c]; force = true)
+end
 if d.investment == "fixed_real"
     @variable(m, levy, start = 0.0)          # poupança forçada que financia o investimento fixo
 else
@@ -359,7 +380,7 @@ if CET
     for c in 1:nc
         if 0 < expsh[c] < 1
             @constraint(m, pd[c]^(1 + scet[c]) == (1 - expsh[c]) * pdom[c]^(1 + scet[c])
-                                                  + expsh[c] * (er * wpe[c])^(1 + scet[c]))
+                                                  + expsh[c] * (er * pwe[c])^(1 + scet[c]))
         else
             @constraint(m, pdom[c] == pd[c])
         end
@@ -369,8 +390,8 @@ if CET
                 (1 - expsh[c]) * (pdom[c] / pd[c])^scet[c])
     @expression(m, expfrac[c = 1:nc],
                 expsh[c] <= 0 ? 0.0 : expsh[c] >= 1 ? 1.0 :
-                expsh[c] * (er * wpe[c] / pd[c])^scet[c])
-    @expression(m, pexp[c = 1:nc], er * wpe[c])
+                expsh[c] * (er * pwe[c] / pd[c])^scet[c])
+    @expression(m, pexp[c = 1:nc], er * pwe[c])
 else
     @expression(m, pdom[c = 1:nc], pd[c])
     @expression(m, domfrac[c = 1:nc], 1 - expsh[c])
@@ -401,9 +422,9 @@ end
 # ---- 4-5. Armington
 @constraint(m, [c = 1:nc],
             arm[c]^(1 - sarm[c]) == domsh[c] * (pdom[c] * (1 + tauz[c]) / (1 + tauz0[c]))^(1 - sarm[c])
-                                  + (1 - domsh[c]) * (er * wp[c] * (1 + tm[c]) / (1 + tm0[c]))^(1 - sarm[c]))
+                                  + (1 - domsh[c]) * (er * pwm[c] * (1 + tm[c]) / (1 + tm0[c]))^(1 - sarm[c]))
 @constraint(m, [c = 1:nc], dsh[c] == domsh[c] * (arm[c] / (pdom[c] * (1 + tauz[c]) / (1 + tauz0[c])))^sarm[c])
-@constraint(m, [c = 1:nc], mshm[c] == (1 - domsh[c]) * (arm[c] / (er * wp[c] * (1 + tm[c]) / (1 + tm0[c])))^sarm[c])
+@constraint(m, [c = 1:nc], mshm[c] == (1 - domsh[c]) * (arm[c] / (er * pwm[c] * (1 + tm[c]) / (1 + tm0[c])))^sarm[c])
 
 # ---- 6. preço de ENTREGA. As margens são elas mesmas precificadas a preço de entrega, donde o
 # ponto fixo que o cgelab itera e que aqui é apenas uma restrição.
@@ -487,7 +508,7 @@ end
             sum(pbase[c] * ((Aabs[c] - fin_c[c]) * ptax_f[c] + fin_c[c] * ptax_a[c])
                 for c in 1:nc)
             + sum(atax[j] * Xraw[j] for j in 1:na)
-            + sum(((tm[c] - tm0[c]) / (1 + tm0[c])) * er * wp[c] * mshm[c] * armsh[c] * Aabs[c] for c in 1:nc)
+            + sum(((tm[c] - tm0[c]) / (1 + tm0[c])) * er * pwm[c] * mshm[c] * armsh[c] * Aabs[c] for c in 1:nc)
             + sum(((tauz[c] - tauz0[c]) / (1 + tauz0[c])) * pdom[c] * dsh[c] * armsh[c] * Aabs[c] for c in 1:nc))
 @constraint(m, savings == hh_sav + levy + tax_rev + gov_inst - gov_spend - gov_cost + fsav)
 
@@ -518,11 +539,20 @@ if LABOUR == "fixed_real_wage"
 end
 @expression(m, imports[c = 1:nc], mshm[c] * armsh[c] * Aabs[c])
 @expression(m, exports[c = 1:nc], expfrac[c] * Q[c])
-@expression(m, trade, sum(er * wp[c] * imports[c] for c in 1:nc)
+@expression(m, trade, sum(er * pwm[c] * imports[c] for c in 1:nc)
                     - sum(pexp[c] * exports[c] for c in 1:nc))
 # A meta é a CONTA CORRENTE, igual à poupança externa (fixa sob "fixed_saving", incógnita sob
 # "fixed_rate"): balança comercial, mais a renda de fatores paga ao exterior, menos as
 # transferências líquidas recebidas. `trade_balance0` fica no JSON só como registro do ano-base.
+# ---- 12. as curvas: E/E0 = (pWe/deslocamento)^(-η), M/M0 = (pWm/deslocamento)^ψ, como no lrgcge
+for c in 1:nc
+    if eta_x[c] > 0
+        @constraint(m, exports[c] == E0[c] * (pwe[c] / wpe[c])^(-eta_x[c]))
+    end
+    if psi_m[c] > 0
+        @constraint(m, imports[c] == M0[c] * (pwm[c] / wp[c])^psi_m[c])
+    end
+end
 @expression(m, current, trade + sum(w[f] * paid_supply(f) * rsh[f] for f in 1:nf) - sum(remit))
 @constraint(m, current == fsav)
 
@@ -558,7 +588,8 @@ out = Dict{String,Any}(
     "hh_income" => value.(hh_income), "hh_com_spend" => value.(spend),
     "savings" => value(savings), "uplift_rev" => value(uplift_rev),
     "trade" => value(trade), "facdem" => [value(facdem[f]) for f in 1:nf],
-    "exports" => [value(exports[c]) for c in 1:nc], "pdom" => [value(pdom[c]) for c in 1:nc],
+    "exports" => [value(exports[c]) for c in 1:nc],
+    "world_pe" => value.(pwe), "world_pm" => value.(pwm), "pdom" => [value(pdom[c]) for c in 1:nc],
 )
 open(SAIDA, "w") do f
     JSON3.write(f, out)

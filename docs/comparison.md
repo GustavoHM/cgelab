@@ -47,7 +47,7 @@ célula **📄** pode estar errada.
 | **Dinâmica recursiva** | ✅ vários estoques de capital, alocação pelo retorno, economia por ano † | — | ✅ laço de iteração temporal | — | ✅ |
 | **Bem-estar: VE e VC** | ✅ | — | — | — | convenção do modelador |
 | Agregação por grupo imune à composição | ✅ | — | — | — | — |
-| **Réplica independente para validação** | ✅ † JuMP/Ipopt, 16 casos | ? | ? | ? | n/a |
+| **Réplica independente para validação** | ✅ † JuMP/Ipopt, 19 casos | ? | ? | ? | n/a |
 | Licença | MIT | ? | CC0-1.0 | ? | proprietária/comercial |
 | Estado declarado pelos autores | — | — | ✅ "muito preliminar… por favor não cite" | livro-texto | maduro |
 
@@ -69,7 +69,7 @@ licença comercial e com as verificações contábeis embutidas, não se achou a
 
 O `cgelab` foi validado de três formas:
 
-- contra uma réplica independente em JuMP/Ipopt do mesmo equilíbrio, em 16 casos;
+- contra uma réplica independente em JuMP/Ipopt do mesmo equilíbrio, em 19 casos;
 - contra o pipeline de pesquisa que o originou, na versão 0.1.0;
 - pela reprodução do ano-base, pela homogeneidade e pela lei de Walras à precisão de máquina, na
   MCS aplicada para a qual foi escrito, que ainda não é pública.
@@ -94,7 +94,7 @@ lista até a 1.0; a versão de cada item é a do [`ROADMAP.md`](../ROADMAP.md).
 | Fechamentos do mercado de trabalho | 📄 IFPRI, ORANI | **feito**: salário real fixo, curva de salário, oferta elástica | 0.2 |
 | Tarifa e imposto indireto separados do imposto sobre produtos | 📄 Hosoe (`stdcge`), IFPRI | **feito** em torno da alíquota calibrada; falta a tarifa dentro do preço de importação do ano-base | 0.2 |
 | Exportador JuMP convergindo a frio em escala aplicada | — | falta: converge a frio nas economias de brinquedo e, numa MCS aplicada, só com partida quente | 0.2 |
-| Demanda de exportação com elasticidade finita | 📄 Hosoe (`lrgcge`) | em andamento no ramo `wip/export-demand` | 0.2 |
+| Demanda de exportação e oferta de importação com elasticidade finita | 📄 Hosoe (`lrgcge`) | **feito**: as equações do `lrgcge`, validadas contra a réplica JuMP; falta a réplica do `lrgcge` em si, que espera a tarifa no preço de importação do ano-base | 0.2 |
 | Decomposição de resultados por choque (*subtotals*) | 📄 GEMPACK | falta | 0.3 |
 | Sensibilidade sistemática (quadratura, Monte Carlo) | 📄 GEMPACK | falta | 0.3 |
 | Contas e relatórios: PIB por despesa e renda, índices de preço, termos de troca | 📄 GEMPACK, GTAP | `real_gdp` feito; o resto falta | 0.3 |

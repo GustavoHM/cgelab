@@ -100,13 +100,19 @@ class Economy:
     #: Interregional nest. None when the model was not given ``regions``.
     regional: object | None = field(default=None, repr=False)
 
-    #: Import tariff at the base year, Hosoe's ``revenue / imports``. None means
+    #: Import tariff at the base year, Hosoe's ``taum = revenue / imports``.
+    #: It is inside the import price the Armington nest was calibrated on, so an
+    #: import is worth ``(1 + tm0)`` times its border value there. None means
     #: the instrument was not calibrated, and a scenario tariff is refused.
     tm0: np.ndarray | None = None
-    #: Indirect tax on domestic sales, ad valorem. The reference rate is the
-    #: account's receipt divided by commodity output. None means the instrument
-    #: was not calibrated.
+    #: Indirect tax on all of commodity output, Hosoe's ``tauz = revenue /
+    #: output``. Home sales and exports both carry it: the CET splits output
+    #: worth ``(1 + tauz0)`` times its producer value. None means the
+    #: instrument was not calibrated.
     tauz0: np.ndarray | None = None
+    #: Government saving over government income at the base year, income net
+    #: of transfers to households. Read by ``Closure(government="saving_rate")``.
+    gov_savrate: float = 0.0
 
     def zeros_if_none(self, name: str, n: int) -> np.ndarray:
         v = getattr(self, name)
@@ -242,8 +248,10 @@ def calibrate(sam: SAM, spec: ModelSpec | None = None, *,
         derived from money.
     tariffs, output_taxes : array, optional
         Reference rates, one per commodity, when the SAM has no separate
-        tariff or indirect-tax account. At those rates the base year is
-        unchanged. A scenario then moves one instrument.
+        tariff or indirect-tax account. Their revenue leaves the product tax
+        and enters the import price and the gross output price, as in Hosoe's
+        ``stdcge``. At those rates the base year is unchanged. A scenario then
+        moves one instrument.
     """
     spec = spec or ModelSpec()
     if check_balance:
@@ -304,8 +312,6 @@ def calibrate(sam: SAM, spec: ModelSpec | None = None, *,
     # -- trade -------------------------------------------------------------
     imp0 = sam.block([row], coms).ravel()
     exp0 = sam.block(coms, [row]).ravel()
-    exp_share = np.where(Q0 > 0, exp0 / np.maximum(Q0, 1e-12), 0.0)
-    dom0 = Q0 - exp0
 
     # -- trade and transport margins ---------------------------------------
     CC = sam.block(coms, coms)
@@ -329,7 +335,25 @@ def calibrate(sam: SAM, spec: ModelSpec | None = None, *,
         tax_c = tax_c + sam.block([spec.tariff_account], coms).ravel()
     if spec.indirect_tax_account is not None:
         tax_c = tax_c + sam.block([spec.indirect_tax_account], coms).ravel()
-    A0 = dom0 + imp0 + margin_in
+    # The tariff and the output tax are inside the prices they fall on, as in
+    # Hosoe's stdcge, and not in the product tax on absorption. An import enters
+    # the Armington nest at its tariff-inclusive value, and output splits between
+    # home sales and exports at its tax-inclusive value, so a domestic buyer
+    # pays neither tax on the variety that did not carry it. Spreading them over
+    # the whole composite instead would leave the domestic variety paying an
+    # abolished tariff.
+    tariff_rev0 = np.zeros(nc) if tm0 is None else tm0 * imp0
+    output_rev0 = np.zeros(nc) if tauz0 is None else tauz0 * Q0
+    tax_all_c = tax_c.copy()
+    tax_c = tax_c - tariff_rev0 - output_rev0
+    gross_out0 = Q0 + output_rev0                 # output at tax-inclusive value
+    exp_share = np.where(gross_out0 > 0, exp0 / np.maximum(gross_out0, 1e-12), 0.0)
+    dom0 = gross_out0 - exp0
+    imp_arm0 = imp0 + tariff_rev0                 # imports at tariff-inclusive value
+    if np.any(dom0 < -1e-9):
+        bad = [coms[i] for i in np.where(dom0 < -1e-9)[0]]
+        raise ValueError(f"exports exceed tax-inclusive output for {bad}")
+    A0 = dom0 + imp_arm0 + margin_in
     ptax = np.where(A0 > 0, tax_c / np.maximum(A0, 1e-12), 0.0)
     tax_a = sam.block([gov], acts).ravel()
     atax = np.where(X0 > 0, tax_a / np.maximum(X0, 1e-12), 0.0)
@@ -338,7 +362,7 @@ def calibrate(sam: SAM, spec: ModelSpec | None = None, *,
         io = np.where(X0 > 0, inter / np.maximum(X0, 1e-12)[None, :], 0.0)
         io = io / (1.0 + ptax)[:, None]
         mq = (CC / (1.0 + ptax)[:, None]) / np.maximum(A0, 1e-12)[None, :]
-        arm_share = (dom0 + imp0) / np.maximum(A0, 1e-12)
+        arm_share = (dom0 + imp_arm0) / np.maximum(A0, 1e-12)
 
     # -- final demand ------------------------------------------------------
     hh_com = sam.block(coms, hhs).T                       # (n_hh, n_com), purchaser prices
@@ -385,7 +409,13 @@ def calibrate(sam: SAM, spec: ModelSpec | None = None, *,
     # income paid abroad and net transfers abroad are part of it.
     foreign_sav0 = (trade_balance0 + float(fac_row.sum())
                     + float(remit_out.sum()) - float(remit_in.sum()))
-    dom_share = np.where(dom0 + imp0 > 0, dom0 / np.maximum(dom0 + imp0, 1e-12), 1.0)
+    dom_share = np.where(dom0 + imp_arm0 > 0,
+                         dom0 / np.maximum(dom0 + imp_arm0, 1e-12), 1.0)
+    # Government income as the solver books it: every tax, its factor income,
+    # net of its transfers to households. What it does not spend it saves.
+    gov_income0 = (float(tax_all_c.sum()) + float(tax_a.sum()) + float(hh_tax.sum())
+                   + float(fac_gov.sum()) - float(gov_tr.sum()))
+    gov_savrate = (1.0 - float(gov_dem.sum()) / gov_income0) if gov_income0 > 0 else 0.0
 
     econ = Economy(
         layout=layout, spec=spec, X0=X0, Q0=Q0, io=io, msh=msh, theta=theta,
@@ -401,7 +431,7 @@ def calibrate(sam: SAM, spec: ModelSpec | None = None, *,
         hh_dtax=hh_dtax, hh_gov_transfer=gov_tr, hh_remit_net=remit_in - remit_out,
         fac_gov_share=fac_gov_share, fac_row_share=fac_row_share,
         hh_spend0=hh_com.sum(axis=1), hh_gross0=gross0,
-        tm0=tm0, tauz0=tauz0,
+        tm0=tm0, tauz0=tauz0, gov_savrate=gov_savrate,
         diagnostics=dict(negative_value_added=negative,
                          negative_value_added_treatment=spec.negative_value_added,
                          n_leontief=int(leontief.sum()),

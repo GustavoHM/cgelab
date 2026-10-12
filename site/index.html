@@ -357,7 +357,7 @@ cgelab diagnostics -- Economy(3 activities, 3 commodities, 2 households, 2 facto
   <h3>An independent JuMP replica</h3>
   <p><code>to_jump</code> writes the same equilibrium as a JuMP model in which nothing is nested: the
   price fixed point, the wedge series and the saving–revenue relation are plain constraints, and
-  Ipopt solves them from a displaced start. In 19 cases (margins, own-account activities, CET, export demand and import supply curves, direct
+  Ipopt solves them from a displaced start. In 24 cases (margins, own-account activities, CET, export demand and import supply curves, tariffs and output taxes inside the prices, Hosoe's closure, direct
   taxes, transfers, foreign capital, FDI, LES and alternative closures) the two solvers agree to at
   most <code>3e-12</code>. Perturbing the exported data makes the comparison diverge by 1e-3 to
   3e-1, which shows it can see an error.</p>

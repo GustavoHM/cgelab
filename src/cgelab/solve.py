@@ -138,6 +138,12 @@ class PeriodResult:
     #: and supply curves of ``ModelSpec.export_demand`` and ``import_supply``.
     world_export_price: np.ndarray | None = None
     world_import_price: np.ndarray | None = None
+    #: Home sales of domestic output: the domestic variety in the Armington
+    #: nest, at its tax-inclusive base value, and the price it fetches. Off the
+    #: base year a CET does not add up in quantities, so this is not output
+    #: less exports.
+    domestic_sales: np.ndarray | None = None
+    p_domestic: np.ndarray | None = None
 
     def price(self, commodity: str) -> float:
         return float(self.pq[self.econ.commodity(commodity)])
@@ -232,6 +238,10 @@ def solve_period(econ: Economy, closure: Closure | None = None,
             "calibrated, via calibrate(..., output_taxes=) or "
             "ModelSpec.indirect_tax_account.")
     tauz = tauz0 if sc.output_tax is None else np.asarray(sc.output_tax, dtype=float)
+    # Tax-inclusive base values over producer or border values. One where the
+    # instrument was not calibrated.
+    tf0 = np.ones(nc) if tm0 is None else 1.0 + tm0
+    tz0 = np.ones(nc) if tauz0 is None else 1.0 + tauz0
     if tauz is not None and tauz.shape != (nc,):
         raise ValueError(f"output_tax must have length {nc}, got shape {tauz.shape}")
     cet_on = econ.spec.export_rule == "cet"
@@ -287,7 +297,11 @@ def solve_period(econ: Economy, closure: Closure | None = None,
     # scenario that moved `foreign_sav` alone used to leave the target at its old
     # value, and the gap surfaced as a Walras residual.
     # FDI is foreign saving that arrives this period, so it is part of the target.
-    trade_target = (econ.foreign_sav + float(sum(sc.fdi.values()))) * nu
+    # In foreign currency the target is not co-scaled with the numeraire: the
+    # exchange rate does that, because it is what turns dollars into the
+    # numeraire's units.
+    in_dollars = closure.foreign_saving_unit == "foreign_currency"
+    trade_target = (econ.foreign_sav + float(sum(sc.fdi.values()))) * (1.0 if in_dollars else nu)
     gov_tr = econ.zeros_if_none("hh_gov_transfer", nh) * nu     # fixed in numeraire units,
     remit = econ.zeros_if_none("hh_remit_net", nh) * nu         # like foreign saving
     atax = econ.atax * nu
@@ -314,9 +328,12 @@ def solve_period(econ: Economy, closure: Closure | None = None,
     inv_budget0 = float(econ.inv_dem.sum())
     state: dict = {}
 
-    def domestic_price(pz, pe):
-        """Price of domestic sales: the output price itself, or its CET split."""
-        return cet_domestic_price(econ.exp_share, pz, pe, sigma_cet) if cet_on else pz
+    gov_w = econ.gov_dem / max(float(econ.gov_dem.sum()), 1e-300)
+    gov_savrate = float(econ.gov_savrate)
+
+    def domestic_price(p_gross, pe):
+        """Price of domestic sales: the tax-inclusive output price, or its CET split."""
+        return cet_domestic_price(econ.exp_share, p_gross, pe, sigma_cet) if cet_on else p_gross
 
     def residuals(z):
         z = np.atleast_1d(np.asarray(z, dtype=float))
@@ -325,7 +342,7 @@ def solve_period(econ: Economy, closure: Closure | None = None,
             w[i] = nu * float(np.exp(z[k]))
         if closure.solves_exchange_rate:
             er = float(np.exp(z[i_ext]))
-            foreign_sav = trade_target
+            foreign_sav = er * trade_target if in_dollars else trade_target
         else:
             er = closure.exchange_rate
             foreign_sav = trade_target + float(z[i_ext]) * ext_scale
@@ -337,18 +354,14 @@ def solve_period(econ: Economy, closure: Closure | None = None,
         world_pe_now = world_pe.copy()
         world_pe_now[curve_x] *= np.exp(log_px)
         # Border price is what the balance of payments pays. The Armington import
-        # price carries the tariff, normalised so that at the calibrated rate it
-        # is 1, the same unit the rest of the base year uses. An output tax is
-        # the same kind of normalisation on the domestic price.
+        # is measured at its tariff-inclusive base value, so its price is the
+        # border price times (1 + tm) / (1 + tm0): one at the base year, as the
+        # rest of the base year is. Output is measured the same way at its
+        # tax-inclusive value, and its gross price is the producer price times
+        # (1 + tauz) / (1 + tauz0).
         pm_border = er * world_p_now
-        if tm is None:
-            pm = pm_border
-        else:
-            pm = pm_border * (1.0 + tm) / (1.0 + tm0)
-        if tauz is None:
-            out_wedge = 1.0
-        else:
-            out_wedge = (1.0 + tauz) / (1.0 + tauz0)
+        pm = pm_border if tm is None else pm_border * (1.0 + tm) / tf0
+        out_wedge = 1.0 if tauz is None else (1.0 + tauz) / tz0
         pe = er * world_pe_now
 
         # --- prices: a fixed point, because margins are themselves delivered goods.
@@ -364,7 +377,7 @@ def solve_period(econ: Economy, closure: Closure | None = None,
             pa = io_eff.T @ pqf + pva * vunit_eff + atax
             pd_ = econ.msh.T @ pa
             arm, dsh, msh_ = armington(
-                econ.dom_share, domestic_price(pd_, pe) * out_wedge, pm, econ.sigma_arm)
+                econ.dom_share, domestic_price(pd_ * out_wedge, pe), pm, econ.sigma_arm)
             pbase = arm * econ.arm_share + pqf @ econ.mq
             new = pbase * (1 + ptax_f)
             wage_settled = True
@@ -380,8 +393,8 @@ def solve_period(econ: Economy, closure: Closure | None = None,
             pqf = new
         pa = io_eff.T @ pqf + pva * vunit_eff + atax
         pd_ = econ.msh.T @ pa
-        p_dom = domestic_price(pd_, pe)
-        arm, dsh, msh_ = armington(econ.dom_share, p_dom * out_wedge, pm, econ.sigma_arm)
+        p_dom = domestic_price(pd_ * out_wedge, pe)
+        arm, dsh, msh_ = armington(econ.dom_share, p_dom, pm, econ.sigma_arm)
         # How output splits between the home market and exports. Under CET the
         # split answers to the export price relative to the domestic one; under
         # fixed shares it is the base-year split and exports fetch the output price.
@@ -389,7 +402,7 @@ def solve_period(econ: Economy, closure: Closure | None = None,
             _, dom_frac, exp_frac = cet(econ.exp_share, p_dom, pe, sigma_cet)
             p_exp = pe
         else:
-            dom_frac, exp_frac, p_exp = 1.0 - econ.exp_share, econ.exp_share, pd_
+            dom_frac, exp_frac, p_exp = 1.0 - econ.exp_share, econ.exp_share, pd_ * out_wedge
         pbase = arm * econ.arm_share + pqf @ econ.mq
         pqf = pbase * (1 + ptax_f)
         pq = pbase * (1 + ptax_a)
@@ -453,80 +466,105 @@ def solve_period(econ: Economy, closure: Closure | None = None,
             wedge_paid = (hh_q * W * pq[None, :]).sum(axis=1)
             gov_cost = float(-(hh_q * Wg * pq[None, :]).sum()) + sc.government_absorbs
 
-            if closure.government == "real_fixed":
-                gov_q = econ.gov_dem / (1.0 + econ.ptax)
-            else:
-                gov_q = econ.gov_dem * nu / np.maximum(pq, 1e-12)
-            gov_spend = float(pq @ gov_q)
             hh_dtax_paid = hh_income * dtax
             hh_sav = float(((hh_income - hh_dtax_paid) * econ.hh_savrate).sum())
             # Government income the tax block does not see: direct taxes and its own
             # factor income, net of what it transfers to households.
             gov_inst = float(hh_dtax_paid.sum()) + gov_fac - float(gov_tr.sum())
 
-            # --- quantity system
+            # --- quantity system. Home demand for the domestic variety, over the
+            # CET's home share, is output at its tax-inclusive value; over
+            # (1 + tauz0) it is commodity output at producer value.
             with np.errstate(divide="ignore", invalid="ignore"):
-                Gp = np.diag(dsh * econ.arm_share / np.maximum(dom_frac, 1e-12))
+                Gp = np.diag(dsh * econ.arm_share / np.maximum(dom_frac * tz0, 1e-12))
             Bm = io_eff @ econ.msh
             M = np.linalg.inv(np.eye(nc) - Bm @ Gp - econ.mq)
-            inv_w = inv_share
-            fin_c = hh_final + gov_q                      # taxed at the CONSUMER rate
             other_fixed = exog_intermediate               # taxed at the firm rate
 
             def duty_of(a_vec):
-                # Only the change from the calibrated rate enters government
-                # income. At the calibrated rate the power of the tax is 1 and
-                # this is zero, so the base year stays the one product tax and
-                # the activity tax already closed.
+                # The tariff and the output tax are levels: each rate times its
+                # own base, imports at the border and output at the producer price.
                 duty = 0.0
                 if tm is not None:
-                    duty += float((((tm - tm0) / (1.0 + tm0)) * pm_border
-                                   * msh_ * econ.arm_share * a_vec).sum())
+                    duty += float((tm * pm_border * msh_ * econ.arm_share * a_vec / tf0).sum())
                 if tauz is not None:
-                    # Domestic sales only. Exports fetch the producer price, so
-                    # they are not in this wedge; taxing Q here books a receipt
-                    # the foreign buyer did not pay.
-                    duty += float((((tauz - tauz0) / (1.0 + tauz0))
-                                   * p_dom * dsh * econ.arm_share * a_vec).sum())
+                    duty += float((tauz * pd_ * (Gp @ a_vec)).sum())
                 return duty
 
-            def tax_of(a_vec):
-                firm_part = a_vec - fin_c
+            def tax_of(a_vec, fin_c):
+                firm_part = a_vec - fin_c                 # final demand at the CONSUMER rate
                 return (float((pbase * (firm_part * ptax_f + fin_c * ptax_a)).sum())
                         + float((atax * (econ.msh @ (Gp @ a_vec))).sum())
                         + duty_of(a_vec))
 
+            inv_fixed = inv_share * inv_budget0 / (1.0 + econ.ptax)
+
+            def flows(gov_budget, saving):
+                """The circular flow at a given government budget and saving."""
+                if closure.government == "real_fixed":
+                    gov_q = econ.gov_dem / (1.0 + econ.ptax)
+                elif closure.government == "nominal_fixed":
+                    gov_q = econ.gov_dem * nu / np.maximum(pq, 1e-12)
+                else:
+                    gov_q = gov_w * gov_budget / np.maximum(pq, 1e-12)
+                # Fixed investment is held in QUANTITIES, at base-year purchaser
+                # prices. A mix changes the basket and keeps the base-year real total.
+                inv_q = (inv_share * saving / np.maximum(pqf, 1e-12)
+                         if closure.investment == "savings_driven" else inv_fixed)
+                fin_c = hh_final + gov_q
+                A = M @ (fin_c + other_fixed + inv_q)
+                gov_income = tax_of(A, fin_c) + gov_inst - gov_cost
+                gov_spend = float(pq @ gov_q)
+                available = hh_sav + levy + gov_income - gov_spend + foreign_sav
+                return gov_q, inv_q, A, gov_income, gov_spend, available
+
+            # Saving funds investment, investment drives output, output drives
+            # tax revenue, and revenue is government saving -- or, under a
+            # government saving rate, also government spending. Every link is
+            # affine in the two budgets, so they are solved from probes in closed
+            # form rather than iterated.
+            free = []
+            if closure.government == "saving_rate":
+                free.append("gov")
+            if closure.investment == "savings_driven":
+                free.append("sav")
+
+            def gap(u):
+                g = u[free.index("gov")] if "gov" in free else 0.0
+                sv = u[free.index("sav")] if "sav" in free else 0.0
+                _, _, _, inc, _, avail = flows(g, sv)
+                out_g = []
+                if "gov" in free:
+                    out_g.append(g - (1.0 - gov_savrate) * inc)
+                if "sav" in free:
+                    out_g.append(sv - avail)
+                return np.array(out_g)
+
+            u = np.zeros(len(free))
+            if free:
+                r0 = gap(u)
+                J = np.empty((len(free), len(free)))
+                for k in range(len(free)):
+                    e = np.zeros(len(free))
+                    e[k] = sav_scale
+                    J[:, k] = (gap(e) - r0) / sav_scale
+                u = np.linalg.solve(J, -r0)
+            g_now = u[free.index("gov")] if "gov" in free else 0.0
+            s_now = u[free.index("sav")] if "sav" in free else 0.0
+            gov_q, inv_q, A, gov_income, gov_spend, available = flows(g_now, s_now)
             sav_gap = None
             if closure.investment == "savings_driven":
-                # Saving funds investment, investment drives output, output drives tax
-                # revenue and revenue is government saving. Affine in saving, so it is
-                # solved in closed form rather than iterated.
-                A_const = M @ (fin_c + other_fixed)
-                A_slope = M @ (inv_w / np.maximum(pqf, 1e-12))
-                c1 = (float((pbase * A_slope * ptax_f).sum())
-                      + float((atax * (econ.msh @ (Gp @ A_slope))).sum())
-                      + duty_of(A_slope))
-                c0 = hh_sav + levy + tax_of(A_const) + gov_inst - gov_spend - gov_cost + foreign_sav
-                savings = c0 / (1.0 - c1)
-                inv_q = inv_w * savings / np.maximum(pqf, 1e-12)
-                A = M @ (fin_c + other_fixed + inv_q)
+                savings = s_now
             else:
-                # Fixed in QUANTITIES, at base-year purchaser prices. A mix changes
-                # the basket and keeps the base-year real total.
-                inv_q = inv_share * inv_budget0 / (1.0 + econ.ptax)
-                A = M @ (fin_c + other_fixed + inv_q)
-                required = float(pqf @ inv_q)
-                available = (hh_sav + levy + tax_of(A) + gov_inst - gov_spend - gov_cost
-                             + foreign_sav)
-                savings = required
-                sav_gap = (available - required) / sav_scale
+                savings = float(pqf @ inv_q)
+                sav_gap = (available - savings) / sav_scale
 
             Q = Gp @ A
             X = econ.msh @ Q + X_exog
 
             arm_q = econ.arm_share * A
-            imports = msh_ * arm_q
-            exports = exp_frac * Q
+            imports = msh_ * arm_q / tf0                  # at the border
+            exports = exp_frac * tz0 * Q
             fac_by_act = (factor_intensity(econ, w, vunit=vunit_eff, aunit=aunit_eff)
                           * (vunit_eff * X)[None, :])
             fac_dem = fac_by_act.sum(axis=1)
@@ -554,7 +592,7 @@ def solve_period(econ: Economy, closure: Closure | None = None,
                 else:
                     out.append(float(gaps[i]))
             if closure.solves_exchange_rate:
-                out.append((current - trade_target) / ext_scale)
+                out.append((current - foreign_sav) / ext_scale)
             else:
                 # The exchange rate is exogenous, so the current account is whatever
                 # it turns out to be and foreign saving must equal it. Holding
@@ -595,6 +633,7 @@ def solve_period(econ: Economy, closure: Closure | None = None,
                 fac_by_act=fac_by_act,
                 imports=imports, exports=exports, trade=trade, gaps=gaps,
                 world_pe=world_pe_now, world_pm=world_p_now,
+                dom_sales=dsh * econ.arm_share * A, p_dom=p_dom,
                 walras=float(gaps[num]), levy=levy, foreign_sav=foreign_sav, pe=p_exp,
                 hh_dtax_paid=hh_dtax_paid, row_fac=row_fac, gov_fac=gov_fac,
                 real=dict(hh_real=float(p_base_yard @ hh_q.sum(axis=0)),
@@ -692,7 +731,8 @@ def solve_period(econ: Economy, closure: Closure | None = None,
         factor_income_abroad=state["row_fac"], foreign_saving=state["foreign_sav"],
         employment=state["employment"], unemployment=state["unemployment"],
         real_wage=state["real_wage"], world_export_price=state["world_pe"],
-        world_import_price=state["world_pm"])
+        world_import_price=state["world_pm"], domestic_sales=state["dom_sales"],
+        p_domestic=state["p_dom"])
 
 
 # ---------------------------------------------------------------------------

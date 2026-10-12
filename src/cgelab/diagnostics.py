@@ -39,6 +39,8 @@ def base_year_reproduction(econ: Economy, closure: Closure | None = None,
         "household_income": _rel(res.hh_income, econ.hh_income0 if econ.hh_gross0 is None
                                  else econ.hh_gross0),
         "exchange_rate": abs(res.exchange_rate - 1.0),
+        "imports": _rel(res.imports, econ.imp0),
+        "exports": _rel(res.exports, econ.exp0),
     }
     worst = max(checks.values())
     return dict(ok=bool(worst < tol and abs(res.walras) < tol), worst=float(worst),

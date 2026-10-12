@@ -22,16 +22,30 @@ before 1.0, a minor version may add to the API and a patch version only fixes.
   world prices. The base year is unchanged. `export_demand` needs
   `export_rule="cet"`; the regional slice refuses both. The JuMP replica carries
   the curves as constraints, and three new round-trip cases match it to 1e-12.
-- Import tariff and indirect tax on domestic sales, separate from the product
-  tax on absorption. `calibrate(..., tariffs=)` or `ModelSpec.tariff_account`
-  sets the reference tariff (Hosoe's `taum`); `calibrate(..., output_taxes=)`
-  or `ModelSpec.indirect_tax_account` sets the output tax (Hosoe's `tauz` /
-  IDT). `Scenario.tariff` and `Scenario.output_tax` move one rate without
-  moving the other. At the calibrated rate the base year is unchanged, because
-  a named account's receipt stays inside the product tax. Government income
-  receives the change from that rate. The output tax falls on domestic sales;
-  exports sold at the producer price are outside it. The JuMP replica carries
-  the same wedge.
+- Import tariff and indirect tax on output, separate from the product tax on
+  absorption and inside the prices they fall on, as in Hosoe's `stdcge`.
+  `calibrate(..., tariffs=)` or `ModelSpec.tariff_account` sets the base-year
+  tariff (Hosoe's `taum`), and the Armington nest is calibrated on the
+  tariff-inclusive value of imports. `calibrate(..., output_taxes=)` or
+  `ModelSpec.indirect_tax_account` sets the output tax (Hosoe's `tauz` / IDT),
+  and the CET splits output at its tax-inclusive value, so exports carry it.
+  Government receives both as levels. `Scenario.tariff` and
+  `Scenario.output_tax` move one rate without moving the other; a tariff of
+  zero abolishes it. At the calibrated rates the base year is the SAM. The
+  JuMP replica carries the same prices.
+- `Closure(government="saving_rate")`: government saves the base-year share
+  of its income (`Economy.gov_savrate`) and spends the rest in base-year value
+  shares. `Closure(foreign_saving_unit="foreign_currency")`: foreign saving
+  fixed in dollars under `foreign="fixed_saving"`. Together they are Hosoe's
+  closure.
+- `cgelab.examples.hosoe`: the SAM, functional forms and closure of Hosoe,
+  Gasawa and Hashimoto's `stdcge` and, with `large_country=True`, `lrgcge`.
+  The tariff abolition of both matches a line-by-line JuMP transcription of the
+  GAMS programs (`validation/hosoe.jl`) in all 49 displayed variables, to
+  2.4e-12; `tests/test_hosoe_stdcge.py` checks it against the stored result.
+- `PeriodResult.domestic_sales` and `p_domestic`: home sales of domestic output
+  and their price. `base_year_reproduction` now also checks imports and
+  exports against the SAM.
 - Several regions. `ModelSpec.regions` and `sigma_interregional`: a CES across
   regions of origin under the Armington nest. Accounts are `region:local`.
   Factors clear where they are; one national numeraire stays unsolved. A single

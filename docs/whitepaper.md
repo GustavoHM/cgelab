@@ -18,9 +18,9 @@ io_{c,a} = \frac{S_{c,a}}{X_{0,a}\,(1+t_c)},
 
 com \(X_{0,a}\) o recebimento total da atividade. Omitir \(1+t_c\) faz o imposto aparecer duas vezes. O sintoma não é uma exceção. O ano-base deixa de se reproduzir.
 
-A base do imposto sobre a absorção é a quantidade doméstica mais a importada mais as margens que entram na mercadoria, \(A_0 = Q^{\mathrm{dom}}_0 + M_0 + \text{margem}\). O preço de adquirente de base é \(1+t\), e a alíquota é o imposto dividido por \(A_0\). Dividi-lo pelo total da linha da mercadoria, que já contém o imposto, produz outra alíquota.
+A base do imposto sobre a absorção é a quantidade doméstica mais a importada mais as margens que entram na mercadoria, \(A_0 = Q^{\mathrm{dom}}_0 + (1+t_m^0)\,M_0 + \text{margem}\). O preço de adquirente de base é \(1+t\), e a alíquota é o imposto dividido por \(A_0\). Dividi-lo pelo total da linha da mercadoria, que já contém o imposto, produz outra alíquota.
 
-Uma conta nomeada de tarifa ou de imposto indireto sobre o produto é dinheiro que o comprador pagou e o governo recebeu. O recebimento entra no imposto de produto, de modo que \(1+t\) continue igual ao preço de adquirente da matriz. O pagamento dessa conta de volta ao governo é o mesmo recebimento, não um segundo.
+Uma conta nomeada de tarifa ou de imposto indireto sobre o produto é dinheiro que o comprador pagou e o governo recebeu. As duas saem do imposto de produto e entram no preço sobre o qual incidem, como no `stdcge` de Hosoe, Gasawa e Hashimoto. A alíquota da tarifa é \(t_m^0 = T_m / M_0\), e a importação entra no Armington pelo valor com tarifa, \((1+t_m^0)\,M_0\). A alíquota do imposto indireto é \(t_z^0 = T_z / Z_0\), e a produção que a CET reparte vale \((1+t_z^0)\,Z_0\). As vendas domésticas são esse valor menos as exportações. O imposto de produto que resta é o recebimento do governo menos as duas receitas, dividido por \(A_0\). O preço de adquirente da matriz não muda. O pagamento dessas contas de volta ao governo é o mesmo recebimento, não um segundo.
 
 ## 3. Calibração das participações
 
@@ -82,11 +82,11 @@ d &= s_d \big(p_q / p_d\big)^{\sigma_A}, \qquad
 m &= (1-s_d) \big(p_q / p_m\big)^{\sigma_A}.
 \end{align*}
 
-\(d\) e \(m\) são intensidades por unidade do composto. O preço de importação de fronteira é a taxa de câmbio vezes o preço mundial. Uma tarifa calibrada entra como potência \((1+t_m)/(1+t_m^0)\). Na alíquota calibrada a potência é 1, e o ano-base permanece o que o imposto de produto já fechou. O governo recebe a variação da alíquota, não o nível inteiro uma segunda vez. Um imposto indireto sobre as vendas domésticas entra do mesmo modo sobre \(p_d\). As exportações, vendidas ao preço do produtor, ficam fora dessa cunha.
+\(d\) e \(m\) são intensidades por unidade do composto. O preço de importação de fronteira é a taxa de câmbio vezes o preço mundial. A importação é medida pelo valor com tarifa do ano-base, então o seu preço no Armington é o de fronteira vezes \((1+t_m)/(1+t_m^0)\), que vale 1 no ano-base. O governo recebe o nível \(t_m\, p_m^{\mathrm{fronteira}} M\), com \(M\) a importação na fronteira. Uma tarifa zero a abole, e a variedade doméstica nunca a pagou.
 
 ### Exportações
 
-Com participações fixas, a fração exportada é a do ano-base e o preço recebido é o preço básico da mercadoria. Com CET de elasticidade \(\sigma_T > 0\), participação de exportação \(s_e\) e preços \(p_d\), \(p_e\),
+O imposto indireto incide sobre toda a produção. O preço bruto que a fronteira reparte é o do produtor vezes \((1+t_z)/(1+t_z^0)\), e as vendas domésticas e as exportações o pagam. O governo recebe o nível \(t_z\, p_z Z\). Com participações fixas, a fração exportada é a do ano-base e o preço recebido é o preço bruto. Com CET de elasticidade \(\sigma_T > 0\), participação de exportação \(s_e\) e preços \(p_d\), \(p_e\),
 
 \begin{align*}
 p_z &= \big((1-s_e)\, p_d^{1+\sigma_T} + s_e\, p_e^{1+\sigma_T}\big)^{1/(1+\sigma_T)}, \\
@@ -94,7 +94,9 @@ p_z &= \big((1-s_e)\, p_d^{1+\sigma_T} + s_e\, p_e^{1+\sigma_T}\big)^{1/(1+\sigm
 \text{fração exportada} &= s_e\,(p_e / p_z)^{\sigma_T}.
 \end{align*}
 
-Sob retornos constantes o preço do produtor é o custo unitário. A fronteira de transformação não determina esse preço. Ela reparte a produção. Dado o preço do produto e o preço de exportação, o preço doméstico é o que iguala \(p_z\) ao preço do produto, a inversa da fórmula acima. Uma mercadoria sem exportação, ou exportada por inteiro, vende ao preço do produto no mercado que lhe resta. Se o preço externo é alto o bastante para que nenhum preço doméstico positivo satisfaça a fronteira, as vendas domésticas vão a zero.
+Sob retornos constantes o preço do produtor é o custo unitário. A fronteira de transformação não determina esse preço. Ela reparte a produção. Dado o preço bruto do produto e o preço de exportação, o preço doméstico é o que iguala \(p_z\) ao preço bruto, a inversa da fórmula acima.
+
+O preço de exportação é a taxa de câmbio vezes o preço mundial. Uma economia tomadora de preço recebe o preço mundial do cenário. Com elasticidade de demanda \(\eta\), a exportação fica numa curva, \(E/E_0 = (p^W_e/\bar p^W_e)^{-\eta}\), em que \(\bar p^W_e\) é o preço do cenário. A oferta de importação com elasticidade \(\psi\) é o espelho, \(M/M_0 = (p^W_m/\bar p^W_m)^{\psi}\). São as equações do `lrgcge` de Hosoe. Cada mercadoria numa curva acrescenta o log do seu preço mundial às incógnitas, e a curva é o resíduo dela. Uma mercadoria sem exportação, ou exportada por inteiro, vende ao preço do produto no mercado que lhe resta. Se o preço externo é alto o bastante para que nenhum preço doméstico positivo satisfaça a fronteira, as vendas domésticas vão a zero.
 
 O preço de adquirente que a demanda vê incorpora margens. As margens são elas próprias mercadorias entregues, então o preço é um ponto fixo,
 
@@ -112,7 +114,7 @@ Há mais mercadorias do que atividades num sistema aplicado. Os saldos de mercad
 Seja \(A\) a absorção, \(d\) a intensidade doméstica do Armington, \(s^{\mathrm{arm}}\) a participação do composto Armington na absorção e \(f^{\mathrm{dom}}\) a fração da produção vendida no mercado interno. Então
 
 \[
-G = \mathrm{diag}\!\left(\frac{d \odot s^{\mathrm{arm}}}{f^{\mathrm{dom}}}\right), \qquad
+G = \mathrm{diag}\!\left(\frac{d \odot s^{\mathrm{arm}}}{f^{\mathrm{dom}} \odot (1+t_z^0)}\right), \qquad
 B = io\, MSH, \qquad
 Q = G A, \qquad
 X = MSH\, Q.
@@ -124,7 +126,7 @@ A absorção cumpre
 (I - BG - mq)\, A = \text{demanda final}.
 \]
 
-A demanda final de consumo e de governo é taxada à alíquota do comprador. O investimento e os intermediários exógenos são taxados à alíquota da firma. \(Q\) é a produção doméstica de mercadorias que abastece o mercado interno. As importações são \(m \odot s^{\mathrm{arm}} \odot A\). As exportações são a fração de exportação vezes \(Q\).
+A demanda final de consumo e de governo é taxada à alíquota do comprador. O investimento e os intermediários exógenos são taxados à alíquota da firma. \(Q\) é a produção doméstica de mercadorias que abastece o mercado interno. As importações na fronteira são \(m \odot s^{\mathrm{arm}} \odot A / (1+t_m^0)\). As exportações são a fração de exportação vezes \((1+t_z^0) \odot Q\).
 
 A demanda de fatores por atividade é a intensidade do ninho de valor adicionado vezes o valor adicionado da atividade. A demanda agregada do fator é a soma sobre as atividades.
 
@@ -150,7 +152,7 @@ O salário real usa outro índice, de Laspeyres, com a cesta de quantidades do a
 
 ### Poupança e investimento
 
-Com investimento dirigido pela poupança, a poupança financia o investimento, o investimento move a produção, a produção move a receita tributária e a receita é poupança do governo. O mapa é afim na poupança e é resolvido em forma fechada, \(S = c_0/(1-c_1)\), em vez de iterado. Com investimento real fixo, as quantidades são as do ano-base, possivelmente reponderadas por uma cesta, e a poupança forçada das famílias é a incógnita que iguala o financiamento ao custo desse investimento.
+Com investimento dirigido pela poupança, a poupança financia o investimento, o investimento move a produção, a produção move a receita tributária e a receita é poupança do governo. Quando o governo poupa uma fração fixa \(s_g\) da renda e gasta o resto nas parcelas de valor do ano-base, a receita também é gasto público. O mapa é afim no orçamento do governo e na poupança. Os dois são resolvidos juntos em forma fechada, a partir de sondagens do mapa, em vez de iterados. Com investimento real fixo, as quantidades são as do ano-base, possivelmente reponderadas por uma cesta, e a poupança forçada das famílias é a incógnita que iguala o financiamento ao custo desse investimento.
 
 O saldo do governo que não passa pelo bloco de impostos indiretos é o imposto direto mais a renda de fatores do governo, líquidos das transferências às famílias.
 
@@ -158,7 +160,7 @@ O saldo do governo que não passa pelo bloco de impostos indiretos é o imposto 
 
 O mercado do fator numerário não é resolvido. Fica para a lei de Walras, e o seu resíduo é um teste da contabilidade, não uma identidade que o solver foi instruído a cumprir. Ele é registrado em todo período.
 
-As incógnitas de um período são um preço por fator que não seja o numerário, mais uma incógnita externa, mais a poupança forçada quando o investimento real é fixo. A incógnita externa é a taxa de câmbio quando a poupança externa é fixa no valor do ano-base, e a própria poupança externa quando a taxa de câmbio é exógena. Um salário real fixo retira o preço do trabalho do vetor de incógnitas. O salário é o índice vezes a meta, e o emprego é a demanda que esse salário produz. Cada fechamento traz a variável que ajusta. Fixar uma magnitude sem liberar outra em algum lugar não fecha o modelo, e o sintoma é um resíduo de Walras, não uma falha anunciada do solver.
+As incógnitas de um período são um preço por fator que não seja o numerário, mais uma incógnita externa, mais a poupança forçada quando o investimento real é fixo. A incógnita externa é a taxa de câmbio quando a poupança externa é fixa no valor do ano-base, e a própria poupança externa quando a taxa de câmbio é exógena. A poupança externa fixa pode estar em unidades do numerário ou em dólares, e em dólares o que ela financia em moeda doméstica é o câmbio vezes a meta. Um salário real fixo retira o preço do trabalho do vetor de incógnitas. O salário é o índice vezes a meta, e o emprego é a demanda que esse salário produz. Cada fechamento traz a variável que ajusta. Fixar uma magnitude sem liberar outra em algum lugar não fecha o modelo, e o sintoma é um resíduo de Walras, não uma falha anunciada do solver.
 
 A conta corrente que a poupança externa financia é o comércio, mais a renda de fatores paga ao exterior, menos as transferências líquidas recebidas do exterior. Não é o saldo comercial sozinho. O investimento direto entra na poupança externa do período.
 
@@ -184,7 +186,7 @@ O fator trabalho não pode ser o numerário quando o fechamento fixa ou liga o s
 
 ### Homogeneidade
 
-Nenhuma magnitude real depende do nível do preço do numerário. Magnitudes nominais exógenas denominadas nele, a poupança externa, a meta de saldo comercial e o imposto específico sobre a atividade, escalam com ele. Deixar alguma delas fixa enquanto o nível de preços se move mudaria a taxa real de câmbio, o investimento real ou a cunha real do imposto, e um teste de homogeneidade falharia por um motivo que não é o modelo.
+Nenhuma magnitude real depende do nível do preço do numerário. Magnitudes nominais exógenas denominadas nele, a poupança externa, a meta de saldo comercial e o imposto específico sobre a atividade, escalam com ele. A poupança externa em dólares escala pela taxa de câmbio, que é o que converte dólares em numerário. Deixar alguma delas fixa enquanto o nível de preços se move mudaria a taxa real de câmbio, o investimento real ou a cunha real do imposto, e um teste de homogeneidade falharia por um motivo que não é o modelo.
 
 ## 7. Dinâmica recursiva
 

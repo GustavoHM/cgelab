@@ -113,6 +113,20 @@ put on curves only the commodities the study is about. `export_demand` requires
 `export_rule="cet"`: with fixed shares, the export volume is set by output and
 no world price could clear a demand curve for it.
 
+**`tariff_account` and `indirect_tax_account`.** A SAM can record the import
+tariff and an indirect tax on output on accounts of their own, Hosoe's TRF and
+IDT. Named here, or passed as rates with `calibrate(..., tariffs=,
+output_taxes=)`, each tax moves out of the product tax and into the price it
+falls on, as in Hosoe's `stdcge`. The Armington nest is calibrated on the
+tariff-inclusive value of imports, `(1 + tm0) × M0`. The CET is calibrated on
+the tax-inclusive value of output, `(1 + tauz0) × Z0`, so home sales and exports
+both carry the indirect tax. Government receives each as a level, the rate
+times its base. `Scenario.tariff` and `Scenario.output_tax` change the rates.
+Abolishing a tariff leaves the domestic variety untaxed. When the tariff was
+instead left inside a product tax spread over the whole composite, the domestic
+variety went on paying it after the abolition. At the calibrated rates the base
+year is the SAM, in quantities and in what buyers pay.
+
 **`negative_value_added`.** An activity can have a negative operating surplus,
 and that is real data, not an error to clean. No CES nest accepts a negative
 exponent, so either the activity goes on fixed proportions (`"leontief"`, the
@@ -236,8 +250,9 @@ twenty-five year path cheap.
 ```python
 closure = ck.Closure(numeraire=1.0,
                      investment="savings_driven",   # or "fixed_real"
-                     government="real_fixed",       # or "nominal_fixed"
+                     government="real_fixed",       # or "nominal_fixed", "saving_rate"
                      foreign="fixed_saving",        # or "fixed_rate"
+                     foreign_saving_unit="numeraire",   # or "foreign_currency"
                      exchange_rate=1.0,
                      tolerance=1e-9)
 ```
@@ -254,6 +269,14 @@ Walras residual rather than a solver failure.
 | `foreign="fixed_rate"` | the exchange rate | foreign saving |
 | `government="real_fixed"` | real public purchases | public spending moves with prices |
 | `government="nominal_fixed"` | the public budget | real purchases move instead |
+| `government="saving_rate"` | the share of its income government saves | public spending, in base-year value shares |
+| `foreign_saving_unit="foreign_currency"` | foreign saving in dollars, under `fixed_saving` | what it finances at home moves with the exchange rate |
+
+`government="saving_rate"` and `foreign_saving_unit="foreign_currency"` together are
+the closure of Hosoe's `stdcge` (`cgelab.examples.hosoe.CLOSURE`). Under them a
+tariff abolition cuts public consumption by the lost revenue, and the depreciation
+it causes raises what foreign saving finances. The base-year saving rate is
+`econ.gov_savrate`: government saving over income net of transfers to households.
 
 `numeraire` exists for the homogeneity test only; no real magnitude may depend on
 it. All five combinations in the test matrix reproduce the base year and hold

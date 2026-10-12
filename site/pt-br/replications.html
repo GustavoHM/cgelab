@@ -25,7 +25,8 @@
 <nav class="toc"><div class="wrap"><ul>
   <li><a href="#criterio">O que conta</a></li>
   <li><a href="#regioes">Várias regiões</a></li>
-  <li><a href="#hosoe">Um exemplo feito</a></li>
+  <li><a href="#hosoe">O ano-base</a></li>
+  <li><a href="#stdcge">Uma abolição de tarifas</a></li>
   <li><a href="#fila">A fila</a></li>
 </ul></div></nav>
 
@@ -95,6 +96,55 @@ print(base.X, base.walras)</code></pre>
   o arquivo GAMS não traz uma.</p>
 </div></section>
 
+<section id="stdcge"><div class="wrap">
+  <h2>Exemplo feito: a abolição das tarifas em <code>stdcge</code> e <code>lrgcge</code></h2>
+  <p>Os capítulos 6 e 10.2 do mesmo manual são os arquivos da biblioteca do GAMS
+  <a href="https://www.gams.com/latest/gamslib_ml/libhtml/gamslib_stdcge.html"><code>stdcge</code></a>
+  e <a href="https://www.gams.com/latest/gamslib_ml/libhtml/gamslib_lrgcge.html"><code>lrgcge</code></a>.
+  Têm uma matriz, com insumos intermediários, imposto indireto sobre o produto (IDT), tarifa
+  (TRF), governo, investimento e resto do mundo, e um experimento: todas as tarifas a zero. O
+  <code>lrgcge</code> acrescenta uma curva de demanda pelas exportações e uma de oferta das
+  importações, ambas com elasticidade 2.</p>
+  <p><code>cgelab.examples.hosoe</code> traz a matriz, com as contas de Hosoe separadas em
+  atividade e mercadoria, as formas funcionais e o fechamento dele. O governo poupa uma fração
+  fixa da renda, e a poupança externa é fixa em dólares. A tarifa fica dentro do preço de
+  importação e o imposto indireto dentro do preço bruto do produto, como na calibração dele.</p>
+<pre><code>import numpy as np
+import cgelab as ck
+from cgelab.examples import hosoe
+
+for large in (False, True):
+    _, econ = hosoe.build(large_country=large)
+    base = ck.solve_period(econ, hosoe.CLOSURE)
+    free = ck.solve_period(econ, hosoe.CLOSURE, ck.Scenario(tariff=np.zeros(econ.n_com)))
+    assert free.converged and abs(free.walras) &lt; 1e-9
+    print("lrgcge" if large else "stdcge",
+          np.round(100 * (free.imports / base.imports - 1), 2),   # importações, variação %
+          round(100 * (free.exchange_rate - 1), 2))               # câmbio, variação %</code></pre>
+  <p>Os programas calculam essas variações e não imprimem tabela, e o GAMS não está instalado
+  aqui. A referência é por isso <code>validation/hosoe.jl</code>, uma transcrição linha a linha
+  dos dois arquivos <code>.gms</code> para JuMP (matriz, calibração e equações), resolvida com
+  Ipopt. As 49 variáveis que os programas exibem coincidem, no ano-base e depois da abolição, a
+  2,4e-12. A suíte checa o resultado gravado sem Julia.</p>
+  <table>
+    <thead><tr><th>Variação % (pão / leite)</th><th><code>stdcge</code></th><th><code>lrgcge</code></th></tr></thead>
+    <tbody>
+      <tr><td>Importações</td><td>−1.08 / +18.85</td><td>−2.78 / +6.76</td></tr>
+      <tr><td>Exportações</td><td>+17.93 / +12.46</td><td>+10.55 / +9.42</td></tr>
+      <tr><td>Consumo das famílias</td><td>+1.96 / +2.51</td><td>+0.85 / +1.13</td></tr>
+      <tr><td>Consumo do governo</td><td>−6.85 / −6.35</td><td>−7.83 / −7.58</td></tr>
+      <tr><td>Câmbio</td><td>+6.28</td><td>+9.51</td></tr>
+      <tr><td>Preço mundial de exportação</td><td>0 / 0</td><td>−4.89 / −4.40</td></tr>
+      <tr><td>Variação equivalente, nível</td><td>1.145</td><td>0.508</td></tr>
+    </tbody>
+  </table>
+  <p>O leite pagava a tarifa mais alta, 18% contra 8%, e toma o mercado de importação: as
+  importações de pão caem. O governo perde a receita da tarifa e corta o consumo. O câmbio se
+  deprecia para pagar as importações a mais, e as exportações sobem. Como país grande, o
+  <code>lrgcge</code> paga essa alta com preços mundiais de exportação menores, e o ganho de
+  bem-estar fica em menos da metade.</p>
+</div></section>
+
 <section id="fila"><div class="wrap">
   <h2>A fila</h2>
   <p>O status é o que já foi rodado neste pacote. "Arquivos localizados" quer dizer que a matriz
@@ -107,6 +157,12 @@ print(base.X, base.walras)</code></pre>
         <td>Matriz impressa no arquivo da biblioteca</td>
         <td>Uma, fechada</td>
         <td>Ano-base reproduzido nesta página</td>
+      </tr>
+      <tr>
+        <td>Hosoe, Gasawa e Hashimoto (2004), caps. 6 e 10.2, biblioteca GAMS <code>stdcge</code> e <code>lrgcge</code></td>
+        <td>Matriz impressa nos arquivos da biblioteca</td>
+        <td>Uma, aberta</td>
+        <td>Abolição das tarifas reproduzida nesta página, contra uma transcrição dos programas</td>
       </tr>
       <tr>
         <td><a href="https://hdl.handle.net/10568/158026">Lofgren, Harris e Robinson (2002)</a>, EGC padrão do IFPRI em GAMS</td>

@@ -7,9 +7,10 @@ e uma inversão de Leontief. Cada uma é uma dedução do autor. Em JuMP nada di
 bloco é uma restrição e o Ipopt encontra o ponto fixo. Um erro na álgebra do Python não pode,
 portanto, ser reproduzido do outro lado por construção.
 
-Roda 19 casos sobre as economias de brinquedo do pacote: sem margens, com bloco de margens, com
+Roda 24 casos sobre as economias de brinquedo do pacote: sem margens, com bloco de margens, com
 atividade de conta própria, com CET, com curvas de demanda de exportação e de oferta de
-importação (país grande, como o `lrgcge`), e com instituições (impostos diretos, transferências, remessas,
+importação (país grande, como o `lrgcge`), com tarifa e imposto sobre o produto dentro dos preços
+(como o `stdcge`), com instituições (impostos diretos, transferências, remessas,
 capital do governo e do exterior, IED), em cenário-base e com choques, em vários fechamentos.
 
     cd validation && julia --project=. -e 'using Pkg; Pkg.instantiate()' && cd ..
@@ -27,7 +28,7 @@ from pathlib import Path
 import numpy as np
 
 import cgelab as ck
-from cgelab.examples import toy
+from cgelab.examples import hosoe, toy
 
 AQUI = Path(__file__).resolve().parent
 OUT = AQUI / "out"
@@ -124,6 +125,31 @@ def main() -> int:
         "pais_grande_margens_parcial", econ, ck.Closure(),
         ck.Scenario(name="parcial", world_price=np.array([1.2, 1.0, 1.0]),
                     export_price=np.array([1.0, 1.1, 1.0])))
+
+    # Tarifa e imposto sobre todo o produto dentro dos preços, como no stdcge; o governo que poupa
+    # uma fração da renda; a poupança externa fixa em dólares
+    tributos = toy.spec(tariff_account="trf", indirect_tax_account="idt")
+    _, econ = toy.build_with_trade_taxes()
+    abolicao = ck.Scenario(name="abolicao", tariff=np.zeros(2))
+    casos["tarifa_abolicao"] = caso("tarifa_abolicao", econ, ck.Closure(), abolicao)
+    casos["tarifa_abolicao_stdcge"] = caso(
+        "tarifa_abolicao_stdcge", econ,
+        ck.Closure(government="saving_rate", foreign_saving_unit="foreign_currency"), abolicao)
+    _, econ = toy.build_with_trade_taxes(model_spec=tributos.__class__(
+        **{**tributos.__dict__, "export_rule": "cet"}))
+    casos["imposto_produto_cet"] = caso(
+        "imposto_produto_cet", econ,
+        ck.Closure(investment="fixed_real", government="saving_rate"),
+        ck.Scenario(name="idt", output_tax=econ.tauz0 * 3, tariff=econ.tm0 * 0.5))
+    _, econ = toy.build_with_trade_taxes(model_spec=tributos.__class__(
+        **{**tributos.__dict__, "export_rule": "cet", "export_demand": 2.0,
+           "import_supply": 2.0}))
+    casos["lrgcge_abolicao"] = caso(
+        "lrgcge_abolicao", econ,
+        ck.Closure(government="saving_rate", foreign_saving_unit="foreign_currency"), abolicao)
+
+    _, econ = hosoe.build()
+    casos["hosoe_stdcge_abolicao"] = caso("hosoe_stdcge_abolicao", econ, hosoe.CLOSURE, abolicao)
 
     # Instituições: imposto direto, transferências, remessas, capital do governo e estrangeiro
     _, econ = toy.build_with_institutions()

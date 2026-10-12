@@ -51,8 +51,8 @@ Constructors: `SAM.from_long(df, row="row", col="col", value="value", name="sam"
 | `margins` | `True` | read the commodity-to-commodity margin block |
 | `regions` | `None` | region names. Accounts are then `region:local`. Absent, the one-region model |
 | `sigma_interregional` | `2.0` | CES across regions of origin, under the Armington. Scalar or mapping by local commodity |
-| `tariff_account` | `None` | account that collects the import tariff from commodities (Hosoe's TRF) |
-| `indirect_tax_account` | `None` | account that collects the indirect tax on output (Hosoe's IDT) |
+| `tariff_account` | `None` | account that collects the import tariff from commodities (Hosoe's TRF). The tariff goes inside the Armington import price |
+| `indirect_tax_account` | `None` | account that collects the indirect tax on all of output (Hosoe's IDT). The tax goes inside the gross output price the CET splits, so exports carry it |
 
 Methods: `classify(sam) -> AccountLayout`, `prepare(sam)` (expands regional
 accounts), `sigma_va_vector(activities)`, `sigma_armington_vector(commodities)`.
@@ -79,7 +79,9 @@ and non-default closures are refused by name rather than ignored. `to_jump` and
 `population` maps household account to a household count — the weight of a per
 capita transfer, and neither the income nor the expenditure share.
 `tariffs` and `output_taxes` are reference rates, one per commodity, when the
-SAM has no separate account for them. At those rates the base year is unchanged.
+SAM has no separate account for them. Their revenue leaves the product tax and
+enters the import price and the gross output price; at those rates the base year
+is unchanged.
 
 ### `Economy`
 
@@ -111,18 +113,23 @@ Ordered name lists `acts`, `coms`, `hhs`, `factors`; counts `n_act`, `n_com`,
 | `fac_gov_share`, `fac_row_share` | `(nf,)` | share of each factor's income paid to government and abroad |
 | `hh_gross0`, `hh_spend0` | `(nh,)` | base gross income (net of transfers sent abroad); base commodity spending |
 | `sigma_cet` | `(nc,)` | CET elasticities, read under `export_rule="cet"` |
-| `tm0`, `tauz0` | `(nc,)` or absent | reference import tariff and indirect tax on domestic sales. Absent, a scenario rate is refused |
+| `tm0`, `tauz0` | `(nc,)` or absent | base-year import tariff and indirect tax on output, inside the prices they fall on. Absent, a scenario rate is refused |
+| `gov_savrate` | scalar | government saving over income net of transfers to households, read under `government="saving_rate"` |
+| `dom0` | `(nc,)` | home sales at their tax-inclusive base value: `(1 + tauz0) × Q0 − exp0` |
 | `diagnostics` | dict | negative-value-added activities and treatment, own-account list |
 
 ---
 
 ## Closure and scenario
 
-### `Closure(numeraire=1.0, investment="savings_driven", government="real_fixed", foreign="fixed_saving", exchange_rate=1.0, tolerance=1e-9)`
+### `Closure(numeraire=1.0, investment="savings_driven", government="real_fixed", foreign="fixed_saving", foreign_saving_unit="numeraire", exchange_rate=1.0, tolerance=1e-9)`
 
 `investment` ∈ `{"savings_driven", "fixed_real"}`;
-`government` ∈ `{"real_fixed", "nominal_fixed"}`;
+`government` ∈ `{"real_fixed", "nominal_fixed", "saving_rate"}`, the last saving
+`econ.gov_savrate` of its income and spending the rest in base-year value shares;
 `foreign` ∈ `{"fixed_saving", "fixed_rate"}`;
+`foreign_saving_unit` ∈ `{"numeraire", "foreign_currency"}`, the unit in which
+`fixed_saving` holds foreign saving;
 `labour` ∈ `{"full_employment", "fixed_real_wage", "wage_curve", "elastic_supply"}`.
 
 `full_employment` is the default and clears every factor market. The other three
@@ -143,8 +150,8 @@ Properties: `solves_exchange_rate`, `describe()`.
 | `productivity` | `(na,)` | Hicks-neutral multiplier per activity |
 | `activity_scale` | mapping | own-account activity levels, as a multiple of the base year |
 | `product_tax`, `product_tax_firm` | `(nc,)` | consumer rate; non-creditable part facing firms. Does not move the tariff or the output tax |
-| `tariff` | `(nc,)` | import tariff, ad valorem. Only if a base-year tariff was calibrated |
-| `output_tax` | `(nc,)` | indirect tax on domestic sales, ad valorem. Only if a base rate was calibrated (`output_taxes=` or `indirect_tax_account`) |
+| `tariff` | `(nc,)` | import tariff, ad valorem. Only if a base-year tariff was calibrated. Zero abolishes it |
+| `output_tax` | `(nc,)` | indirect tax on all of output, ad valorem; exports carry it too. Only if a base rate was calibrated (`output_taxes=` or `indirect_tax_account`) |
 | `consumer_wedge`, `government_wedge` | `(nh, nc)` | ad valorem wedges; the first is recycled to households, the second to the budget |
 | `wedge_revenue_to`, `wedge_revenue_factor` | str/float/callable, str | who receives the recycled revenue |
 | `transfers` | `(nh,)` | lump sum, positive for a receipt |
@@ -181,9 +188,10 @@ that finances the fixed investment. Under `ModelSpec.export_demand` or
 | `factor_prices`, `exchange_rate`, `z` | the solved unknowns |
 | `pa`, `pd`, `pq`, `pqf`, `pbase` | activity, domestic, consumer, firm and pre-tax commodity prices |
 | `pe` | price received for exports: `exchange_rate × world_export_price` under CET, `pd` under fixed shares |
+| `domestic_sales`, `p_domestic` | home sales of domestic output, at tax-inclusive base value, and their price. Off the base year a CET does not add up in quantities, so this is not output less exports |
 | `world_export_price`, `world_import_price` | world prices in foreign currency, as multiples of the base year: the scenario's, moved along the curves of `export_demand` and `import_supply` |
 | `hh_direct_tax`, `factor_income_abroad`, `foreign_saving` | direct tax by household; factor income paid abroad; the period's foreign saving, FDI included |
-| `Q`, `X`, `absorption`, `imports`, `exports` | the quantity system |
+| `Q`, `X`, `absorption`, `imports`, `exports` | the quantity system; `imports` at the border, `exports` at their tax-inclusive value |
 | `hh_quantity`, `hh_income`, `hh_commodity_spend`, `hh_direct_outlay`, `hh_wedge_paid` | the household block |
 | `gov_quantity`, `investment_quantity`, `savings`, `factor_demand` | the rest of final demand |
 | `wedge_revenue`, `government_cost` | recycled revenue; cost falling on the budget |

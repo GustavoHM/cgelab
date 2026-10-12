@@ -15,6 +15,8 @@ where a real SAM breaks a naive calibration:
 * :func:`build_with_own_production` -- an activity that sells DIRECTLY to
   households and has no market share in any commodity: self-generation, home
   production, own-account work.
+* :func:`build_with_trade_taxes` -- part of the product tax moved onto a tariff
+  account and an indirect tax on output, the TRF and IDT of Hosoe's ``stdcge``.
 """
 
 from __future__ import annotations
@@ -26,7 +28,8 @@ from ..sam import SAM
 from ..spec import ModelSpec
 
 __all__ = ["build", "build_with_margins", "build_with_own_production", "build_with_twin_accounts",
-           "build_with_institutions", "build_with_specific_capital", "spec"]
+           "build_with_institutions", "build_with_specific_capital", "build_with_trade_taxes",
+           "spec"]
 
 
 def _frame(entries) -> SAM:
@@ -194,4 +197,27 @@ def build_with_specific_capital(model_spec: ModelSpec | None = None, **kwargs):
     ]
     sam = _frame(entries)
     econ = calibrate(sam, model_spec or spec(factors=("f_lab", "f_cap", "f_kind")), **kwargs)
+    return sam, econ
+
+
+def build_with_trade_taxes(model_spec: ModelSpec | None = None, **kwargs):
+    """The plain economy with a tariff account and an indirect tax on output.
+
+    Of the product tax on agriculture (5) and industry (10), 1 and 2 become
+    tariff on imports of 15 and 25, and 2 and 4 become indirect tax on output of
+    100 and 200. Government receives both accounts whole. The purchaser value
+    of every commodity is the plain economy's.
+    """
+    moved = {"c_agr": (1.0, 2.0), "c_ind": (2.0, 4.0)}
+    entries = []
+    for row, col, value in _BASE:
+        if row == "gov" and col in moved:
+            trf, idt = moved[col]
+            entries += [("gov", col, value - trf - idt), ("trf", col, trf), ("idt", col, idt)]
+        else:
+            entries.append((row, col, value))
+    entries += [("gov", "trf", 3.0), ("gov", "idt", 6.0)]
+    sam = _frame(entries)
+    econ = calibrate(sam, model_spec or spec(tariff_account="trf", indirect_tax_account="idt"),
+                     **kwargs)
     return sam, econ

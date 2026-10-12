@@ -81,3 +81,11 @@ def test_atividades_de_conta_propria_saem_marcadas(tmp_path):
     assert dados["X_exog"][j] == pytest.approx(2.0 * econ.X0[j])
     # a demanda intermediária desse bloco entra na absorção, e não pelo balanço de mercadorias
     assert len(dados["exog_intermediate"]) == econ.n_com
+
+
+def test_to_jump_writes_cobb_douglas_value_added_as_unit_elasticity(tmp_path):
+    """The spec's sigma_va is not read under value_added='cobb_douglas'; exporting
+    it made the replica solve a CES the package never solved."""
+    _, econ = toy.build(model_spec=toy.spec(value_added="cobb_douglas", sigma_va=0.5))
+    dados = ck.to_jump(econ, path=tmp_path / "m.jl")
+    assert dados["sigma_va"] == [1.0] * econ.n_act

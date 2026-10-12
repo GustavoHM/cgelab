@@ -47,7 +47,7 @@ célula **📄** pode estar errada.
 | **Dinâmica recursiva** | ✅ vários estoques de capital, alocação pelo retorno, economia por ano † | — | ✅ laço de iteração temporal | — | ✅ |
 | **Bem-estar: VE e VC** | ✅ | — | — | — | convenção do modelador |
 | Agregação por grupo imune à composição | ✅ | — | — | — | — |
-| **Réplica independente para validação** | ✅ † JuMP/Ipopt, 19 casos | ? | ? | ? | n/a |
+| **Réplica independente para validação** | ✅ † JuMP/Ipopt, 24 casos | ? | ? | ? | n/a |
 | Licença | MIT | ? | CC0-1.0 | ? | proprietária/comercial |
 | Estado declarado pelos autores | — | — | ✅ "muito preliminar… por favor não cite" | livro-texto | maduro |
 
@@ -67,9 +67,12 @@ licença comercial e com as verificações contábeis embutidas, não se achou a
 
 ## Uma advertência
 
-O `cgelab` foi validado de três formas:
+O `cgelab` foi validado de quatro formas:
 
-- contra uma réplica independente em JuMP/Ipopt do mesmo equilíbrio, em 19 casos;
+- contra uma réplica independente em JuMP/Ipopt do mesmo equilíbrio, em 24 casos;
+- contra uma transcrição linha a linha, em JuMP, dos programas `stdcge` e `lrgcge` da
+  biblioteca do GAMS (Hosoe, Gasawa e Hashimoto, 2004): a abolição das tarifas coincide nas 49
+  variáveis exibidas, a 2,4e-12;
 - contra o pipeline de pesquisa que o originou, na versão 0.1.0;
 - pela reprodução do ano-base, pela homogeneidade e pela lei de Walras à precisão de máquina, na
   MCS aplicada para a qual foi escrito, que ainda não é pública.
@@ -92,16 +95,17 @@ lista até a 1.0; a versão de cada item é a do [`ROADMAP.md`](../ROADMAP.md).
 |---|---|---|---|
 | Instituições da MCS: impostos diretos, transferências, remessas, renda de fatores ao governo e ao exterior | 📄 IFPRI, PEP | **feito** na 0.2.0 | 0.2 |
 | Fechamentos do mercado de trabalho | 📄 IFPRI, ORANI | **feito**: salário real fixo, curva de salário, oferta elástica | 0.2 |
-| Tarifa e imposto indireto separados do imposto sobre produtos | 📄 Hosoe (`stdcge`), IFPRI | **feito** em torno da alíquota calibrada; falta a tarifa dentro do preço de importação do ano-base | 0.2 |
+| Tarifa e imposto indireto separados do imposto sobre produtos | 📄 Hosoe (`stdcge`), IFPRI | **feito**: a tarifa dentro do preço de importação e o imposto indireto sobre todo o produto, como no `stdcge`; a abolição de tarifas do `stdcge` e do `lrgcge` reproduz a transcrição dos programas do GAMS a 2,4e-12 | 0.2 |
 | Exportador JuMP convergindo a frio em escala aplicada | — | falta: converge a frio nas economias de brinquedo e, numa MCS aplicada, só com partida quente | 0.2 |
-| Demanda de exportação e oferta de importação com elasticidade finita | 📄 Hosoe (`lrgcge`) | **feito**: as equações do `lrgcge`, validadas contra a réplica JuMP; falta a réplica do `lrgcge` em si, que espera a tarifa no preço de importação do ano-base | 0.2 |
+| Demanda de exportação e oferta de importação com elasticidade finita | 📄 Hosoe (`lrgcge`) | **feito**: as equações do `lrgcge`; a abolição de tarifas do `lrgcge` reproduz a transcrição do programa do GAMS | 0.2 |
 | Decomposição de resultados por choque (*subtotals*) | 📄 GEMPACK | falta | 0.3 |
 | Sensibilidade sistemática (quadratura, Monte Carlo) | 📄 GEMPACK | falta | 0.3 |
 | Contas e relatórios: PIB por despesa e renda, índices de preço, termos de troca | 📄 GEMPACK, GTAP | `real_gdp` feito; o resto falta | 0.3 |
 | Decomposição do bem-estar (Huff e Hertel) | 📄 GTAP | falta | 0.3 |
 | Multiplicadores da MCS e insumo-produto | 📄 Pyatt e Round; Defourny e Thorbecke | falta | 0.3 |
 | Ninhos de energia (KLEM), emissões, imposto de carbono | 📄 ENVISAGE, EPPA, GTAP-E | falta | 0.4 |
-| Fechamentos do governo | 📄 IFPRI | falta | 0.4 |
+| Fechamentos do governo | 📄 IFPRI | taxa de poupança do governo fixa (a de Hosoe) feita; meta de déficit e substituição de tributos neutra em arrecadação faltam | 0.4 |
+| Poupança externa fixa em moeda estrangeira | 📄 Hosoe, IFPRI | **feito** | 0.2 |
 | Ponte com o `dsgelab` | — | falta | 0.4 |
 | Mobilidade imperfeita de fatores; informalidade | 📄 IFPRI, ORANI | falta | 0.6 |
 | Elo com microssimulação; Gini e FGT | 📄 prática corrente | falta | 0.6 |

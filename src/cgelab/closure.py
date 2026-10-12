@@ -42,13 +42,22 @@ class Closure:
 
     #: ``"real_fixed"`` -- government commodity demand is held in QUANTITIES, so
     #: its nominal spending moves with prices. ``"nominal_fixed"`` -- its budget
-    #: is held and its real purchases move instead.
+    #: is held and its real purchases move instead. ``"saving_rate"`` -- it
+    #: saves the base-year share of its income (taxes, factor income, net of
+    #: transfers to households) and spends the rest in base-year value shares,
+    #: the rule of Hosoe's ``stdcge``. A tax cut then cuts public consumption.
     government: str = "real_fixed"
 
     #: ``"fixed_saving"`` -- the current account is pinned at its base-year value
     #: and the exchange rate clears it. ``"fixed_rate"`` -- the exchange rate is
     #: exogenous and foreign saving adjusts.
     foreign: str = "fixed_saving"
+
+    #: Unit in which ``foreign="fixed_saving"`` holds foreign saving.
+    #: ``"numeraire"`` -- fixed in the numeraire's units. ``"foreign_currency"``
+    #: -- fixed in dollars, as in Hosoe's ``stdcge`` and the IFPRI standard
+    #: model, so a depreciation raises what it finances at home.
+    foreign_saving_unit: str = "numeraire"
 
     #: Exogenous exchange rate, used only under ``foreign="fixed_rate"``.
     exchange_rate: float = 1.0
@@ -83,8 +92,9 @@ class Closure:
 
     def __post_init__(self):
         for name, allowed in (("investment", ("savings_driven", "fixed_real")),
-                              ("government", ("real_fixed", "nominal_fixed")),
+                              ("government", ("real_fixed", "nominal_fixed", "saving_rate")),
                               ("foreign", ("fixed_saving", "fixed_rate")),
+                              ("foreign_saving_unit", ("numeraire", "foreign_currency")),
                               ("labour", ("full_employment", "fixed_real_wage",
                                           "wage_curve", "elastic_supply"))):
             got = getattr(self, name)
@@ -115,6 +125,8 @@ class Closure:
     def describe(self) -> str:
         text = (f"numeraire={self.numeraire:g}; investment={self.investment}; "
                 f"government={self.government}; foreign={self.foreign}")
+        if self.foreign_saving_unit != "numeraire":
+            text += f" ({self.foreign_saving_unit})"
         if self.labour != "full_employment":
             text += f"; labour={self.labour}({self.labour_factor})"
         return text

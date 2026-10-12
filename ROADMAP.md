@@ -39,7 +39,9 @@ several regions, the result helpers, and the JuMP export replicating all of it. 
   economies, and on an applied SAM only from a warm start);
 - [x] downward-sloping export demand, and its mirror, an upward-sloping import supply
   (`ModelSpec.export_demand`, `import_supply`);
-- [ ] the base-year tariff inside the import price, and the indirect tax on all of output.
+- [x] the base-year tariff inside the import price, and the indirect tax on all of output,
+  with Hosoe's closure (`government="saving_rate"`, foreign saving in dollars). The tariff
+  abolition of `stdcge` and `lrgcge` reproduces.
 
 **0.3 — results, decompositions and accounts.**
 
@@ -57,7 +59,8 @@ several regions, the result helpers, and the JuMP export replicating all of it. 
 
 - [ ] **KLEM nesting**, **emissions accounts**, a **carbon tax** with revenue recycling, and
   **physical units for energy** (see *Then: model structure*).
-- [ ] **Government closures**: a deficit or saving target, revenue-neutral tax replacement.
+- [ ] **Government closures**: a deficit target, revenue-neutral tax replacement. A fixed
+  saving rate (`government="saving_rate"`) is in.
 - [ ] **The bridge to dsgelab** (see *Extensions that call dsgelab*).
 
 **0.5 — public release.** No new features. Blocking:
@@ -93,32 +96,23 @@ land use allocated by CET; export to GAMS/MPSGE and GEMPACK.
 
 ## Next: gaps an applied model hit
 
-**Base-year tariff inside the import price.** `Scenario.tariff` moves the power
-`(1 + tm) / (1 + tm0)` around a reference rate. At the calibrated rate that power is 1, the
-receipt of a named tariff account stays inside the product tax, and government income receives
-the change in the rate. Hosoe, Gasawa and Hashimoto's standard model (`stdcge`, Table 8.1) and
-the IFPRI standard model calibrate the Armington shares with `(1 + taum)` inside the import
-price, so the base year already contains the wedge and the tariff revenue is a level. Reproducing
-an abolition means recalibrating those shares, with base prices still 1, the border payment equal
-to SAM imports, and tariff revenue equal to the tariff account at the calibrated rate. The solved
-percent changes are computed in `stdcge.gms` and are not stored there.
+**The JuMP replica from a cold start on an applied SAM.** It converges cold on the toy
+economies and on Hosoe's, and on an applied SAM only from a warm start. This is the last
+open item of 0.2.
 
-**Indirect tax on the whole of output.** `Scenario.output_tax` raises the domestic price in the
-Armington nest, and the base is domestic sales. Exports sold at the producer price are outside
-it. Hosoe's IDT is `tauz` on `pz × Z`, applied inside the CET, so the base is all of output.
-With exports, removing one is a different experiment from removing the other.
+Done, and no longer gaps:
 
-Done, and no longer gaps: export demand and import supply with finite elasticities
-(`ModelSpec.export_demand`, `import_supply`, the equations of `lrgcge`; replicating `lrgcge`
-itself waits on the base-year tariff below, since its experiment is the same tariff abolition as
-`stdcge`), labour-market closures (`Closure.labour`: fixed real wage, wage curve,
-elastic supply), the three result helpers (`factor_demand_by_activity`, `real_gdp`,
-`sectoral_path`), `Scenario.investment_mix` for the commodity basket of investment, and
-the split of an import tariff (`Scenario.tariff`) from an indirect tax on domestic sales
-(`Scenario.output_tax`). At the calibrated rate the base year stays the one the product
-tax closed; government income moves when the rate moves. A named tariff or indirect-tax
-account keeps its receipt inside that product tax. Investment by destination sector stays
-`Growth.allocation`.
+- **Trade taxes inside the prices.** The tariff sits inside the Armington import price and the
+  indirect tax on all of output inside the gross price the CET splits, as in Hosoe, Gasawa and
+  Hashimoto's `stdcge`. With Hosoe's closure (`government="saving_rate"`, foreign saving fixed
+  in dollars), the tariff abolition of `stdcge` and of `lrgcge` matches a line-by-line JuMP
+  transcription of the GAMS programs in every displayed variable (`validation/hosoe.jl`).
+- **Export demand and import supply** with finite elasticities (`ModelSpec.export_demand`,
+  `import_supply`), the equations of `lrgcge`.
+- **Labour-market closures** (`Closure.labour`: fixed real wage, wage curve, elastic supply).
+- **Results:** the three helpers (`factor_demand_by_activity`, `real_gdp`, `sectoral_path`).
+- **Investment:** `Scenario.investment_mix` for the commodity basket of investment.
+  Investment by destination sector stays `Growth.allocation`.
 
 ## Then: model structure
 
@@ -259,9 +253,10 @@ sparse linear algebra.
   `twine check`, trusted publishing through TestPyPI first; `CONTRIBUTING.md`, issue and pull
   request templates; `py.typed`; a known-limitations section in the README.
 - **External cross-check:** replicate a published standard model against someone else's code.
-  Started on the site: the Hosoe, Gasawa and Hashimoto (2004) benchmark from the GAMS library
-  file `splcge`. The same authors' `stdcge` is the nearest policy experiment (tariff abolition,
-  Table 8.1) and waits on the base-year import price under Next. The IFPRI standard CGE
+  Done for Hosoe, Gasawa and Hashimoto (2004): the `splcge` benchmark, and the tariff
+  abolition of `stdcge` and `lrgcge` against a transcription of the GAMS programs. The GAMS
+  output itself is not published; running the `.gms` files in GAMS would close that last
+  step. The IFPRI standard CGE
   (`sim101`, a 50% tariff cut, Zimbabwe and Eswatini data, no solved listing) is the same class
   of gap. Galindev and Decaluwé (2022) is the nearest journal package with a printed result;
   the utilization-rate variant is open. Cicowiez and Lofgren (2022) wait on asymmetric

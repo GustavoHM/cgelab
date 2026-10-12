@@ -1,5 +1,5 @@
 """Small, hand-balanced economies used by the tests and as templates."""
 
-from . import regions, toy  # noqa: F401
+from . import hosoe, regions, toy  # noqa: F401
 
-__all__ = ["regions", "toy"]
+__all__ = ["hosoe", "regions", "toy"]

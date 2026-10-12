@@ -14,16 +14,23 @@ def _with_tariff(rate=0.05):
     return plain, econ, tm
 
 
+def _same_purchases_and_revenue(plain, econ):
+    """Purchaser value and tax revenue match the model without the instrument."""
+    np.testing.assert_allclose(econ.A0 * (1 + econ.ptax), plain.A0 * (1 + plain.ptax))
+    np.testing.assert_allclose(econ.ptax * econ.A0 + econ.tm0 * econ.imp0,
+                               plain.ptax * plain.A0)
+
+
 def test_a_calibrated_tariff_still_reproduces_the_base_year():
     plain, econ, tm = _with_tariff()
     plain_period = ck.solve_period(plain)
     period = ck.solve_period(econ)
     assert period.converged and abs(period.walras) < 1e-8
-    # The reference rate does not move the base year. The product tax still
-    # closes it; the tariff is collected when the rate changes.
+    # The reference rate does not move the base year. The tariff leaves the
+    # product tax and enters the import price; what buyers pay is unchanged.
     assert np.allclose(period.Q, plain_period.Q, atol=1e-8)
     assert np.allclose(period.imports, plain_period.imports, atol=1e-8)
-    assert np.allclose(econ.ptax, plain.ptax)
+    _same_purchases_and_revenue(plain, econ)
 
 
 def test_raising_the_tariff_cuts_imports_and_keeps_walras():
@@ -100,7 +107,7 @@ def test_a_named_tariff_account_keeps_the_base_year():
     assert period.converged and abs(period.walras) < 1e-8
     assert np.allclose(period.Q, base.Q, atol=1e-8)
     assert np.allclose(period.imports, base.imports, atol=1e-8)
-    assert np.allclose(econ.ptax, plain.ptax)
+    _same_purchases_and_revenue(plain, econ)
     assert np.allclose(econ.tm0, [1.0 / 15.0, 2.0 / 25.0])
     assert econ.tauz0 is None
     assert not any("trf" in (a, b) for a, b, _ in econ.diagnostics["unmodelled_flows"])
@@ -159,4 +166,30 @@ def test_to_jump_writes_the_tariff_power(tmp_path):
     assert np.allclose(dados["tm"], tm * 2)
     assert np.allclose(dados["tm0"], tm)
     assert "(1 + tm[c]) / (1 + tm0[c])" in text
-    assert "pdom[c] * dsh[c] * armsh[c] * Aabs[c]" in text
+    assert "tauz[c] * pd[c] * Q[c]" in text
+
+
+def test_the_output_tax_falls_on_exports_too():
+    """Hosoe's IDT is levied on all of output inside the CET, so exports carry it."""
+    _, econ = toy.build_with_trade_taxes(model_spec=toy.spec(
+        tariff_account="trf", indirect_tax_account="idt", export_rule="cet"))
+    closure = ck.Closure(foreign="fixed_rate")
+    base = ck.solve_period(econ, closure)
+    shock = ck.solve_period(econ, closure, ck.Scenario(output_tax=econ.tauz0 * 4))
+    assert shock.converged and abs(shock.walras) < 1e-9
+    assert shock.exports.sum() < base.exports.sum()
+    # What buyers at home and abroad pay is producer value plus the tax on ALL
+    # of output: the CET revenue identity, with the rate inside the gross price.
+    tauz = econ.tauz0 * 4
+    np.testing.assert_allclose(
+        shock.pd * (1 + tauz) * shock.Q,
+        shock.p_domestic * shock.domestic_sales + shock.pe * shock.exports, rtol=1e-12)
+
+
+def test_at_the_base_year_exports_and_imports_are_the_sams():
+    _, econ = toy.build_with_trade_taxes(model_spec=toy.spec(
+        tariff_account="trf", indirect_tax_account="idt", export_rule="cet"))
+    res = ck.solve_period(econ)
+    np.testing.assert_allclose(res.exports, econ.exp0, rtol=1e-10)
+    np.testing.assert_allclose(res.imports, econ.imp0, rtol=1e-10)
+    np.testing.assert_allclose(res.domestic_sales, econ.dom0, rtol=1e-10)

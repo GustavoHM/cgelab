@@ -25,7 +25,8 @@
 <nav class="toc"><div class="wrap"><ul>
   <li><a href="#scope">What counts</a></li>
   <li><a href="#regions">Several regions</a></li>
-  <li><a href="#hosoe">A worked example</a></li>
+  <li><a href="#hosoe">The benchmark</a></li>
+  <li><a href="#stdcge">A tariff abolition</a></li>
   <li><a href="#queue">The queue</a></li>
 </ul></div></nav>
 
@@ -98,6 +99,55 @@ print(base.X, base.walras)</code></pre>
   file does not report one.</p>
 </div></section>
 
+<section id="stdcge"><div class="wrap">
+  <h2>Worked example: abolishing tariffs in <code>stdcge</code> and <code>lrgcge</code></h2>
+  <p>Chapters 6 and 10.2 of the same handbook are the GAMS library files
+  <a href="https://www.gams.com/latest/gamslib_ml/libhtml/gamslib_stdcge.html"><code>stdcge</code></a>
+  and <a href="https://www.gams.com/latest/gamslib_ml/libhtml/gamslib_lrgcge.html"><code>lrgcge</code></a>.
+  They have one matrix, with intermediates, an indirect tax on output (IDT), a tariff (TRF),
+  government, investment and the rest of the world, and one experiment: every tariff set to zero.
+  <code>lrgcge</code> adds a demand curve for exports and a supply curve for imports, each with
+  elasticity 2.</p>
+  <p><code>cgelab.examples.hosoe</code> holds the matrix, with Hosoe's accounts split into an
+  activity and a commodity, his functional forms and his closure. Government saves a fixed share
+  of its income, and foreign saving is fixed in dollars. The tariff sits inside the import price
+  and the indirect tax inside the gross output price, as in his calibration.</p>
+<pre><code>import numpy as np
+import cgelab as ck
+from cgelab.examples import hosoe
+
+for large in (False, True):
+    _, econ = hosoe.build(large_country=large)
+    base = ck.solve_period(econ, hosoe.CLOSURE)
+    free = ck.solve_period(econ, hosoe.CLOSURE, ck.Scenario(tariff=np.zeros(econ.n_com)))
+    assert free.converged and abs(free.walras) &lt; 1e-9
+    print("lrgcge" if large else "stdcge",
+          np.round(100 * (free.imports / base.imports - 1), 2),   # imports, % change
+          round(100 * (free.exchange_rate - 1), 2))               # exchange rate, % change</code></pre>
+  <p>The programs compute these changes and print no table, and GAMS is not installed here. The
+  reference is therefore <code>validation/hosoe.jl</code>, a line-by-line JuMP transcription of
+  the two <code>.gms</code> files (matrix, calibration and equations), solved with Ipopt. All 49
+  variables the programs display match, at the base year and after the abolition, to 2.4e-12.
+  The suite checks the stored result without Julia.</p>
+  <table>
+    <thead><tr><th>Percent change (bread / milk)</th><th><code>stdcge</code></th><th><code>lrgcge</code></th></tr></thead>
+    <tbody>
+      <tr><td>Imports</td><td>−1.08 / +18.85</td><td>−2.78 / +6.76</td></tr>
+      <tr><td>Exports</td><td>+17.93 / +12.46</td><td>+10.55 / +9.42</td></tr>
+      <tr><td>Household consumption</td><td>+1.96 / +2.51</td><td>+0.85 / +1.13</td></tr>
+      <tr><td>Government consumption</td><td>−6.85 / −6.35</td><td>−7.83 / −7.58</td></tr>
+      <tr><td>Exchange rate</td><td>+6.28</td><td>+9.51</td></tr>
+      <tr><td>World export price</td><td>0 / 0</td><td>−4.89 / −4.40</td></tr>
+      <tr><td>Equivalent variation, level</td><td>1.145</td><td>0.508</td></tr>
+    </tbody>
+  </table>
+  <p>Milk carried the higher tariff, 18% against 8%, and takes the import market: bread
+  imports fall. Government loses the tariff revenue and cuts its consumption. The currency
+  depreciates to pay for the extra imports, and exports rise. As a large country,
+  <code>lrgcge</code> pays for that rise with lower world export prices, so the welfare gain is
+  less than half.</p>
+</div></section>
+
 <section id="queue"><div class="wrap">
   <h2>The queue</h2>
   <p>Status is what has been run in this package. "Files located" means the matrix or the code
@@ -110,6 +160,12 @@ print(base.X, base.walras)</code></pre>
         <td>Matrix printed in the library file</td>
         <td>One, closed</td>
         <td>Benchmark reproduced on this page</td>
+      </tr>
+      <tr>
+        <td>Hosoe, Gasawa and Hashimoto (2004), ch. 6 and 10.2, GAMS library <code>stdcge</code> and <code>lrgcge</code></td>
+        <td>Matrix printed in the library files</td>
+        <td>One, open</td>
+        <td>Tariff abolition reproduced on this page, against a transcription of the programs</td>
       </tr>
       <tr>
         <td><a href="https://hdl.handle.net/10568/158026">Lofgren, Harris and Robinson (2002)</a>, IFPRI standard CGE in GAMS</td>

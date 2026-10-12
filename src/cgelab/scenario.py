@@ -88,15 +88,16 @@ class Scenario:
 
     #: Import tariff, ad valorem, one rate per commodity. Read only when a
     #: base-year tariff was calibrated (``calibrate(..., tariffs=)`` or
-    #: ``ModelSpec.tariff_account``). It does not move the product tax, and
-    #: ``product_tax`` does not move it. Absent, the calibrated rates hold.
+    #: ``ModelSpec.tariff_account``). It is inside the import price, so zero
+    #: abolishes it and the domestic variety never paid it. It does not move
+    #: the product tax, and ``product_tax`` does not move it. Absent, the
+    #: calibrated rates hold.
     tariff: np.ndarray | None = None
 
-    #: Indirect tax on domestic sales, ad valorem, one rate per commodity
+    #: Indirect tax on all of output, ad valorem, one rate per commodity
     #: (Hosoe's ``tauz`` / the IDT account). Same rule as ``tariff``: only when
     #: the base year was calibrated with it, and it does not touch the tariff
-    #: or the product tax on absorption. Exports sold at the producer price
-    #: are outside this wedge.
+    #: or the product tax on absorption. Home sales and exports both carry it.
     output_tax: np.ndarray | None = None
 
     #: World price of each EXPORTED commodity, as a multiple of the base year.

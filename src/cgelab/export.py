@@ -150,7 +150,10 @@ def to_jump(econ: Economy, closure: Closure | None = None, scenario: Scenario | 
         # tecnologia, já com a produtividade embutida
         io=_l(io_eff), msh=_l(econ.msh), theta=_l(econ.theta), vunit=_l(vunit_eff),
         aunit=_l(aunit_eff), leontief=[bool(b) for b in econ.leontief],
-        sigma_va=_l(econ.sigma_va), sigma_arm=_l(econ.sigma_arm),
+        # Cobb-Douglas é o limite σ = 1 da CES, que é como o modelo JuMP o escreve. Exportar
+        # o `sigma_va` da especificação nesse caso resolveria outra função de produção.
+        sigma_va=_l(np.ones(na) if econ.spec.value_added == "cobb_douglas" else econ.sigma_va),
+        sigma_arm=_l(econ.sigma_arm),
         X0=_l(econ.X0), Q0=_l(econ.Q0), A0=_l(econ.A0),
         # comércio e margens
         dom_share=_l(econ.dom_share), arm_share=_l(econ.arm_share),
@@ -188,8 +191,13 @@ def to_jump(econ: Economy, closure: Closure | None = None, scenario: Scenario | 
         act_scale=_l(act_scale), own_account=[bool(b) for b in exog],
         X_exog=_l(X_exog), exog_intermediate=_l(io_eff @ X_exog),
         trade_balance0=float(econ.trade_balance0 * nu),
-        # a meta externa é a poupança externa do período, IED incluído
-        foreign_sav=float((econ.foreign_sav + float(sum(sc.fdi.values()))) * nu),
+        # a meta externa é a poupança externa do período, IED incluído; em dólares ela não
+        # acompanha o numerário, porque o câmbio já faz isso
+        foreign_sav=float((econ.foreign_sav + float(sum(sc.fdi.values())))
+                          * (1.0 if closure.foreign_saving_unit == "foreign_currency" else nu)),
+        foreign_saving_unit=closure.foreign_saving_unit,
+        gov_savrate=float(econ.gov_savrate),
+        gov_w=_l(econ.gov_dem / max(float(econ.gov_dem.sum()), 1e-300)),
         # instituições: imposto direto, transferências (em unidades do numerário) e a parte da
         # renda de cada fator que vai ao governo e ao exterior
         hh_dtax=_l(econ.zeros_if_none("hh_dtax", nh)),
@@ -339,7 +347,8 @@ end
 # incógnitas que cada fechamento acrescenta
 if d.foreign == "fixed_saving"
     @variable(m, er >= 1e-8, start = q0("er", 1.15))
-    fsav = fsav0
+    # Em dólares, a poupança externa em moeda doméstica é o câmbio vezes a meta.
+    fsav = d.foreign_saving_unit == "foreign_currency" ? er * fsav0 : fsav0
 else
     er_fixo = Float64(d.exchange_rate)
     @expression(m, er, er_fixo)
@@ -372,31 +381,35 @@ function paid_supply(f)
     end
 end
 
+# O imposto sobre o produto incide sobre TODO o produto, dentro do preço: o produto medido a valor
+# com imposto do ano-base custa pd·(1+tauz)/(1+tauz0). A tarifa, do mesmo modo, entra no preço de
+# importação, e a importação de Armington é medida a valor com tarifa do ano-base.
+@expression(m, pgross[c = 1:nc], pd[c] * (1 + tauz[c]) / (1 + tauz0[c]))
 # Preço das vendas DOMÉSTICAS e repartição do produto entre mercado interno e exportação. Sob CET
-# a receita da fronteira iguala o preço ao produtor; sob parcelas fixas, vende-se ao preço do
-# produtor na proporção do ano-base.
+# a receita da fronteira iguala o preço bruto; sob parcelas fixas, vende-se ao preço bruto na
+# proporção do ano-base.
 if CET
     @variable(m, pdom[c = 1:nc] >= 1e-8, start = q("pdom", c, 1.0))
     for c in 1:nc
         if 0 < expsh[c] < 1
-            @constraint(m, pd[c]^(1 + scet[c]) == (1 - expsh[c]) * pdom[c]^(1 + scet[c])
+            @constraint(m, pgross[c]^(1 + scet[c]) == (1 - expsh[c]) * pdom[c]^(1 + scet[c])
                                                   + expsh[c] * (er * pwe[c])^(1 + scet[c]))
         else
-            @constraint(m, pdom[c] == pd[c])
+            @constraint(m, pdom[c] == pgross[c])
         end
     end
     @expression(m, domfrac[c = 1:nc],
                 expsh[c] <= 0 ? 1.0 : expsh[c] >= 1 ? 0.0 :
-                (1 - expsh[c]) * (pdom[c] / pd[c])^scet[c])
+                (1 - expsh[c]) * (pdom[c] / pgross[c])^scet[c])
     @expression(m, expfrac[c = 1:nc],
                 expsh[c] <= 0 ? 0.0 : expsh[c] >= 1 ? 1.0 :
-                expsh[c] * (er * pwe[c] / pd[c])^scet[c])
+                expsh[c] * (er * pwe[c] / pgross[c])^scet[c])
     @expression(m, pexp[c = 1:nc], er * pwe[c])
 else
-    @expression(m, pdom[c = 1:nc], pd[c])
+    @expression(m, pdom[c = 1:nc], pgross[c])
     @expression(m, domfrac[c = 1:nc], 1 - expsh[c])
     @expression(m, expfrac[c = 1:nc], expsh[c])
-    @expression(m, pexp[c = 1:nc], pd[c])
+    @expression(m, pexp[c = 1:nc], pgross[c])
 end
 @expression(m, pqf[c = 1:nc], pbase[c] * (1 + ptax_f[c]))    # preço à FIRMA (parcela não creditável)
 
@@ -421,9 +434,9 @@ end
 
 # ---- 4-5. Armington
 @constraint(m, [c = 1:nc],
-            arm[c]^(1 - sarm[c]) == domsh[c] * (pdom[c] * (1 + tauz[c]) / (1 + tauz0[c]))^(1 - sarm[c])
+            arm[c]^(1 - sarm[c]) == domsh[c] * pdom[c]^(1 - sarm[c])
                                   + (1 - domsh[c]) * (er * pwm[c] * (1 + tm[c]) / (1 + tm0[c]))^(1 - sarm[c]))
-@constraint(m, [c = 1:nc], dsh[c] == domsh[c] * (arm[c] / (pdom[c] * (1 + tauz[c]) / (1 + tauz0[c])))^sarm[c])
+@constraint(m, [c = 1:nc], dsh[c] == domsh[c] * (arm[c] / pdom[c])^sarm[c])
 @constraint(m, [c = 1:nc], mshm[c] == (1 - domsh[c]) * (arm[c] / (er * pwm[c] * (1 + tm[c]) / (1 + tm0[c])))^sarm[c])
 
 # ---- 6. preço de ENTREGA. As margens são elas mesmas precificadas a preço de entrega, donde o
@@ -470,6 +483,11 @@ end
 if d.government == "real_fixed"
     gov_q_fix = vecf(d.gov_q)
     @expression(m, gov_q[c = 1:nc], gov_q_fix[c])
+elseif d.government == "saving_rate"
+    # O governo poupa uma fração fixa da renda e gasta o resto nas parcelas de valor do ano-base.
+    gov_w = vecf(d.gov_w)
+    @variable(m, gbud, start = sum(gov_dem))
+    @expression(m, gov_q[c = 1:nc], gov_w[c] * gbud / pq[c])
 else
     @expression(m, gov_q[c = 1:nc], gov_dem[c] * nu / pq[c])
 end
@@ -496,7 +514,7 @@ for c in 1:nc
     if expsh[c] >= 1
         @constraint(m, Q[c] == 0)            # sem venda doméstica, como no cgelab
     else
-        @constraint(m, Q[c] == dsh[c] * armsh[c] / domfrac[c] * Aabs[c])
+        @constraint(m, Q[c] == dsh[c] * armsh[c] / (domfrac[c] * (1 + tauz0[c])) * Aabs[c])
     end
 end
 @constraint(m, [j = 1:na], Xraw[j] == sum(msh[j, c] * Q[c] for c in 1:nc))
@@ -508,9 +526,12 @@ end
             sum(pbase[c] * ((Aabs[c] - fin_c[c]) * ptax_f[c] + fin_c[c] * ptax_a[c])
                 for c in 1:nc)
             + sum(atax[j] * Xraw[j] for j in 1:na)
-            + sum(((tm[c] - tm0[c]) / (1 + tm0[c])) * er * pwm[c] * mshm[c] * armsh[c] * Aabs[c] for c in 1:nc)
-            + sum(((tauz[c] - tauz0[c]) / (1 + tauz0[c])) * pdom[c] * dsh[c] * armsh[c] * Aabs[c] for c in 1:nc))
+            + sum(tm[c] * er * pwm[c] * mshm[c] * armsh[c] * Aabs[c] / (1 + tm0[c]) for c in 1:nc)
+            + sum(tauz[c] * pd[c] * Q[c] for c in 1:nc))
 @constraint(m, savings == hh_sav + levy + tax_rev + gov_inst - gov_spend - gov_cost + fsav)
+if d.government == "saving_rate"
+    @constraint(m, gbud == (1 - Float64(d.gov_savrate)) * (tax_rev + gov_inst - gov_cost))
+end
 
 # ---- 10. demanda de fatores
 @expression(m, facint[f = 1:nf, j = 1:na],
@@ -537,8 +558,8 @@ end
 if LABOUR == "fixed_real_wage"
     @constraint(m, w[LAB] == real_wage_target * P)
 end
-@expression(m, imports[c = 1:nc], mshm[c] * armsh[c] * Aabs[c])
-@expression(m, exports[c = 1:nc], expfrac[c] * Q[c])
+@expression(m, imports[c = 1:nc], mshm[c] * armsh[c] * Aabs[c] / (1 + tm0[c]))   # na fronteira
+@expression(m, exports[c = 1:nc], expfrac[c] * (1 + tauz0[c]) * Q[c])
 @expression(m, trade, sum(er * pwm[c] * imports[c] for c in 1:nc)
                     - sum(pexp[c] * exports[c] for c in 1:nc))
 # A meta é a CONTA CORRENTE, igual à poupança externa (fixa sob "fixed_saving", incógnita sob

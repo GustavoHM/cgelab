@@ -55,13 +55,15 @@ class ModelSpec:
 
     #: Account that collects the import tariff from commodities (Hosoe's TRF).
     #: Absent, there is no tariff unless ``calibrate(..., tariffs=)`` supplies rates.
-    #: The receipts are not product tax.
+    #: The receipts are not product tax: the tariff is inside the import price
+    #: the Armington nest was calibrated on.
     tariff_account: str | None = None
 
-    #: Account that collects the indirect tax on domestic sales from commodities
+    #: Account that collects the indirect tax on output from commodities
     #: (Hosoe's IDT, ``tauz``). Absent, that instrument is zero. It is not the
-    #: product tax on absorption, and it is not the specific activity tax.
-    #: Exports sold at the producer price are outside the wedge.
+    #: product tax on absorption, and it is not the specific activity tax. It
+    #: falls on all of output, inside the gross price the CET splits, so
+    #: exports carry it as they do in Hosoe's ``stdcge``.
     indirect_tax_account: str | None = None
     activities: Sequence[str] | None = None
     commodities: Sequence[str] | None = None

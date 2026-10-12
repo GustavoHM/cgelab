@@ -16,7 +16,7 @@ import numpy as np
 import pytest
 
 import cgelab as ck
-from cgelab.examples import toy
+from cgelab.examples import hosoe, toy
 
 VALIDATION = Path(__file__).resolve().parents[1] / "validation"
 JULIA = os.environ.get("JULIA") or shutil.which("julia")
@@ -56,4 +56,11 @@ def test_large_country_curves(roundtrip):
     r = roundtrip.caso("pytest_pais_grande", econ, ck.Closure(foreign="fixed_rate"),
                        ck.Scenario(export_price=np.array([1.15, 0.9]),
                                    world_price=np.array([1.1, 1.0])))
+    assert r["ok"], r
+
+
+def test_hosoe_tariff_abolition(roundtrip):
+    _, econ = hosoe.build()
+    r = roundtrip.caso("pytest_stdcge", econ, hosoe.CLOSURE,
+                       ck.Scenario(tariff=np.zeros(2)))
     assert r["ok"], r

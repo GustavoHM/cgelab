@@ -98,7 +98,7 @@ lista até a 1.0; a versão de cada item é a do [`ROADMAP.md`](../ROADMAP.md).
 | Tarifa e imposto indireto separados do imposto sobre produtos | 📄 Hosoe (`stdcge`), IFPRI | **feito**: a tarifa dentro do preço de importação e o imposto indireto sobre todo o produto, como no `stdcge`; a abolição de tarifas do `stdcge` e do `lrgcge` reproduz a transcrição dos programas do GAMS a 2,4e-12 | 0.2 |
 | Exportador JuMP convergindo a frio em escala aplicada | — | **feito**, numa MCS aplicada ainda não pública | 0.2 |
 | Demanda de exportação e oferta de importação com elasticidade finita | 📄 Hosoe (`lrgcge`) | **feito**: as equações do `lrgcge`; a abolição de tarifas do `lrgcge` reproduz a transcrição do programa do GAMS | 0.2 |
-| Decomposição de resultados por choque (*subtotals*) | 📄 GEMPACK | falta | 0.3 |
+| Decomposição de resultados por choque (*subtotals*) | 📄 GEMPACK | **feito**: Harrison, Horridge e Pearson, integrada ao longo da trajetória reta | 0.3 |
 | Sensibilidade sistemática (quadratura, Monte Carlo) | 📄 GEMPACK | **feito**: quadratura de Stroud de grau 3 e Monte Carlo, com recalibração a cada ponto | 0.3 |
 | Contas e relatórios: PIB por despesa e renda, índices de preço, termos de troca | 📄 GEMPACK, GTAP | **feito**: PIB pelos dois lados, índices de Laspeyres, Paasche e Fisher, termos de troca, conta do governo | 0.3 |
 | Decomposição do bem-estar (Huff e Hertel) | 📄 GTAP | falta | 0.3 |

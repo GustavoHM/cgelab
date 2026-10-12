@@ -307,6 +307,18 @@ ck.sensitivity(run, params, method="monte_carlo", draws=100).summary()</code></p
   cubic in the parameters at <code>2n</code> solves; Monte Carlo adds quantiles. An Armington
   elasticity near 1 is kept out of the range on purpose: under fixed export shares the exchange
   rate is not determined at 1, and badly conditioned near it.</p>
+  <h3>13. Which shock did what</h3>
+<pre><code>_, econ_tt = toy.build_with_trade_taxes()
+reform = ck.Scenario(tariff=np.zeros(2), world_price=np.array([1.1, 0.95]),
+                     product_tax=econ_tt.ptax * 1.2)
+parts = ck.subtotals(econ_tt, ck.Scenario(), reform,
+                     {"tariff": ["tariff"], "world": ["world_price"], "tax": ["product_tax"]},
+                     measure=lambda p: {"gdp": ck.real_gdp(p)["expenditure"]})
+parts[["tariff", "world", "tax", "change", "residual"]]
+# gdp  -0.723  -0.125  -0.007   -0.855   ~1e-10      the parts add up to the solved change</code></pre>
+  <p>The decomposition GEMPACK calls subtotals. Every shock moves together along the straight line
+  from the reference to the alternative, and each group's term is integrated on its own, so the
+  parts add up to the total without depending on any order.</p>
 </div></section>
 
 <section id="gates"><div class="wrap">

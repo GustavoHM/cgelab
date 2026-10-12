@@ -307,6 +307,18 @@ ck.sensitivity(run, params, method="monte_carlo", draws=100).summary()</code></p
   até o grau três nos parâmetros com <code>2n</code> soluções; o Monte Carlo acrescenta quantis. A
   elasticidade de Armington perto de 1 fica de fora de propósito: com parcelas de exportação fixas
   o câmbio não é determinado em 1, e é mal condicionado perto dele.</p>
+  <h3>13. Que choque fez o quê</h3>
+<pre><code>_, econ_tt = toy.build_with_trade_taxes()
+reform = ck.Scenario(tariff=np.zeros(2), world_price=np.array([1.1, 0.95]),
+                     product_tax=econ_tt.ptax * 1.2)
+parts = ck.subtotals(econ_tt, ck.Scenario(), reform,
+                     {"tariff": ["tariff"], "world": ["world_price"], "tax": ["product_tax"]},
+                     measure=lambda p: {"gdp": ck.real_gdp(p)["expenditure"]})
+parts[["tariff", "world", "tax", "change", "residual"]]
+# gdp  -0.723  -0.125  -0.007   -0.855   ~1e-10      as partes somam a variação resolvida</code></pre>
+  <p>A decomposição que o GEMPACK chama de <em>subtotals</em>. Todos os choques andam juntos pela
+  reta da referência à alternativa, e o termo de cada grupo é integrado à parte, então as partes
+  somam o total sem depender de ordem alguma.</p>
 </div></section>
 
 <section id="portarias"><div class="wrap">

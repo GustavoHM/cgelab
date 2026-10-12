@@ -313,6 +313,26 @@ Defourny–Thorbecke. One row per elementary path: `path`, `length`, `direct`
 
 ---
 
+## Subtotals
+
+### `subtotals(econ, reference, alternative, groups, *, measure, closure=None, nodes=6, step=1e-4) -> DataFrame`
+
+Harrison–Horridge–Pearson decomposition of `measure(alternative) -
+measure(reference)` over groups of Scenario fields. `groups` maps a label to
+field names (`"tariff"`, `"activity_scale"`, `"activity_scale[a_own]"`). Rows
+are the measure's outputs; columns `reference`, one per group, `total`,
+`change` (solved directly) and `residual`.
+
+### `path_decomposition(f, x0, x1, groups, *, nodes=6, step=1e-4, solve_at=None) -> DataFrame`
+
+The same integral for any `f` of a dict of arrays.
+
+### `scenario_vector(econ, scenario) -> dict`
+
+A scenario's numeric fields as arrays, absent ones at the value they stand for.
+
+---
+
 ## Sensitivity
 
 ### `sensitivity(run, parameters, *, method="quadrature", draws=1000, seed=20260724) -> SensitivityResult`

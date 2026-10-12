@@ -31,6 +31,12 @@ before 1.0, a minor version may add to the API and a patch version only fixes.
   Monte Carlo with a fixed seed, over `Uniform`, `Normal` and `Triangular`
   parameters. `spec_sweep` recalibrates at every point.
 
+- Subtotals (`subtotals`, `path_decomposition`): the Harrison, Horridge and
+  Pearson decomposition of a result by groups of shocks, integrated along the
+  straight path from reference to alternative. The contributions add up to the
+  solved change, with a residual of order 1e-8 that is reported. On closed forms
+  they are the line integrals.
+
 ### Fixed in 0.3
 
 - An undetermined exchange rate is refused. With fixed export shares, a

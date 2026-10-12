@@ -45,7 +45,8 @@ several regions, the result helpers, and the JuMP export replicating all of it. 
 
 **0.3 — results, decompositions and accounts.**
 
-- [ ] **Subtotals**: decomposing a result by shock (Harrison, Horridge and Pearson, 2000).
+- [x] **Subtotals**: decomposing a result by shock (Harrison, Horridge and Pearson, 2000),
+  `subtotals`.
 - [x] **Systematic sensitivity**: Gaussian quadrature and Monte Carlo over elasticities
   (`sensitivity`, `spec_sweep`).
 - [x] **Accounts and reports**: GDP by expenditure and by income, Laspeyres, Paasche and Fisher

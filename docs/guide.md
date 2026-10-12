@@ -626,3 +626,43 @@ that the result is far from cubic somewhere in the range. One cause is an
 Armington elasticity near one under fixed export shares (see *Closures*). There,
 a sweep of `sigma_armington` over `Uniform(1, 3)` on the toy economy had a
 median of −0.009% and one draw at −5.8%.
+
+---
+
+## 13. Subtotals: which shock did what
+
+A policy rarely moves one thing. When a tariff reform comes with a world-price
+change and a tax replacement, the next question is how much of the result came
+from which. Removing one shock at a time does not answer it, because the parts
+then depend on the order of removal and do not add up once the model is
+nonlinear.
+
+```python
+reform = ck.Scenario(tariff=np.zeros(n), world_price=new_world, product_tax=econ.ptax * 1.2)
+ck.subtotals(econ, ck.Scenario(), reform,
+             {"tariff": ["tariff"], "world": ["world_price"], "tax": ["product_tax"]},
+             measure=lambda p: {"gdp": ck.real_gdp(p)["expenditure"],
+                                "er": p.exchange_rate})
+```
+
+The method is the one GEMPACK reports as subtotals (Harrison, Horridge and
+Pearson, 2000). Every shock moves together along the straight line from the
+reference to the alternative. At each point the change in a result is the sum,
+over shocks, of a partial derivative times that shock's step. Integrating each
+term separately splits the total change into contributions that add up to it
+exactly, that do not depend on any ordering of the shocks, and that give each
+shock its own effect whenever the result is additive in them.
+
+The integral is Gauss–Legendre in the path variable (`nodes=6`). The derivatives
+are central differences along each group's direction, each a solve warm-started
+from the point on the path. The output has one row per measure: `reference`,
+one column per group, their `total`, the `change` solved directly, and the
+`residual` between those two. The residual is the numerical error, of order 1e-8
+with the default step, and it is reported rather than spread over the groups.
+
+Every field that differs between the two scenarios must be in a group, or its
+effect would go unattributed. A group may name a mapping field whole
+(`"activity_scale"`) or one entry (`"activity_scale[a_own]"`). Fields that are
+not numbers, such as the recycling rule, must agree between the scenarios,
+because there is no straight line between two rules. `path_decomposition` is the
+same integral for any function of a dict of arrays.

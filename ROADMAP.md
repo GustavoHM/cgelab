@@ -46,10 +46,11 @@ several regions, the result helpers, and the JuMP export replicating all of it. 
 **0.3 — results, decompositions and accounts.**
 
 - [ ] **Subtotals**: decomposing a result by shock (Harrison, Horridge and Pearson, 2000).
-- [ ] **Systematic sensitivity**: Gaussian quadrature and Monte Carlo over elasticities (see
-  *Parameter sensitivity*).
-- [ ] **Accounts and reports**: GDP by expenditure and by income, Laspeyres, Paasche and Fisher
-  price indices, terms of trade, government accounts. `real_gdp` is the first of these.
+- [x] **Systematic sensitivity**: Gaussian quadrature and Monte Carlo over elasticities
+  (`sensitivity`, `spec_sweep`).
+- [x] **Accounts and reports**: GDP by expenditure and by income, Laspeyres, Paasche and Fisher
+  price indices, terms of trade, government accounts (`national_accounts`, `price_indices`,
+  `government_account`).
 - [ ] **Welfare decomposition** into allocative efficiency, terms of trade and endowments (Huff
   and Hertel, 2000). Validation against GTAP.
 - [x] **SAM multipliers and input–output analysis**: Leontief and fixed-price multipliers,
@@ -231,10 +232,6 @@ input–output matrix and regional accounts. Useful helpers:
 - regionalise national coefficients (location quotients, FLQ);
 - balance by cross-entropy as well as RAS;
 - report where each block came from.
-
-**Parameter sensitivity.** Run a model over a grid or a distribution of elasticities (Gaussian
-quadrature or Monte Carlo) and summarise the results with their spread. Every applied study does
-this by hand with its own loop.
 
 **Speed on large SAMs.** The solver uses finite-difference Jacobians on few unknowns, which is
 fine up to a few hundred accounts. A multi-region model would need analytic derivatives and

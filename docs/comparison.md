@@ -99,8 +99,8 @@ lista até a 1.0; a versão de cada item é a do [`ROADMAP.md`](../ROADMAP.md).
 | Exportador JuMP convergindo a frio em escala aplicada | — | **feito**, numa MCS aplicada ainda não pública | 0.2 |
 | Demanda de exportação e oferta de importação com elasticidade finita | 📄 Hosoe (`lrgcge`) | **feito**: as equações do `lrgcge`; a abolição de tarifas do `lrgcge` reproduz a transcrição do programa do GAMS | 0.2 |
 | Decomposição de resultados por choque (*subtotals*) | 📄 GEMPACK | falta | 0.3 |
-| Sensibilidade sistemática (quadratura, Monte Carlo) | 📄 GEMPACK | falta | 0.3 |
-| Contas e relatórios: PIB por despesa e renda, índices de preço, termos de troca | 📄 GEMPACK, GTAP | `real_gdp` feito; o resto falta | 0.3 |
+| Sensibilidade sistemática (quadratura, Monte Carlo) | 📄 GEMPACK | **feito**: quadratura de Stroud de grau 3 e Monte Carlo, com recalibração a cada ponto | 0.3 |
+| Contas e relatórios: PIB por despesa e renda, índices de preço, termos de troca | 📄 GEMPACK, GTAP | **feito**: PIB pelos dois lados, índices de Laspeyres, Paasche e Fisher, termos de troca, conta do governo | 0.3 |
 | Decomposição do bem-estar (Huff e Hertel) | 📄 GTAP | falta | 0.3 |
 | Multiplicadores da MCS e insumo-produto | 📄 Pyatt e Round; Defourny e Thorbecke | **feito**: contábeis, a preço fixo, Leontief, encadeamentos (Rasmussen e Ghosh), análise de caminhos estruturais | 0.3 |
 | Ninhos de energia (KLEM), emissões, imposto de carbono | 📄 ENVISAGE, EPPA, GTAP-E | falta | 0.4 |

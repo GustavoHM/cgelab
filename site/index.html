@@ -285,6 +285,28 @@ paths[["path", "total", "share"]].head(2)
   <code>fixed_price_multipliers</code> puts households on marginal propensities, and
   <code>linkages</code> gives the backward and forward key-sector table. Over every elementary
   path, the total influences add up to the multiplier.</p>
+  <h3>11. Accounts</h3>
+<pre><code>taxed = ck.solve_period(econ, scenario=ck.Scenario(product_tax=econ.ptax * 1.5))
+na = ck.national_accounts(taxed)       # the counterfactual of example 2
+na["gdp_expenditure"], na["gdp_income"]   # 202.78 and 202.78: GDP from both sides, in any equilibrium
+pi = ck.price_indices(taxed)
+pi.loc["gdp", ["fisher", "quantity_fisher"]]  # 1.040, 0.9999: prices up 4%, volume flat
+ck.government_account(taxed)["saving"]    # 12.04, against 5 in the base year</code></pre>
+  <p>GDP at current prices from the expenditure and the income side, Laspeyres, Paasche and Fisher
+  indices for each component of final demand, GDP and the terms of trade, and the government
+  account by instrument. The government account is recorded by the solver at the solution, so its
+  saving is the one that financed investment.</p>
+  <h3>12. How much a result rests on its elasticities</h3>
+<pre><code>run = ck.spec_sweep(sam, toy.spec(), scenario=ck.Scenario(product_tax=econ.ptax * 1.5),
+                    measure=lambda base, alt: {"gdp_pct": 100 * (
+                        ck.real_gdp(alt)["expenditure"] / ck.real_gdp(base)["expenditure"] - 1)})
+params = {"sigma_va": ck.Uniform(0.3, 1.3), "sigma_armington": ck.Uniform(1.5, 3.5)}
+ck.sensitivity(run, params).summary()        # Stroud quadrature: 4 points for 2 parameters
+ck.sensitivity(run, params, method="monte_carlo", draws=100).summary()</code></pre>
+  <p>Each point recalibrates and solves base and scenario. Stroud's rule gives a mean exact up to
+  cubic in the parameters at <code>2n</code> solves; Monte Carlo adds quantiles. An Armington
+  elasticity near 1 is kept out of the range on purpose: under fixed export shares the exchange
+  rate is not determined at 1, and badly conditioned near it.</p>
 </div></section>
 
 <section id="gates"><div class="wrap">

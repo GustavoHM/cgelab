@@ -144,6 +144,15 @@ class PeriodResult:
     #: less exports.
     domestic_sales: np.ndarray | None = None
     p_domestic: np.ndarray | None = None
+    #: The government account, in current prices: revenue by instrument
+    #: (``product_tax``, ``activity_tax``, ``tariff``, ``output_tax``,
+    #: ``direct_tax``, ``factor_income``, ``wedge``), their sum ``revenue``,
+    #: outlays (``transfers``, ``consumption``, ``absorbed``) and ``saving``.
+    government: dict | None = None
+    #: Voluntary household saving, and the forced saving (a per-capita levy)
+    #: that finances fixed real investment. Zero under savings-driven investment.
+    household_saving: float = 0.0
+    forced_saving: float = 0.0
 
     def price(self, commodity: str) -> float:
         return float(self.pq[self.econ.commodity(commodity)])
@@ -258,6 +267,22 @@ def solve_period(econ: Economy, closure: Closure | None = None,
     # its residual. A commodity the base year neither exports nor imports has no
     # base volume to anchor a curve on and stays a price taker.
     eta_x, psi_m, curve_x, curve_m = _trade_curves(econ)
+    imported = econ.imp0 > 0
+    if (not cet_on and closure.solves_exchange_rate
+            and closure.foreign_saving_unit == "numeraire" and curve_m.size == 0
+            and imported.any() and np.all(np.abs(econ.sigma_arm[imported] - 1.0) < 1e-9)):
+        # Imports are then a fixed value share of absorption and exports a fixed
+        # value share of output, so no relative price moves the current account.
+        # Any exchange rate clears it, with the same output and factor prices; the
+        # solver would return whichever its start point happened to be.
+        raise ValueError(
+            "the exchange rate is not determined: with export_rule='fixed_shares', a "
+            "Cobb-Douglas Armington (sigma_armington = 1 on every imported commodity) and "
+            "foreign saving fixed in numeraire units, every exchange rate is an "
+            "equilibrium. Use export_rule='cet', an Armington elasticity other than 1, "
+            "Closure(foreign_saving_unit='foreign_currency') or foreign='fixed_rate'. "
+            "Close to 1 the model is determined but ill-conditioned: the exchange rate "
+            "swings as 1 / (sigma - 1).")
     i_curve = n_unknown
     n_unknown += curve_x.size + curve_m.size
     W = np.zeros((nh, nc)) if sc.consumer_wedge is None else np.asarray(sc.consumer_wedge, float)
@@ -493,8 +518,10 @@ def solve_period(econ: Economy, closure: Closure | None = None,
 
             def tax_of(a_vec, fin_c):
                 firm_part = a_vec - fin_c                 # final demand at the CONSUMER rate
+                # The activity tax falls on own-account output too: households pay
+                # it in the price of what they buy straight from the activity.
                 return (float((pbase * (firm_part * ptax_f + fin_c * ptax_a)).sum())
-                        + float((atax * (econ.msh @ (Gp @ a_vec))).sum())
+                        + float((atax * (econ.msh @ (Gp @ a_vec) + X_exog)).sum())
                         + duty_of(a_vec))
 
             inv_fixed = inv_share * inv_budget0 / (1.0 + econ.ptax)
@@ -561,6 +588,24 @@ def solve_period(econ: Economy, closure: Closure | None = None,
 
             Q = Gp @ A
             X = econ.msh @ Q + X_exog
+            # The government account at the solution, instrument by instrument,
+            # from the same formulas the closure solved with.
+            fin_c = hh_final + gov_q
+            gov_account = dict(
+                product_tax=float((pbase * ((A - fin_c) * ptax_f + fin_c * ptax_a)).sum()),
+                activity_tax=float((atax * X).sum()),
+                tariff=(0.0 if tm is None else
+                        float((tm * pm_border * msh_ * econ.arm_share * A / tf0).sum())),
+                output_tax=0.0 if tauz is None else float((tauz * pd_ * Q).sum()),
+                direct_tax=float(hh_dtax_paid.sum()), factor_income=gov_fac,
+                wedge=float((hh_q * Wg * pq[None, :]).sum()),   # negative for a refund
+                transfers=float(gov_tr.sum()), consumption=gov_spend,
+                absorbed=float(sc.government_absorbs))
+            gov_account["revenue"] = sum(gov_account[k] for k in (
+                "product_tax", "activity_tax", "tariff", "output_tax", "direct_tax",
+                "factor_income", "wedge"))
+            gov_account["saving"] = (gov_account["revenue"] - gov_account["transfers"]
+                                     - gov_account["consumption"] - gov_account["absorbed"])
 
             arm_q = econ.arm_share * A
             imports = msh_ * arm_q / tf0                  # at the border
@@ -636,6 +681,7 @@ def solve_period(econ: Economy, closure: Closure | None = None,
                 dom_sales=dsh * econ.arm_share * A, p_dom=p_dom,
                 walras=float(gaps[num]), levy=levy, foreign_sav=foreign_sav, pe=p_exp,
                 hh_dtax_paid=hh_dtax_paid, row_fac=row_fac, gov_fac=gov_fac,
+                gov_account=gov_account, hh_sav=hh_sav,
                 real=dict(hh_real=float(p_base_yard @ hh_q.sum(axis=0)),
                           gov_real=float(p_base_yard @ gov_q),
                           inv_real=float(p_base_yard @ inv_q),
@@ -732,7 +778,8 @@ def solve_period(econ: Economy, closure: Closure | None = None,
         employment=state["employment"], unemployment=state["unemployment"],
         real_wage=state["real_wage"], world_export_price=state["world_pe"],
         world_import_price=state["world_pm"], domestic_sales=state["dom_sales"],
-        p_domestic=state["p_dom"])
+        p_domestic=state["p_dom"], government=state["gov_account"],
+        household_saving=state["hh_sav"], forced_saving=state["levy"])
 
 
 # ---------------------------------------------------------------------------

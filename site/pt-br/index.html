@@ -285,6 +285,28 @@ paths[["path", "total", "share"]].head(2)
   <code>fixed_price_multipliers</code> põe as famílias em propensões marginais, e
   <code>linkages</code> dá a tabela de setores-chave, para trás e para frente. Somadas sobre todos
   os caminhos elementares, as influências totais dão o multiplicador.</p>
+  <h3>11. Contas</h3>
+<pre><code>taxed = ck.solve_period(econ, scenario=ck.Scenario(product_tax=econ.ptax * 1.5))
+na = ck.national_accounts(taxed)       # o contrafactual do exemplo 2
+na["gdp_expenditure"], na["gdp_income"]   # 202.78 and 202.78: o PIB pelos dois lados, em qualquer equilíbrio
+pi = ck.price_indices(taxed)
+pi.loc["gdp", ["fisher", "quantity_fisher"]]  # 1.040, 0.9999: preços 4% acima, volume parado
+ck.government_account(taxed)["saving"]    # 12.04, contra 5 no ano-base</code></pre>
+  <p>O PIB a preços correntes pelos lados da despesa e da renda, índices de Laspeyres, Paasche e
+  Fisher para cada componente da demanda final, para o PIB e para os termos de troca, e a conta do
+  governo por instrumento. A conta do governo é registrada pelo solver na solução, então a poupança
+  dela é a que financiou o investimento.</p>
+  <h3>12. Quanto um resultado depende das elasticidades</h3>
+<pre><code>run = ck.spec_sweep(sam, toy.spec(), scenario=ck.Scenario(product_tax=econ.ptax * 1.5),
+                    measure=lambda base, alt: {"gdp_pct": 100 * (
+                        ck.real_gdp(alt)["expenditure"] / ck.real_gdp(base)["expenditure"] - 1)})
+params = {"sigma_va": ck.Uniform(0.3, 1.3), "sigma_armington": ck.Uniform(1.5, 3.5)}
+ck.sensitivity(run, params).summary()        # quadratura de Stroud: 4 pontos para 2 parâmetros
+ck.sensitivity(run, params, method="monte_carlo", draws=100).summary()</code></pre>
+  <p>Cada ponto recalibra e resolve o ano-base e o cenário. A regra de Stroud dá uma média exata
+  até o grau três nos parâmetros com <code>2n</code> soluções; o Monte Carlo acrescenta quantis. A
+  elasticidade de Armington perto de 1 fica de fora de propósito: com parcelas de exportação fixas
+  o câmbio não é determinado em 1, e é mal condicionado perto dele.</p>
 </div></section>
 
 <section id="portarias"><div class="wrap">

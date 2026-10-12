@@ -534,7 +534,7 @@ end
 @expression(m, tax_rev,
             sum(pbase[c] * ((Aabs[c] - fin_c[c]) * ptax_f[c] + fin_c[c] * ptax_a[c])
                 for c in 1:nc)
-            + sum(atax[j] * Xraw[j] for j in 1:na)
+            + sum(atax[j] * X[j] for j in 1:na)        # conta própria incluída
             + sum(tm[c] * er * pwm[c] * mshm[c] * armsh[c] * Aabs[c] / (1 + tm0[c]) for c in 1:nc)
             + sum(tauz[c] * pd[c] * Q[c] for c in 1:nc))
 @constraint(m, savings == hh_sav + levy + tax_rev + gov_inst - gov_spend - gov_cost + fsav)

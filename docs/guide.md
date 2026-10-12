@@ -243,6 +243,33 @@ residual wins.
 `warm_start` accepts a previous `PeriodResult` (or a raw `z`) and is what makes a
 twenty-five year path cheap.
 
+### Accounts
+
+```python
+ck.national_accounts(res)          # GDP by expenditure and by income, current prices
+ck.price_indices(res)              # Laspeyres, Paasche, Fisher, against the base year
+ck.price_indices(res, reference=baseline)   # or against another solved period
+ck.government_account(res)         # revenue by instrument, outlays, saving
+```
+
+`national_accounts` builds GDP at market prices twice. The expenditure side adds
+household consumption (at what households pay, consumer wedges and own-account
+purchases included), government consumption, investment and exports, less
+imports at the border. The income side adds factor income, taxes on products
+(product tax, tariff, output tax and both consumer wedges) and the activity tax.
+The two agree in every equilibrium, not only at the base year, and the `gap` key
+is there so that a disagreement shows. `gni` deducts factor income paid abroad.
+
+`price_indices` has one row per component of final demand, one for GDP (imports
+with a minus sign) and one for the terms of trade (the export index over the
+import index). The Fisher indices pass the factor-reversal test: price times
+quantity is the value ratio. Nominal GDP over the Paasche deflator is
+`real_gdp(res)["expenditure"]`, GDP at base-year prices.
+
+`government_account` is recorded by the solver at the solution, with the formulas
+the closure solved with, so its `saving` is the government saving that financed
+investment.
+
 ---
 
 ## 6. Closures
@@ -277,6 +304,19 @@ the closure of Hosoe's `stdcge` (`cgelab.examples.hosoe.CLOSURE`). Under them a
 tariff abolition cuts public consumption by the lost revenue, and the depreciation
 it causes raises what foreign saving finances. The base-year saving rate is
 `econ.gov_savrate`: government saving over income net of transfers to households.
+
+**When the exchange rate is not determined.** Under `export_rule="fixed_shares"`
+exports sell at the domestic price. With a Cobb–Douglas Armington
+(`sigma_armington=1` on every imported commodity), imports are then a fixed
+value share of absorption and exports a fixed value share of output, and no
+relative price moves the current account. With foreign saving fixed in numeraire
+units, every exchange rate is an equilibrium, with the same output and factor
+prices. `solve_period` refuses that combination. CET exports, an Armington
+elasticity other than one on some imported commodity, foreign saving in dollars
+or a fixed exchange rate each restore a channel. Close to one the model is
+determined but ill-conditioned: the exchange rate moves as `1 / (sigma - 1)`, and
+a sensitivity sweep that crosses that region returns outliers that are the
+model's and not the solver's.
 
 `numeraire` exists for the homogeneity test only; no real magnitude may depend on
 it. All five combinations in the test matrix reproduce the base year and hold
@@ -542,3 +582,47 @@ A real SAM can show a negative `leakage`. A margin commodity with a negative
 diagonal entry, or an account with negative outlays, spends more inside the
 endogenous block than its total. That is the data, and the inverse exists as long
 as the block as a whole leaks.
+
+---
+
+## 12. Systematic sensitivity
+
+An elasticity the input–output tables do not supply is a guess, and a result that
+rests on one should come with its spread. `sensitivity` solves a run over the
+parameters' distributions:
+
+```python
+run = ck.spec_sweep(sam, spec, scenario=policy,
+                    measure=lambda base, alt: {"gdp_pct": 100 * (
+                        ck.real_gdp(alt)["expenditure"] / ck.real_gdp(base)["expenditure"] - 1)})
+params = {"sigma_va": ck.Uniform(0.3, 1.3), "sigma_armington[c_ind]": ck.Normal(2.0, 0.5)}
+
+ck.sensitivity(run, params).summary()                                 # Stroud quadrature
+ck.sensitivity(run, params, method="monte_carlo", draws=500).summary()
+```
+
+`spec_sweep` sets `ModelSpec` fields, `"field"` whole or `"field[account]"` for
+one entry of a mapping, then recalibrates and solves the base and the scenario at
+every point. An elasticity moves the calibrated shares, and a result measured
+against a base that was not recalibrated would mix the two effects. Any other
+function from `{parameter: value}` to a number, a mapping or a Series is a run
+too.
+
+**Quadrature.** Stroud's degree-3 rule, the one Arndt (1996) and DeVuyst and
+Preckel (1997) brought to CGE models, solves at `2n` points for `n` independent
+parameters with symmetric distributions. The mean is exact whenever the result is
+a polynomial of degree three or less in the parameters. The standard deviation is
+exact when the result is linear in them. The tests check both on closed forms.
+Twenty elasticities cost forty solves. An asymmetric distribution is refused,
+because the rule's mean would carry a bias nobody stated.
+
+**Monte Carlo.** Independent draws with a fixed seed, for asymmetric
+distributions (`Triangular`), for quantiles, or to check the quadrature. The
+summary then adds the 5th, 50th and 95th percentiles and the range. Quantiles
+from `2n` quadrature points would be a fiction, so they are not reported.
+
+A spread that is much wider under Monte Carlo than under quadrature is a sign
+that the result is far from cubic somewhere in the range. One cause is an
+Armington elasticity near one under fixed export shares (see *Closures*). There,
+a sweep of `sigma_armington` over `Uniform(1, 3)` on the toy economy had a
+median of −0.009% and one draw at −5.8%.

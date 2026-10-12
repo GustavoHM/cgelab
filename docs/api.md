@@ -195,6 +195,7 @@ that finances the fixed investment. Under `ModelSpec.export_demand` or
 | `hh_quantity`, `hh_income`, `hh_commodity_spend`, `hh_direct_outlay`, `hh_wedge_paid` | the household block |
 | `gov_quantity`, `investment_quantity`, `savings`, `factor_demand` | the rest of final demand |
 | `wedge_revenue`, `government_cost` | recycled revenue; cost falling on the budget |
+| `government`, `household_saving`, `forced_saving` | the government account at the solution; voluntary household saving; the levy that finances fixed real investment |
 | `real` | `hh_real`, `gov_real`, `inv_real`, `hh_sav_real`, `gov_sav_real`, `for_sav_real`, `hh_price_index`, `hh_real_income`, `hh_committed_value` |
 | `gaps`, `walras`, `residual`, `converged`, `attempt`, `message` | the evidence |
 | `price(commodity)`, `household_real_income()`, `summary()` | helpers |
@@ -237,6 +238,26 @@ The matrix is the one the solver used, productivity included.
 At the base year the gap is `product_tax` plus `activity_tax`. `own_account` is
 included in expenditure; without it the gap is short by that activity. `other`
 is what remains once quantities leave the base year.
+
+### `national_accounts(period) -> dict`
+
+GDP at current market prices: `consumption`, `government`, `investment`,
+`exports`, `imports`, `gdp_expenditure`; `factor_income`, `taxes_on_products`
+(product tax, tariff, output tax, both consumer wedges), `taxes_on_production`
+(activity tax), `gdp_income`; their `gap`; `factor_income_abroad` and `gni`.
+
+### `price_indices(period, reference=None) -> DataFrame`
+
+Rows `consumption`, `government`, `investment`, `exports`, `imports`, `gdp` and
+`terms_of_trade`; columns `laspeyres`, `paasche`, `fisher`, the three
+`quantity_` indices and `value`. The reference is another `PeriodResult`, or by
+default the calibrated base year.
+
+### `government_account(period) -> Series`
+
+`product_tax`, `activity_tax`, `tariff`, `output_tax`, `direct_tax`,
+`factor_income`, `wedge`, `revenue`; `transfers`, `consumption`, `absorbed`,
+`saving`. Also `PeriodResult.government`.
 
 ### `sectoral_path(path) -> DataFrame`
 
@@ -289,6 +310,34 @@ Leontief inverse.
 Defourny–Thorbecke. One row per elementary path: `path`, `length`, `direct`
 (product of propensities), `path_multiplier` (`det(I - A_p) / det(I - A)`),
 `total`, `global` (`M[destination, origin]`) and `share` of the global influence.
+
+---
+
+## Sensitivity
+
+### `sensitivity(run, parameters, *, method="quadrature", draws=1000, seed=20260724) -> SensitivityResult`
+
+`run` maps `{parameter: value}` to a number, a mapping or a Series. `parameters`
+maps names to `Uniform(low, high)`, `Normal(mean, sd)` or
+`Triangular(low, mode, high)`, independent. `"quadrature"` is Stroud's degree-3
+rule at `2n` points (symmetric distributions only); `"monte_carlo"` draws with
+the seed.
+
+### `SensitivityResult`
+
+`points` (one row per point: parameters, `weight`, outputs), `parameters`,
+`outputs`, and `summary(quantiles=(0.05, 0.5, 0.95))`: `mean` and `sd`, plus
+quantiles and range under Monte Carlo.
+
+### `spec_sweep(sam, spec, *, measure, closure=None, scenario=None, calibrate_kwargs=None) -> run`
+
+A run that sets `ModelSpec` fields (`"sigma_va"`, or `"sigma_armington[c_ind]"`
+for one entry), recalibrates, solves base and scenario, and returns
+`measure(base, alternative)`.
+
+### `stroud_points(n) -> ndarray`
+
+The `(2n, n)` standardised points of the rule.
 
 ---
 

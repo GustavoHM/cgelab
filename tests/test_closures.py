@@ -67,3 +67,20 @@ def test_unknown_closure_values_are_refused():
         ck.Closure(foreign_saving_unit="dollars")
     with pytest.raises(ValueError, match="government"):
         ck.Closure(government="balanced")
+
+
+def test_an_undetermined_exchange_rate_is_refused():
+    """Fixed export shares, a Cobb-Douglas Armington and foreign saving in the
+    numeraire leave the exchange rate free: 0.5 and 2 were both exact equilibria,
+    with the same output and factor prices."""
+    sam, _ = toy.build()
+    econ = ck.calibrate(sam, toy.spec(sigma_armington=1.0))
+    with pytest.raises(ValueError, match="not determined"):
+        ck.solve_period(econ)
+    # Each of these restores a channel, and the solve goes through.
+    assert ck.solve_period(econ, DOLLARS).converged
+    assert ck.solve_period(econ, ck.Closure(foreign="fixed_rate")).converged
+    mixed = ck.calibrate(sam, toy.spec(sigma_armington={"c_agr": 1.0, "c_ind": 2.0}))
+    assert ck.solve_period(mixed).converged
+    cet = ck.calibrate(sam, toy.spec(sigma_armington=1.0, export_rule="cet"))
+    assert ck.solve_period(cet).converged

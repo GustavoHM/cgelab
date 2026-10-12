@@ -34,9 +34,12 @@ from .functions import (armington, ces_intensity, ces_price, cet, cet_domestic_p
                         cobb_douglas_price)
 from .multipliers import (Multipliers, accounting_multipliers, fixed_price_multipliers,
                           leontief_multipliers, linkages, structural_paths)
-from .results import factor_demand_by_activity, real_gdp, sectoral_path
+from .results import (factor_demand_by_activity, government_account, national_accounts,
+                      price_indices, real_gdp, sectoral_path)
 from .sam import SAM, BalanceError
 from .scenario import Scenario, consumer_wedge
+from .sensitivity import (Normal, SensitivityResult, Triangular, Uniform, sensitivity,
+                          spec_sweep, stroud_points)
 from .solve import PeriodResult, factor_intensity, solve_period, value_added_price
 from .spec import AccountLayout, ModelSpec
 from .welfare import compensating_variation, equivalent_variation, ev_by_group
@@ -54,8 +57,11 @@ __all__ = [
     "base_year_reproduction", "homogeneity_test", "walras_check", "report",
     "to_jump",
     "factor_demand_by_activity", "real_gdp", "sectoral_path",
+    "national_accounts", "price_indices", "government_account",
     "Multipliers", "accounting_multipliers", "fixed_price_multipliers", "leontief_multipliers",
     "linkages", "structural_paths",
+    "sensitivity", "spec_sweep", "stroud_points", "SensitivityResult",
+    "Uniform", "Normal", "Triangular",
     "ces_price", "ces_intensity", "cobb_douglas_price", "armington", "cet", "cet_domestic_price",
     "__version__",
 ]

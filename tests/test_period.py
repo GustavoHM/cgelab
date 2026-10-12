@@ -132,3 +132,31 @@ def test_factor_supply_shock_moves_the_relative_price_the_right_way():
     more_capital[econ.factor("f_cap")] *= 1.2
     res = ck.solve_period(econ, scenario=ck.Scenario(factor_supply=more_capital))
     assert res.factor_prices[econ.factor("f_cap")] < base.factor_prices[econ.factor("f_cap")]
+
+
+def _own_account_with_activity_tax():
+    """`a_own` pays 1 of activity tax; agriculture pays 1 less and hires 1 more capital."""
+    import pandas as pd
+
+    sam, _ = toy.build_with_own_production()
+    f = sam.frame.set_index(["row", "col"])["value"].to_dict()
+    f.update({("f_cap", "a_own"): 8.0, ("gov", "a_own"): 1.0,
+              ("gov", "a_agr"): 4.0, ("f_cap", "a_agr"): 26.0})
+    out = ck.SAM.from_long(pd.DataFrame([(r, c, v) for (r, c), v in f.items()],
+                                        columns=["row", "col", "value"]))
+    out.check_balance()
+    return ck.calibrate(out, toy.spec())
+
+
+def test_an_own_account_activity_tax_reaches_government():
+    """Households pay it in the price of what they buy straight from the activity.
+    Counting it only on market activities left it unreceived, and Walras off by
+    the tax."""
+    econ = _own_account_with_activity_tax()
+    assert econ.atax[econ.activity("a_own")] > 0
+    rep = ck.base_year_reproduction(econ)
+    assert rep["ok"], rep["checks"]
+    scaled = ck.solve_period(econ, scenario=ck.Scenario(activity_scale={"a_own": 2.0}))
+    assert abs(scaled.walras) < 1e-9
+    assert scaled.government["activity_tax"] == pytest.approx(
+        float(econ.atax @ scaled.X), rel=1e-12)

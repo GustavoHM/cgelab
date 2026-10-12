@@ -17,6 +17,32 @@ before 1.0, a minor version may add to the API and a patch version only fixes.
   influences of all elementary paths add up to the multiplier (Lantner's
   identity), to 1e-10.
 
+- National accounts (`national_accounts`): GDP at current prices by expenditure
+  and by income, which agree in every equilibrium, and GNI. Price and quantity
+  indices (`price_indices`): Laspeyres, Paasche and Fisher by component of final
+  demand, for GDP and for the terms of trade, against the base year or another
+  solved period. The government account (`government_account`,
+  `PeriodResult.government`): revenue by instrument, outlays and saving, recorded
+  by the solver at the solution. `PeriodResult.household_saving` and
+  `forced_saving`.
+
+- Systematic sensitivity (`sensitivity`, `spec_sweep`): Stroud's degree-3
+  quadrature, exact in the mean for results up to cubic in the parameters, and
+  Monte Carlo with a fixed seed, over `Uniform`, `Normal` and `Triangular`
+  parameters. `spec_sweep` recalibrates at every point.
+
+### Fixed in 0.3
+
+- An undetermined exchange rate is refused. With fixed export shares, a
+  Cobb–Douglas Armington on every imported commodity and foreign saving fixed in
+  numeraire units, every exchange rate is an equilibrium; the solver used to
+  return whichever its start point was.
+
+- The activity tax paid by an own-account activity never reached government:
+  households paid it in the price and the tax block counted market activities
+  only, so the base year did not reproduce and Walras was off by the tax. The
+  JuMP replica had the same omission.
+
 ### Changed
 
 - Renamed from `cgekit` to `cgelab`: `cgekit` is taken on PyPI by an

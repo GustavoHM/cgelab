@@ -271,6 +271,20 @@ econ.diagnostics["unmodelled_flows"]           # SAM cells the model does not re
   <p>Accounts are found by prefix, or by explicit lists. Explicit lists are the safer choice for a
   SAM whose naming is not systematic: a prefix rule that silently misses an account produces a model
   that balances and is wrong.</p>
+  <h3>10. Multipliers, with every price fixed</h3>
+<pre><code>sam_toy, _ = toy.build()
+m = ck.accounting_multipliers(sam_toy, spec=toy.spec())   # gov, investment, rest of world exogenous
+
+m.M.loc["hh_2", "c_agr"]         # 0.546: what one unit of demand for agriculture adds to household 2's income
+paths = ck.structural_paths(m, "c_agr", "hh_2", threshold=1e-3)
+paths[["path", "total", "share"]].head(2)
+# (c_agr, a_agr, f_lab, hh_2)  0.323  0.59    through wages, with the feedback off the path
+# (c_agr, a_agr, f_cap, hh_2)  0.131  0.24</code></pre>
+  <p>The same SAM read as a fixed-price model: quantities answer to an injection in base-year
+  proportions. <code>leontief_multipliers</code> keeps only production endogenous,
+  <code>fixed_price_multipliers</code> puts households on marginal propensities, and
+  <code>linkages</code> gives the backward and forward key-sector table. Over every elementary
+  path, the total influences add up to the multiplier.</p>
 </div></section>
 
 <section id="gates"><div class="wrap">

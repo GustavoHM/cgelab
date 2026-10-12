@@ -52,8 +52,8 @@ several regions, the result helpers, and the JuMP export replicating all of it. 
   price indices, terms of trade, government accounts. `real_gdp` is the first of these.
 - [ ] **Welfare decomposition** into allocative efficiency, terms of trade and endowments (Huff
   and Hertel, 2000). Validation against GTAP.
-- [ ] **SAM multipliers and input–output analysis**: Leontief and fixed-price multipliers,
-  backward and forward linkages, structural path analysis.
+- [x] **SAM multipliers and input–output analysis**: Leontief and fixed-price multipliers,
+  backward and forward linkages, structural path analysis (`cgelab.multipliers`).
 
 **0.4 — energy and the bridge to dsgelab.**
 

@@ -102,7 +102,7 @@ lista até a 1.0; a versão de cada item é a do [`ROADMAP.md`](../ROADMAP.md).
 | Sensibilidade sistemática (quadratura, Monte Carlo) | 📄 GEMPACK | falta | 0.3 |
 | Contas e relatórios: PIB por despesa e renda, índices de preço, termos de troca | 📄 GEMPACK, GTAP | `real_gdp` feito; o resto falta | 0.3 |
 | Decomposição do bem-estar (Huff e Hertel) | 📄 GTAP | falta | 0.3 |
-| Multiplicadores da MCS e insumo-produto | 📄 Pyatt e Round; Defourny e Thorbecke | falta | 0.3 |
+| Multiplicadores da MCS e insumo-produto | 📄 Pyatt e Round; Defourny e Thorbecke | **feito**: contábeis, a preço fixo, Leontief, encadeamentos (Rasmussen e Ghosh), análise de caminhos estruturais | 0.3 |
 | Ninhos de energia (KLEM), emissões, imposto de carbono | 📄 ENVISAGE, EPPA, GTAP-E | falta | 0.4 |
 | Fechamentos do governo | 📄 IFPRI | taxa de poupança do governo fixa (a de Hosoe) feita; meta de déficit e substituição de tributos neutra em arrecadação faltam | 0.4 |
 | Poupança externa fixa em moeda estrangeira | 📄 Hosoe, IFPRI | **feito** | 0.2 |

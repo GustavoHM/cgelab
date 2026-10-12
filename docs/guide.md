@@ -489,3 +489,56 @@ ck.compensating_variation(reference_path, alternative_path)
 The same move valued at the alternative's prices. Report it alongside EV when the
 price change is large enough for the two to differ; quoting only one while calling
 it "the welfare change" hides a choice of reference prices.
+
+---
+
+## 11. Multipliers and input–output analysis
+
+A multiplier model reads the same SAM with every price fixed. Quantities answer
+to an injection into the exogenous accounts, in base-year proportions. It is what
+a reader will set a CGE result against. When the two disagree, the difference is
+the work done by prices and by supply constraints.
+
+```python
+m = ck.accounting_multipliers(sam, spec=spec)     # gov, investment, rest of world exogenous
+m.M                                                # (I - A)^-1, account by account
+m.impact({"c_agr": 100.0})                         # an injection into agriculture's demand
+m.leakage                                          # what each account pays the exogenous ones
+```
+
+`M[i, j]` is the effect on account `i` of one unit injected into account `j`.
+`exogenous=` or `endogenous=` states a split other than the usual one.
+
+**Fixed-price multipliers.** `fixed_price_multipliers(sam, spec=spec,
+households=..., income_elasticities={"c_agr": 0.6, ...})` replaces each
+household's average propensity to consume a commodity by the marginal one,
+elasticity times average. The marginal propensities of a household must add up to
+its average propensity to consume, or an extra unit of income would create or
+destroy spending. Elasticities that break this are refused unless
+`engel="rescale"`. All-ones elasticities give back the accounting multipliers.
+
+**Leontief.** `leontief_multipliers(sam, spec)` makes only activities and
+commodities endogenous. Commodity columns leak imports and taxes, activity columns
+leak value added, and the activity block of `M` is the domestic Leontief inverse.
+On Miller and Blair's two-sector example it is their `L` to every printed digit.
+
+**Linkages.** `linkages(m, activities)` returns, for each account, the backward
+linkage (the column sum of `M`), the forward linkage (the row sum of the Ghosh
+inverse) and both divided by their mean. Above one is above average. The forward
+measure is the Ghosh row sum and not the Leontief one. The Leontief row sum
+answers a uniform rise in every final demand, which is a different question.
+
+**Structural paths.** `structural_paths(m, "c_agr", "hh_1")` lists the
+elementary paths from an injection to a destination (Defourny and Thorbecke,
+1984). The direct influence is the product of the propensities along a path. The
+total influence multiplies it by the feedback from circuits off the path,
+`det(I - A_p) / det(I - A)`. The global influence is `M[destination, origin]`.
+Over every elementary path the total influences add up to the global one
+(Lantner, 1974); the tests check that identity to 1e-10. On a real SAM the search
+stops at `max_length` arcs and at a direct influence below `threshold`, so the
+`share` column then sums to less than one, and the shortfall is what was cut.
+
+A real SAM can show a negative `leakage`. A margin commodity with a negative
+diagonal entry, or an account with negative outlays, spends more inside the
+endogenous block than its total. That is the data, and the inverse exists as long
+as the block as a whole leaks.

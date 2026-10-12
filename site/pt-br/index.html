@@ -271,6 +271,20 @@ econ.diagnostics["unmodelled_flows"]           # células da MCS que o modelo n�
   <p>Contas são encontradas por prefixo, ou por listas explícitas — que são a escolha mais segura
   numa MCS cuja nomenclatura não é sistemática, já que uma regra de prefixo que perde uma conta em
   silêncio produz um modelo que balanceia e está errado.</p>
+  <h3>10. Multiplicadores, com todos os preços fixos</h3>
+<pre><code>sam_toy, _ = toy.build()
+m = ck.accounting_multipliers(sam_toy, spec=toy.spec())   # gov, investment, rest of world exogenous
+
+m.M.loc["hh_2", "c_agr"]         # 0.546: o que uma unidade de demanda por agricultura soma à renda do domicílio 2
+paths = ck.structural_paths(m, "c_agr", "hh_2", threshold=1e-3)
+paths[["path", "total", "share"]].head(2)
+# (c_agr, a_agr, f_lab, hh_2)  0.323  0.59    pelos salários, com a realimentação de fora do caminho
+# (c_agr, a_agr, f_cap, hh_2)  0.131  0.24</code></pre>
+  <p>A mesma MCS lida como modelo a preço fixo: as quantidades respondem a uma injeção nas
+  proporções do ano-base. <code>leontief_multipliers</code> deixa endógena só a produção,
+  <code>fixed_price_multipliers</code> põe as famílias em propensões marginais, e
+  <code>linkages</code> dá a tabela de setores-chave, para trás e para frente. Somadas sobre todos
+  os caminhos elementares, as influências totais dão o multiplicador.</p>
 </div></section>
 
 <section id="portarias"><div class="wrap">

@@ -245,6 +245,53 @@ carry `X`, `pa`. Also `PathResult.sectoral()`.
 
 ---
 
+## Multipliers
+
+Fixed-price models read from the base-year SAM; no equilibrium is solved.
+`A[i, j]` is what `j` pays `i` per unit of `j`'s outlay, and `M[i, j]` the
+effect on `i` of a unit injected into `j`.
+
+### `accounting_multipliers(sam, *, exogenous=None, endogenous=None, spec=None) -> Multipliers`
+
+Pyatt–Round, `M = (I - A)^-1` with average propensities. With `spec`,
+government, investment, the rest of the world and any tariff or indirect-tax
+account are exogenous.
+
+### `fixed_price_multipliers(sam, *, households, income_elasticities, exogenous=None, endogenous=None, spec=None, engel="check") -> Multipliers`
+
+Household consumption at marginal propensities `eta_c * a_ch`. Missing
+commodities have elasticity one. `engel="rescale"` scales elasticities that
+break Engel aggregation; `"check"` refuses them.
+
+### `leontief_multipliers(sam, spec) -> Multipliers`
+
+Activities and commodities endogenous. The activity block of `M` is the domestic
+Leontief inverse.
+
+### `Multipliers`
+
+| Member | Meaning |
+|---|---|
+| `kind`, `accounts` | `"accounting"`, `"fixed_price"` or `"leontief"`; endogenous accounts in order |
+| `flows`, `totals` | base-year flows among the endogenous accounts; their column totals |
+| `A`, `M` | propensities (average, or marginal where stated) and `(I - A)^-1`, as DataFrames |
+| `leakage` | `1 - A.sum(axis=0)`: the share each account pays the exogenous accounts |
+| `impact(injection)` | `M @ x` for a mapping `{endogenous account: amount}` |
+
+### `linkages(mult, accounts=None) -> DataFrame`
+
+`backward` (column sum of `M`), `forward` (row sum of the Ghosh inverse
+`(I - B)^-1`, `B[i, j] = T[i, j] / total_i`), and `backward_index`,
+`forward_index`, each divided by its mean over `accounts`.
+
+### `structural_paths(mult, origin, destination=None, *, max_length=6, threshold=1e-4) -> DataFrame`
+
+Defourny–Thorbecke. One row per elementary path: `path`, `length`, `direct`
+(product of propensities), `path_multiplier` (`det(I - A_p) / det(I - A)`),
+`total`, `global` (`M[destination, origin]`) and `share` of the global influence.
+
+---
+
 ## Dynamics
 
 ### `Growth(labour=0.0, tfp=0.0, depreciation=0.05, discount=0.05, labour_factor="f_lab", capital_factor="f_cap", allocation="proportional")`

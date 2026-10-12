@@ -5,6 +5,18 @@ before 1.0, a minor version may add to the API and a patch version only fixes.
 
 ## Unreleased
 
+### Added in 0.3
+
+- SAM multipliers and input–output analysis (`cgelab.multipliers`):
+  `accounting_multipliers` (Pyatt and Round), `fixed_price_multipliers` with
+  marginal propensities from income elasticities and an Engel-aggregation check,
+  `leontief_multipliers` (activities and commodities endogenous), `linkages`
+  (backward from the Leontief inverse, forward from the Ghosh inverse, with
+  Rasmussen indices) and `structural_paths` (Defourny and Thorbecke). The
+  Leontief inverse reproduces Miller and Blair's two-sector example; the total
+  influences of all elementary paths add up to the multiplier (Lantner's
+  identity), to 1e-10.
+
 ### Changed
 
 - Renamed from `cgekit` to `cgelab`: `cgekit` is taken on PyPI by an

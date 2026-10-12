@@ -32,6 +32,8 @@ from .export import to_jump
 from .dynamics import Growth, PathResult, run_path
 from .functions import (armington, ces_intensity, ces_price, cet, cet_domestic_price,
                         cobb_douglas_price)
+from .multipliers import (Multipliers, accounting_multipliers, fixed_price_multipliers,
+                          leontief_multipliers, linkages, structural_paths)
 from .results import factor_demand_by_activity, real_gdp, sectoral_path
 from .sam import SAM, BalanceError
 from .scenario import Scenario, consumer_wedge
@@ -52,6 +54,8 @@ __all__ = [
     "base_year_reproduction", "homogeneity_test", "walras_check", "report",
     "to_jump",
     "factor_demand_by_activity", "real_gdp", "sectoral_path",
+    "Multipliers", "accounting_multipliers", "fixed_price_multipliers", "leontief_multipliers",
+    "linkages", "structural_paths",
     "ces_price", "ces_intensity", "cobb_douglas_price", "armington", "cet", "cet_domestic_price",
     "__version__",
 ]

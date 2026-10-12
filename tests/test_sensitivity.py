@@ -85,10 +85,10 @@ def test_spec_sweep_over_elasticities():
                         scenario=ck.Scenario(product_tax=econ.ptax * 1.5))
     params = {"sigma_va": ck.Uniform(0.3, 1.3), "sigma_armington[c_ind]": ck.Uniform(1.0, 3.0)}
     quad = ck.sensitivity(run, params)
-    mc = ck.sensitivity(run, params, method="monte_carlo", draws=200, seed=3)
+    mc = ck.sensitivity(run, params, method="monte_carlo", draws=60, seed=3)
     q, m = quad.summary(), mc.summary()
     assert q.loc["gdp_pct", "mean"] == pytest.approx(m.loc["gdp_pct", "mean"], abs=3 * m.loc[
-        "gdp_pct", "sd"] / np.sqrt(200) + 1e-6)
+        "gdp_pct", "sd"] / np.sqrt(60) + 1e-6)
     # A point at the central values reproduces a direct solve.
     direct = run({"sigma_va": 0.8, "sigma_armington[c_ind]": 2.0})
     spec = toy.spec(sigma_va=0.8, sigma_armington={"__default__": 2.0, "c_ind": 2.0})

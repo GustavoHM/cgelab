@@ -25,7 +25,7 @@ from ..closure import Closure
 from ..sam import SAM
 from ..spec import ModelSpec
 
-__all__ = ["ENTRIES", "CLOSURE", "spec", "build", "variables"]
+__all__ = ["ENTRIES", "CLOSURE", "spec", "build", "variables", "SIMPLE_ENTRIES", "build_simple"]
 
 ENTRIES = [
     ("c_brd", "a_brd", 21.0), ("c_brd", "a_mlk", 8.0), ("c_brd", "hh", 20.0),
@@ -65,6 +65,31 @@ def build(large_country: bool = False, model_spec: ModelSpec | None = None):
     sam = SAM.from_long(pd.DataFrame(ENTRIES, columns=["row", "col", "value"]),
                         name="hosoe_stdcge")
     return sam, calibrate(sam, model_spec or spec(large_country))
+
+
+#: Chapter 5, the GAMS library file ``splcge``: bread and milk, capital and
+#: labour, one household, no intermediates, no taxes and no trade. The package
+#: needs government, investment and rest-of-world accounts, so they are empty.
+SIMPLE_ENTRIES = [
+    ("c_brd", "hh_1", 15.0), ("c_mlk", "hh_1", 35.0),
+    ("f_cap", "a_brd", 5.0), ("f_cap", "a_mlk", 20.0),
+    ("f_lab", "a_brd", 10.0), ("f_lab", "a_mlk", 15.0),
+    ("hh_1", "f_cap", 25.0), ("hh_1", "f_lab", 25.0),
+    ("a_brd", "c_brd", 15.0), ("a_mlk", "c_mlk", 35.0),
+    ("gov", "gov", 0.0), ("s_i", "s_i", 0.0), ("row", "row", 0.0),
+]
+
+
+def build_simple():
+    """Return ``(sam, economy)`` for ``splcge``, Cobb-Douglas with labour as numeraire."""
+    sam = SAM.from_long(pd.DataFrame(SIMPLE_ENTRIES, columns=["row", "col", "value"]),
+                        name="hosoe_splcge")
+    spec_ = ModelSpec(
+        activities=["a_brd", "a_mlk"], commodities=["c_brd", "c_mlk"],
+        households=["hh_1"], factors=("f_lab", "f_cap"),
+        government="gov", investment="s_i", rest_of_world="row",
+        sigma_va=1.0, margins=False, numeraire_factor="f_lab")
+    return sam, calibrate(sam, spec_)
 
 
 def variables(econ, res) -> dict:

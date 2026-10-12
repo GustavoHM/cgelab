@@ -101,7 +101,7 @@ lista até a 1.0; a versão de cada item é a do [`ROADMAP.md`](../ROADMAP.md).
 | Decomposição de resultados por choque (*subtotals*) | 📄 GEMPACK | **feito**: Harrison, Horridge e Pearson, integrada ao longo da trajetória reta | 0.3 |
 | Sensibilidade sistemática (quadratura, Monte Carlo) | 📄 GEMPACK | **feito**: quadratura de Stroud de grau 3 e Monte Carlo, com recalibração a cada ponto | 0.3 |
 | Contas e relatórios: PIB por despesa e renda, índices de preço, termos de troca | 📄 GEMPACK, GTAP | **feito**: PIB pelos dois lados, índices de Laspeyres, Paasche e Fisher, termos de troca, conta do governo | 0.3 |
-| Decomposição do bem-estar (Huff e Hertel) | 📄 GTAP | falta | 0.3 |
+| Decomposição do bem-estar (Huff e Hertel) | 📄 GTAP | **feito** para a absorção real, com a identidade fechando abaixo de 1e-9; a comparação com o GTAP espera a base de dados | 0.3 |
 | Multiplicadores da MCS e insumo-produto | 📄 Pyatt e Round; Defourny e Thorbecke | **feito**: contábeis, a preço fixo, Leontief, encadeamentos (Rasmussen e Ghosh), análise de caminhos estruturais | 0.3 |
 | Ninhos de energia (KLEM), emissões, imposto de carbono | 📄 ENVISAGE, EPPA, GTAP-E | falta | 0.4 |
 | Fechamentos do governo | 📄 IFPRI | taxa de poupança do governo fixa (a de Hosoe) feita; meta de déficit e substituição de tributos neutra em arrecadação faltam | 0.4 |

@@ -149,6 +149,15 @@ class SensitivityResult:
                 f"{len(self.parameters)} parameters, {len(self.outputs)} outputs)")
 
 
+def _as_dict(value) -> dict:
+    """Outputs as a plain dict; a pandas object per point is too slow for many draws."""
+    if isinstance(value, (int, float, np.floating, np.integer)):
+        return {"result": float(value)}
+    if isinstance(value, Mapping) and not isinstance(value, pd.Series):
+        return {k: float(v) for k, v in value.items()}
+    return _as_series(value).to_dict()
+
+
 def _as_series(value) -> pd.Series:
     if isinstance(value, pd.Series):
         return value.astype(float)
@@ -194,13 +203,14 @@ def sensitivity(run: Callable[[dict], object], parameters: Mapping[str, object],
         raise ValueError(f"method must be 'quadrature' or 'monte_carlo', got {method!r}")
 
     rows = []
+    reserved = set(names) | {"weight"}
     for v, w in zip(values, weights):
         point = dict(zip(names, map(float, v)))
-        out = _as_series(run(dict(point)))
-        clash = set(out.index) & (set(names) | {"weight"})
+        out = _as_dict(run(dict(point)))
+        clash = reserved.intersection(out)
         if clash:
             raise ValueError(f"output names {sorted(clash)} collide with parameter names")
-        rows.append({**point, "weight": float(w), **out.to_dict()})
+        rows.append({**point, "weight": float(w), **out})
     frame = pd.DataFrame(rows)
     outputs = [c for c in frame.columns if c not in names and c != "weight"]
     return SensitivityResult(method=method, points=frame, parameters=names, outputs=outputs)

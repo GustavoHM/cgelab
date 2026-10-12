@@ -37,6 +37,13 @@ before 1.0, a minor version may add to the API and a patch version only fixes.
   solved change, with a residual of order 1e-8 that is reported. On closed forms
   they are the line integrals.
 
+- Welfare decomposition (`welfare_decomposition`): Huff and Hertel's split of
+  the change in real absorption into endowment, technology, one allocative term
+  per instrument, terms of trade and the external account, integrated along the
+  path. The identity closes to below 1e-9 in ten economies and closures; it is
+  not validated against GTAP, which needs the GTAP database.
+- `cgelab.examples.hosoe.build_simple()`: Hosoe's chapter 5 (`splcge`).
+
 ### Fixed in 0.3
 
 - An undetermined exchange rate is refused. With fixed export shares, a

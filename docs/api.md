@@ -323,6 +323,15 @@ field names (`"tariff"`, `"activity_scale"`, `"activity_scale[a_own]"`). Rows
 are the measure's outputs; columns `reference`, one per group, `total`,
 `change` (solved directly) and `residual`.
 
+### `welfare_decomposition(econ, reference, alternative, *, closure=None, nodes=8, step=1e-4) -> Series`
+
+Huff–Hertel decomposition of the change in real absorption (Divisia, current
+prices along the path): `absorption` and its four components
+(`absorption_households`, `_own_account`, `_government`, `_investment`);
+`endowment`, `technology`, `allocative_product_tax`, `allocative_consumer_wedge`,
+`allocative_activity_tax`, `allocative_tariff`, `allocative_output_tax`,
+`terms_of_trade`, `external_account`; `sum_of_terms` and `residual`.
+
 ### `path_decomposition(f, x0, x1, groups, *, nodes=6, step=1e-4, solve_at=None) -> DataFrame`
 
 The same integral for any `f` of a dict of arrays.
@@ -431,6 +440,12 @@ sam, econ = toy.build_with_own_production()    # an activity selling to househol
 sam, econ = toy.build_with_twin_accounts()     # identical accounts, for composition tests
 sam, econ = toy.build_with_institutions()      # direct taxes, transfers, remittances, foreign capital
 sam, econ = toy.build_with_specific_capital()  # industry on a capital factor of its own
+sam, econ = toy.build_with_trade_taxes()       # tariff and indirect-tax accounts (TRF, IDT)
+
+from cgelab.examples import hosoe
+sam, econ = hosoe.build()                      # Hosoe's stdcge; hosoe.CLOSURE is his closure
+sam, econ = hosoe.build(large_country=True)    # lrgcge
+sam, econ = hosoe.build_simple()               # splcge, chapter 5
 spec = toy.spec(household_demand="les", frisch=-2.0)
 ```
 

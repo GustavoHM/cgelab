@@ -666,3 +666,52 @@ effect would go unattributed. A group may name a mapping field whole
 not numbers, such as the recycling rule, must agree between the scenarios,
 because there is no straight line between two rules. `path_decomposition` is the
 same integral for any function of a dict of arrays.
+
+---
+
+## 14. Welfare decomposition
+
+Where a welfare change came from: endowments, technology, each distortion, the
+terms of trade, the external account. The accounting is Huff and Hertel's (2000),
+written for this model's instruments.
+
+```python
+w = ck.welfare_decomposition(econ, ck.Scenario(), reform, closure=closure)
+w[["absorption", "endowment", "technology", "allocative_tariff", "terms_of_trade",
+   "external_account", "residual"]]
+```
+
+The measure is the Divisia volume of domestic absorption: household consumption
+(at what households pay), own-account purchases, government consumption and
+investment, each priced at current prices along the path from the reference to
+the alternative. Differentiating the GDP identity and the balance of payments
+splits it into:
+
+| Term | What it is |
+|---|---|
+| `endowment` | factor prices times the change in factor use |
+| `technology` | gross cost times the change in log productivity |
+| `allocative_product_tax`, `_consumer_wedge`, `_activity_tax`, `_tariff`, `_output_tax` | for each instrument, its rate times the price of the taxed flow times the change in that flow: Harberger's triangles, one per distortion |
+| `terms_of_trade` | the exchange rate times exports times the change in their price in foreign currency, less the same for imports |
+| `external_account` | the change in foreign saving and its revaluation by the exchange rate, less factor income paid abroad |
+
+The terms are integrated along the straight path, as in `subtotals`, and
+`residual` is the change in absorption minus their sum. It is the test of the
+identity. Across ten economies and closures (margins, CET with demand and supply
+curves, wedges, own-account activities, LES, the government saving rate, foreign
+saving in dollars), it stays below 1e-9.
+
+Two points of reading. Under fixed export shares, exports sell at the producer
+price, so their foreign price moves with domestic costs and shows up as a
+terms-of-trade effect even for a small economy. And the measure is not the
+households' EV. It counts government and investment volumes and prices along the
+path. The `absorption_households`, `_own_account`, `_government` and
+`_investment` rows split it by component. In Hosoe's `lrgcge` tariff abolition,
+households gain while public consumption, which loses the tariff revenue, falls
+by more, and the terms of trade take back more than the allocative gain.
+
+Huff and Hertel validated their decomposition inside GTAP. That comparison needs
+the GTAP database and is not made here. What is checked is that the identity
+closes, that an endowment shock in an economy without distortions is all
+endowment, that a small country has no terms-of-trade effect from a home shock,
+and that a new distortion costs welfare.

@@ -52,8 +52,9 @@ several regions, the result helpers, and the JuMP export replicating all of it. 
 - [x] **Accounts and reports**: GDP by expenditure and by income, Laspeyres, Paasche and Fisher
   price indices, terms of trade, government accounts (`national_accounts`, `price_indices`,
   `government_account`).
-- [ ] **Welfare decomposition** into allocative efficiency, terms of trade and endowments (Huff
-  and Hertel, 2000). Validation against GTAP.
+- [x] **Welfare decomposition** into allocative efficiency, terms of trade and endowments (Huff
+  and Hertel, 2000), `welfare_decomposition`. The identity closes to below 1e-9; the comparison
+  with GTAP waits on the GTAP database, with the regional items of 0.7.
 - [x] **SAM multipliers and input–output analysis**: Leontief and fixed-price multipliers,
   backward and forward linkages, structural path analysis (`cgelab.multipliers`).
 

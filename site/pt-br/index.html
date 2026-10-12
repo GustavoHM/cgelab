@@ -302,7 +302,7 @@ ck.government_account(taxed)["saving"]    # 12.04, contra 5 no ano-base</code></
                         ck.real_gdp(alt)["expenditure"] / ck.real_gdp(base)["expenditure"] - 1)})
 params = {"sigma_va": ck.Uniform(0.3, 1.3), "sigma_armington": ck.Uniform(1.5, 3.5)}
 ck.sensitivity(run, params).summary()        # quadratura de Stroud: 4 pontos para 2 parâmetros
-ck.sensitivity(run, params, method="monte_carlo", draws=100).summary()</code></pre>
+ck.sensitivity(run, params, method="monte_carlo", draws=40).summary()</code></pre>
   <p>Cada ponto recalibra e resolve o ano-base e o cenário. A regra de Stroud dá uma média exata
   até o grau três nos parâmetros com <code>2n</code> soluções; o Monte Carlo acrescenta quantis. A
   elasticidade de Armington perto de 1 fica de fora de propósito: com parcelas de exportação fixas
@@ -319,6 +319,19 @@ parts[["tariff", "world", "tax", "change", "residual"]]
   <p>A decomposição que o GEMPACK chama de <em>subtotals</em>. Todos os choques andam juntos pela
   reta da referência à alternativa, e o termo de cada grupo é integrado à parte, então as partes
   somam o total sem depender de ordem alguma.</p>
+  <h3>14. De onde veio uma variação de bem-estar</h3>
+<pre><code>from cgelab.examples import hosoe
+
+_, lrg = hosoe.build(large_country=True)
+w = ck.welfare_decomposition(lrg, ck.Scenario(), ck.Scenario(tariff=np.zeros(2)),
+                             closure=hosoe.CLOSURE)
+w["allocative_tariff"], w["terms_of_trade"]   # +0.054, -0.831: o ganho com a tarifa, e o que um país grande paga por ele lá fora
+w["absorption_households"]                    # +0.506: a VE de Hosoe para o mesmo experimento é +0,508
+w["residual"]                                 # ~1e-10: os termos somam a variação da absorção</code></pre>
+  <p>A decomposição de Huff e Hertel, escrita para os instrumentos deste modelo: dotações,
+  tecnologia, um termo alocativo por distorção, termos de troca e conta externa, integrados ao longo
+  da trajetória. A medida é a absorção real, com governo e investimento. A parte das famílias é a
+  que se compara a uma VE.</p>
 </div></section>
 
 <section id="portarias"><div class="wrap">

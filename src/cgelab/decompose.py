@@ -233,3 +233,164 @@ def subtotals(econ, reference: Scenario, alternative: Scenario,
                                     warm_start=warm))
 
     return path_decomposition(f, x0, x1, expanded, nodes=nodes, step=step, solve_at=solve_at)
+
+
+# ---------------------------------------------------------------------------
+# Welfare decomposition (Huff and Hertel, 2000)
+# ---------------------------------------------------------------------------
+
+def _rates(econ, period):
+    """The instruments in force in a solved period, absent ones at their defaults."""
+    sc = period.scenario
+    ptax_a = econ.ptax if sc.product_tax is None else np.asarray(sc.product_tax, float)
+    ptax_f = ptax_a if sc.product_tax_firm is None else np.asarray(sc.product_tax_firm, float)
+    W = (np.zeros((econ.n_hh, econ.n_com)) if sc.consumer_wedge is None
+         else np.asarray(sc.consumer_wedge, float))
+    Wg = (np.zeros_like(W) if sc.government_wedge is None
+          else np.asarray(sc.government_wedge, float))
+    tm = econ.tm0 if sc.tariff is None else np.asarray(sc.tariff, float)
+    tauz = econ.tauz0 if sc.output_tax is None else np.asarray(sc.output_tax, float)
+    tfp = np.ones(econ.n_act) if sc.productivity is None else np.asarray(sc.productivity, float)
+    scale = np.ones(econ.n_act)
+    for name, mult in sc.activity_scale.items():
+        scale[econ.activity(name) if isinstance(name, str) else int(name)] = float(mult)
+    return dict(ptax_a=ptax_a, ptax_f=ptax_f, W=W, Wg=Wg, tm=tm, tauz=tauz, tfp=tfp,
+                own=econ.hh_direct.sum(axis=0) * scale)
+
+
+def _welfare_state(period) -> dict:
+    """Quantities and prices the decomposition differentiates, from one solved period."""
+    econ = period.econ
+    r = _rates(econ, period)
+    nu = period.closure.numeraire
+    fin = period.hh_quantity.sum(axis=0) + period.gov_quantity
+    return dict(
+        hh_q=period.hh_quantity, own=r["own"], gov_q=period.gov_quantity,
+        inv_q=period.investment_quantity, fin=fin, firm=period.absorption - fin,
+        X=period.X, Q=period.Q, M=period.imports, E=period.exports,
+        # The export price in foreign currency is what exports actually fetch over the
+        # exchange rate. Under CET that is the world price; under fixed export shares
+        # exports sell at the producer price, so it moves with domestic costs, and
+        # leaving that out of the terms of trade leaves the identity open.
+        F=period.factor_demand, pWe=period.pe / period.exchange_rate,
+        pWm=period.world_import_price,
+        er=period.exchange_rate, FS=period.foreign_saving, row=period.factor_income_abroad,
+        log_tfp=np.log(r["tfp"]),
+        # prices and rates at this point
+        eff=period.pq[None, :] * (1.0 + r["W"] + r["Wg"]), pa=period.pa, pq=period.pq,
+        pqf=period.pqf, pbase=period.pbase, pd=period.pd, w=period.factor_prices,
+        ptax_a=r["ptax_a"], ptax_f=r["ptax_f"], wedge=r["W"] + r["Wg"], tm=r["tm"],
+        tauz=r["tauz"], atax=econ.atax * nu,
+    )
+
+
+_WELFARE_TERMS = ["endowment", "technology", "allocative_product_tax",
+                  "allocative_consumer_wedge", "allocative_activity_tax",
+                  "allocative_tariff", "allocative_output_tax", "terms_of_trade",
+                  "external_account"]
+
+
+def _welfare_integrand(s: dict, d: dict) -> dict:
+    """Each term at one point: prices and rates from ``s``, rates of change from ``d``."""
+    pm_b = s["er"] * s["pWm"]
+    parts = {
+        "households": float((s["eff"] * d["hh_q"]).sum()),
+        "own_account": float(s["pa"] @ d["own"]),
+        "government": float(s["pq"] @ d["gov_q"]),
+        "investment": float(s["pqf"] @ d["inv_q"]),
+    }
+    out = {
+        "absorption": sum(parts.values()),
+        **{f"absorption_{k}": v for k, v in parts.items()},
+        "endowment": float(s["w"] @ d["F"]),
+        "technology": float(((s["pa"] - s["atax"]) * s["X"]) @ d["log_tfp"]),
+        "allocative_product_tax": float((s["pbase"] * (s["ptax_f"] * d["firm"]
+                                                       + s["ptax_a"] * d["fin"])).sum()),
+        "allocative_consumer_wedge": float((s["wedge"] * s["pq"][None, :] * d["hh_q"]).sum()),
+        "allocative_activity_tax": float(s["atax"] @ d["X"]),
+        "allocative_tariff": (0.0 if s["tm"] is None
+                              else float((s["tm"] * pm_b) @ d["M"])),
+        "allocative_output_tax": (0.0 if s["tauz"] is None
+                                  else float((s["tauz"] * s["pd"]) @ d["Q"])),
+        "terms_of_trade": float(s["er"] * (s["E"] @ d["pWe"] - s["M"] @ d["pWm"])),
+        "external_account": float(d["FS"] + (s["pWe"] @ s["E"] - s["pWm"] @ s["M"]) * d["er"]
+                                  - d["row"]),
+    }
+    return out
+
+
+def welfare_decomposition(econ, reference: Scenario, alternative: Scenario, *, closure=None,
+                          nodes: int = 8, step: float = 1e-4) -> pd.Series:
+    """Decompose the change in real absorption between two scenarios, Huff-Hertel style.
+
+    The welfare measure is the Divisia volume of domestic absorption: household
+    consumption (at what households pay), own-account purchases, government
+    consumption and investment, each priced at the current prices along the
+    path, ``integral of sum p dq``. Differentiating the GDP identity and the
+    balance of payments splits it into
+
+    * ``endowment`` -- factor prices times the change in factor use;
+    * ``technology`` -- gross cost times the change in log productivity;
+    * ``allocative_*`` -- one term per instrument, its rate times the price of
+      the taxed flow times the change in that flow: a tax that shrinks a taxed
+      flow costs welfare, one that grows it gains (Harberger's triangles);
+    * ``terms_of_trade`` -- the exchange rate times exports times the change in
+      their price in foreign currency, less the same for imports, so the
+      exchange rate itself does not count as a terms-of-trade change. Under
+      fixed export shares exports sell at the producer price, and their foreign
+      price moves with domestic costs;
+    * ``external_account`` -- the change in foreign saving and its revaluation
+      by the exchange rate, less factor income paid abroad.
+
+    The terms are integrated along the straight path from ``reference`` to
+    ``alternative``, as in :func:`subtotals`. ``residual`` is the absorption
+    change minus the sum of the terms: zero up to the integration error when the
+    identity holds, and the test of it. The measure is a Divisia volume, not
+    the households' EV: it counts government and investment volumes, and it
+    prices along the path rather than at the reference. The
+    ``absorption_households``, ``_own_account``, ``_government`` and
+    ``_investment`` rows split the measure by component; a tariff abolition
+    can raise the households' part while public consumption, which loses the
+    revenue, pulls the total down.
+    """
+    from .solve import solve_period
+
+    firm = reference.product_tax_firm is not None or alternative.product_tax_firm is not None
+    x0 = scenario_vector(econ, reference, firm_rate=firm)
+    x1 = scenario_vector(econ, alternative, firm_rate=firm)
+    mapping_keys = {}
+    for name in _MAPPINGS:
+        keys = sorted(set(getattr(reference, name)) | set(getattr(alternative, name)))
+        mapping_keys[name] = keys
+        for key in keys:
+            neutral = 1.0 if name == "activity_scale" else 0.0
+            x0.setdefault(f"{name}[{key}]", np.asarray(neutral))
+            x1.setdefault(f"{name}[{key}]", np.asarray(neutral))
+    active = {n for n in _DEFAULTS
+              if getattr(reference, n) is not None or getattr(alternative, n) is not None}
+    if firm:
+        active.add("product_tax_firm")
+
+    def solve(t, warm=None):
+        x = {k: x0[k] + t * (x1[k] - x0[k]) for k in x0}
+        return solve_period(econ, closure, _to_scenario(reference, x, mapping_keys, active),
+                            warm_start=warm)
+
+    tau, weights = np.polynomial.legendre.leggauss(nodes)
+    tau, weights = 0.5 * (tau + 1.0), 0.5 * weights
+    total = dict.fromkeys(["absorption", "absorption_households", "absorption_own_account",
+                           "absorption_government", "absorption_investment"]
+                          + _WELFARE_TERMS, 0.0)
+    for t, w in zip(tau, weights):
+        mid = solve(t)
+        s = _welfare_state(mid)
+        up, down = _welfare_state(solve(t + step, mid)), _welfare_state(solve(t - step, mid))
+        d = {k: (np.asarray(up[k], float) - np.asarray(down[k], float)) / (2 * step)
+             for k in ("hh_q", "own", "gov_q", "inv_q", "fin", "firm", "X", "Q", "M", "E",
+                       "F", "pWe", "pWm", "er", "FS", "row", "log_tfp")}
+        for k, v in _welfare_integrand(s, d).items():
+            total[k] += w * v
+    out = pd.Series(total, name="welfare")
+    out["sum_of_terms"] = float(out[_WELFARE_TERMS].sum())
+    out["residual"] = out["absorption"] - out["sum_of_terms"]
+    return out

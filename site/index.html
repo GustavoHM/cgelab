@@ -302,7 +302,7 @@ ck.government_account(taxed)["saving"]    # 12.04, against 5 in the base year</c
                         ck.real_gdp(alt)["expenditure"] / ck.real_gdp(base)["expenditure"] - 1)})
 params = {"sigma_va": ck.Uniform(0.3, 1.3), "sigma_armington": ck.Uniform(1.5, 3.5)}
 ck.sensitivity(run, params).summary()        # Stroud quadrature: 4 points for 2 parameters
-ck.sensitivity(run, params, method="monte_carlo", draws=100).summary()</code></pre>
+ck.sensitivity(run, params, method="monte_carlo", draws=40).summary()</code></pre>
   <p>Each point recalibrates and solves base and scenario. Stroud's rule gives a mean exact up to
   cubic in the parameters at <code>2n</code> solves; Monte Carlo adds quantiles. An Armington
   elasticity near 1 is kept out of the range on purpose: under fixed export shares the exchange
@@ -319,6 +319,19 @@ parts[["tariff", "world", "tax", "change", "residual"]]
   <p>The decomposition GEMPACK calls subtotals. Every shock moves together along the straight line
   from the reference to the alternative, and each group's term is integrated on its own, so the
   parts add up to the total without depending on any order.</p>
+  <h3>14. Where a welfare change came from</h3>
+<pre><code>from cgelab.examples import hosoe
+
+_, lrg = hosoe.build(large_country=True)
+w = ck.welfare_decomposition(lrg, ck.Scenario(), ck.Scenario(tariff=np.zeros(2)),
+                             closure=hosoe.CLOSURE)
+w["allocative_tariff"], w["terms_of_trade"]   # +0.054, -0.831: the gain from the tariff, and what a large country pays for it abroad
+w["absorption_households"]                    # +0.506: Hosoe's EV for the same experiment is +0.508
+w["residual"]                                 # ~1e-10: the terms add up to the change in absorption</code></pre>
+  <p>Huff and Hertel's decomposition, written for this model's instruments: endowment, technology,
+  one allocative term per distortion, terms of trade and the external account, integrated along the
+  path. The measure is real absorption, government and investment included. Its household part is
+  the one to set against an EV.</p>
 </div></section>
 
 <section id="gates"><div class="wrap">

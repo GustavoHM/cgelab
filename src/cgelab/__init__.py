@@ -27,7 +27,7 @@ the solver was told to satisfy.
 
 from .calibrate import Economy, calibrate
 from .closure import Closure
-from .decompose import path_decomposition, scenario_vector, subtotals
+from .decompose import path_decomposition, scenario_vector, subtotals, welfare_decomposition
 from .diagnostics import base_year_reproduction, homogeneity_test, report, walras_check
 from .export import to_jump
 from .dynamics import Growth, PathResult, run_path
@@ -61,7 +61,7 @@ __all__ = [
     "national_accounts", "price_indices", "government_account",
     "Multipliers", "accounting_multipliers", "fixed_price_multipliers", "leontief_multipliers",
     "linkages", "structural_paths",
-    "subtotals", "path_decomposition", "scenario_vector",
+    "subtotals", "path_decomposition", "scenario_vector", "welfare_decomposition",
     "sensitivity", "spec_sweep", "stroud_points", "SensitivityResult",
     "Uniform", "Normal", "Triangular",
     "ces_price", "ces_intensity", "cobb_douglas_price", "armington", "cet", "cet_domestic_price",

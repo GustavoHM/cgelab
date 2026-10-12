@@ -29,7 +29,7 @@ from ..spec import ModelSpec
 
 __all__ = ["build", "build_with_margins", "build_with_own_production", "build_with_twin_accounts",
            "build_with_institutions", "build_with_specific_capital", "build_with_trade_taxes",
-           "spec"]
+           "build_one_good", "spec"]
 
 
 def _frame(entries) -> SAM:
@@ -221,3 +221,24 @@ def build_with_trade_taxes(model_spec: ModelSpec | None = None, **kwargs):
     econ = calibrate(sam, model_spec or spec(tariff_account="trf", indirect_tax_account="idt"),
                      **kwargs)
     return sam, econ
+
+
+def build_one_good():
+    """One good, two factors, one household, closed: the stochastic growth model.
+
+    Labour 60 and capital 40 make 100 of the good, Cobb-Douglas; households
+    consume 80 and invest 20. With a user cost of 0.10 the capital stock is 400,
+    and 20 is exactly its depreciation at 5%, so the base year is a steady state
+    of :func:`cgelab.bridge.ramsey` at ``discount=depreciation=0.05``.
+    """
+    entries = [
+        ("f_lab", "a_x", 60.0), ("f_cap", "a_x", 40.0), ("a_x", "c_x", 100.0),
+        ("c_x", "hh", 80.0), ("c_x", "s_i", 20.0),
+        ("hh", "f_lab", 60.0), ("hh", "f_cap", 40.0), ("s_i", "hh", 20.0),
+        ("gov", "gov", 0.0), ("row", "row", 0.0),
+    ]
+    sam = _frame(entries)
+    spec_ = ModelSpec(activities=["a_x"], commodities=["c_x"], households=["hh"],
+                      factors=("f_lab", "f_cap"), government="gov", investment="s_i",
+                      rest_of_world="row", sigma_va=1.0, margins=False, numeraire_factor="f_lab")
+    return sam, calibrate(sam, spec_)

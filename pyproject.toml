@@ -33,6 +33,7 @@ Changelog = "https://github.com/GustavoHM/cgelab/blob/main/CHANGELOG.md"
 
 [project.optional-dependencies]
 parquet = ["pyarrow>=14"]
+dsge = ["dsgelab>=0.4"]
 test = ["pytest>=7"]
 
 [project.scripts]

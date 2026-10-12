@@ -70,6 +70,15 @@ before 1.0, a minor version may add to the API and a patch version only fixes.
   `PeriodResult.input_coefficients` and `value_added_per_unit` are the
   coefficients the equilibrium used.
 
+- The bridge to dsgelab (`cgelab.bridge`, `pip install cgelab[dsge]`): a
+  Ramsey CGE in which an Euler equation chooses investment and every period is
+  the SAM model. dsgelab gives its steady state, first-order solution, impulse
+  responses and perfect-foresight transitions; `announced` turns a sequence of
+  scenarios into an announced policy. In a one-good closed economy it is the
+  stochastic growth model: same steady state, transition matrices and path, to
+  1e-7. `toy.build_one_good()` is that economy; `Scenario.investment_level`
+  sets real investment under `fixed_real`.
+
 ### Fixed in 0.4
 
 - `homogeneity_test` held a fixed exchange rate at one while it scaled the

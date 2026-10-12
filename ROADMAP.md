@@ -68,7 +68,8 @@ several regions, the result helpers, and the JuMP export replicating all of it. 
 - [x] **Government closures**: a deficit target, revenue-neutral tax replacement
   (`Closure.government_target`, `government_adjusts`), and the fixed saving rate
   (`government="saving_rate"`).
-- [ ] **The bridge to dsgelab** (see *Extensions that call dsgelab*).
+- [x] **The bridge to dsgelab** (see *Extensions that call dsgelab*): `cgelab.bridge`, the
+  Ramsey CGE, with announced policy and first-order aggregate uncertainty.
 
 **0.5 — public release.** No new features. Blocking:
 
@@ -191,8 +192,12 @@ which is where Walras, homogeneity and the base year are already checked. A SAM 
 hundred accounts does not become a DSGE with a few hundred states. The static block is
 substituted out by the period solver, and the perturbation runs in the aggregate states.
 
-**Announced policy.** A tax, a tariff or a carbon price that agents know will change on a
-dated schedule leaves year-1 investment where it was, under `run_path`.
+Status: the bridge is in (`cgelab.bridge`). Announced policy, the forward-looking steady state
+and first-order aggregate uncertainty work through it; risk-adjusted welfare and
+forward-looking migration are still open.
+
+**Announced policy.** Done: `bridge.announced`. A tax, a tariff or a carbon price that agents
+know will change on a dated schedule leaves year-1 investment where it was, under `run_path`.
 `dsgelab.perfect_foresight` already stacks one residual over a horizon and already accepts a
 parameter path of length `T+1`. The extension is that residual calling `solve_period`. The
 instrument stays a `Scenario` field. An emissions account and a carbon-tax field are still the
@@ -205,7 +210,7 @@ spending shock. Impulse responses come from `solve`. Second-order risk correctio
 `solve_second_order`. This does not turn cgelab into an estimation package: the likelihood and
 the Kalman filter stay in dsgelab.
 
-**Risk-adjusted welfare.** `equivalent_variation` compares two deterministic paths. The
+**Risk-adjusted welfare.** Open. `equivalent_variation` compares two deterministic paths. The
 displacement of that variation that comes from aggregate risk, rather than from the mean path,
 is `mean_correction` applied to the household consumption the period equilibrium returns. The
 utility is the one the household block already has, Cobb–Douglas or LES.

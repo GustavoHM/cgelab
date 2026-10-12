@@ -106,7 +106,7 @@ lista até a 1.0; a versão de cada item é a do [`ROADMAP.md`](../ROADMAP.md).
 | Ninhos de energia (KLEM), emissões, imposto de carbono | 📄 ENVISAGE, EPPA, GTAP-E | **feito**: ninho valor adicionado-energia com substituição entre combustíveis, emissões por fonte, preço do carbono no preço do combustível de cada atividade, reciclagem neutra em arrecadação; unidades físicas faltam | 0.4 |
 | Fechamentos do governo | 📄 IFPRI | **feito**: taxa de poupança fixa (a de Hosoe), meta de poupança e receita fixa (substituição neutra em arrecadação), atingidas pelo imposto direto, pelo imposto sobre produtos ou pelo gasto | 0.4 |
 | Poupança externa fixa em moeda estrangeira | 📄 Hosoe, IFPRI | **feito** | 0.2 |
-| Ponte com o `dsgelab` | — | falta | 0.4 |
+| Ponte com o `dsgelab` | — | **feito**: CGE de Ramsey com investimento por Euler; estado estacionário, primeira ordem, previsão perfeita e política anunciada; igual ao modelo de crescimento numa economia de um bem | 0.4 |
 | Mobilidade imperfeita de fatores; informalidade | 📄 IFPRI, ORANI | falta | 0.6 |
 | Elo com microssimulação; Gini e FGT | 📄 prática corrente | falta | 0.6 |
 | Calibração dinâmica da linha de base; capital setorial e safras | 📄 MONASH, GDyn, LINKAGE | falta | 0.6 |

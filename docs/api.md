@@ -426,6 +426,27 @@ Columns `year`, `account`, `cv`.
 
 ---
 
+## Forward-looking investment (`cgelab.bridge`, needs dsgelab)
+
+### `ramsey(econ, closure=None, *, capital_factor="f_cap", depreciation=0.05, discount=0.05, risk_aversion=1.0, scenario=None, tfp_persistence=None) -> (model, params, guess)`
+
+A dsgelab `Model` with state `k` (and `a` with `tfp_persistence`), jump `inv`,
+and the capital-accumulation and Euler residuals, each period solved by
+`solve_period` under `investment="fixed_real"`.
+
+### `announced(params, scenarios) -> list[RamseyParams]`
+
+Per-date parameters for `dsgelab.perfect_foresight`: each date's scenario and the
+next date's.
+
+### `period_at(econ, closure, scenario, k, inv, a=1.0, *, capital_factor="f_cap", user_cost) -> PeriodResult`
+
+The period equilibrium at a capital stock, an investment level and a TFP level.
+
+`Scenario.investment_level` is real investment under `investment="fixed_real"`.
+
+---
+
 ## Emissions
 
 ### `add_emissions(econ, *, intermediate=None, household=None, government=None, process=None, unit="tCO2") -> Economy`

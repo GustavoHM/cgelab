@@ -844,3 +844,57 @@ tests solve both under carbon, tax, productivity and world-price shocks and find
 the same equilibrium. With them above zero, the fuel ratios satisfy the CES
 first-order conditions at the prices each activity paid, carbon included, and a
 higher elasticity cuts emissions more for the same carbon price.
+
+---
+
+## 17. Forward-looking investment, through dsgelab
+
+`run_path` solves one period after another, and no agent looks ahead.
+`cgelab.bridge` builds the other object: a representative household that chooses
+investment by an Euler equation, while every period's equilibrium is still the SAM
+model. [dsgelab](https://github.com/GustavoHM/dsgelab) solves the intertemporal
+part; it never reads the SAM. Install it with `pip install cgelab[dsge]`.
+
+```python
+import dsgelab as dk
+from cgelab import bridge
+
+model, params, guess = bridge.ramsey(econ, depreciation=0.05, discount=0.05)
+ss = dk.steady_state(model, guess, params)              # the model's steady state
+path = dk.perfect_foresight(model, ss, ss, params=params, T=150,
+                            initial_states=[0.75 * ss.values["k"]])
+```
+
+The model has one state, the capital stock `k` (base-year value), and one jump,
+real investment `inv`. Given both, `solve_period` returns the period equilibrium
+under `investment="fixed_real"`, with capital services `uc0 * k` at the base-year
+user cost `uc0 = discount + depreciation` (the conversion `run_path` uses). What
+dsgelab sees is two residuals:
+
+- `k' = (1 - δ) k + inv`;
+- `C^-γ P_I / P_C = β C'^-γ (uc0 r' + (1 - δ) P_I') / P_C'`, with `β = 1/(1 + discount)`.
+
+Here `C` is real household consumption, `P_C` its price, `P_I` the price of the
+investment bundle and `r` the rental price of capital services. A SAM of a few
+hundred accounts does not become a DSGE with a few hundred variables: the static
+block is substituted out by the period solver.
+
+**An announced policy** is a sequence of scenarios, one per date.
+`bridge.announced(params, scenarios)` gives each date its own scenario and the
+next date's, because the Euler equation at `t` solves the period at `t + 1` too.
+A tax announced for date 5 moves investment at date 0. `run_path` cannot do that.
+
+**Aggregate uncertainty.** `tfp_persistence=ρ` adds a TFP state with an AR(1) in
+logs and a shock `eps_a`. `dk.solve` then gives the first-order solution and
+impulse responses, and `dk.solve_second_order` gives risk corrections.
+
+**What it is checked against.** In a one-good closed economy with Cobb–Douglas
+production (`toy.build_one_good()`), the Ramsey CGE is the stochastic growth
+model, and the tests solve both. The steady state is the analytic one (`k = 400`,
+`inv = 20`). The first-order transition matrices agree to 1e-7, and so do the
+first forty periods of the perfect-foresight path.
+
+**The base year is not, in general, a steady state.** It is one only when the
+SAM's investment equals the depreciation of the stock the user cost implies.
+`dk.steady_state` finds the model's own steady state, which is another point, and
+a published table has to say which of the two it reports.

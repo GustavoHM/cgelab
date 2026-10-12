@@ -60,9 +60,13 @@ def homogeneity_test(econ: Economy, closure: Closure | None = None,
     """
     closure = closure or Closure()
     base = solve_period(econ, closure, raise_on_fail=False)
-    scaled = solve_period(econ, Closure(**{**closure.__dict__,
-                                           "numeraire": closure.numeraire * factor}),
-                          raise_on_fail=False)
+    # An exogenous exchange rate is a nominal magnitude too: holding it while the
+    # numeraire scales would move the real exchange rate, and the test would
+    # fail for a reason that is the test's.
+    changes = {"numeraire": closure.numeraire * factor}
+    if not closure.solves_exchange_rate:
+        changes["exchange_rate"] = closure.exchange_rate * factor
+    scaled = solve_period(econ, Closure(**{**closure.__dict__, **changes}), raise_on_fail=False)
     checks = {
         "activity_output": _rel(scaled.X, base.X),
         "commodity_output": _rel(scaled.Q, base.Q),

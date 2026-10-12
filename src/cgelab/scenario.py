@@ -125,6 +125,12 @@ class Scenario:
     #: abroad, and every gain it produced would be counted as theirs.
     fdi: Mapping[str, float] = field(default_factory=dict)
 
+    #: Price of one unit of emissions, in numeraire units. Read only when the
+    #: economy has an emissions account (``add_emissions``). Production pays it
+    #: per unit of output times its emission intensity; households pay it per
+    #: unit of the fuel they buy. Absent, zero.
+    carbon_price: float | None = None
+
     def with_(self, **changes) -> "Scenario":
         """Return a copy with fields replaced -- for building a sweep from a base case."""
         import dataclasses

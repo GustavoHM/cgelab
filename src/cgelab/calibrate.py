@@ -113,6 +113,14 @@ class Economy:
     #: Government saving over government income at the base year, income net
     #: of transfers to households. Read by ``Closure(government="saving_rate")``.
     gov_savrate: float = 0.0
+    #: Government saving and total revenue (taxes and factor income, before
+    #: transfers) at the base year: the default targets of
+    #: ``Closure(government_target="saving")`` and ``"revenue"``.
+    gov_saving0: float = 0.0
+    gov_revenue0: float = 0.0
+    #: Emissions account (:func:`cgelab.emissions.add_emissions`). None: no
+    #: emissions are tracked and a carbon price is refused.
+    emissions: object | None = field(default=None, repr=False)
 
     def zeros_if_none(self, name: str, n: int) -> np.ndarray:
         v = getattr(self, name)
@@ -432,6 +440,8 @@ def calibrate(sam: SAM, spec: ModelSpec | None = None, *,
         fac_gov_share=fac_gov_share, fac_row_share=fac_row_share,
         hh_spend0=hh_com.sum(axis=1), hh_gross0=gross0,
         tm0=tm0, tauz0=tauz0, gov_savrate=gov_savrate,
+        gov_saving0=gov_income0 - float(gov_dem.sum()),
+        gov_revenue0=gov_income0 + float(gov_tr.sum()),
         diagnostics=dict(negative_value_added=negative,
                          negative_value_added_treatment=spec.negative_value_added,
                          n_leontief=int(leontief.sum()),

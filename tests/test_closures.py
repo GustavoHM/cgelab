@@ -84,3 +84,13 @@ def test_an_undetermined_exchange_rate_is_refused():
     assert ck.solve_period(mixed).converged
     cet = ck.calibrate(sam, toy.spec(sigma_armington=1.0, export_rule="cet"))
     assert ck.solve_period(cet).converged
+
+
+def test_homogeneity_under_a_fixed_exchange_rate():
+    """The fixed rate is nominal and scales with the numeraire; the test used to
+    hold it at one and report a failure that was its own."""
+    _, econ = toy.build_with_institutions()
+    for closure in (ck.Closure(foreign="fixed_rate"),
+                    ck.Closure(foreign="fixed_rate", investment="fixed_real")):
+        rep = ck.homogeneity_test(econ, closure)
+        assert rep["ok"], rep["checks"]

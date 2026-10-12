@@ -332,6 +332,23 @@ w["residual"]                                 # ~1e-10: os termos somam a varia�
   tecnologia, um termo alocativo por distorção, termos de troca e conta externa, integrados ao longo
   da trajetória. A medida é a absorção real, com governo e investimento. A parte das famílias é a
   que se compara a uma VE.</p>
+  <h3>15. Um preço de carbono, com reciclagem</h3>
+<pre><code>import pandas as pd
+
+_, inst = toy.build_with_institutions()
+fuel = pd.DataFrame(0.0, index=inst.coms, columns=inst.acts)
+fuel.loc["c_ind", ["a_agr", "a_ind"]] = [3.0, 12.0]          # toneladas queimadas na produção
+green = ck.add_emissions(inst, intermediate=fuel, household={"c_ind": 5.0},
+                         process={"a_ind": 2.0})
+neutral = ck.Closure(government_target="revenue", government_adjusts="product_tax")
+r = ck.solve_period(green, neutral, ck.Scenario(carbon_price=0.5))
+
+ck.emissions(r)["total"]          # 21.79, eram 22 no ano-base
+r.tax_scale                       # 0.26: a receita do carbono paga um corte de 74% nas alíquotas sobre produtos</code></pre>
+  <p>As emissões são uma conta satélite calibrada a partir dos totais do ano-base, por fonte. O
+  preço do carbono é um imposto por unidade de produto, pela intensidade de emissão, nas atividades,
+  e um imposto específico no combustível das famílias. Com meta de receita, outro imposto se move
+  para manter a arrecadação; aqui, o imposto sobre produtos.</p>
 </div></section>
 
 <section id="portarias"><div class="wrap">
@@ -420,7 +437,7 @@ cgelab diagnostics -- Economy(3 activities, 3 commodities, 2 households, 2 facto
   <h3>Uma réplica independente em JuMP</h3>
   <p><code>to_jump</code> escreve o mesmo equilíbrio como modelo JuMP em que nada é aninhado: o
   ponto fixo de preços, a série da reciclagem e a relação entre poupança e arrecadação são
-  restrições comuns, e o Ipopt as resolve de um ponto de partida deslocado. Em 24 casos (margens, curvas de demanda de exportação e de oferta de importação, tarifa e imposto sobre o produto dentro dos preços, o fechamento de Hosoe,
+  restrições comuns, e o Ipopt as resolve de um ponto de partida deslocado. Em 31 casos (margens, curvas de demanda de exportação e de oferta de importação, tarifa e imposto sobre o produto dentro dos preços, o fechamento de Hosoe, metas do governo, preço do carbono,
   conta própria, CET, impostos diretos, transferências, capital estrangeiro, IED, LES e fechamentos
   alternativos), os dois resolvedores concordam a no máximo <code>3e-12</code>. Perturbar os dados
   exportados faz a comparação divergir de 1e-3 a 3e-1, o que mostra que ela enxerga erro.</p>

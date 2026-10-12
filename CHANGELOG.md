@@ -44,6 +44,29 @@ before 1.0, a minor version may add to the API and a patch version only fixes.
   not validated against GTAP, which needs the GTAP database.
 - `cgelab.examples.hosoe.build_simple()`: Hosoe's chapter 5 (`splcge`).
 
+### Added in 0.4
+
+- Government targets (`Closure.government_target`, `government_adjusts`):
+  government saving held fixed (a deficit target) or total revenue held fixed
+  (revenue-neutral tax replacement), met by scaling every direct tax rate, every
+  product tax rate, or government consumption in base-year shares.
+  `PeriodResult.tax_scale` is the factor. The JuMP replica carries the same
+  closures; `Economy.gov_saving0` and `gov_revenue0` are the base-year targets.
+
+- Emissions accounts (`add_emissions`, `emissions`) calibrated from base-year
+  totals by source (combustion in production, household and government fuel
+  use, process), and a carbon price (`Scenario.carbon_price`): a tax per unit of
+  output by emission intensity on activities, a specific tax on household fuel.
+  The revenue is reported by source and recycled by the revenue-neutral
+  closure. GDP, the welfare decomposition, subtotals and the JuMP replica carry
+  it.
+
+### Fixed in 0.4
+
+- `homogeneity_test` held a fixed exchange rate at one while it scaled the
+  numeraire, so every `foreign="fixed_rate"` closure failed the test for a
+  reason that was the test's. The rate is nominal and now scales too.
+
 ### Added toward 0.7
 
 - `read_har` and `write_har`: GEMPACK header array files, the format of the GTAP

@@ -47,7 +47,7 @@ célula **📄** pode estar errada.
 | **Dinâmica recursiva** | ✅ vários estoques de capital, alocação pelo retorno, economia por ano † | — | ✅ laço de iteração temporal | — | ✅ |
 | **Bem-estar: VE e VC** | ✅ | — | — | — | convenção do modelador |
 | Agregação por grupo imune à composição | ✅ | — | — | — | — |
-| **Réplica independente para validação** | ✅ † JuMP/Ipopt, 24 casos | ? | ? | ? | n/a |
+| **Réplica independente para validação** | ✅ † JuMP/Ipopt, 31 casos | ? | ? | ? | n/a |
 | Licença | MIT | ? | CC0-1.0 | ? | proprietária/comercial |
 | Estado declarado pelos autores | — | — | ✅ "muito preliminar… por favor não cite" | livro-texto | maduro |
 
@@ -69,7 +69,7 @@ licença comercial e com as verificações contábeis embutidas, não se achou a
 
 O `cgelab` foi validado de quatro formas:
 
-- contra uma réplica independente em JuMP/Ipopt do mesmo equilíbrio, em 24 casos;
+- contra uma réplica independente em JuMP/Ipopt do mesmo equilíbrio, em 31 casos;
 - contra uma transcrição linha a linha, em JuMP, dos programas `stdcge` e `lrgcge` da
   biblioteca do GAMS (Hosoe, Gasawa e Hashimoto, 2004): a abolição das tarifas coincide nas 49
   variáveis exibidas, a 2,4e-12;
@@ -103,8 +103,8 @@ lista até a 1.0; a versão de cada item é a do [`ROADMAP.md`](../ROADMAP.md).
 | Contas e relatórios: PIB por despesa e renda, índices de preço, termos de troca | 📄 GEMPACK, GTAP | **feito**: PIB pelos dois lados, índices de Laspeyres, Paasche e Fisher, termos de troca, conta do governo | 0.3 |
 | Decomposição do bem-estar (Huff e Hertel) | 📄 GTAP | **feito** para a absorção real, com a identidade fechando abaixo de 1e-9; a comparação com o GTAP espera a base de dados | 0.3 |
 | Multiplicadores da MCS e insumo-produto | 📄 Pyatt e Round; Defourny e Thorbecke | **feito**: contábeis, a preço fixo, Leontief, encadeamentos (Rasmussen e Ghosh), análise de caminhos estruturais | 0.3 |
-| Ninhos de energia (KLEM), emissões, imposto de carbono | 📄 ENVISAGE, EPPA, GTAP-E | falta | 0.4 |
-| Fechamentos do governo | 📄 IFPRI | taxa de poupança do governo fixa (a de Hosoe) feita; meta de déficit e substituição de tributos neutra em arrecadação faltam | 0.4 |
+| Ninhos de energia (KLEM), emissões, imposto de carbono | 📄 ENVISAGE, EPPA, GTAP-E | emissões por fonte e preço do carbono feitos, com reciclagem neutra em arrecadação; ninho KLEM e unidades físicas faltam | 0.4 |
+| Fechamentos do governo | 📄 IFPRI | **feito**: taxa de poupança fixa (a de Hosoe), meta de poupança e receita fixa (substituição neutra em arrecadação), atingidas pelo imposto direto, pelo imposto sobre produtos ou pelo gasto | 0.4 |
 | Poupança externa fixa em moeda estrangeira | 📄 Hosoe, IFPRI | **feito** | 0.2 |
 | Ponte com o `dsgelab` | — | falta | 0.4 |
 | Mobilidade imperfeita de fatores; informalidade | 📄 IFPRI, ORANI | falta | 0.6 |

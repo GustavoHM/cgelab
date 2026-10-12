@@ -29,6 +29,7 @@ from .calibrate import Economy, calibrate
 from .closure import Closure
 from .decompose import path_decomposition, scenario_vector, subtotals, welfare_decomposition
 from .diagnostics import base_year_reproduction, homogeneity_test, report, walras_check
+from .emissions import Emissions, add_emissions, emissions
 from .export import to_jump
 from .har import read_har, write_har
 from .dynamics import Growth, PathResult, run_path
@@ -58,6 +59,7 @@ __all__ = [
     "equivalent_variation", "ev_by_group", "compensating_variation",
     "base_year_reproduction", "homogeneity_test", "walras_check", "report",
     "to_jump", "read_har", "write_har",
+    "Emissions", "add_emissions", "emissions",
     "factor_demand_by_activity", "real_gdp", "sectoral_path",
     "national_accounts", "price_indices", "government_account",
     "Multipliers", "accounting_multipliers", "fixed_price_multipliers", "leontief_multipliers",

@@ -59,6 +59,20 @@ class Closure:
     #: model, so a depreciation raises what it finances at home.
     foreign_saving_unit: str = "numeraire"
 
+    #: A target for the government account. ``None`` -- government saving is
+    #: whatever revenue and spending leave (the default). ``"saving"`` -- it is
+    #: held at ``government_target_value`` (the base-year saving when None): a
+    #: deficit target. ``"revenue"`` -- total revenue is held there instead, so a
+    #: scenario that cuts one tax has another make up the receipts:
+    #: revenue-neutral tax replacement. Both are in numeraire units.
+    government_target: str | None = None
+    government_target_value: float | None = None
+    #: What moves to meet the target: ``"direct_tax"`` (every household's
+    #: direct tax rate, scaled by one common factor), ``"product_tax"`` (every
+    #: product tax rate, consumer and firm, scaled likewise) or ``"spending"``
+    #: (government consumption, in base-year value shares; saving target only).
+    government_adjusts: str = "direct_tax"
+
     #: Exogenous exchange rate, used only under ``foreign="fixed_rate"``.
     exchange_rate: float = 1.0
 
@@ -100,6 +114,21 @@ class Closure:
             got = getattr(self, name)
             if got not in allowed:
                 raise ValueError(f"closure.{name} must be one of {allowed}, got {got!r}")
+        if self.government_target not in (None, "saving", "revenue"):
+            raise ValueError("closure.government_target must be None, 'saving' or 'revenue', "
+                             f"got {self.government_target!r}")
+        if self.government_adjusts not in ("direct_tax", "product_tax", "spending"):
+            raise ValueError("closure.government_adjusts must be 'direct_tax', 'product_tax' "
+                             f"or 'spending', got {self.government_adjusts!r}")
+        if self.government_target is not None and self.government_adjusts == "spending":
+            if self.government_target == "revenue":
+                raise ValueError(
+                    "a revenue target needs a tax to move: spending does not change revenue. "
+                    "Use government_adjusts='direct_tax' or 'product_tax'.")
+            if self.government == "saving_rate":
+                raise ValueError(
+                    "government='saving_rate' already sets spending from income; a saving "
+                    "target met by spending would be a second rule for the same quantity.")
         if self.labour == "wage_curve":
             if not 0.0 < self.natural_unemployment < 1.0:
                 raise ValueError(
@@ -125,6 +154,8 @@ class Closure:
     def describe(self) -> str:
         text = (f"numeraire={self.numeraire:g}; investment={self.investment}; "
                 f"government={self.government}; foreign={self.foreign}")
+        if self.government_target is not None:
+            text += f"; government {self.government_target} target, {self.government_adjusts} adjusts"
         if self.foreign_saving_unit != "numeraire":
             text += f" ({self.foreign_saving_unit})"
         if self.labour != "full_employment":

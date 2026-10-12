@@ -122,7 +122,7 @@ Ordered name lists `acts`, `coms`, `hhs`, `factors`; counts `n_act`, `n_com`,
 
 ## Closure and scenario
 
-### `Closure(numeraire=1.0, investment="savings_driven", government="real_fixed", foreign="fixed_saving", foreign_saving_unit="numeraire", exchange_rate=1.0, tolerance=1e-9)`
+### `Closure(numeraire=1.0, investment="savings_driven", government="real_fixed", foreign="fixed_saving", foreign_saving_unit="numeraire", government_target=None, government_target_value=None, government_adjusts="direct_tax", exchange_rate=1.0, tolerance=1e-9)`
 
 `investment` ∈ `{"savings_driven", "fixed_real"}`;
 `government` ∈ `{"real_fixed", "nominal_fixed", "saving_rate"}`, the last saving
@@ -130,6 +130,11 @@ Ordered name lists `acts`, `coms`, `hhs`, `factors`; counts `n_act`, `n_com`,
 `foreign` ∈ `{"fixed_saving", "fixed_rate"}`;
 `foreign_saving_unit` ∈ `{"numeraire", "foreign_currency"}`, the unit in which
 `fixed_saving` holds foreign saving;
+`government_target` ∈ `{None, "saving", "revenue"}`, held at
+`government_target_value` (base year when None, numeraire units), met by
+`government_adjusts` ∈ `{"direct_tax", "product_tax", "spending"}` (spending for a
+saving target only); the common factor on the adjusting rates is
+`PeriodResult.tax_scale`;
 `labour` ∈ `{"full_employment", "fixed_real_wage", "wage_curve", "elastic_supply"}`.
 
 `full_employment` is the default and clears every factor market. The other three
@@ -160,6 +165,7 @@ Properties: `solves_exchange_rate`, `describe()`.
 | `export_price` | `(nc,)` | world export price multipliers; `export_rule="cet"` only, refused otherwise; under `ModelSpec.export_demand`, the shift of the demand curve |
 | `investment_mix` | `(nc,)` | commodity shares of the investment budget, summing to one; absent, the base-year mix |
 | `foreign_factor_share` | `(nf,)` | share of each factor owned abroad, overriding the SAM's; `run_path` sets it from the capital it tracks |
+| `carbon_price` | scalar | price per unit of emissions, numeraire units; needs an emissions account |
 | `fdi` | mapping | `{capital factor: amount}` in numeraire units: raises foreign saving, and `run_path` adds the capital it buys to the foreign-owned stock |
 
 `sc.with_(**changes)` returns a copy with fields replaced.
@@ -415,6 +421,29 @@ summing real incomes within the group **before** taking the ratio.
 ### `compensating_variation(reference, alternative) -> DataFrame`
 
 Columns `year`, `account`, `cv`.
+
+---
+
+## Emissions
+
+### `add_emissions(econ, *, intermediate=None, household=None, government=None, process=None, unit="tCO2") -> Economy`
+
+An `Economy` with an emissions account calibrated from base-year totals:
+`intermediate` commodities × activities, `household` and `government` by
+commodity, `process` by activity.
+
+### `emissions(period) -> Series`
+
+`intermediate`, `household`, `government`, `process` and `total` for a solved
+period.
+
+### `Emissions`
+
+`intermediate`, `household`, `government`, `process` coefficients per unit of the
+base-year quantity of each flow; `intensity(io_eff)` per unit of activity output.
+
+`Scenario.carbon_price` prices one unit of emissions in numeraire units; the
+revenue is `carbon_production` and `carbon_households` in `PeriodResult.government`.
 
 ---
 

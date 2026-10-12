@@ -299,6 +299,23 @@ Walras residual rather than a solver failure.
 | `government="saving_rate"` | the share of its income government saves | public spending, in base-year value shares |
 | `foreign_saving_unit="foreign_currency"` | foreign saving in dollars, under `fixed_saving` | what it finances at home moves with the exchange rate |
 
+**Government targets.** `government_target="saving"` holds government saving at
+its base-year level (or at `government_target_value`, in numeraire units): a
+deficit target. `government_target="revenue"` holds total revenue instead, so
+that a scenario that cuts one tax has another make the receipts up:
+revenue-neutral tax replacement. `government_adjusts` names what moves. With
+`"direct_tax"`, every household's direct tax rate is scaled by one common factor.
+With `"product_tax"`, every product tax rate (consumer and firm) is scaled the same
+way. With `"spending"`, government consumption moves in base-year value shares;
+that works under a saving target only, because spending does not change revenue.
+The factor is `PeriodResult.tax_scale`.
+
+```python
+swap = ck.Closure(government_target="revenue", government_adjusts="direct_tax")
+r = ck.solve_period(econ, swap, ck.Scenario(product_tax=econ.ptax * 0.5))
+r.tax_scale        # 1.55 on the institutions toy: direct tax rates rise 55%
+```
+
 `government="saving_rate"` and `foreign_saving_unit="foreign_currency"` together are
 the closure of Hosoe's `stdcge` (`cgelab.examples.hosoe.CLOSURE`). Under them a
 tariff abolition cuts public consumption by the lost revenue, and the depreciation
@@ -750,3 +767,50 @@ and `.pkg` files.
 
 Aggregating GTAP and building a one-region SAM from it are the next steps, with
 the regional work of 0.7.
+
+---
+
+## 16. Emissions and a carbon price
+
+An emissions account is data, calibrated from base-year totals like the SAM:
+
+```python
+econ = ck.add_emissions(econ,
+    intermediate=fuel_by_activity,     # DataFrame, commodities x activities: combustion in production
+    household={"c_fuel": 5.0},         # by commodity bought
+    government={"c_fuel": 1.0},
+    process={"a_cement": 2.0})         # per unit of output, whatever the inputs
+ck.emissions(ck.solve_period(econ))    # the totals again, by source
+```
+
+Each coefficient is a total divided by the base-year quantity of its flow, so the
+base year returns the totals. A total on a flow the SAM records as zero has no
+quantity to attach to, and is refused.
+
+`Scenario(carbon_price=p)` is a specific tax, in numeraire units per unit of
+emissions:
+
+- **On production,** it is a tax per unit of output equal to `p` times the
+  activity's emission intensity at the scenario's input coefficients. With Leontief
+  intermediates, taxing the fuel an activity burns and taxing its output by that
+  fuel's emissions are the same thing, and the test
+  `test_on_production_it_is_an_activity_tax_by_emission_intensity` solves both and
+  finds the same equilibrium. KLEM nesting, next on the roadmap, will make fuel use
+  answer to the price.
+- **On households,** it is a specific tax on the fuel they buy.
+- **Government's own fuel use** emits and is not taxed, because it would pay the
+  tax to itself.
+
+The revenue goes to government, as `carbon_production` and `carbon_households` in
+the government account. A revenue-neutral closure recycles it:
+
+```python
+neutral = ck.Closure(government_target="revenue", government_adjusts="product_tax")
+r = ck.solve_period(econ, neutral, ck.Scenario(carbon_price=0.5))
+r.tax_scale        # product tax rates scaled down by what the carbon tax raises
+```
+
+GDP from both sides, the welfare decomposition (with an `allocative_carbon_tax`
+term, the price times the change in emissions) and subtotals all carry the carbon
+price. The JuMP replica carries it too, with the household block written out per
+household and commodity when households pay it.

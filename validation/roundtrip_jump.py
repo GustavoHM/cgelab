@@ -7,7 +7,7 @@ e uma inversão de Leontief. Cada uma é uma dedução do autor. Em JuMP nada di
 bloco é uma restrição e o Ipopt encontra o ponto fixo. Um erro na álgebra do Python não pode,
 portanto, ser reproduzido do outro lado por construção.
 
-Roda 24 casos sobre as economias de brinquedo do pacote: sem margens, com bloco de margens, com
+Roda 31 casos sobre as economias de brinquedo do pacote: sem margens, com bloco de margens, com
 atividade de conta própria, com CET, com curvas de demanda de exportação e de oferta de
 importação (país grande, como o `lrgcge`), com tarifa e imposto sobre o produto dentro dos preços
 (como o `stdcge`), com instituições (impostos diretos, transferências, remessas,
@@ -26,6 +26,7 @@ import sys
 from pathlib import Path
 
 import numpy as np
+import pandas as pd
 
 import cgelab as ck
 from cgelab.examples import hosoe, toy
@@ -177,6 +178,36 @@ def main() -> int:
     casos["instituicoes_cet_ied"] = caso(
         "instituicoes_cet_ied", econ, ck.Closure(),
         ck.Scenario(name="cet_ied", export_price=np.array([1.1, 1.0]), fdi={"f_cap": 3.0}))
+
+    # Metas do governo: poupança ou receita fixas, atingidas por um tributo ou pelo gasto
+    _, econ = toy.build_with_institutions()
+    corte = ck.Scenario(name="corte", product_tax=econ.ptax * 0.5)
+    for alvo, ajusta in (("saving", "direct_tax"), ("saving", "spending"),
+                         ("revenue", "direct_tax")):
+        casos[f"meta_{alvo}_{ajusta}"] = caso(
+            f"meta_{alvo}_{ajusta}", econ,
+            ck.Closure(government_target=alvo, government_adjusts=ajusta), corte)
+    casos["meta_revenue_product_tax"] = caso(
+        "meta_revenue_product_tax", econ,
+        ck.Closure(government_target="revenue", government_adjusts="product_tax",
+                   investment="fixed_real"),
+        ck.Scenario(name="dotacao", factor_supply=econ.fac_supply * np.array([1.05, 1.0])))
+
+    # Emissões e preço do carbono: nas atividades (imposto por unidade de produto) e nas famílias
+    # (imposto específico, bloco de famílias expandido no JuMP)
+    for etiqueta, spec_ in (("cd", toy.spec()), ("les", toy.spec(household_demand="les"))):
+        _, econ = toy.build_with_institutions(model_spec=spec_)
+        inter = pd.DataFrame(0.0, index=econ.coms, columns=econ.acts)
+        inter.loc["c_ind", "a_agr"], inter.loc["c_ind", "a_ind"] = 3.0, 12.0
+        econ = ck.add_emissions(econ, intermediate=inter, household={"c_ind": 5.0},
+                                government={"c_ind": 1.0}, process={"a_ind": 2.0})
+        casos[f"carbono_{etiqueta}"] = caso(f"carbono_{etiqueta}", econ, ck.Closure(),
+                                           ck.Scenario(name="carbono", carbon_price=0.5))
+    casos["carbono_neutro"] = caso(
+        "carbono_neutro", econ,
+        ck.Closure(government_target="revenue", government_adjusts="direct_tax"),
+        ck.Scenario(name="carbono", carbon_price=0.5,
+                    productivity=np.array([1.0, 1.04])))
 
     _, econ = toy.build()
     casos["fechamento_alternativo"] = caso(

@@ -332,6 +332,23 @@ w["residual"]                                 # ~1e-10: the terms add up to the 
   one allocative term per distortion, terms of trade and the external account, integrated along the
   path. The measure is real absorption, government and investment included. Its household part is
   the one to set against an EV.</p>
+  <h3>15. A carbon price, recycled</h3>
+<pre><code>import pandas as pd
+
+_, inst = toy.build_with_institutions()
+fuel = pd.DataFrame(0.0, index=inst.coms, columns=inst.acts)
+fuel.loc["c_ind", ["a_agr", "a_ind"]] = [3.0, 12.0]          # tonnes burnt in production
+green = ck.add_emissions(inst, intermediate=fuel, household={"c_ind": 5.0},
+                         process={"a_ind": 2.0})
+neutral = ck.Closure(government_target="revenue", government_adjusts="product_tax")
+r = ck.solve_period(green, neutral, ck.Scenario(carbon_price=0.5))
+
+ck.emissions(r)["total"]          # 21.79, from 22 at the base year
+r.tax_scale                       # 0.26: the carbon revenue pays for cutting product tax rates by 74%</code></pre>
+  <p>Emissions are a satellite account calibrated from base-year totals by source. A carbon price
+  is a tax per unit of output by emission intensity on activities and a specific tax on household
+  fuel. Under a revenue target, another tax moves to keep receipts where they were; here it is the
+  product tax.</p>
 </div></section>
 
 <section id="gates"><div class="wrap">
@@ -418,7 +435,7 @@ cgelab diagnostics -- Economy(3 activities, 3 commodities, 2 households, 2 facto
   <h3>An independent JuMP replica</h3>
   <p><code>to_jump</code> writes the same equilibrium as a JuMP model in which nothing is nested: the
   price fixed point, the wedge series and the saving–revenue relation are plain constraints, and
-  Ipopt solves them from a displaced start. In 24 cases (margins, own-account activities, CET, export demand and import supply curves, tariffs and output taxes inside the prices, Hosoe's closure, direct
+  Ipopt solves them from a displaced start. In 31 cases (margins, own-account activities, CET, export demand and import supply curves, tariffs and output taxes inside the prices, Hosoe's closure, government targets, a carbon price, direct
   taxes, transfers, foreign capital, FDI, LES and alternative closures) the two solvers agree to at
   most <code>3e-12</code>. Perturbing the exported data makes the comparison diverge by 1e-3 to
   3e-1, which shows it can see an error.</p>

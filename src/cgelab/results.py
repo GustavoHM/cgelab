@@ -127,6 +127,11 @@ def _wedges(period):
     return W, Wg
 
 
+def _carbon(period):
+    from .emissions import carbon_wedges
+    return carbon_wedges(period)
+
+
 def _components(period) -> dict:
     """Final demand at current prices, as ``{component: (prices, quantities)}``.
 
@@ -136,7 +141,7 @@ def _components(period) -> dict:
     """
     econ = period.econ
     W, Wg = _wedges(period)
-    eff = period.pq[None, :] * (1.0 + W + Wg)
+    eff = period.pq[None, :] * (1.0 + W + Wg) + _carbon(period)[1][None, :]
     own_q = econ.hh_direct.sum(axis=0) * _activity_scale(period)
     keep = own_q != 0
     return {
@@ -184,15 +189,17 @@ def national_accounts(period: PeriodResult) -> dict:
     W, Wg = _wedges(period)
     g = period.government
     wedges = float((period.hh_quantity * (W + Wg) * period.pq[None, :]).sum())
-    product_taxes = g["product_tax"] + g["tariff"] + g["output_tax"] + wedges
+    product_taxes = (g["product_tax"] + g["tariff"] + g["output_tax"] + wedges
+                     + g["carbon_households"])
     factor_income = float(period.factor_prices @ period.factor_demand)
-    income = factor_income + product_taxes + g["activity_tax"]
+    production_taxes = g["activity_tax"] + g["carbon_production"]
+    income = factor_income + product_taxes + production_taxes
     return {
         **value,
         "gdp_expenditure": expenditure,
         "factor_income": factor_income,
         "taxes_on_products": product_taxes,
-        "taxes_on_production": g["activity_tax"],
+        "taxes_on_production": production_taxes,
         "gdp_income": income,
         "gap": expenditure - income,
         "factor_income_abroad": float(period.factor_income_abroad),
@@ -248,7 +255,8 @@ def government_account(period: PeriodResult) -> pd.Series:
     with, so ``saving`` is the government saving the equilibrium financed
     investment with.
     """
-    order = ["product_tax", "activity_tax", "tariff", "output_tax", "direct_tax",
+    order = ["product_tax", "activity_tax", "carbon_production", "carbon_households",
+             "tariff", "output_tax", "direct_tax",
              "factor_income", "wedge", "revenue", "transfers", "consumption",
              "absorbed", "saving"]
     return pd.Series({k: period.government[k] for k in order}, name="government")

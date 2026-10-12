@@ -60,10 +60,12 @@ several regions, the result helpers, and the JuMP export replicating all of it. 
 
 **0.4 — energy and the bridge to dsgelab.**
 
-- [ ] **KLEM nesting**, **emissions accounts**, a **carbon tax** with revenue recycling, and
-  **physical units for energy** (see *Then: model structure*).
-- [ ] **Government closures**: a deficit target, revenue-neutral tax replacement. A fixed
-  saving rate (`government="saving_rate"`) is in.
+- [x] **Emissions accounts** and a **carbon tax** with revenue recycling (`add_emissions`,
+  `Scenario.carbon_price`, the revenue-neutral closure).
+- [ ] **KLEM nesting** and **physical units for energy** (see *Then: model structure*).
+- [x] **Government closures**: a deficit target, revenue-neutral tax replacement
+  (`Closure.government_target`, `government_adjusts`), and the fixed saving rate
+  (`government="saving_rate"`).
 - [ ] **The bridge to dsgelab** (see *Extensions that call dsgelab*).
 
 **0.5 — public release.** No new features. Blocking:
@@ -128,9 +130,6 @@ be modelled by changing coefficients by hand. That is what an applied model does
 parity price the user has to pick. A configurable
 KLEM nest (capital–energy, then energy between fuels, with CES elasticities) would make fuel
 substitution a response to prices.
-
-**Emissions accounts.** A satellite account of emission coefficients (per unit of fuel used and
-per unit of activity output), reported along a path, plus a carbon tax as a scenario field. An applied model has to account for CO₂ outside it.
 
 **Physical units for energy.** Linking a sector's monetary output to a physical quantity (kWh of electricity, kg of a fuel) would let a physical input be fixed per unit and a capacity be stated in
 tonnes. An applied model has to impose such a coefficient itself.

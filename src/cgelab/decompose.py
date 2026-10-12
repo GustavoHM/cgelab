@@ -54,7 +54,9 @@ _DEFAULTS = {
     "export_price": lambda e: np.ones(e.n_com),
     "factor_ownership": lambda e: e.hh_facshare,
     "foreign_factor_share": lambda e: e.zeros_if_none("fac_row_share", e.n_fac),
+    "carbon_price": lambda e: 0.0,
 }
+_SCALARS = ("government_absorbs", "carbon_price")
 _MAPPINGS = ("activity_scale", "fdi")
 
 
@@ -159,11 +161,27 @@ def _to_scenario(base: Scenario, x: dict, mapping_keys: dict, active: set) -> Sc
     # an instrument the model refuses (export_price under fixed shares) is never
     # handed to it at its neutral value.
     changes = {k: v for k, v in x.items() if "[" not in k and k in active}
-    if "government_absorbs" in changes:
-        changes["government_absorbs"] = float(changes["government_absorbs"])
+    for name in _SCALARS:
+        if name in changes:
+            changes[name] = float(changes[name])
     for name in _MAPPINGS:
         changes[name] = {key: float(x[f"{name}[{key}]"]) for key in mapping_keys[name]}
     return dataclasses.replace(base, **changes)
+
+
+def _refuse_rules_that_differ(reference: Scenario, alternative: Scenario) -> None:
+    """Every Scenario field is either on the path or must agree between the ends.
+
+    A field this module does not know as numeric is treated as a rule; if it
+    differs, the decomposition would solve both ends without it and report
+    nothing, which is worse than an error.
+    """
+    fixed = [f.name for f in dataclasses.fields(Scenario)
+             if f.name not in _DEFAULTS and f.name not in _MAPPINGS and f.name != "name"]
+    differ = [n for n in fixed if getattr(reference, n) != getattr(alternative, n)]
+    if differ:
+        raise ValueError(f"{differ} differ between the scenarios and are not numbers; "
+                         f"there is no path between them")
 
 
 def subtotals(econ, reference: Scenario, alternative: Scenario,
@@ -184,12 +202,7 @@ def subtotals(econ, reference: Scenario, alternative: Scenario,
     """
     from .solve import solve_period
 
-    fixed = [f.name for f in dataclasses.fields(Scenario)
-             if f.name not in _DEFAULTS and f.name not in _MAPPINGS and f.name != "name"]
-    differ = [n for n in fixed if getattr(reference, n) != getattr(alternative, n)]
-    if differ:
-        raise ValueError(f"{differ} differ between the scenarios and are not numbers; "
-                         f"there is no path between them")
+    _refuse_rules_that_differ(reference, alternative)
     firm = reference.product_tax_firm is not None or alternative.product_tax_firm is not None
     x0 = scenario_vector(econ, reference, firm_rate=firm)
     x1 = scenario_vector(econ, alternative, firm_rate=firm)
@@ -244,6 +257,11 @@ def _rates(econ, period):
     sc = period.scenario
     ptax_a = econ.ptax if sc.product_tax is None else np.asarray(sc.product_tax, float)
     ptax_f = ptax_a if sc.product_tax_firm is None else np.asarray(sc.product_tax_firm, float)
+    # Under a government target the adjusting tax's rates are the scenario's
+    # times the factor the solver found; the decomposition must use those.
+    closure = period.closure
+    if closure.government_target is not None and closure.government_adjusts == "product_tax":
+        ptax_a, ptax_f = ptax_a * period.tax_scale, ptax_f * period.tax_scale
     W = (np.zeros((econ.n_hh, econ.n_com)) if sc.consumer_wedge is None
          else np.asarray(sc.consumer_wedge, float))
     Wg = (np.zeros_like(W) if sc.government_wedge is None
@@ -263,6 +281,12 @@ def _welfare_state(period) -> dict:
     econ = period.econ
     r = _rates(econ, period)
     nu = period.closure.numeraire
+    from .emissions import carbon_wedges
+    carb_act, carb_hh = carbon_wedges(period)
+    price = 0.0 if period.scenario.carbon_price is None else (
+        float(period.scenario.carbon_price) * nu)
+    em_act = carb_act * period.X / price if price else np.zeros(econ.n_act)
+    carb_proc = price * econ.emissions.process if price else np.zeros(econ.n_act)
     fin = period.hh_quantity.sum(axis=0) + period.gov_quantity
     return dict(
         hh_q=period.hh_quantity, own=r["own"], gov_q=period.gov_quantity,
@@ -277,7 +301,9 @@ def _welfare_state(period) -> dict:
         er=period.exchange_rate, FS=period.foreign_saving, row=period.factor_income_abroad,
         log_tfp=np.log(r["tfp"]),
         # prices and rates at this point
-        eff=period.pq[None, :] * (1.0 + r["W"] + r["Wg"]), pa=period.pa, pq=period.pq,
+        eff=period.pq[None, :] * (1.0 + r["W"] + r["Wg"]) + carb_hh[None, :], pa=period.pa,
+        pq=period.pq, carb_act=carb_act, carb_hh=carb_hh, carbon=price, em_act=em_act,
+        carb_proc=carb_proc,
         pqf=period.pqf, pbase=period.pbase, pd=period.pd, w=period.factor_prices,
         ptax_a=r["ptax_a"], ptax_f=r["ptax_f"], wedge=r["W"] + r["Wg"], tm=r["tm"],
         tauz=r["tauz"], atax=econ.atax * nu,
@@ -285,7 +311,7 @@ def _welfare_state(period) -> dict:
 
 
 _WELFARE_TERMS = ["endowment", "technology", "allocative_product_tax",
-                  "allocative_consumer_wedge", "allocative_activity_tax",
+                  "allocative_consumer_wedge", "allocative_activity_tax", "allocative_carbon_tax",
                   "allocative_tariff", "allocative_output_tax", "terms_of_trade",
                   "external_account"]
 
@@ -303,11 +329,18 @@ def _welfare_integrand(s: dict, d: dict) -> dict:
         "absorption": sum(parts.values()),
         **{f"absorption_{k}": v for k, v in parts.items()},
         "endowment": float(s["w"] @ d["F"]),
-        "technology": float(((s["pa"] - s["atax"]) * s["X"]) @ d["log_tfp"]),
+        # Every input cost that productivity scales, the carbon tax on the fuel
+        # among them; not the activity tax or process carbon, which are per unit
+        # of output whatever the inputs.
+        "technology": float(((s["pa"] - s["atax"] - s["carb_proc"]) * s["X"]) @ d["log_tfp"]),
         "allocative_product_tax": float((s["pbase"] * (s["ptax_f"] * d["firm"]
                                                        + s["ptax_a"] * d["fin"])).sum()),
         "allocative_consumer_wedge": float((s["wedge"] * s["pq"][None, :] * d["hh_q"]).sum()),
         "allocative_activity_tax": float(s["atax"] @ d["X"]),
+        # The taxed quantity is the emission itself, so productivity that cuts
+        # fuel per unit of output counts here as well as a change in output.
+        "allocative_carbon_tax": float(s["carbon"] * d["em_act"].sum()
+                                       + s["carb_hh"] @ d["hh_q"].sum(axis=0)),
         "allocative_tariff": (0.0 if s["tm"] is None
                               else float((s["tm"] * pm_b) @ d["M"])),
         "allocative_output_tax": (0.0 if s["tauz"] is None
@@ -355,6 +388,7 @@ def welfare_decomposition(econ, reference: Scenario, alternative: Scenario, *, c
     """
     from .solve import solve_period
 
+    _refuse_rules_that_differ(reference, alternative)
     firm = reference.product_tax_firm is not None or alternative.product_tax_firm is not None
     x0 = scenario_vector(econ, reference, firm_rate=firm)
     x1 = scenario_vector(econ, alternative, firm_rate=firm)
@@ -387,7 +421,7 @@ def welfare_decomposition(econ, reference: Scenario, alternative: Scenario, *, c
         up, down = _welfare_state(solve(t + step, mid)), _welfare_state(solve(t - step, mid))
         d = {k: (np.asarray(up[k], float) - np.asarray(down[k], float)) / (2 * step)
              for k in ("hh_q", "own", "gov_q", "inv_q", "fin", "firm", "X", "Q", "M", "E",
-                       "F", "pWe", "pWm", "er", "FS", "row", "log_tfp")}
+                       "F", "pWe", "pWm", "er", "FS", "row", "log_tfp", "em_act")}
         for k, v in _welfare_integrand(s, d).items():
             total[k] += w * v
     out = pd.Series(total, name="welfare")

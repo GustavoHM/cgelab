@@ -137,6 +137,13 @@ def to_jump(econ: Economy, closure: Closure | None = None, scenario: Scenario | 
     psi_json[curve_m] = psi_m[curve_m]
 
     io_eff = econ.io / tfp[None, :]
+    # Preço do carbono: por unidade de produto nas atividades (vai no imposto específico) e por
+    # unidade comprada nas famílias. Em unidades do numerário.
+    if sc.carbon_price is not None and econ.emissions is None:
+        raise ValueError("Scenario.carbon_price needs an emissions account: see add_emissions")
+    carbono = 0.0 if sc.carbon_price is None else float(sc.carbon_price) * closure.numeraire
+    carb_atv = carbono * econ.emissions.intensity(io_eff) if carbono else np.zeros(na)
+    carb_fam = carbono * econ.emissions.household if carbono else np.zeros(nc)
     vunit_eff = econ.vunit / tfp
     aunit_eff = econ.aunit / tfp[None, :]
 
@@ -164,7 +171,8 @@ def to_jump(econ: Economy, closure: Closure | None = None, scenario: Scenario | 
         export_demand=_l(eta_json), import_supply=_l(psi_json),
         exp0=_l(econ.exp0), imp0=_l(econ.imp0),
         # tributos
-        ptax_a=_l(ptax_a), ptax_f=_l(ptax_f), ptax_base=_l(econ.ptax), atax=_l(econ.atax * nu),
+        ptax_a=_l(ptax_a), ptax_f=_l(ptax_f), ptax_base=_l(econ.ptax),
+        atax=_l(econ.atax * nu + carb_atv), carbon_household=_l(carb_fam),
         tm=_l(_instrument(econ.tm0, sc.tariff, nc, "tariff")),
         tm0=_l(np.zeros(nc) if econ.tm0 is None else econ.tm0),
         tauz=_l(_instrument(econ.tauz0, sc.output_tax, nc, "output_tax")),
@@ -197,6 +205,13 @@ def to_jump(econ: Economy, closure: Closure | None = None, scenario: Scenario | 
                           * (1.0 if closure.foreign_saving_unit == "foreign_currency" else nu)),
         foreign_saving_unit=closure.foreign_saving_unit,
         gov_savrate=float(econ.gov_savrate),
+        government_target=closure.government_target,
+        government_adjusts=closure.government_adjusts,
+        government_target_value=float(
+            ({"saving": econ.gov_saving0, "revenue": econ.gov_revenue0}.get(
+                closure.government_target, 0.0)
+             if closure.government_target_value is None
+             else closure.government_target_value) * nu),
         gov_w=_l(econ.gov_dem / max(float(econ.gov_dem.sum()), 1e-300)),
         # instituições: imposto direto, transferências (em unidades do numerário) e a parte da
         # renda de cada fator que vai ao governo e ao exterior
@@ -370,13 +385,25 @@ for c in 1:nc
     eta_x[c] > 0 || fix(pwe[c], wpe[c]; force = true)
     psi_m[c] > 0 || fix(pwm[c], wp[c]; force = true)
 end
+# Meta do governo atingida por um tributo: um fator comum sobre as alíquotas dele é variável.
+const GTARGET = d.government_target === nothing ? "" : String(d.government_target)
+const GADJ = String(d.government_adjusts)
+const TAX_LEVER = GTARGET != "" && GADJ != "spending"
+if TAX_LEVER
+    @variable(m, tscale >= 1e-6, start = 1.0)
+else
+    @expression(m, tscale, 1.0)
+end
+ta(c) = TAX_LEVER && GADJ == "product_tax" ? ptax_a[c] * tscale : ptax_a[c]
+tf(c) = TAX_LEVER && GADJ == "product_tax" ? ptax_f[c] * tscale : ptax_f[c]
+td(h) = TAX_LEVER && GADJ == "direct_tax" ? dtax[h] * tscale : dtax[h]
 if d.investment == "fixed_real"
     @variable(m, levy, start = 0.0)          # poupança forçada que financia o investimento fixo
 else
     @expression(m, levy, 0.0)
 end
 
-@expression(m, pq[c = 1:nc], pbase[c] * (1 + ptax_a[c]))     # preço ao consumidor FINAL
+@expression(m, pq[c = 1:nc], pbase[c] * (1 + ta(c)))     # preço ao consumidor FINAL
 # Índice de Laspeyres dos preços ao comprador. No ano-base vale o numerário, e o salário real é
 # o salário nominal dividido por ele. Os pesos são as quantidades do ano-base.
 @expression(m, P, sum(pq[c] * q_lasp[c] for c in 1:nc) / sum(pq0_lasp[c] * q_lasp[c] for c in 1:nc))
@@ -420,7 +447,7 @@ else
     @expression(m, expfrac[c = 1:nc], expsh[c])
     @expression(m, pexp[c = 1:nc], pgross[c])
 end
-@expression(m, pqf[c = 1:nc], pbase[c] * (1 + ptax_f[c]))    # preço à FIRMA (parcela não creditável)
+@expression(m, pqf[c = 1:nc], pbase[c] * (1 + tf(c)))    # preço à FIRMA (parcela não creditável)
 
 # ---- 1. preço do valor adicionado: CES sobre fatores, Leontief onde o excedente é negativo
 for j in 1:na
@@ -465,12 +492,32 @@ end
                           + gov_tr[h] + remit[h])
 # O gasto sai da renda DISPONÍVEL: imposto direto primeiro, poupança depois.
 @constraint(m, [h = 1:nh],
-            spend[h] == hh_income[h] * (1 - dtax[h]) * (1 - savrate[h]) - direct[h])
+            spend[h] == hh_income[h] * (1 - td(h)) * (1 - savrate[h]) - direct[h])
 
 # O bloco de famílias vai AGREGADO. Os coeficientes `coef = share/(1+W+Wg)` e as frações
 # capturadas `g_cap`, `g_gov` são constantes, calculadas na exportação, de modo que a demanda são
 # n_com somas lineares e não n_dom x n_com expressões não lineares. Com a forma expandida o Ipopt
 # não converge a frio numa MCS aplicada de algumas centenas de contas; com esta, converge.
+const SCARB = vecf(d.carbon_household)
+const HHCARB = any(SCARB .!= 0)
+if HHCARB
+    # Com imposto de carbono nas famílias o preço efetivo é ad valorem MAIS específico, e a forma
+    # agregada não vale. O bloco vai expandido, por família e mercadoria: preço efetivo, demanda,
+    # e as receitas das duas cunhas e do carbono somadas diretamente.
+    shr = les ? beta_les : hh_budget
+    @expression(m, effp[h = 1:nh, c = 1:nc], pq[c] * (1 + Wt[h, c]) + SCARB[c])
+    if les
+        @expression(m, committed[h = 1:nh], sum(effp[h, c] * gamma[h, c] for c in 1:nc))
+        @expression(m, super[h = 1:nh], spend[h] - committed[h])
+    else
+        @expression(m, super[h = 1:nh], spend[h])
+    end
+    @expression(m, hhq[h = 1:nh, c = 1:nc], gamma[h, c] + shr[h, c] * super[h] / effp[h, c])
+    @constraint(m, uplift_rev == sum(hhq[h, c] * W[h, c] * pq[c] for h in 1:nh, c in 1:nc))
+    @expression(m, gov_cost, -sum(hhq[h, c] * (Wg[h, c] * pq[c] + SCARB[c])
+                                  for h in 1:nh, c in 1:nc) + gov_absorbs)
+    @expression(m, hh_final[c = 1:nc], sum(hhq[h, c] for h in 1:nh))
+else
 if les
     @expression(m, committed[h = 1:nh],
                 sum(pq[c] * (1 + Wt[h, c]) * gamma[h, c] for c in 1:nc))
@@ -489,7 +536,14 @@ end
                            + sum(gam_Wg[c] * pq[c] for c in 1:nc)) + gov_absorbs)
 
 @expression(m, hh_final[c = 1:nc], gamma_sum[c] + hh_val[c] / pq[c])
-if d.government == "real_fixed"
+end
+if GTARGET == "saving" && GADJ == "spending"
+    # Meta de poupança atingida pelo gasto, nas parcelas de valor do ano-base. Vem antes do
+    # fechamento do governo, que ela substitui.
+    gov_w = vecf(d.gov_w)
+    @variable(m, gbud, start = sum(gov_dem))
+    @expression(m, gov_q[c = 1:nc], gov_w[c] * gbud / pq[c])
+elseif d.government == "real_fixed"
     gov_q_fix = vecf(d.gov_q)
     @expression(m, gov_q[c = 1:nc], gov_q_fix[c])
 elseif d.government == "saving_rate"
@@ -501,10 +555,10 @@ else
     @expression(m, gov_q[c = 1:nc], gov_dem[c] * nu / pq[c])
 end
 @expression(m, gov_spend, sum(pq[c] * gov_q[c] for c in 1:nc))
-@expression(m, hh_sav, sum(hh_income[h] * (1 - dtax[h]) * savrate[h] for h in 1:nh))
+@expression(m, hh_sav, sum(hh_income[h] * (1 - td(h)) * savrate[h] for h in 1:nh))
 # Renda do governo que o bloco tributário não vê: imposto direto e renda de fatores, menos o que
 # ele transfere às famílias.
-@expression(m, gov_inst, sum(hh_income[h] * dtax[h] for h in 1:nh)
+@expression(m, gov_inst, sum(hh_income[h] * td(h) for h in 1:nh)
                        + sum(w[f] * paid_supply(f) * gsh[f] for f in 1:nf) - sum(gov_tr))
 
 if d.investment == "savings_driven"
@@ -532,7 +586,7 @@ end
 # ---- 9. poupança. O cgelab precisa decompor esta relação em parte afim; aqui é a identidade.
 @expression(m, fin_c[c = 1:nc], hh_final[c] + gov_q[c])
 @expression(m, tax_rev,
-            sum(pbase[c] * ((Aabs[c] - fin_c[c]) * ptax_f[c] + fin_c[c] * ptax_a[c])
+            sum(pbase[c] * ((Aabs[c] - fin_c[c]) * tf(c) + fin_c[c] * ta(c))
                 for c in 1:nc)
             + sum(atax[j] * X[j] for j in 1:na)        # conta própria incluída
             + sum(tm[c] * er * pwm[c] * mshm[c] * armsh[c] * Aabs[c] / (1 + tm0[c]) for c in 1:nc)
@@ -540,6 +594,14 @@ end
 @constraint(m, savings == hh_sav + levy + tax_rev + gov_inst - gov_spend - gov_cost + fsav)
 if d.government == "saving_rate"
     @constraint(m, gbud == (1 - Float64(d.gov_savrate)) * (tax_rev + gov_inst - gov_cost))
+end
+const GTVAL = Float64(d.government_target_value)
+if GTARGET == "saving" && GADJ == "spending"
+    @constraint(m, gbud == tax_rev + gov_inst - gov_cost - GTVAL)
+elseif TAX_LEVER && GTARGET == "saving"
+    @constraint(m, tax_rev + gov_inst - gov_spend - gov_cost == GTVAL)
+elseif TAX_LEVER && GTARGET == "revenue"
+    @constraint(m, tax_rev + gov_inst + sum(gov_tr) - gov_cost + gov_absorbs == GTVAL)
 end
 
 # ---- 10. demanda de fatores

@@ -145,7 +145,8 @@ class PeriodResult:
     domestic_sales: np.ndarray | None = None
     p_domestic: np.ndarray | None = None
     #: The government account, in current prices: revenue by instrument
-    #: (``product_tax``, ``activity_tax``, ``tariff``, ``output_tax``,
+    #: (``product_tax``, ``activity_tax``, ``carbon_production``,
+    #: ``carbon_households``, ``tariff``, ``output_tax``,
     #: ``direct_tax``, ``factor_income``, ``wedge``), their sum ``revenue``,
     #: outlays (``transfers``, ``consumption``, ``absorbed``) and ``saving``.
     government: dict | None = None
@@ -153,6 +154,9 @@ class PeriodResult:
     #: that finances fixed real investment. Zero under savings-driven investment.
     household_saving: float = 0.0
     forced_saving: float = 0.0
+    #: The common factor on the adjusting tax's rates under a government
+    #: target (``Closure.government_adjusts``); one otherwise.
+    tax_scale: float = 1.0
 
     def price(self, commodity: str) -> float:
         return float(self.pq[self.econ.commodity(commodity)])
@@ -228,8 +232,9 @@ def solve_period(econ: Economy, closure: Closure | None = None,
     facshare = (econ.hh_facshare if sc.factor_ownership is None
                 else np.asarray(sc.factor_ownership, float))
     tfp = np.ones(na) if sc.productivity is None else np.asarray(sc.productivity, float)
-    ptax_a = econ.ptax if sc.product_tax is None else np.asarray(sc.product_tax, float)
-    ptax_f = ptax_a if sc.product_tax_firm is None else np.asarray(sc.product_tax_firm, float)
+    ptax_a_set = econ.ptax if sc.product_tax is None else np.asarray(sc.product_tax, float)
+    ptax_f_set = (ptax_a_set if sc.product_tax_firm is None
+                  else np.asarray(sc.product_tax_firm, float))
     world_p = np.ones(nc) if sc.world_price is None else np.asarray(sc.world_price, float)
     tm0 = econ.tm0
     if sc.tariff is not None and tm0 is None:
@@ -285,12 +290,32 @@ def solve_period(econ: Economy, closure: Closure | None = None,
             "swings as 1 / (sigma - 1).")
     i_curve = n_unknown
     n_unknown += curve_x.size + curve_m.size
+    # A government target met by a tax is one more outer unknown: the log of a
+    # common factor on that tax's rates. The product tax enters the price fixed
+    # point, so it cannot be solved inside the affine budget block.
+    target = closure.government_target
+    adjusts = closure.government_adjusts
+    tax_lever = target is not None and adjusts in ("direct_tax", "product_tax")
+    i_gov = n_unknown
+    n_unknown += 1 if tax_lever else 0
+    if target == "saving":
+        target_value = (econ.gov_saving0 if closure.government_target_value is None
+                        else float(closure.government_target_value)) * closure.numeraire
+    elif target == "revenue":
+        target_value = (econ.gov_revenue0 if closure.government_target_value is None
+                        else float(closure.government_target_value)) * closure.numeraire
+    else:
+        target_value = 0.0
     W = np.zeros((nh, nc)) if sc.consumer_wedge is None else np.asarray(sc.consumer_wedge, float)
-    Wg = (np.zeros((nh, nc)) if sc.government_wedge is None
-          else np.asarray(sc.government_wedge, float))
-    Wt = W + Wg
+    Wg_set = (np.zeros((nh, nc)) if sc.government_wedge is None
+              else np.asarray(sc.government_wedge, float))
     base_transfers = np.zeros(nh) if sc.transfers is None else np.asarray(sc.transfers, float)
-    dtax = econ.zeros_if_none("hh_dtax", nh)
+    dtax_set = econ.zeros_if_none("hh_dtax", nh)
+    if tax_lever and adjusts == "direct_tax" and not np.any(dtax_set != 0):
+        raise ValueError("government_adjusts='direct_tax', but no household pays direct tax; "
+                         "a zero rate scaled by any factor stays zero")
+    if tax_lever and adjusts == "product_tax" and not np.any(ptax_a_set != 0):
+        raise ValueError("government_adjusts='product_tax', but every product tax rate is zero")
     fac_gov_sh = econ.zeros_if_none("fac_gov_share", nf)
     fac_row_sh = (econ.zeros_if_none("fac_row_share", nf) if sc.foreign_factor_share is None
                   else np.asarray(sc.foreign_factor_share, float))
@@ -329,7 +354,13 @@ def solve_period(econ: Economy, closure: Closure | None = None,
     trade_target = (econ.foreign_sav + float(sum(sc.fdi.values()))) * (1.0 if in_dollars else nu)
     gov_tr = econ.zeros_if_none("hh_gov_transfer", nh) * nu     # fixed in numeraire units,
     remit = econ.zeros_if_none("hh_remit_net", nh) * nu         # like foreign saving
-    atax = econ.atax * nu
+    atax_set = econ.atax * nu
+    # A carbon price is a specific tax: on an activity, per unit of output times
+    # its emission intensity at the scenario's input coefficients; on
+    # households, per unit of fuel bought. Both in numeraire units.
+    if sc.carbon_price is not None and econ.emissions is None:
+        raise ValueError("Scenario.carbon_price needs an emissions account: see add_emissions")
+    carbon = 0.0 if sc.carbon_price is None else float(sc.carbon_price) * nu
     ext_scale = max(abs(trade_target), 1.0)
     sav_scale = max(abs(float(econ.inv_dem.sum())) * nu, 1.0)
 
@@ -341,6 +372,10 @@ def solve_period(econ: Economy, closure: Closure | None = None,
     # productivity path -- invisible in a single period, unmistakable over a
     # twenty-five year horizon.
     io_eff = econ.io / tfp[None, :]
+    carb_act = (carbon * econ.emissions.intensity(io_eff) if carbon
+                else np.zeros(na))
+    carb_hh = carbon * econ.emissions.household if carbon else np.zeros(nc)
+    atax = atax_set + carb_act
     vunit_eff = econ.vunit / tfp
     aunit_eff = econ.aunit / tfp[None, :]
 
@@ -372,6 +407,10 @@ def solve_period(econ: Economy, closure: Closure | None = None,
             er = closure.exchange_rate
             foreign_sav = trade_target + float(z[i_ext]) * ext_scale
         levy = float(z[i_inv]) * sav_scale if closure.investment == "fixed_real" else 0.0
+        tax_scale = float(np.exp(z[i_gov])) if tax_lever else 1.0
+        ptax_a = ptax_a_set * (tax_scale if adjusts == "product_tax" and tax_lever else 1.0)
+        ptax_f = ptax_f_set * (tax_scale if adjusts == "product_tax" and tax_lever else 1.0)
+        dtax = dtax_set * (tax_scale if adjusts == "direct_tax" and tax_lever else 1.0)
         log_px = z[i_curve:i_curve + curve_x.size]
         log_pm = z[i_curve + curve_x.size:n_unknown]
         world_p_now = world_p.copy()
@@ -431,6 +470,10 @@ def solve_period(econ: Economy, closure: Closure | None = None,
         pbase = arm * econ.arm_share + pqf @ econ.mq
         pqf = pbase * (1 + ptax_f)
         pq = pbase * (1 + ptax_a)
+        # The household carbon tax is specific; at this price it is the ad
+        # valorem wedge carb / pq, paid to government like the government wedge.
+        Wg = Wg_set + carb_hh[None, :] / np.maximum(pq, 1e-12)[None, :]
+        Wt = W + Wg
 
         # Labour income is the wage times employment, not times the labour force.
         # Under a fixed real wage or a wage curve, employment IS labour demand, and
@@ -528,7 +571,9 @@ def solve_period(econ: Economy, closure: Closure | None = None,
 
             def flows(gov_budget, saving):
                 """The circular flow at a given government budget and saving."""
-                if closure.government == "real_fixed":
+                if target == "saving" and adjusts == "spending":
+                    gov_q = gov_w * gov_budget / np.maximum(pq, 1e-12)
+                elif closure.government == "real_fixed":
                     gov_q = econ.gov_dem / (1.0 + econ.ptax)
                 elif closure.government == "nominal_fixed":
                     gov_q = econ.gov_dem * nu / np.maximum(pq, 1e-12)
@@ -551,7 +596,8 @@ def solve_period(econ: Economy, closure: Closure | None = None,
             # affine in the two budgets, so they are solved from probes in closed
             # form rather than iterated.
             free = []
-            if closure.government == "saving_rate":
+            if closure.government == "saving_rate" or (target == "saving"
+                                                       and adjusts == "spending"):
                 free.append("gov")
             if closure.investment == "savings_driven":
                 free.append("sav")
@@ -562,7 +608,10 @@ def solve_period(econ: Economy, closure: Closure | None = None,
                 _, _, _, inc, _, avail = flows(g, sv)
                 out_g = []
                 if "gov" in free:
-                    out_g.append(g - (1.0 - gov_savrate) * inc)
+                    if closure.government == "saving_rate":
+                        out_g.append(g - (1.0 - gov_savrate) * inc)
+                    else:                                  # spend all but the target saving
+                        out_g.append(g - (inc - target_value))
                 if "sav" in free:
                     out_g.append(sv - avail)
                 return np.array(out_g)
@@ -593,17 +642,19 @@ def solve_period(econ: Economy, closure: Closure | None = None,
             fin_c = hh_final + gov_q
             gov_account = dict(
                 product_tax=float((pbase * ((A - fin_c) * ptax_f + fin_c * ptax_a)).sum()),
-                activity_tax=float((atax * X).sum()),
+                activity_tax=float((atax_set * X).sum()),
+                carbon_production=float(carb_act @ X),
+                carbon_households=float(hh_q.sum(axis=0) @ carb_hh),
                 tariff=(0.0 if tm is None else
                         float((tm * pm_border * msh_ * econ.arm_share * A / tf0).sum())),
                 output_tax=0.0 if tauz is None else float((tauz * pd_ * Q).sum()),
                 direct_tax=float(hh_dtax_paid.sum()), factor_income=gov_fac,
-                wedge=float((hh_q * Wg * pq[None, :]).sum()),   # negative for a refund
+                wedge=float((hh_q * Wg_set * pq[None, :]).sum()),   # negative for a refund
                 transfers=float(gov_tr.sum()), consumption=gov_spend,
                 absorbed=float(sc.government_absorbs))
             gov_account["revenue"] = sum(gov_account[k] for k in (
-                "product_tax", "activity_tax", "tariff", "output_tax", "direct_tax",
-                "factor_income", "wedge"))
+                "product_tax", "activity_tax", "carbon_production", "carbon_households",
+                "tariff", "output_tax", "direct_tax", "factor_income", "wedge"))
             gov_account["saving"] = (gov_account["revenue"] - gov_account["transfers"]
                                      - gov_account["consumption"] - gov_account["absorbed"])
 
@@ -652,6 +703,10 @@ def solve_period(econ: Economy, closure: Closure | None = None,
                        + eta_x[curve_x] * log_px)
             out.extend(np.log(np.maximum(imports[curve_m], 1e-300) / econ.imp0[curve_m])
                        - psi_m[curve_m] * log_pm)
+            if tax_lever:
+                hit = (gov_account["saving"] if target == "saving"
+                       else gov_account["revenue"])
+                out.append((hit - target_value) / sav_scale)
 
             p_base_yard = 1.0 + econ.ptax          # constant-price yardstick, scenario independent
             gov_sav = savings - hh_sav - levy - foreign_sav
@@ -681,7 +736,7 @@ def solve_period(econ: Economy, closure: Closure | None = None,
                 dom_sales=dsh * econ.arm_share * A, p_dom=p_dom,
                 walras=float(gaps[num]), levy=levy, foreign_sav=foreign_sav, pe=p_exp,
                 hh_dtax_paid=hh_dtax_paid, row_fac=row_fac, gov_fac=gov_fac,
-                gov_account=gov_account, hh_sav=hh_sav,
+                gov_account=gov_account, hh_sav=hh_sav, tax_scale=tax_scale,
                 real=dict(hh_real=float(p_base_yard @ hh_q.sum(axis=0)),
                           gov_real=float(p_base_yard @ gov_q),
                           inv_real=float(p_base_yard @ inv_q),
@@ -779,7 +834,8 @@ def solve_period(econ: Economy, closure: Closure | None = None,
         real_wage=state["real_wage"], world_export_price=state["world_pe"],
         world_import_price=state["world_pm"], domestic_sales=state["dom_sales"],
         p_domestic=state["p_dom"], government=state["gov_account"],
-        household_saving=state["hh_sav"], forced_saving=state["levy"])
+        household_saving=state["hh_sav"], forced_saving=state["levy"],
+        tax_scale=state["tax_scale"])
 
 
 # ---------------------------------------------------------------------------

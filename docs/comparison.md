@@ -96,7 +96,7 @@ lista até a 1.0; a versão de cada item é a do [`ROADMAP.md`](../ROADMAP.md).
 | Instituições da MCS: impostos diretos, transferências, remessas, renda de fatores ao governo e ao exterior | 📄 IFPRI, PEP | **feito** na 0.2.0 | 0.2 |
 | Fechamentos do mercado de trabalho | 📄 IFPRI, ORANI | **feito**: salário real fixo, curva de salário, oferta elástica | 0.2 |
 | Tarifa e imposto indireto separados do imposto sobre produtos | 📄 Hosoe (`stdcge`), IFPRI | **feito**: a tarifa dentro do preço de importação e o imposto indireto sobre todo o produto, como no `stdcge`; a abolição de tarifas do `stdcge` e do `lrgcge` reproduz a transcrição dos programas do GAMS a 2,4e-12 | 0.2 |
-| Exportador JuMP convergindo a frio em escala aplicada | — | falta: converge a frio nas economias de brinquedo e, numa MCS aplicada, só com partida quente | 0.2 |
+| Exportador JuMP convergindo a frio em escala aplicada | — | **feito**, numa MCS aplicada ainda não pública | 0.2 |
 | Demanda de exportação e oferta de importação com elasticidade finita | 📄 Hosoe (`lrgcge`) | **feito**: as equações do `lrgcge`; a abolição de tarifas do `lrgcge` reproduz a transcrição do programa do GAMS | 0.2 |
 | Decomposição de resultados por choque (*subtotals*) | 📄 GEMPACK | falta | 0.3 |
 | Sensibilidade sistemática (quadratura, Monte Carlo) | 📄 GEMPACK | falta | 0.3 |

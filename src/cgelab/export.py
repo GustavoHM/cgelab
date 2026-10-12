@@ -214,6 +214,10 @@ def to_jump(econ: Economy, closure: Closure | None = None, scenario: Scenario | 
         natural_unemployment=float(closure.natural_unemployment),
         labour_supply_elasticity=float(closure.labour_supply_elasticity),
         q_laspeyres=_l(q_laspeyres), pq0=_l(pq0),
+        # níveis do ano-base, só para o ponto de partida
+        hh_income0=_l((econ.hh_income0 if econ.hh_gross0 is None else econ.hh_gross0) * nu),
+        hh_spend0=_l((econ.hh_spend0 if econ.hh_spend0 is not None
+                      else econ.hh_income0 * (1 - econ.hh_savrate)) * nu),
         scenario_name=sc.name,
     )
 
@@ -291,6 +295,7 @@ gov_absorbs = Float64(d.gov_absorbs)
 supply = vecf(d.fac_supply); inv_dem = vecf(d.inv_dem); inv_q_fix = vecf(d.inv_q_fixed)
 inv_w = vecf(d.inv_w)
 q_lasp = vecf(d.q_laspeyres); pq0_lasp = vecf(d.pq0)
+hh_income0 = vecf(d.hh_income0); hh_spend0 = vecf(d.hh_spend0)
 act_scale = vecf(d.act_scale); X_exog = vecf(d.X_exog); exog_int = vecf(d.exog_intermediate)
 own = collect(Bool, d.own_account)
 tb0 = Float64(d.trade_balance0); fsav0 = Float64(d.foreign_sav)
@@ -333,14 +338,18 @@ end
 @variable(m, pa[j = 1:na] >= 1e-8, start = q("pa", j, 1.0))
 @variable(m, pd[c = 1:nc] >= 1e-8, start = q("pd", c, 1.0))
 @variable(m, arm[1:nc] >= 1e-8, start = 1.0)
-@variable(m, dsh[1:nc] >= 0, start = 1.0)
-@variable(m, mshm[1:nc] >= 0, start = 0.1)
+# Os demais arranques são os níveis do ANO-BASE, como o GAMS inicializa um modelo: não a resposta
+# do Python, que só a partida quente usa. Renda de 1.0 numa MCS em que ela vale milhares, ou
+# participações de Armington chutadas, bastavam para o Ipopt declarar inviável, numa MCS aplicada,
+# um cenário que, a partir do ano-base, ele resolve.
+@variable(m, dsh[c = 1:nc] >= 0, start = domsh[c])
+@variable(m, mshm[c = 1:nc] >= 0, start = 1 - domsh[c])
 @variable(m, pbase[c = 1:nc] >= 1e-8, start = q("pbase", c, 1.0))
 @variable(m, Aabs[i = 1:nc] >= 0, start = q("Aabs", i, A0[i]))
 @variable(m, Q[i = 1:nc] >= 0, start = q("Q", i, Q0[i]))
 @variable(m, Xraw[i = 1:na], start = q("X", i, X0[i]))
-@variable(m, hh_income[h = 1:nh], start = q("hh_income", h, 1.0))
-@variable(m, spend[h = 1:nh], start = q("hh_com_spend", h, 1.0))
+@variable(m, hh_income[h = 1:nh], start = q("hh_income", h, hh_income0[h]))
+@variable(m, spend[h = 1:nh], start = q("hh_com_spend", h, hh_spend0[h]))
 @variable(m, savings, start = q0("savings", sum(inv_dem)))
 @variable(m, uplift_rev, start = q0("uplift_rev", 0.0))
 

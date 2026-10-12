@@ -33,10 +33,10 @@ Each item is described in the sections further down; this is the order.
 **0.2 — done.** SAM institutions (direct taxes, transfers, remittances, factor income to
 government and abroad, FDI), several capital stocks, per-year economies, CET exports actually
 solved, labour closures, the tariff and the indirect tax on domestic sales, the origin nest for
-several regions, the result helpers, and the JuMP export replicating all of it. Open from 0.2:
+several regions, the result helpers, and the JuMP export replicating all of it. Closed since:
 
-- [ ] the JuMP export converging from a cold start on an applied SAM (it does on the toy
-  economies, and on an applied SAM only from a warm start);
+- [x] the JuMP export converging from a cold start on an applied SAM, with prices displaced and
+  the rest at base-year levels;
 - [x] downward-sloping export demand, and its mirror, an upward-sloping import supply
   (`ModelSpec.export_demand`, `import_supply`);
 - [x] the base-year tariff inside the import price, and the indirect tax on all of output,
@@ -96,12 +96,14 @@ land use allocated by CET; export to GAMS/MPSGE and GEMPACK.
 
 ## Next: gaps an applied model hit
 
-**The JuMP replica from a cold start on an applied SAM.** It converges cold on the toy
-economies and on Hosoe's, and on an applied SAM only from a warm start. This is the last
-open item of 0.2.
+Nothing from 0.2 is open. The next gaps are the 0.3 items.
 
 Done, and no longer gaps:
 
+- **The JuMP replica from a cold start on an applied SAM.** It had started household income at
+  1 and the Armington shares at guesses. From base-year levels, as GAMS initialises a model,
+  Ipopt solves the applied SAM's base year and a shocked period from a cold start. The SAM is
+  not public yet.
 - **Trade taxes inside the prices.** The tariff sits inside the Armington import price and the
   indirect tax on all of output inside the gross price the CET splits, as in Hosoe, Gasawa and
   Hashimoto's `stdcge`. With Hosoe's closure (`government="saving_rate"`, foreign saving fixed

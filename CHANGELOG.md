@@ -43,6 +43,10 @@ before 1.0, a minor version may add to the API and a patch version only fixes.
   The tariff abolition of both matches a line-by-line JuMP transcription of the
   GAMS programs (`validation/hosoe.jl`) in all 49 displayed variables, to
   2.4e-12; `tests/test_hosoe_stdcge.py` checks it against the stored result.
+- The JuMP replica converges from a cold start on an applied SAM. Household
+  income, spending and the Armington shares now start at base-year levels
+  instead of at 1 and at guesses; factor prices and the exchange rate still start
+  displaced, so the Python answer never enters the start.
 - `PeriodResult.domestic_sales` and `p_domestic`: home sales of domestic output
   and their price. `base_year_reproduction` now also checks imports and
   exports against the SAM.

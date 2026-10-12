@@ -43,7 +43,7 @@ several regions, the result helpers, and the JuMP export replicating all of it. 
   with Hosoe's closure (`government="saving_rate"`, foreign saving in dollars). The tariff
   abolition of `stdcge` and `lrgcge` reproduces.
 
-**0.3 — results, decompositions and accounts.**
+**0.3 — results, decompositions and accounts: done.**
 
 - [x] **Subtotals**: decomposing a result by shock (Harrison, Horridge and Pearson, 2000),
   `subtotals`.
@@ -99,7 +99,8 @@ land use allocated by CET; export to GAMS/MPSGE and GEMPACK.
 
 ## Next: gaps an applied model hit
 
-Nothing from 0.2 is open. The next gaps are the 0.3 items.
+Nothing from 0.2 or 0.3 is open. The next gaps are the 0.4 items: KLEM nesting, emissions and a
+carbon tax, the remaining government closures, and the bridge to dsgelab.
 
 Done, and no longer gaps:
 

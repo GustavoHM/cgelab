@@ -898,3 +898,31 @@ first forty periods of the perfect-foresight path.
 SAM's investment equals the depreciation of the stock the user cost implies.
 `dk.steady_state` finds the model's own steady state, which is another point, and
 a published table has to say which of the two it reports.
+
+---
+
+## 18. Physical units
+
+```python
+econ = ck.add_physical_units(econ,
+    commodities={"c_ely": ("GWh", 48_000.0)},     # domestic sales plus imports, base year
+    activities={"a_h2": ("t", 1_200.0)})          # physical output, base year
+p = ck.physical(ck.solve_period(econ, closure, scenario))
+p["supply"], p["use"]["c_ely"], p["output"], p["intensity"][("c_ely", "a_h2")]   # GWh per tonne
+```
+
+The model's money units differ by flow (producer, border and tax-inclusive values),
+so the account anchors on two things. A commodity's physical content is attached
+to its Armington composite, the domestic and imported variety that activities and
+households buy. An activity's is attached to its activity level. Both are
+calibrated from base-year totals, and the link is fixed: a unit of composite
+carries the same physical content in every period. That is right for a homogeneous
+good, where a kilowatt-hour is a kilowatt-hour, and wrong for a composite of
+qualities, which is why the account is opt-in, commodity by commodity. Physical
+supply meets physical use in every equilibrium, margins included. The intensity is
+constant under Leontief inputs and moves with fuel prices under an energy nest.
+
+`physical_coefficient` runs the other way, for building a SAM. It turns a technical
+coefficient stated in physical units (kilowatt-hours of electricity per kilogram
+of output, say) into the money entry per unit of output value, at purchaser prices.
+Capacity in physical units, as a constraint, needs complementarity and waits for 0.8.

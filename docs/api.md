@@ -470,6 +470,25 @@ revenue is `carbon_production` and `carbon_households` in `PeriodResult.governme
 
 ---
 
+## Physical units
+
+### `add_physical_units(econ, *, commodities=None, activities=None) -> Economy`
+
+`commodities` maps a commodity to `(unit, physical supply)` (domestic sales plus
+imports, base year); `activities` maps an activity to `(unit, physical output)`.
+
+### `physical(period) -> dict`
+
+`supply` and `output` as `(unit, quantity)`; `use` by commodity as a Series over
+activities, households, government and investment; `intensity[(commodity,
+activity)]` as `(unit, physical input per physical unit of output)`.
+
+### `physical_coefficient(amount, *, input_per_value, output_per_value, input_price=1.0) -> float`
+
+A physical technical coefficient as a SAM entry per unit of output value.
+
+---
+
 ## HAR files
 
 ### `read_har(path, headers=None) -> dict[str, Header]`

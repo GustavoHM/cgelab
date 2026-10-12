@@ -58,13 +58,14 @@ several regions, the result helpers, and the JuMP export replicating all of it. 
 - [x] **SAM multipliers and input–output analysis**: Leontief and fixed-price multipliers,
   backward and forward linkages, structural path analysis (`cgelab.multipliers`).
 
-**0.4 — energy and the bridge to dsgelab.**
+**0.4 — energy and the bridge to dsgelab: done.**
 
 - [x] **Emissions accounts** and a **carbon tax** with revenue recycling (`add_emissions`,
   `Scenario.carbon_price`, the revenue-neutral closure).
 - [x] **KLEM nesting**: a value-added-energy nest with interfuel substitution
   (`ModelSpec.energy`, `sigma_vae`, `sigma_energy`).
-- [ ] **Physical units for energy** (see *Then: model structure*).
+- [x] **Physical units for energy**: `add_physical_units`, `physical`, `physical_coefficient`.
+  Capacity as a constraint needs complementarity, in 0.8.
 - [x] **Government closures**: a deficit target, revenue-neutral tax replacement
   (`Closure.government_target`, `government_adjusts`), and the fixed saving rate
   (`government="saving_rate"`).
@@ -105,8 +106,8 @@ land use allocated by CET; export to GAMS/MPSGE and GEMPACK.
 
 ## Next: gaps an applied model hit
 
-Nothing from 0.2 or 0.3 is open. The next gaps are the 0.4 items: KLEM nesting, emissions and a
-carbon tax, the remaining government closures, and the bridge to dsgelab.
+Nothing from 0.2, 0.3 or 0.4 is open. Next is 0.5, the public release: no new features, the
+blocking items under *Infrastructure*.
 
 Done, and no longer gaps:
 
@@ -133,8 +134,9 @@ which an applied model otherwise does by hand, swapping one fuel for another vol
 a parity price the user picks. Still open is GTAP-E's arrangement, a capital-energy
 subnest inside value added, in which capital and energy are complements against labour.
 
-**Physical units for energy.** Linking a sector's monetary output to a physical quantity (kWh of electricity, kg of a fuel) would let a physical input be fixed per unit and a capacity be stated in
-tonnes. An applied model has to impose such a coefficient itself.
+**Capacity in physical units.** The physical-units account is in: a coefficient in kWh per kg
+becomes a SAM entry with `physical_coefficient`, and a path reports kWh and tonnes. A capacity
+stated in tonnes is a bound on an activity, and that is a complementarity condition, in 0.8.
 
 **Government closures.** Add a fixed public deficit or saving target, and revenue-neutral tax
 replacement (one tax adjusts to keep revenue constant). These are needed for any fiscal study.

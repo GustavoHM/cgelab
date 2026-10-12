@@ -138,6 +138,8 @@ class Economy:
     #: Emissions account (:func:`cgelab.emissions.add_emissions`). None: no
     #: emissions are tracked and a carbon price is refused.
     emissions: object | None = field(default=None, repr=False)
+    #: Physical units (:func:`cgelab.physical.add_physical_units`). None: money only.
+    physical_units: object | None = field(default=None, repr=False)
     #: Value-added-energy nesting (``ModelSpec.energy``). None: Leontief inputs.
     energy_nest: EnergyNest | None = field(default=None, repr=False)
 

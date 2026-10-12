@@ -79,6 +79,13 @@ before 1.0, a minor version may add to the API and a patch version only fixes.
   1e-7. `toy.build_one_good()` is that economy; `Scenario.investment_level`
   sets real investment under `fixed_real`.
 
+- Physical units (`add_physical_units`, `physical`, `physical_coefficient`):
+  physical content per unit of a commodity's Armington composite and of an
+  activity's output, calibrated from base-year totals; physical supply, use by
+  agent, output and intensity of a solved period; and the translation of a
+  physical technical coefficient into a SAM entry. Supply meets use in every
+  equilibrium, margins included.
+
 ### Fixed in 0.4
 
 - `homogeneity_test` held a fixed exchange rate at one while it scaled the

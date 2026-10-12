@@ -30,6 +30,7 @@ from .closure import Closure
 from .decompose import path_decomposition, scenario_vector, subtotals, welfare_decomposition
 from .diagnostics import base_year_reproduction, homogeneity_test, report, walras_check
 from .emissions import Emissions, add_emissions, emissions
+from .physical import PhysicalUnits, add_physical_units, physical, physical_coefficient
 from .export import to_jump
 from .har import read_har, write_har
 from .dynamics import Growth, PathResult, run_path
@@ -60,6 +61,7 @@ __all__ = [
     "base_year_reproduction", "homogeneity_test", "walras_check", "report",
     "to_jump", "read_har", "write_har",
     "Emissions", "add_emissions", "emissions",
+    "PhysicalUnits", "add_physical_units", "physical", "physical_coefficient",
     "factor_demand_by_activity", "real_gdp", "sectoral_path",
     "national_accounts", "price_indices", "government_account",
     "Multipliers", "accounting_multipliers", "fixed_price_multipliers", "leontief_multipliers",

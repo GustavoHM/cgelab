@@ -62,7 +62,9 @@ several regions, the result helpers, and the JuMP export replicating all of it. 
 
 - [x] **Emissions accounts** and a **carbon tax** with revenue recycling (`add_emissions`,
   `Scenario.carbon_price`, the revenue-neutral closure).
-- [ ] **KLEM nesting** and **physical units for energy** (see *Then: model structure*).
+- [x] **KLEM nesting**: a value-added-energy nest with interfuel substitution
+  (`ModelSpec.energy`, `sigma_vae`, `sigma_energy`).
+- [ ] **Physical units for energy** (see *Then: model structure*).
 - [x] **Government closures**: a deficit target, revenue-neutral tax replacement
   (`Closure.government_target`, `government_adjusts`), and the fixed saving rate
   (`government="saving_rate"`).
@@ -125,11 +127,10 @@ Done, and no longer gaps:
 
 ## Then: model structure
 
-**Nesting beyond value added.** Intermediates are Leontief, so an energy transition can only
-be modelled by changing coefficients by hand. That is what an applied model does by hand: one fuel swapped for another, volume for volume, at a
-parity price the user has to pick. A configurable
-KLEM nest (capital–energy, then energy between fuels, with CES elasticities) would make fuel
-substitution a response to prices.
+**Nesting beyond value added.** The value-added-energy nest is in: fuel use answers to prices,
+which an applied model otherwise does by hand, swapping one fuel for another volume for volume at
+a parity price the user picks. Still open is GTAP-E's arrangement, a capital-energy
+subnest inside value added, in which capital and energy are complements against labour.
 
 **Physical units for energy.** Linking a sector's monetary output to a physical quantity (kWh of electricity, kg of a fuel) would let a physical input be fixed per unit and a capacity be stated in
 tonnes. An applied model has to impose such a coefficient itself.

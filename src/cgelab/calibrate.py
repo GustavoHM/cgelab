@@ -33,6 +33,23 @@ __all__ = ["Economy", "calibrate"]
 
 
 @dataclass
+class EnergyNest:
+    """Value-added-energy nesting, by activity. Values are per unit of activity output.
+
+    ``vae_unit`` is value added plus energy at base-year prices, ``share`` the
+    energy part of it, ``theta`` the fuel shares inside the energy bundle
+    (energy rows only). Prices of both bundles are one at the base year.
+    """
+
+    mask: np.ndarray            # (n_com,) energy commodities
+    vae_unit: np.ndarray        # (n_act,)
+    share: np.ndarray           # (n_act,)
+    theta: np.ndarray           # (n_com, n_act)
+    sigma_vae: np.ndarray       # (n_act,), zero where fixed
+    sigma_energy: np.ndarray    # (n_act,), zero where fixed
+
+
+@dataclass
 class Economy:
     """Everything the solver needs about the base year, in quantity units."""
 
@@ -121,6 +138,8 @@ class Economy:
     #: Emissions account (:func:`cgelab.emissions.add_emissions`). None: no
     #: emissions are tracked and a carbon price is refused.
     emissions: object | None = field(default=None, repr=False)
+    #: Value-added-energy nesting (``ModelSpec.energy``). None: Leontief inputs.
+    energy_nest: EnergyNest | None = field(default=None, repr=False)
 
     def zeros_if_none(self, name: str, n: int) -> np.ndarray:
         v = getattr(self, name)
@@ -421,6 +440,7 @@ def calibrate(sam: SAM, spec: ModelSpec | None = None, *,
                          dom0 / np.maximum(dom0 + imp_arm0, 1e-12), 1.0)
     # Government income as the solver books it: every tax, its factor income,
     # net of its transfers to households. What it does not spend it saves.
+    energy_nest = _energy_nest(spec, coms, acts, io, ptax, vunit, leontief)
     gov_income0 = (float(tax_all_c.sum()) + float(tax_a.sum()) + float(hh_tax.sum())
                    + float(fac_gov.sum()) - float(gov_tr.sum()))
     gov_savrate = (1.0 - float(gov_dem.sum()) / gov_income0) if gov_income0 > 0 else 0.0
@@ -440,6 +460,7 @@ def calibrate(sam: SAM, spec: ModelSpec | None = None, *,
         fac_gov_share=fac_gov_share, fac_row_share=fac_row_share,
         hh_spend0=hh_com.sum(axis=1), hh_gross0=gross0,
         tm0=tm0, tauz0=tauz0, gov_savrate=gov_savrate,
+        energy_nest=energy_nest,
         gov_saving0=gov_income0 - float(gov_dem.sum()),
         gov_revenue0=gov_income0 + float(gov_tr.sum()),
         diagnostics=dict(negative_value_added=negative,
@@ -455,6 +476,32 @@ def calibrate(sam: SAM, spec: ModelSpec | None = None, *,
         from .regional import build_regional
         econ.regional = build_regional(econ, sam)
     return econ
+
+
+def _energy_nest(spec, coms, acts, io, ptax, vunit, leontief):
+    if not spec.energy:
+        return None
+    unknown = [c for c in spec.energy if c not in coms]
+    if unknown:
+        raise KeyError(f"energy commodities not in the model: {unknown}")
+    mask = np.isin(np.asarray(coms, dtype=object), list(spec.energy))
+    value = (1.0 + ptax)[:, None] * io                  # input value per unit output
+    energy = value[mask].sum(axis=0)
+    vae = vunit + energy
+    with np.errstate(divide="ignore", invalid="ignore"):
+        share = np.where(vae != 0, energy / np.where(vae == 0, 1.0, vae), 0.0)
+        theta = np.where(energy[None, :] > 0,
+                         value / np.where(energy > 0, energy, 1.0)[None, :], 0.0)
+    theta[~mask] = 0.0
+    # Substitution needs a positive value added; fixed proportions stay fixed.
+    free = ~leontief & (vunit > 0)
+    sig_vae = np.where(free, spec.sigma_vae_vector(acts), 0.0)
+    sig_e = np.where(free, spec.sigma_energy_vector(acts), 0.0)
+    if np.any(~np.isfinite(sig_vae)) or np.any(sig_vae < 0) or np.any(~np.isfinite(sig_e)) \
+            or np.any(sig_e < 0):
+        raise ValueError("sigma_vae and sigma_energy must be finite and non-negative")
+    return EnergyNest(mask=mask, vae_unit=vae, share=share, theta=theta,
+                      sigma_vae=sig_vae, sigma_energy=sig_e)
 
 
 def _population_shares(hhs, population) -> np.ndarray:

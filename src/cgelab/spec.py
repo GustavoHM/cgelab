@@ -87,6 +87,15 @@ class ModelSpec:
     #: world import price exogenous (``Scenario.world_price``); a positive ψ
     #: makes it rise with the volume bought, ``M / M0 = (pWm / world_price)^ψ``.
     import_supply: float | Mapping[str, float] | None = None
+    #: Energy commodities. Absent, every intermediate input is Leontief, as
+    #: before. Present, each activity buys them as an energy bundle (a CES
+    #: across fuels, ``sigma_energy``) that substitutes for value added in a
+    #: value-added-energy bundle (a CES, ``sigma_vae``); other intermediates stay
+    #: Leontief. Activities on fixed proportions (``leontief``, or a negative
+    #: value added) keep their fuel mix fixed.
+    energy: Sequence[str] | None = None
+    sigma_vae: float | Mapping[str, float] = 0.5
+    sigma_energy: float | Mapping[str, float] = 1.0
     household_demand: str = "cobb_douglas"   # "cobb_douglas" | "les"
     frisch: float = -1.5                     # LES only: Frisch parameter, sets subsistence
     margins: bool = True
@@ -265,6 +274,12 @@ class ModelSpec:
                 f"factors {factors}")
         return dataclasses.replace(
             self, activities=acts, commodities=coms, households=hhs, factors=factors)
+
+    def sigma_vae_vector(self, activities: Sequence[str]):
+        return _as_vector(self.sigma_vae, activities, "sigma_vae")
+
+    def sigma_energy_vector(self, activities: Sequence[str]):
+        return _as_vector(self.sigma_energy, activities, "sigma_energy")
 
     def sigma_va_vector(self, activities: Sequence[str]):
         return _as_vector(self.sigma_va, activities, "sigma_va")

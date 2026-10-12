@@ -55,8 +55,9 @@ _DEFAULTS = {
     "factor_ownership": lambda e: e.hh_facshare,
     "foreign_factor_share": lambda e: e.zeros_if_none("fac_row_share", e.n_fac),
     "carbon_price": lambda e: 0.0,
+    "investment_level": lambda e: float(e.inv_dem.sum()),
 }
-_SCALARS = ("government_absorbs", "carbon_price")
+_SCALARS = ("government_absorbs", "carbon_price", "investment_level")
 _MAPPINGS = ("activity_scale", "fdi")
 
 

@@ -814,3 +814,33 @@ GDP from both sides, the welfare decomposition (with an `allocative_carbon_tax`
 term, the price times the change in emissions) and subtotals all carry the carbon
 price. The JuMP replica carries it too, with the household block written out per
 household and commodity when households pay it.
+
+### Fuel that answers to prices
+
+With Leontief intermediates a carbon price can only change how much is produced,
+never how it is produced. `ModelSpec.energy` names the energy commodities and
+nests them:
+
+```python
+spec = ck.ModelSpec(..., energy=["c_coal", "c_oil", "c_gas", "c_ely"],
+                    sigma_vae=0.5,      # value added against the energy bundle
+                    sigma_energy=1.0)   # between fuels
+```
+
+Each activity buys an energy bundle, a CES across fuels, which substitutes for
+value added in a value-added-energy bundle, a CES. The bundle's quantity per unit
+of output is fixed, and so are the other intermediates. Both bundles are measured
+in base-year value and their prices are one at the base year, so the nest
+calibrates from the SAM alone. Each activity pays its own fuel prices: the
+carbon price on a fuel enters the price that activity pays for it, in proportion
+to its own emission coefficient, and carbon on non-energy inputs and process
+carbon stay a tax per unit of output. Activities on fixed proportions (`leontief`,
+or a negative value added) keep their fuel mix fixed.
+
+`PeriodResult.input_coefficients` and `value_added_per_unit` are the coefficients
+the equilibrium used, and `emissions`, the accounts and the welfare decomposition
+read them. With both elasticities at zero, the nest is the Leontief model: the
+tests solve both under carbon, tax, productivity and world-price shocks and find
+the same equilibrium. With them above zero, the fuel ratios satisfy the CES
+first-order conditions at the prices each activity paid, carbon included, and a
+higher elasticity cuts emissions more for the same carbon price.

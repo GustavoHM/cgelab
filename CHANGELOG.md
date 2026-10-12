@@ -61,6 +61,15 @@ before 1.0, a minor version may add to the API and a patch version only fixes.
   closure. GDP, the welfare decomposition, subtotals and the JuMP replica carry
   it.
 
+- Value-added-energy nesting (`ModelSpec.energy`, `sigma_vae`,
+  `sigma_energy`): an energy bundle, a CES across fuels, substitutes for value
+  added in a CES; other intermediates stay Leontief. The carbon price on a fuel
+  enters the price each activity pays for it. With zero elasticities the nest is
+  the Leontief model exactly; with positive ones the fuel ratios meet the CES
+  first-order conditions. The JuMP replica carries the nest.
+  `PeriodResult.input_coefficients` and `value_added_per_unit` are the
+  coefficients the equilibrium used.
+
 ### Fixed in 0.4
 
 - `homogeneity_test` held a fixed exchange rate at one while it scaled the

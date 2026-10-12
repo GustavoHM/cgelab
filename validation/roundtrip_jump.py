@@ -7,7 +7,7 @@ e uma inversão de Leontief. Cada uma é uma dedução do autor. Em JuMP nada di
 bloco é uma restrição e o Ipopt encontra o ponto fixo. Um erro na álgebra do Python não pode,
 portanto, ser reproduzido do outro lado por construção.
 
-Roda 31 casos sobre as economias de brinquedo do pacote: sem margens, com bloco de margens, com
+Roda 33 casos sobre as economias de brinquedo do pacote: sem margens, com bloco de margens, com
 atividade de conta própria, com CET, com curvas de demanda de exportação e de oferta de
 importação (país grande, como o `lrgcge`), com tarifa e imposto sobre o produto dentro dos preços
 (como o `stdcge`), com instituições (impostos diretos, transferências, remessas,
@@ -208,6 +208,26 @@ def main() -> int:
         ck.Closure(government_target="revenue", government_adjusts="direct_tax"),
         ck.Scenario(name="carbono", carbon_price=0.5,
                     productivity=np.array([1.0, 1.04])))
+
+    # Ninho valor adicionado-energia: substituição entre combustíveis e entre energia e valor
+    # adicionado, com o carbono no preço dos combustíveis
+    _, econ = toy.build_with_institutions(model_spec=toy.spec(
+        energy=["c_ind"], sigma_vae={"__default__": 0.6, "a_agr": 1.0}, sigma_energy=1.0))
+    inter = pd.DataFrame(0.0, index=econ.coms, columns=econ.acts)
+    inter.loc["c_ind", "a_agr"], inter.loc["c_ind", "a_ind"] = 3.0, 12.0
+    econ = ck.add_emissions(econ, intermediate=inter, household={"c_ind": 5.0},
+                            process={"a_ind": 2.0})
+    casos["klem_carbono"] = caso("klem_carbono", econ, ck.Closure(), ck.Scenario(
+        name="klem", carbon_price=0.5, productivity=np.array([1.02, 1.0])))
+    _, econ = toy.build_with_margins(model_spec=toy.spec(
+        energy=["c_agr", "c_ind"], sigma_vae=0.4, sigma_energy={"__default__": 2.0, "a_ind": 0.5}))
+    inter = pd.DataFrame(0.0, index=econ.coms, columns=econ.acts)
+    inter.loc[["c_agr", "c_ind"], ["a_agr", "a_ind"]] = [[2.0, 1.0], [4.0, 9.0]]
+    econ = ck.add_emissions(econ, intermediate=inter)
+    casos["klem_dois_combustiveis"] = caso(
+        "klem_dois_combustiveis", econ,
+        ck.Closure(government_target="revenue", government_adjusts="product_tax"),
+        ck.Scenario(name="klem2", carbon_price=0.8))
 
     _, econ = toy.build()
     casos["fechamento_alternativo"] = caso(

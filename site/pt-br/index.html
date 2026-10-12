@@ -349,6 +349,17 @@ r.tax_scale                       # 0.26: a receita do carbono paga um corte de 
   preço do carbono é um imposto por unidade de produto, pela intensidade de emissão, nas atividades,
   e um imposto específico no combustível das famílias. Com meta de receita, outro imposto se move
   para manter a arrecadação; aqui, o imposto sobre produtos.</p>
+  <h3>16. Combustível que responde ao preço</h3>
+<pre><code>_, nested = toy.build_with_institutions(model_spec=toy.spec(energy=["c_ind"], sigma_vae=0.6))
+nested = ck.add_emissions(nested, intermediate=fuel, household={"c_ind": 5.0},
+                          process={"a_ind": 2.0})
+r2 = ck.solve_period(nested, neutral, ck.Scenario(carbon_price=0.5))
+ck.emissions(r2)["total"]          # 20.85, contra 21,79 com coeficientes fixos
+r2.input_coefficients[1]           # combustível por unidade de produto: 0,089 e 0,276, eram 0,095 e 0,286</code></pre>
+  <p>Com <code>ModelSpec.energy</code>, cada atividade compra um agregado de energia que substitui
+  valor adicionado. O carbono de um combustível entra no preço que aquela atividade paga por ele,
+  então o mesmo preço de carbono muda como se produz, não só quanto. Com as duas elasticidades em
+  zero, o ninho é o modelo Leontief, à precisão de máquina.</p>
 </div></section>
 
 <section id="portarias"><div class="wrap">
@@ -437,7 +448,7 @@ cgelab diagnostics -- Economy(3 activities, 3 commodities, 2 households, 2 facto
   <h3>Uma réplica independente em JuMP</h3>
   <p><code>to_jump</code> escreve o mesmo equilíbrio como modelo JuMP em que nada é aninhado: o
   ponto fixo de preços, a série da reciclagem e a relação entre poupança e arrecadação são
-  restrições comuns, e o Ipopt as resolve de um ponto de partida deslocado. Em 31 casos (margens, curvas de demanda de exportação e de oferta de importação, tarifa e imposto sobre o produto dentro dos preços, o fechamento de Hosoe, metas do governo, preço do carbono,
+  restrições comuns, e o Ipopt as resolve de um ponto de partida deslocado. Em 33 casos (margens, curvas de demanda de exportação e de oferta de importação, tarifa e imposto sobre o produto dentro dos preços, o fechamento de Hosoe, metas do governo, preço do carbono, ninho de energia,
   conta própria, CET, impostos diretos, transferências, capital estrangeiro, IED, LES e fechamentos
   alternativos), os dois resolvedores concordam a no máximo <code>3e-12</code>. Perturbar os dados
   exportados faz a comparação divergir de 1e-3 a 3e-1, o que mostra que ela enxerga erro.</p>

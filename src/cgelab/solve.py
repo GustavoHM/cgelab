@@ -157,6 +157,11 @@ class PeriodResult:
     #: The common factor on the adjusting tax's rates under a government
     #: target (``Closure.government_adjusts``); one otherwise.
     tax_scale: float = 1.0
+    #: Intermediate input per unit of activity output, ``(n_com, n_act)``, and
+    #: value added per unit, as solved: with an energy nest, fuel use answers
+    #: to prices, and these are the coefficients the equilibrium used.
+    input_coefficients: np.ndarray | None = None
+    value_added_per_unit: np.ndarray | None = None
 
     def price(self, commodity: str) -> float:
         return float(self.pq[self.econ.commodity(commodity)])
@@ -372,15 +377,52 @@ def solve_period(econ: Economy, closure: Closure | None = None,
     # productivity path -- invisible in a single period, unmistakable over a
     # twenty-five year horizon.
     io_eff = econ.io / tfp[None, :]
-    carb_act = (carbon * econ.emissions.intensity(io_eff) if carbon
-                else np.zeros(na))
+    nest = econ.energy_nest
+    emask = nest.mask if nest is not None else np.zeros(nc, dtype=bool)
+    # Under an energy nest, fuel use answers to prices and the carbon on fuel
+    # enters the fuel price each activity pays. What stays a tax per unit of
+    # output is process carbon and carbon on non-energy inputs.
+    if carbon:
+        ef_fixed = np.where(emask[:, None], 0.0, econ.emissions.intermediate)
+        carb_act = carbon * ((ef_fixed * io_eff).sum(axis=0) + econ.emissions.process)
+        carb_fuel = carbon * np.where(emask[:, None], econ.emissions.intermediate, 0.0)
+    else:
+        carb_act, carb_fuel = np.zeros(na), np.zeros((nc, na))
     carb_hh = carbon * econ.emissions.household if carbon else np.zeros(nc)
     atax = atax_set + carb_act
     vunit_eff = econ.vunit / tfp
     aunit_eff = econ.aunit / tfp[None, :]
+    io_fixed = np.where(emask[:, None], 0.0, io_eff)    # Leontief inputs
+    p_fuel0 = (1.0 + econ.ptax)[:, None]               # base-year fuel prices
+
+    def production(pqf, pva):
+        """Unit cost by activity, input coefficients and value added per unit.
+
+        Without an energy nest these are the Leontief coefficients. With one,
+        value added and an energy bundle combine by CES inside a VAE bundle
+        whose quantity per unit of output is fixed; both bundles and the VAE
+        price are indices equal to one at the base year.
+        """
+        if nest is None:
+            return io_eff.T @ pqf + pva * vunit_eff + atax, io_eff, vunit_eff
+        fuel_rel = (pqf[:, None] + carb_fuel) / p_fuel0            # (nc, na)
+        sig_e, sig_v, sh = nest.sigma_energy, nest.sigma_vae, nest.share
+        theta = nest.theta
+        with np.errstate(divide="ignore", invalid="ignore"):
+            has_e = theta.sum(axis=0) > 0
+            pe = np.where(has_e, _energy_index(theta, fuel_rel, sig_e), 1.0)
+            pvae = _two_input_ces(1.0 - sh, pva, sh, pe, sig_v)
+            vae_q = nest.vae_unit / tfp
+            va_per = vae_q * (1.0 - sh) * _ratio_power(pvae, pva, sig_v)
+            e_per = vae_q * sh * _ratio_power(pvae, pe, sig_v)
+            fuel = np.where(emask[:, None], e_per[None, :] * theta
+                            * _ratio_power(pe[None, :], fuel_rel, sig_e[None, :]) / p_fuel0,
+                            0.0)
+        coef = io_fixed + fuel
+        cost = io_fixed.T @ pqf + vae_q * pvae + atax
+        return cost, coef, va_per
 
     X_exog = econ.X0 * act_scale * exog
-    exog_intermediate = io_eff @ X_exog           # this block's own input demand
 
     alpha_recycle = _recycle_shares(econ, sc, facshare, supply)
     beta_les = _marginal_budget_shares(econ)
@@ -438,7 +480,7 @@ def solve_period(econ: Economy, closure: Closure | None = None,
         pqf = 1.0 + ptax_f
         real_wage_target = 1.0 if closure.real_wage is None else float(closure.real_wage)
         for _ in range(_PRICE_ITERS):
-            pa = io_eff.T @ pqf + pva * vunit_eff + atax
+            pa, _, _ = production(pqf, pva)
             pd_ = econ.msh.T @ pa
             arm, dsh, msh_ = armington(
                 econ.dom_share, domestic_price(pd_ * out_wedge, pe), pm, econ.sigma_arm)
@@ -455,7 +497,7 @@ def solve_period(econ: Economy, closure: Closure | None = None,
                 pqf = new
                 break
             pqf = new
-        pa = io_eff.T @ pqf + pva * vunit_eff + atax
+        pa, coef, va_per = production(pqf, pva)
         pd_ = econ.msh.T @ pa
         p_dom = domestic_price(pd_ * out_wedge, pe)
         arm, dsh, msh_ = armington(econ.dom_share, p_dom, pm, econ.sigma_arm)
@@ -545,9 +587,10 @@ def solve_period(econ: Economy, closure: Closure | None = None,
             # (1 + tauz0) it is commodity output at producer value.
             with np.errstate(divide="ignore", invalid="ignore"):
                 Gp = np.diag(dsh * econ.arm_share / np.maximum(dom_frac * tz0, 1e-12))
-            Bm = io_eff @ econ.msh
+            Bm = coef @ econ.msh
+            fuel_carbon_per_unit = (carb_fuel * coef).sum(axis=0)
             M = np.linalg.inv(np.eye(nc) - Bm @ Gp - econ.mq)
-            other_fixed = exog_intermediate               # taxed at the firm rate
+            other_fixed = coef @ X_exog                   # own-account inputs, firm rate
 
             def duty_of(a_vec):
                 # The tariff and the output tax are levels: each rate times its
@@ -563,11 +606,14 @@ def solve_period(econ: Economy, closure: Closure | None = None,
                 firm_part = a_vec - fin_c                 # final demand at the CONSUMER rate
                 # The activity tax falls on own-account output too: households pay
                 # it in the price of what they buy straight from the activity.
+                x_vec = econ.msh @ (Gp @ a_vec) + X_exog
                 return (float((pbase * (firm_part * ptax_f + fin_c * ptax_a)).sum())
-                        + float((atax * (econ.msh @ (Gp @ a_vec) + X_exog)).sum())
+                        + float((atax * x_vec).sum())
+                        + fuel_carbon_per_unit @ x_vec      # carbon paid in the fuel price
                         + duty_of(a_vec))
 
-            inv_fixed = inv_share * inv_budget0 / (1.0 + econ.ptax)
+            level = inv_budget0 if sc.investment_level is None else float(sc.investment_level)
+            inv_fixed = inv_share * level / (1.0 + econ.ptax)
 
             def flows(gov_budget, saving):
                 """The circular flow at a given government budget and saving."""
@@ -643,7 +689,7 @@ def solve_period(econ: Economy, closure: Closure | None = None,
             gov_account = dict(
                 product_tax=float((pbase * ((A - fin_c) * ptax_f + fin_c * ptax_a)).sum()),
                 activity_tax=float((atax_set * X).sum()),
-                carbon_production=float(carb_act @ X),
+                carbon_production=float(carb_act @ X + (carb_fuel * coef * X[None, :]).sum()),
                 carbon_households=float(hh_q.sum(axis=0) @ carb_hh),
                 tariff=(0.0 if tm is None else
                         float((tm * pm_border * msh_ * econ.arm_share * A / tf0).sum())),
@@ -662,7 +708,7 @@ def solve_period(econ: Economy, closure: Closure | None = None,
             imports = msh_ * arm_q / tf0                  # at the border
             exports = exp_frac * tz0 * Q
             fac_by_act = (factor_intensity(econ, w, vunit=vunit_eff, aunit=aunit_eff)
-                          * (vunit_eff * X)[None, :])
+                          * (va_per * X)[None, :])
             fac_dem = fac_by_act.sum(axis=1)
             trade = float((pm_border * imports).sum() - (p_exp * exports).sum())
             # The current account: trade plus factor income paid abroad, less net
@@ -737,6 +783,7 @@ def solve_period(econ: Economy, closure: Closure | None = None,
                 walras=float(gaps[num]), levy=levy, foreign_sav=foreign_sav, pe=p_exp,
                 hh_dtax_paid=hh_dtax_paid, row_fac=row_fac, gov_fac=gov_fac,
                 gov_account=gov_account, hh_sav=hh_sav, tax_scale=tax_scale,
+                io_used=coef, va_per=va_per,
                 real=dict(hh_real=float(p_base_yard @ hh_q.sum(axis=0)),
                           gov_real=float(p_base_yard @ gov_q),
                           inv_real=float(p_base_yard @ inv_q),
@@ -835,12 +882,50 @@ def solve_period(econ: Economy, closure: Closure | None = None,
         world_import_price=state["world_pm"], domestic_sales=state["dom_sales"],
         p_domestic=state["p_dom"], government=state["gov_account"],
         household_saving=state["hh_sav"], forced_saving=state["levy"],
-        tax_scale=state["tax_scale"])
+        tax_scale=state["tax_scale"], input_coefficients=state["io_used"],
+        value_added_per_unit=state["va_per"])
 
 
 # ---------------------------------------------------------------------------
 # helpers
 # ---------------------------------------------------------------------------
+
+def _energy_index(theta, prices, sigma):
+    """CES price of the energy bundle by activity, fuel prices differing by activity."""
+    sigma = np.broadcast_to(np.asarray(sigma, float), theta.shape[1:])
+    out = np.ones(theta.shape[1])
+    with np.errstate(divide="ignore", invalid="ignore", over="ignore"):
+        unit = np.abs(sigma - 1.0) < 1e-9
+        logs = np.where(theta > 0, theta * np.log(np.where(theta > 0, prices, 1.0)), 0.0)
+        cd = np.exp(logs.sum(axis=0))
+        terms = np.where(theta > 0, theta * np.where(theta > 0, prices, 1.0)
+                         ** (1.0 - sigma)[None, :], 0.0)
+        ces = terms.sum(axis=0) ** (1.0 / (1.0 - np.where(unit, 0.5, sigma)))
+    return np.where(unit, cd, ces) * out
+
+
+def _two_input_ces(a, p1, b, p2, sigma):
+    """CES price of two inputs with value shares ``a`` and ``b``.
+
+    With ``sigma == 0`` it is linear, ``a p1 + b p2``, which also holds for a
+    negative share (an activity with negative value added on fixed proportions).
+    """
+    sigma = np.asarray(sigma, float)
+    with np.errstate(divide="ignore", invalid="ignore", over="ignore"):
+        unit = np.abs(sigma - 1.0) < 1e-9
+        cd = np.power(p1, a) * np.power(p2, b)
+        s = np.where(unit, 0.5, sigma)
+        ces = (a * np.power(p1, 1.0 - s) + b * np.power(p2, 1.0 - s)) ** (1.0 / (1.0 - s))
+    return np.where(sigma == 0, a * p1 + b * p2, np.where(unit, cd, ces))
+
+
+def _ratio_power(num, den, sigma):
+    """``(num / den) ** sigma``, one whenever ``sigma`` is zero."""
+    sigma = np.asarray(sigma, float)
+    with np.errstate(divide="ignore", invalid="ignore", over="ignore"):
+        out = np.power(num / den, sigma)
+    return np.where(sigma == 0, 1.0, out)
+
 
 def _trade_curves(econ: Economy):
     """Elasticities and the commodities on an export-demand or import-supply curve."""

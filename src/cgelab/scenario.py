@@ -106,6 +106,11 @@ class Scenario:
     #: is refused rather than silently ignored.
     export_price: np.ndarray | None = None
 
+    #: Real investment under ``Closure(investment="fixed_real")``, valued at
+    #: base-year purchaser prices. Absent, the base year's. It is the quantity
+    #: a forward-looking investment rule (``cgelab.bridge``) chooses each period.
+    investment_level: float | None = None
+
     #: Commodity composition of investment. Non-negative, sums to one, one entry
     #: per commodity. Absent, the base-year composition. This is which goods the
     #: investment budget buys, not how investment is shared across capital stocks

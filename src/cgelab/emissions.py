@@ -106,25 +106,29 @@ def carbon_wedges(period):
     if sc.carbon_price is None or econ.emissions is None:
         return np.zeros(econ.n_act), np.zeros(econ.n_com)
     price = float(sc.carbon_price) * period.closure.numeraire
+    return price * econ.emissions.intensity(_coefficients(period)), price * econ.emissions.household
+
+
+def _coefficients(period):
+    """The input coefficients the equilibrium used: with an energy nest they moved."""
+    if period.input_coefficients is not None:
+        return period.input_coefficients
+    econ, sc = period.econ, period.scenario
     tfp = np.ones(econ.n_act) if sc.productivity is None else np.asarray(sc.productivity, float)
-    io_eff = econ.io / tfp[None, :]
-    return price * econ.emissions.intensity(io_eff), price * econ.emissions.household
+    return econ.io / tfp[None, :]
 
 
 def emissions(period) -> pd.Series:
     """Emissions of a solved period by source, and their total.
 
-    Intermediate use follows the scenario's productivity, because the solver's
-    input coefficients do: an activity that needs less fuel per unit burns less.
+    Intermediate use is the input coefficients the equilibrium used: they follow
+    the scenario's productivity and, under an energy nest, fuel prices.
     """
     econ = period.econ
     em = econ.emissions
     if em is None:
         raise ValueError("this economy has no emissions account; see add_emissions")
-    sc = period.scenario
-    tfp = np.ones(econ.n_act) if sc.productivity is None else np.asarray(sc.productivity, float)
-    io_eff = econ.io / tfp[None, :]
-    by_activity = (em.intermediate * io_eff).sum(axis=0) * period.X
+    by_activity = (em.intermediate * _coefficients(period)).sum(axis=0) * period.X
     out = pd.Series({
         "intermediate": float(by_activity.sum()),
         "household": float(em.household @ period.hh_quantity.sum(axis=0)),

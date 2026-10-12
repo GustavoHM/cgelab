@@ -133,6 +133,10 @@ def build_regional(econ, sam) -> Regional:
             "regional exports in this slice are the base-year share of output. "
             f"export_rule={spec.export_rule!r} would price origins twice, once on "
             "the CET frontier and once in the origin CES.")
+    if spec.energy:
+        raise ValueError(
+            "the regional slice keeps intermediate inputs Leontief; an energy nest "
+            "(ModelSpec.energy) is a one-region feature for now.")
     if spec.export_demand is not None or spec.import_supply is not None:
         raise ValueError(
             "the regional slice is a price taker abroad. export_demand and "

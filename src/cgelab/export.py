@@ -142,7 +142,16 @@ def to_jump(econ: Economy, closure: Closure | None = None, scenario: Scenario | 
     if sc.carbon_price is not None and econ.emissions is None:
         raise ValueError("Scenario.carbon_price needs an emissions account: see add_emissions")
     carbono = 0.0 if sc.carbon_price is None else float(sc.carbon_price) * closure.numeraire
-    carb_atv = carbono * econ.emissions.intensity(io_eff) if carbono else np.zeros(na)
+    ninho = econ.energy_nest
+    emask = ninho.mask if ninho is not None else np.zeros(nc, dtype=bool)
+    if carbono:
+        # Com ninho de energia o carbono dos combustíveis vai no preço deles; o resto fica por
+        # unidade de produto, como no cgelab.
+        ef_fixo = np.where(emask[:, None], 0.0, econ.emissions.intermediate)
+        carb_atv = carbono * ((ef_fixo * io_eff).sum(axis=0) + econ.emissions.process)
+        carb_comb = carbono * np.where(emask[:, None], econ.emissions.intermediate, 0.0)
+    else:
+        carb_atv, carb_comb = np.zeros(na), np.zeros((nc, na))
     carb_fam = carbono * econ.emissions.household if carbono else np.zeros(nc)
     vunit_eff = econ.vunit / tfp
     aunit_eff = econ.aunit / tfp[None, :]
@@ -194,7 +203,9 @@ def to_jump(econ: Economy, closure: Closure | None = None, scenario: Scenario | 
                                                                 else _l(gov_q)),
         inv_dem=_l(econ.inv_dem),
         inv_w=_l(investment_shares(econ, sc)),
-        inv_q_fixed=_l(investment_shares(econ, sc) * float(econ.inv_dem.sum())
+        inv_q_fixed=_l(investment_shares(econ, sc)
+                       * (float(econ.inv_dem.sum()) if sc.investment_level is None
+                          else float(sc.investment_level))
                        / (1.0 + econ.ptax)),
         act_scale=_l(act_scale), own_account=[bool(b) for b in exog],
         X_exog=_l(X_exog), exog_intermediate=_l(io_eff @ X_exog),
@@ -234,6 +245,16 @@ def to_jump(econ: Economy, closure: Closure | None = None, scenario: Scenario | 
         hh_spend0=_l((econ.hh_spend0 if econ.hh_spend0 is not None
                       else econ.hh_income0 * (1 - econ.hh_savrate)) * nu),
         scenario_name=sc.name,
+        # ninho valor adicionado-energia
+        nest=ninho is not None,
+        energy_mask=[bool(b) for b in emask],
+        vae_q=_l(ninho.vae_unit / tfp if ninho is not None else np.zeros(na)),
+        e_share=_l(ninho.share if ninho is not None else np.zeros(na)),
+        theta_e=_l(ninho.theta if ninho is not None else np.zeros((nc, na))),
+        sigma_vae=_l(ninho.sigma_vae if ninho is not None else np.zeros(na)),
+        sigma_energy=_l(ninho.sigma_energy if ninho is not None else np.zeros(na)),
+        io_fixed=_l(np.where(emask[:, None], 0.0, io_eff)),
+        carb_fuel=_l(carb_comb),
     )
 
     path = Path(path)
@@ -463,9 +484,52 @@ for j in 1:na
     end
 end
 
+# ---- 1b. ninho valor adicionado-energia: a energia é uma CES entre combustíveis, e ela e o valor
+# adicionado formam uma CES; os demais insumos ficam Leontief. Preços dos dois agregados = 1 no
+# ano-base, quantidades medidas em valor do ano-base.
+const NEST = Bool(d.nest)
+if NEST
+    emask = collect(Bool, d.energy_mask); vaeq = vecf(d.vae_q); esh = vecf(d.e_share)
+    thetaE = mat(d.theta_e); svae = vecf(d.sigma_vae); sen = vecf(d.sigma_energy)
+    iofix = mat(d.io_fixed); carbf = mat(d.carb_fuel); p0f = vecf(d.ptax_base) .+ 1.0
+    @variable(m, pE[j = 1:na] >= 1e-8, start = 1.0)
+    @variable(m, pVAE[j = 1:na] >= 1e-8, start = 1.0)
+    fuelrel(c, j) = (pqf[c] + carbf[c, j]) / p0f[c]
+    for j in 1:na
+        fu = [c for c in 1:nc if thetaE[c, j] > 0]
+        if isempty(fu)
+            @constraint(m, pE[j] == 1.0)
+        elseif sen[j] == 0
+            @constraint(m, pE[j] == sum(thetaE[c, j] * fuelrel(c, j) for c in fu))
+        elseif abs(sen[j] - 1) < 1e-9
+            @constraint(m, log(pE[j]) == sum(thetaE[c, j] * log(fuelrel(c, j)) for c in fu))
+        else
+            @constraint(m, pE[j]^(1 - sen[j]) == sum(thetaE[c, j] * fuelrel(c, j)^(1 - sen[j]) for c in fu))
+        end
+        if svae[j] == 0
+            @constraint(m, pVAE[j] == (1 - esh[j]) * pva[j] + esh[j] * pE[j])
+        elseif abs(svae[j] - 1) < 1e-9
+            @constraint(m, log(pVAE[j]) == (1 - esh[j]) * log(pva[j]) + esh[j] * log(pE[j]))
+        else
+            @constraint(m, pVAE[j]^(1 - svae[j]) == (1 - esh[j]) * pva[j]^(1 - svae[j])
+                                                  + esh[j] * pE[j]^(1 - svae[j]))
+        end
+    end
+    @expression(m, vaper[j = 1:na],
+                svae[j] == 0 ? vaeq[j] * (1 - esh[j]) : vaeq[j] * (1 - esh[j]) * (pVAE[j] / pva[j])^svae[j])
+    @expression(m, eper[j = 1:na],
+                svae[j] == 0 ? vaeq[j] * esh[j] : vaeq[j] * esh[j] * (pVAE[j] / pE[j])^svae[j])
+    @expression(m, iouse[c = 1:nc, j = 1:na],
+                !emask[c] ? iofix[c, j] :
+                thetaE[c, j] <= 0 ? 0.0 :
+                sen[j] == 0 ? eper[j] * thetaE[c, j] / p0f[c] :
+                eper[j] * thetaE[c, j] * (pE[j] / fuelrel(c, j))^sen[j] / p0f[c])
+end
+
 # ---- 2-3. custo unitário da atividade e preço doméstico da mercadoria
 @constraint(m, [j = 1:na],
-            pa[j] == sum(io[c, j] * pqf[c] for c in 1:nc) + pva[j] * vunit[j] + atax[j])
+            pa[j] == (NEST ? sum(iofix[c, j] * pqf[c] for c in 1:nc) + vaeq[j] * pVAE[j]
+                           : sum(io[c, j] * pqf[c] for c in 1:nc) + pva[j] * vunit[j]) + atax[j])
 @constraint(m, [c = 1:nc], pd[c] == sum(msh[j, c] * pa[j] for j in 1:na))
 
 # ---- 4-5. Armington
@@ -570,7 +634,8 @@ end
 
 # ---- 8. balanço de absorção. Substitui a inversão de Leontief.
 @constraint(m, [c = 1:nc],
-            Aabs[c] == sum(Bmat[c, mm] * Q[mm] for mm in 1:nc)
+            Aabs[c] == (NEST ? sum(iouse[c, j] * (Xraw[j] + X_exog[j]) for j in 1:na) - exog_int[c]
+                             : sum(Bmat[c, mm] * Q[mm] for mm in 1:nc))
                      + sum(mq[c, mm] * Aabs[mm] for mm in 1:nc)
                      + hh_final[c] + gov_q[c] + inv_q[c] + exog_int[c])
 for c in 1:nc
@@ -589,6 +654,7 @@ end
             sum(pbase[c] * ((Aabs[c] - fin_c[c]) * tf(c) + fin_c[c] * ta(c))
                 for c in 1:nc)
             + sum(atax[j] * X[j] for j in 1:na)        # conta própria incluída
+            + (NEST ? sum(carbf[c, j] * iouse[c, j] * X[j] for c in 1:nc, j in 1:na) : 0.0)
             + sum(tm[c] * er * pwm[c] * mshm[c] * armsh[c] * Aabs[c] / (1 + tm0[c]) for c in 1:nc)
             + sum(tauz[c] * pd[c] * Q[c] for c in 1:nc))
 @constraint(m, savings == hh_sav + levy + tax_rev + gov_inst - gov_spend - gov_cost + fsav)
@@ -608,7 +674,8 @@ end
 @expression(m, facint[f = 1:nf, j = 1:na],
             leo[j] ? (vunit[j] != 0 ? aunit[f, j] / vunit[j] : 0.0)
                    : (theta[f, j] > 0 ? theta[f, j] * (pva[j] / w[f])^sva[j] : 0.0))
-@expression(m, facdem[f = 1:nf], sum(facint[f, j] * vunit[j] * X[j] for j in 1:na))
+@expression(m, facdem[f = 1:nf],
+            sum(facint[f, j] * (NEST ? vaper[j] : vunit[j]) * X[j] for j in 1:na))
 if labour_slack
     @constraint(m, emp == facdem[LAB])
 end

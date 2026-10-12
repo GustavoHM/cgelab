@@ -349,6 +349,17 @@ r.tax_scale                       # 0.26: the carbon revenue pays for cutting pr
   is a tax per unit of output by emission intensity on activities and a specific tax on household
   fuel. Under a revenue target, another tax moves to keep receipts where they were; here it is the
   product tax.</p>
+  <h3>16. Fuel that answers to the price</h3>
+<pre><code>_, nested = toy.build_with_institutions(model_spec=toy.spec(energy=["c_ind"], sigma_vae=0.6))
+nested = ck.add_emissions(nested, intermediate=fuel, household={"c_ind": 5.0},
+                          process={"a_ind": 2.0})
+r2 = ck.solve_period(nested, neutral, ck.Scenario(carbon_price=0.5))
+ck.emissions(r2)["total"]          # 20.85, against 21.79 with fixed fuel coefficients
+r2.input_coefficients[1]           # fuel per unit of output: 0.089 and 0.276, from 0.095 and 0.286</code></pre>
+  <p>With <code>ModelSpec.energy</code>, each activity buys an energy bundle that substitutes for
+  value added. The carbon on a fuel enters the price that activity pays for it, so the same carbon
+  price now changes how things are produced, not only how much. With both elasticities at zero the
+  nest is the Leontief model, to machine precision.</p>
 </div></section>
 
 <section id="gates"><div class="wrap">
@@ -435,7 +446,7 @@ cgelab diagnostics -- Economy(3 activities, 3 commodities, 2 households, 2 facto
   <h3>An independent JuMP replica</h3>
   <p><code>to_jump</code> writes the same equilibrium as a JuMP model in which nothing is nested: the
   price fixed point, the wedge series and the saving–revenue relation are plain constraints, and
-  Ipopt solves them from a displaced start. In 31 cases (margins, own-account activities, CET, export demand and import supply curves, tariffs and output taxes inside the prices, Hosoe's closure, government targets, a carbon price, direct
+  Ipopt solves them from a displaced start. In 33 cases (margins, own-account activities, CET, export demand and import supply curves, tariffs and output taxes inside the prices, Hosoe's closure, government targets, a carbon price, an energy nest, direct
   taxes, transfers, foreign capital, FDI, LES and alternative closures) the two solvers agree to at
   most <code>3e-12</code>. Perturbing the exported data makes the comparison diverge by 1e-3 to
   3e-1, which shows it can see an error.</p>

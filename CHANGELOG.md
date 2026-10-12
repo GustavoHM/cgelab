@@ -44,6 +44,13 @@ before 1.0, a minor version may add to the API and a patch version only fixes.
   not validated against GTAP, which needs the GTAP database.
 - `cgelab.examples.hosoe.build_simple()`: Hosoe's chapter 5 (`splcge`).
 
+### Added toward 0.7
+
+- `read_har` and `write_har`: GEMPACK header array files, the format of the GTAP
+  database, without GEMPACK. On GTAP 10A (2014) the 86 headers harpy3 reads
+  agree with it exactly, and four GTAP identities close to single precision.
+  The data are licensed and never committed.
+
 ### Fixed in 0.3
 
 - An undetermined exchange rate is refused. With fixed export shares, a

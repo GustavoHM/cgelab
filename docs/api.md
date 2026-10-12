@@ -418,6 +418,25 @@ Columns `year`, `account`, `cv`.
 
 ---
 
+## HAR files
+
+### `read_har(path, headers=None) -> dict[str, Header]`
+
+GEMPACK header array files, the format of the GTAP database. Types `1C`, `2I`,
+`2R`, `RE` (full or sparse) and `RL`. `headers` keeps only some names.
+
+### `write_har(path, headers)`
+
+`{name: Header or array}`. Plain reals become `2R` up to two dimensions and
+`RL` above; integers `2I`; strings `1C`; a `Header` with sets `RE`.
+
+### `Header`
+
+`name`, `description`, `kind`, `array` (float64, or int64 for `2I`, object for
+`1C`), `sets` and `labels` per dimension, and `to_series()` in long form.
+
+---
+
 ## Diagnostics
 
 | Function | Answers |

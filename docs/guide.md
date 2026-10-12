@@ -715,3 +715,38 @@ the GTAP database and is not made here. What is checked is that the identity
 closes, that an endowment shock in an economy without distortions is all
 endowment, that a small country has no terms-of-trade effect from a home shock,
 and that a new distortion costs welfare.
+
+---
+
+## 15. GTAP data and HAR files
+
+The GTAP database and every GEMPACK model store their arrays in header array
+(HAR) files. `read_har` reads them without GEMPACK:
+
+```python
+base = ck.read_har("GTAP10A/GTAP/2014/basedata.har")
+base["VIMS"]                       # Header('VIMS', RE, TRAD_COMM[65] x REG[141] x REG[141]: ...)
+base["VIMS"].array                 # numpy, (65, 141, 141)
+base["VIMS"].labels[1][:3]         # ['aus', 'nzl', 'xoc']
+base["VIMS"].to_series()           # long form indexed by the set labels
+prm = ck.read_har("GTAP10A/GTAP/2014/default.prm")
+prm["ESBD"].to_series()["pdr"]     # 5.05, the Armington elasticity for paddy rice
+```
+
+The types are `1C` (strings), `2I` and `2R` (two-dimensional, unlabelled), `RE`
+(reals with a set and labels per dimension, stored in full or sparse) and `RL`.
+Values are single precision in the file. `write_har` writes the same types, for
+handing data or results to a GEMPACK user.
+
+The reader was written from the files and is checked two ways. On GTAP 10A, 2014,
+the 86 headers of `sets.har`, `basedata.har`, `default.prm` and `metadata.har`
+agree exactly with GEMPACK's own Python reader, harpy3
+(`validation/har_harpy.py`). And four GTAP identities close to single precision:
+CIF equals FOB plus margins flow by flow, world supply of transport margins meets
+demand, cost equals revenue in every activity, and output is sold. Point
+`CGELAB_GTAP_DIR` at a year folder to run those checks with the suite. The data
+are licensed and stay out of the repository; `.gitignore` refuses `.har`, `.prm`
+and `.pkg` files.
+
+Aggregating GTAP and building a one-region SAM from it are the next steps, with
+the regional work of 0.7.

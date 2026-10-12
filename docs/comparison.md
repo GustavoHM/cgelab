@@ -112,7 +112,7 @@ lista até a 1.0; a versão de cada item é a do [`ROADMAP.md`](../ROADMAP.md).
 | Calibração dinâmica da linha de base; capital setorial e safras | 📄 MONASH, GDyn, LINKAGE | falta | 0.6 |
 | Construção e desagregação de MCS | 📄 IFPRI, PEP | falta | 0.6 |
 | Múltiplas regiões | 📄 GTAP, TERM, ORANI-G | ninho de origem feito; migração, fechamentos regionais e comércio bilateral faltam | 0.7 |
-| Dados do GTAP | 📄 GTAPAgg, FlexAgg | falta | 0.7 |
+| Dados do GTAP | 📄 GTAPAgg, FlexAgg | leitura e escrita de HAR feitas, conferidas contra o harpy3 no GTAP 10A; agregação e MCS de uma região faltam | 0.7 |
 | Complementaridade (MCP); resolvedores alternativos | 📄 GAMS/MPSGE com PATH; pycge (Pyomo) | falta | 0.8 |
 | Troca de fechamento genérica; entropia cruzada; EGC intertemporal; concorrência imperfeita; uso da terra; exportar para GAMS e GEMPACK | 📄 GEMPACK, MPSGE, GTAP-AEZ | falta | 0.9 |
 

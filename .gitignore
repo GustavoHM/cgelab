@@ -13,3 +13,10 @@ validation/out/
 
 # OS
 .DS_Store
+
+# GTAP and other GEMPACK data are licensed: never commit them.
+*.har
+*.HAR
+*.prm
+*.pkg
+*.sl4

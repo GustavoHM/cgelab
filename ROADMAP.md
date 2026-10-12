@@ -83,7 +83,8 @@ and household surveys (see *Tools around the model*).
 **0.7 — several regions, completed.** Factor migration, regional investment and government
 closures, margins and CET inside the origin nest, a capital stock per region in `run_path`;
 bilateral trade with transport margins; reading and aggregating GTAP data. Validation against
-GTAP and ORANI-G/TERM.
+GTAP and ORANI-G/TERM. Reading is in: `read_har` and `write_har`, exact against harpy3 on GTAP
+10A. Aggregation and a one-region SAM from GTAP are next.
 
 **0.8 — complementarity and solvers.** Activities that can switch off, quotas with rents, price
 floors and ceilings, as a mixed complementarity problem; Pyomo with IPOPT and PATH besides

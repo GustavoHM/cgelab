@@ -30,6 +30,7 @@ from .closure import Closure
 from .decompose import path_decomposition, scenario_vector, subtotals, welfare_decomposition
 from .diagnostics import base_year_reproduction, homogeneity_test, report, walras_check
 from .export import to_jump
+from .har import read_har, write_har
 from .dynamics import Growth, PathResult, run_path
 from .functions import (armington, ces_intensity, ces_price, cet, cet_domestic_price,
                         cobb_douglas_price)
@@ -56,7 +57,7 @@ __all__ = [
     "run_path", "PathResult", "Growth",
     "equivalent_variation", "ev_by_group", "compensating_variation",
     "base_year_reproduction", "homogeneity_test", "walras_check", "report",
-    "to_jump",
+    "to_jump", "read_har", "write_har",
     "factor_demand_by_activity", "real_gdp", "sectoral_path",
     "national_accounts", "price_indices", "government_account",
     "Multipliers", "accounting_multipliers", "fixed_price_multipliers", "leontief_multipliers",

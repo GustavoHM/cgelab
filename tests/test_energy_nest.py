@@ -101,3 +101,57 @@ def test_misuse_is_refused():
     from cgelab.examples import regions
     with pytest.raises(ValueError, match="energy nest"):
         regions.build(model_spec=regions.spec(energy=["r1:c"]))
+
+
+# ---------------------------------------------------------------------------
+# Capital-energy composite inside value added (GTAP-E's arrangement)
+# ---------------------------------------------------------------------------
+
+@pytest.mark.parametrize("sigma", [0.5, 1.0, 1.7])
+def test_equal_elasticities_collapse_to_the_value_added_nest(sigma):
+    """With sigma_ke = sigma_va, the two-level nest is one CES over the other
+    factors, capital and energy; so is the value-added nest with
+    sigma_vae = sigma_va. The two must solve to the same equilibrium."""
+    sc = ck.Scenario(carbon_price=0.8, productivity=np.array([1.02, 1.0, 1.0]))
+    vae = margins(sigma_va=sigma, sigma_vae=sigma, sigma_energy=2.0)
+    cap = margins(energy_nest="capital", sigma_va=sigma, sigma_ke=sigma, sigma_energy=2.0)
+    a, b = ck.solve_period(vae, scenario=sc), ck.solve_period(cap, scenario=sc)
+    np.testing.assert_allclose(b.X, a.X, rtol=1e-11)
+    np.testing.assert_allclose(b.factor_prices, a.factor_prices, rtol=1e-11)
+    np.testing.assert_allclose(b.input_coefficients, a.input_coefficients, rtol=1e-11, atol=1e-14)
+
+
+def test_capital_and_energy_meet_their_first_order_condition():
+    from cgelab.solve import _energy_index
+    s_ke, s_e, price = 0.3, 2.0, 0.8
+    econ = margins(energy_nest="capital", sigma_va=0.8, sigma_ke=s_ke, sigma_energy=s_e)
+    r = ck.solve_period(econ, scenario=ck.Scenario(carbon_price=price))
+    nest, k = econ.energy_nest, econ.factor("f_cap")
+    p0 = 1.0 + econ.ptax
+    for j in (0, 1):
+        rel = (r.pqf + price * econ.emissions.intermediate[:, j]) / p0
+        pe = _energy_index(nest.theta[:, j:j + 1], rel[:, None], np.array([s_e]))[0]
+        energy = (r.input_coefficients[nest.mask, j] * p0[nest.mask] * rel[nest.mask]).sum() / pe
+        capital = r.factor_demand_by_activity[k, j] / r.X[j]
+        sk = nest.k_share[j]
+        assert capital / energy == pytest.approx(
+            sk / (1 - sk) * (pe / r.factor_prices[k]) ** s_ke, rel=1e-12)
+
+
+def test_capital_energy_identities():
+    econ = margins(energy_nest="capital", sigma_va=0.8, sigma_ke=0.3, sigma_energy=2.0)
+    assert ck.base_year_reproduction(econ)["ok"]
+    assert ck.homogeneity_test(econ)["ok"]
+    r = ck.solve_period(econ, scenario=ck.Scenario(carbon_price=0.8))
+    assert abs(r.walras) < 1e-9
+    assert abs(ck.national_accounts(r)["gap"]) < 1e-9 * 200
+    assert r.government["carbon_production"] == pytest.approx(
+        0.8 * ck.emissions(r)["intermediate"], rel=1e-12)
+    w = ck.welfare_decomposition(econ, ck.Scenario(), ck.Scenario(
+        carbon_price=0.8, productivity=np.array([1.02, 1.0, 1.0])))
+    assert abs(w.residual) < 1e-8
+
+
+def test_energy_capital_must_be_a_factor():
+    with pytest.raises(KeyError, match="energy_capital"):
+        margins(energy_nest="capital", energy_capital="f_oil")

@@ -7,7 +7,7 @@ e uma inversão de Leontief. Cada uma é uma dedução do autor. Em JuMP nada di
 bloco é uma restrição e o Ipopt encontra o ponto fixo. Um erro na álgebra do Python não pode,
 portanto, ser reproduzido do outro lado por construção.
 
-Roda 33 casos sobre as economias de brinquedo do pacote: sem margens, com bloco de margens, com
+Roda 34 casos sobre as economias de brinquedo do pacote: sem margens, com bloco de margens, com
 atividade de conta própria, com CET, com curvas de demanda de exportação e de oferta de
 importação (país grande, como o `lrgcge`), com tarifa e imposto sobre o produto dentro dos preços
 (como o `stdcge`), com instituições (impostos diretos, transferências, remessas,
@@ -228,6 +228,18 @@ def main() -> int:
         "klem_dois_combustiveis", econ,
         ck.Closure(government_target="revenue", government_adjusts="product_tax"),
         ck.Scenario(name="klem2", carbon_price=0.8))
+
+    # Composto capital-energia dentro do ninho do valor adicionado (o arranjo do GTAP-E)
+    _, econ = toy.build_with_margins(model_spec=toy.spec(
+        energy=["c_agr", "c_ind"], energy_nest="capital", sigma_va=0.8,
+        sigma_ke={"__default__": 0.3, "a_ind": 1.0}, sigma_energy=2.0))
+    inter = pd.DataFrame(0.0, index=econ.coms, columns=econ.acts)
+    inter.loc[["c_agr", "c_ind"], ["a_agr", "a_ind"]] = [[2.0, 1.0], [4.0, 9.0]]
+    econ = ck.add_emissions(econ, intermediate=inter)
+    casos["klem_capital_energia"] = caso(
+        "klem_capital_energia", econ,
+        ck.Closure(government_target="revenue", government_adjusts="product_tax"),
+        ck.Scenario(name="ke", carbon_price=0.8, productivity=np.array([1.02, 1.0, 1.0])))
 
     _, econ = toy.build()
     casos["fechamento_alternativo"] = caso(

@@ -131,8 +131,10 @@ Done, and no longer gaps:
 
 **Nesting beyond value added.** The value-added-energy nest is in: fuel use answers to prices,
 which an applied model otherwise does by hand, swapping one fuel for another volume for volume at
-a parity price the user picks. Still open is GTAP-E's arrangement, a capital-energy
-subnest inside value added, in which capital and energy are complements against labour.
+a parity price the user picks. GTAP-E's arrangement is in too (`energy_nest="capital"`):
+a capital-energy composite inside value added, in which capital and energy can be complements
+against labour. Deeper energy trees (electricity against non-electric fuels, then coal against
+the rest) would be further nests of the same kind.
 
 **Capacity in physical units.** The physical-units account is in: a coefficient in kWh per kg
 becomes a SAM entry with `physical_coefficient`, and a path reports kWh and tonnes. A capacity

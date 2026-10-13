@@ -837,6 +837,17 @@ to its own emission coefficient, and carbon on non-energy inputs and process
 carbon stay a tax per unit of output. Activities on fixed proportions (`leontief`,
 or a negative value added) keep their fuel mix fixed.
 
+**Where energy sits.** `energy_nest="value_added"` (the default) puts the energy
+bundle against value added as a whole. `energy_nest="capital"` follows GTAP-E: the
+bundle first joins a capital factor (`energy_capital`, default `"f_cap"`) in a
+capital-energy composite with elasticity `sigma_ke`, and that composite sits inside
+the value-added nest with the other factors, at `sigma_va`. A low `sigma_ke` makes
+capital and energy complements while both substitute for labour, which is what a
+carbon price that lowers the return to fuel-intensive capital needs. With
+`sigma_ke = sigma_va`, the two-level nest is a single CES over the other factors,
+capital and energy, and the tests check that it then solves to the same equilibrium
+as `energy_nest="value_added"` with `sigma_vae = sigma_va`.
+
 `PeriodResult.input_coefficients` and `value_added_per_unit` are the coefficients
 the equilibrium used, and `emissions`, the accounts and the welfare decomposition
 read them. With both elasticities at zero, the nest is the Leontief model: the

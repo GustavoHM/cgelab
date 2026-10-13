@@ -255,6 +255,20 @@ def to_jump(econ: Economy, closure: Closure | None = None, scenario: Scenario | 
         sigma_energy=_l(ninho.sigma_energy if ninho is not None else np.zeros(na)),
         io_fixed=_l(np.where(emask[:, None], 0.0, io_eff)),
         carb_fuel=_l(carb_comb),
+        nest_mode=ninho.mode if ninho is not None else "value_added",
+        capital_index=int(ninho.capital) + 1 if ninho is not None else 0,
+        nest_free=[bool(b) for b in (ninho.free if ninho is not None and ninho.free is not None
+                                      else np.zeros(na, dtype=bool))],
+        top_share=_l(ninho.top_share if ninho is not None and ninho.top_share is not None
+                     else np.zeros((nf, na))),
+        ke_share=_l(ninho.ke_share if ninho is not None and ninho.ke_share is not None
+                    else np.zeros(na)),
+        k_share=_l(ninho.k_share if ninho is not None and ninho.k_share is not None
+                   else np.zeros(na)),
+        sigma_ke=_l(ninho.sigma_ke if ninho is not None and ninho.sigma_ke is not None
+                    else np.zeros(na)),
+        sigma_top=_l(ninho.sigma_top if ninho is not None and ninho.sigma_top is not None
+                     else np.zeros(na)),
     )
 
     path = Path(path)
@@ -493,7 +507,6 @@ if NEST
     thetaE = mat(d.theta_e); svae = vecf(d.sigma_vae); sen = vecf(d.sigma_energy)
     iofix = mat(d.io_fixed); carbf = mat(d.carb_fuel); p0f = vecf(d.ptax_base) .+ 1.0
     @variable(m, pE[j = 1:na] >= 1e-8, start = 1.0)
-    @variable(m, pVAE[j = 1:na] >= 1e-8, start = 1.0)
     fuelrel(c, j) = (pqf[c] + carbf[c, j]) / p0f[c]
     for j in 1:na
         fu = [c for c in 1:nc if thetaE[c, j] > 0]
@@ -506,21 +519,71 @@ if NEST
         else
             @constraint(m, pE[j]^(1 - sen[j]) == sum(thetaE[c, j] * fuelrel(c, j)^(1 - sen[j]) for c in fu))
         end
-        if svae[j] == 0
-            @constraint(m, pVAE[j] == (1 - esh[j]) * pva[j] + esh[j] * pE[j])
-        elseif abs(svae[j] - 1) < 1e-9
-            @constraint(m, log(pVAE[j]) == (1 - esh[j]) * log(pva[j]) + esh[j] * log(pE[j]))
+    end
+    # CES de dois insumos com parcelas a, b: linear com elasticidade zero (aceita parcela negativa).
+    function ces2!(pout, a, p1, b, p2, sg)
+        if sg == 0
+            @constraint(m, pout == a * p1 + b * p2)
+        elseif abs(sg - 1) < 1e-9
+            @constraint(m, log(pout) == a * log(p1) + b * log(p2))
         else
-            @constraint(m, pVAE[j]^(1 - svae[j]) == (1 - esh[j]) * pva[j]^(1 - svae[j])
-                                                  + esh[j] * pE[j]^(1 - svae[j]))
+            @constraint(m, pout^(1 - sg) == a * p1^(1 - sg) + b * p2^(1 - sg))
         end
     end
-    @expression(m, vaper[j = 1:na],
-                svae[j] == 0 ? vaeq[j] * (1 - esh[j]) : vaeq[j] * (1 - esh[j]) * (pVAE[j] / pva[j])^svae[j])
-    @expression(m, eper[j = 1:na],
-                svae[j] == 0 ? vaeq[j] * esh[j] : vaeq[j] * esh[j] * (pVAE[j] / pE[j])^svae[j])
+    pw(x, y, sg) = sg == 0 ? 1.0 : (x / y)^sg
+    const NESTMODE = String(d.nest_mode)
+    if NESTMODE == "value_added"
+        # A energia substitui o valor adicionado inteiro num agregado VAE.
+        @variable(m, pVAE[j = 1:na] >= 1e-8, start = 1.0)
+        for j in 1:na
+            ces2!(pVAE[j], 1 - esh[j], pva[j], esh[j], pE[j], svae[j])
+        end
+        @expression(m, vaper[j = 1:na], vaeq[j] * (1 - esh[j]) * pw(pVAE[j], pva[j], svae[j]))
+        @expression(m, eper[j = 1:na], vaeq[j] * esh[j] * pw(pVAE[j], pE[j], svae[j]))
+        @expression(m, topcost[j = 1:na], vaeq[j] * pVAE[j])
+        @expression(m, facper[f = 1:nf, j = 1:na],
+                    (leo[j] ? (vunit[j] != 0 ? aunit[f, j] / vunit[j] : 0.0)
+                            : (theta[f, j] > 0 ? theta[f, j] * (pva[j] / w[f])^sva[j] : 0.0)) * vaper[j])
+        @expression(m, fuelfix[c = 1:nc, j = 1:na], 0.0)
+        nfree = falses(na)
+    else
+        # A energia junta-se ao capital num composto KE, que entra no ninho do valor adicionado.
+        KI = Int(d.capital_index); nfree = .!collect(Bool, d.nest_free)
+        ktop = mat(d.top_share); kesh = vecf(d.ke_share); ksh = vecf(d.k_share)
+        sigke = vecf(d.sigma_ke); sigtop = vecf(d.sigma_top)
+        @variable(m, pKE[j = 1:na] >= 1e-8, start = 1.0)
+        @variable(m, pTOP[j = 1:na] >= 1e-8, start = 1.0)
+        for j in 1:na
+            if nfree[j]
+                @constraint(m, pKE[j] == 1.0); @constraint(m, pTOP[j] == 1.0)
+                continue
+            end
+            ces2!(pKE[j], ksh[j], w[KI], 1 - ksh[j], pE[j], sigke[j])
+            fs = [f for f in 1:nf if ktop[f, j] > 0]
+            if sigtop[j] == 0
+                @constraint(m, pTOP[j] == sum(ktop[f, j] * w[f] for f in fs) + kesh[j] * pKE[j])
+            elseif abs(sigtop[j] - 1) < 1e-9
+                @constraint(m, log(pTOP[j]) == sum(ktop[f, j] * log(w[f]) for f in fs) + kesh[j] * log(pKE[j]))
+            else
+                @constraint(m, pTOP[j]^(1 - sigtop[j]) == sum(ktop[f, j] * w[f]^(1 - sigtop[j]) for f in fs)
+                                                         + kesh[j] * pKE[j]^(1 - sigtop[j]))
+            end
+        end
+        @expression(m, keper[j = 1:na], vaeq[j] * kesh[j] * pw(pTOP[j], pKE[j], sigtop[j]))
+        @expression(m, eper[j = 1:na], nfree[j] ? 0.0 : keper[j] * (1 - ksh[j]) * pw(pKE[j], pE[j], sigke[j]))
+        @expression(m, topcost[j = 1:na],
+                    nfree[j] ? sum(aunit[f, j] * w[f] for f in 1:nf)
+                               + sum((pqf[c] + carbf[c, j]) * io[c, j] for c in 1:nc if emask[c])
+                             : vaeq[j] * pTOP[j])
+        @expression(m, facper[f = 1:nf, j = 1:na],
+                    nfree[j] ? aunit[f, j] :
+                    f == KI ? keper[j] * ksh[j] * pw(pKE[j], w[f], sigke[j])
+                            : vaeq[j] * ktop[f, j] * pw(pTOP[j], w[f], sigtop[j]))
+        @expression(m, fuelfix[c = 1:nc, j = 1:na], nfree[j] && emask[c] ? io[c, j] : 0.0)
+    end
     @expression(m, iouse[c = 1:nc, j = 1:na],
                 !emask[c] ? iofix[c, j] :
+                nfree[j] ? fuelfix[c, j] :
                 thetaE[c, j] <= 0 ? 0.0 :
                 sen[j] == 0 ? eper[j] * thetaE[c, j] / p0f[c] :
                 eper[j] * thetaE[c, j] * (pE[j] / fuelrel(c, j))^sen[j] / p0f[c])
@@ -528,7 +591,7 @@ end
 
 # ---- 2-3. custo unitário da atividade e preço doméstico da mercadoria
 @constraint(m, [j = 1:na],
-            pa[j] == (NEST ? sum(iofix[c, j] * pqf[c] for c in 1:nc) + vaeq[j] * pVAE[j]
+            pa[j] == (NEST ? sum(iofix[c, j] * pqf[c] for c in 1:nc) + topcost[j]
                            : sum(io[c, j] * pqf[c] for c in 1:nc) + pva[j] * vunit[j]) + atax[j])
 @constraint(m, [c = 1:nc], pd[c] == sum(msh[j, c] * pa[j] for j in 1:na))
 
@@ -675,7 +738,7 @@ end
             leo[j] ? (vunit[j] != 0 ? aunit[f, j] / vunit[j] : 0.0)
                    : (theta[f, j] > 0 ? theta[f, j] * (pva[j] / w[f])^sva[j] : 0.0))
 @expression(m, facdem[f = 1:nf],
-            sum(facint[f, j] * (NEST ? vaper[j] : vunit[j]) * X[j] for j in 1:na))
+            sum((NEST ? facper[f, j] : facint[f, j] * vunit[j]) * X[j] for j in 1:na))
 if labour_slack
     @constraint(m, emp == facdem[LAB])
 end

@@ -96,6 +96,15 @@ class ModelSpec:
     energy: Sequence[str] | None = None
     sigma_vae: float | Mapping[str, float] = 0.5
     sigma_energy: float | Mapping[str, float] = 1.0
+    #: Where the energy bundle sits. ``"value_added"``: it substitutes for value
+    #: added as a whole (``sigma_vae``). ``"capital"``: it combines with
+    #: ``energy_capital`` first (``sigma_ke``), and that capital-energy
+    #: composite substitutes for the other factors inside the value-added nest
+    #: (``sigma_va``), as in GTAP-E. A low ``sigma_ke`` makes capital and
+    #: energy complements while both substitute for labour.
+    energy_nest: str = "value_added"         # "value_added" | "capital"
+    energy_capital: str = "f_cap"
+    sigma_ke: float | Mapping[str, float] = 0.5
     household_demand: str = "cobb_douglas"   # "cobb_douglas" | "les"
     frisch: float = -1.5                     # LES only: Frisch parameter, sets subsistence
     margins: bool = True
@@ -155,6 +164,7 @@ class ModelSpec:
             ("export_rule", ("fixed_shares", "cet")),
             ("household_demand", ("cobb_douglas", "les")),
             ("negative_value_added", ("leontief", "net")),
+            ("energy_nest", ("value_added", "capital")),
         ):
             got = getattr(self, field_name)
             if got not in allowed:
@@ -277,6 +287,9 @@ class ModelSpec:
 
     def sigma_vae_vector(self, activities: Sequence[str]):
         return _as_vector(self.sigma_vae, activities, "sigma_vae")
+
+    def sigma_ke_vector(self, activities: Sequence[str]):
+        return _as_vector(self.sigma_ke, activities, "sigma_ke")
 
     def sigma_energy_vector(self, activities: Sequence[str]):
         return _as_vector(self.sigma_energy, activities, "sigma_energy")

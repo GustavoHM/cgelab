@@ -70,6 +70,12 @@ before 1.0, a minor version may add to the API and a patch version only fixes.
   `PeriodResult.input_coefficients` and `value_added_per_unit` are the
   coefficients the equilibrium used.
 
+- GTAP-E's arrangement (`ModelSpec.energy_nest="capital"`, `energy_capital`,
+  `sigma_ke`): energy joins a capital factor in a capital-energy composite that
+  sits inside the value-added nest. With `sigma_ke = sigma_va` it collapses to the
+  value-added nest with `sigma_vae = sigma_va`, and the two solve to the same
+  equilibrium to 1e-11; capital and energy meet their first-order condition; the
+  JuMP replica carries both arrangements.
 - The bridge to dsgelab (`cgelab.bridge`, `pip install cgelab[dsge]`): a
   Ramsey CGE in which an Euler equation chooses investment and every period is
   the SAM model. dsgelab gives its steady state, first-order solution, impulse

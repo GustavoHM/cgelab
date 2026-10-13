@@ -47,7 +47,7 @@ célula **📄** pode estar errada.
 | **Dinâmica recursiva** | ✅ vários estoques de capital, alocação pelo retorno, economia por ano † | — | ✅ laço de iteração temporal | — | ✅ |
 | **Bem-estar: VE e VC** | ✅ | — | — | — | convenção do modelador |
 | Agregação por grupo imune à composição | ✅ | — | — | — | — |
-| **Réplica independente para validação** | ✅ † JuMP/Ipopt, 33 casos | ? | ? | ? | n/a |
+| **Réplica independente para validação** | ✅ † JuMP/Ipopt, 34 casos | ? | ? | ? | n/a |
 | Licença | MIT | ? | CC0-1.0 | ? | proprietária/comercial |
 | Estado declarado pelos autores | — | — | ✅ "muito preliminar… por favor não cite" | livro-texto | maduro |
 
@@ -69,7 +69,7 @@ licença comercial e com as verificações contábeis embutidas, não se achou a
 
 O `cgelab` foi validado de quatro formas:
 
-- contra uma réplica independente em JuMP/Ipopt do mesmo equilíbrio, em 33 casos;
+- contra uma réplica independente em JuMP/Ipopt do mesmo equilíbrio, em 34 casos;
 - contra uma transcrição linha a linha, em JuMP, dos programas `stdcge` e `lrgcge` da
   biblioteca do GAMS (Hosoe, Gasawa e Hashimoto, 2004): a abolição das tarifas coincide nas 49
   variáveis exibidas, a 2,4e-12;

@@ -47,6 +47,19 @@ class EnergyNest:
     theta: np.ndarray           # (n_com, n_act)
     sigma_vae: np.ndarray       # (n_act,), zero where fixed
     sigma_energy: np.ndarray    # (n_act,), zero where fixed
+    #: ``"value_added"`` or ``"capital"``. Under ``"capital"``: the capital
+    #: factor's index, the activities that substitute (``free``; the rest keep
+    #: Leontief inputs), the top-nest shares of the other factors
+    #: ``(n_fac, n_act)`` and of the capital-energy composite, capital's share
+    #: inside that composite, and the two elasticities.
+    mode: str = "value_added"
+    capital: int = -1
+    free: np.ndarray | None = None
+    top_share: np.ndarray | None = None
+    ke_share: np.ndarray | None = None
+    k_share: np.ndarray | None = None
+    sigma_ke: np.ndarray | None = None
+    sigma_top: np.ndarray | None = None
 
 
 @dataclass
@@ -442,7 +455,7 @@ def calibrate(sam: SAM, spec: ModelSpec | None = None, *,
                          dom0 / np.maximum(dom0 + imp_arm0, 1e-12), 1.0)
     # Government income as the solver books it: every tax, its factor income,
     # net of its transfers to households. What it does not spend it saves.
-    energy_nest = _energy_nest(spec, coms, acts, io, ptax, vunit, leontief)
+    energy_nest = _energy_nest(spec, coms, acts, io, ptax, vunit, leontief, aunit, facs)
     gov_income0 = (float(tax_all_c.sum()) + float(tax_a.sum()) + float(hh_tax.sum())
                    + float(fac_gov.sum()) - float(gov_tr.sum()))
     gov_savrate = (1.0 - float(gov_dem.sum()) / gov_income0) if gov_income0 > 0 else 0.0
@@ -480,7 +493,7 @@ def calibrate(sam: SAM, spec: ModelSpec | None = None, *,
     return econ
 
 
-def _energy_nest(spec, coms, acts, io, ptax, vunit, leontief):
+def _energy_nest(spec, coms, acts, io, ptax, vunit, leontief, aunit, facs):
     if not spec.energy:
         return None
     unknown = [c for c in spec.energy if c not in coms]
@@ -502,8 +515,32 @@ def _energy_nest(spec, coms, acts, io, ptax, vunit, leontief):
     if np.any(~np.isfinite(sig_vae)) or np.any(sig_vae < 0) or np.any(~np.isfinite(sig_e)) \
             or np.any(sig_e < 0):
         raise ValueError("sigma_vae and sigma_energy must be finite and non-negative")
+    if spec.energy_nest == "value_added":
+        return EnergyNest(mask=mask, vae_unit=vae, share=share, theta=theta,
+                          sigma_vae=sig_vae, sigma_energy=sig_e)
+    # Capital-energy composite inside the value-added nest. Factor payments per
+    # unit of output are the base-year factor quantities (factor prices are 1).
+    if spec.energy_capital not in facs:
+        raise KeyError(f"energy_capital {spec.energy_capital!r} is not a factor ({list(facs)})")
+    k = facs.index(spec.energy_capital)
+    cap = aunit[k]
+    free = free & (cap >= 0)
+    ke = cap + energy
+    with np.errstate(divide="ignore", invalid="ignore"):
+        top = np.where(vae[None, :] > 0, aunit / np.where(vae > 0, vae, 1.0)[None, :], 0.0)
+        ke_share = np.where(vae > 0, ke / np.where(vae > 0, vae, 1.0), 0.0)
+        k_share = np.where(ke > 0, cap / np.where(ke > 0, ke, 1.0), 0.0)
+    top[k] = 0.0
+    top[:, ~free] = 0.0
+    sig_top = (np.ones(len(acts)) if spec.value_added == "cobb_douglas"
+               else spec.sigma_va_vector(acts))
+    sig_ke = np.where(free, spec.sigma_ke_vector(acts), 0.0)
+    if np.any(~np.isfinite(sig_ke)) or np.any(sig_ke < 0):
+        raise ValueError("sigma_ke must be finite and non-negative")
     return EnergyNest(mask=mask, vae_unit=vae, share=share, theta=theta,
-                      sigma_vae=sig_vae, sigma_energy=sig_e)
+                      sigma_vae=sig_vae, sigma_energy=sig_e, mode="capital", capital=k,
+                      free=free, top_share=top, ke_share=ke_share, k_share=k_share,
+                      sigma_ke=sig_ke, sigma_top=np.where(free, sig_top, 0.0))
 
 
 def _population_shares(hhs, population) -> np.ndarray:

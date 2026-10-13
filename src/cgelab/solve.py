@@ -158,8 +158,9 @@ class PeriodResult:
     #: target (``Closure.government_adjusts``); one otherwise.
     tax_scale: float = 1.0
     #: Intermediate input per unit of activity output, ``(n_com, n_act)``, and
-    #: value added per unit, as solved: with an energy nest, fuel use answers
-    #: to prices, and these are the coefficients the equilibrium used.
+    #: primary factor use per unit (in base-year value), as solved: with an
+    #: energy nest both answer to prices, and these are the coefficients the
+    #: equilibrium used.
     input_coefficients: np.ndarray | None = None
     value_added_per_unit: np.ndarray | None = None
 
@@ -395,32 +396,67 @@ def solve_period(econ: Economy, closure: Closure | None = None,
     io_fixed = np.where(emask[:, None], 0.0, io_eff)    # Leontief inputs
     p_fuel0 = (1.0 + econ.ptax)[:, None]               # base-year fuel prices
 
-    def production(pqf, pva):
-        """Unit cost by activity, input coefficients and value added per unit.
+    def production(pqf, w, quantities=True, pva=None):
+        """Unit cost by activity, input coefficients and factor use per unit of output.
 
-        Without an energy nest these are the Leontief coefficients. With one,
-        value added and an energy bundle combine by CES inside a VAE bundle
-        whose quantity per unit of output is fixed; both bundles and the VAE
-        price are indices equal to one at the base year.
+        Without an energy nest these are the Leontief coefficients and the
+        value-added nest. With one, the energy bundle (a CES across fuels, at
+        the fuel prices each activity pays, carbon included) either substitutes
+        for value added as a whole in a VAE bundle (``"value_added"``), or joins
+        a capital factor in a capital-energy composite that sits inside the
+        value-added nest (``"capital"``). Every bundle is in base-year value and
+        its price is one at the base year.
         """
+        pva = value_added_price(econ, w) if pva is None else pva
         if nest is None:
-            return io_eff.T @ pqf + pva * vunit_eff + atax, io_eff, vunit_eff
+            cost = io_eff.T @ pqf + pva * vunit_eff + atax
+            if not quantities:          # the price fixed point needs the cost only
+                return cost, None, None
+            intensity = factor_intensity(econ, w, vunit=vunit_eff, aunit=aunit_eff)
+            return cost, io_eff, intensity * vunit_eff[None, :]
         fuel_rel = (pqf[:, None] + carb_fuel) / p_fuel0            # (nc, na)
-        sig_e, sig_v, sh = nest.sigma_energy, nest.sigma_vae, nest.share
-        theta = nest.theta
+        sig_e, theta = nest.sigma_energy, nest.theta
+        vae_q = nest.vae_unit / tfp
         with np.errstate(divide="ignore", invalid="ignore"):
             has_e = theta.sum(axis=0) > 0
             pe = np.where(has_e, _energy_index(theta, fuel_rel, sig_e), 1.0)
-            pvae = _two_input_ces(1.0 - sh, pva, sh, pe, sig_v)
-            vae_q = nest.vae_unit / tfp
-            va_per = vae_q * (1.0 - sh) * _ratio_power(pvae, pva, sig_v)
-            e_per = vae_q * sh * _ratio_power(pvae, pe, sig_v)
+            if nest.mode == "value_added":
+                sig_v, sh = nest.sigma_vae, nest.share
+                pvae = _two_input_ces(1.0 - sh, pva, sh, pe, sig_v)
+                va_per = vae_q * (1.0 - sh) * _ratio_power(pvae, pva, sig_v)
+                e_per = vae_q * sh * _ratio_power(pvae, pe, sig_v)
+                top_cost = vae_q * pvae
+                if not quantities:
+                    return io_fixed.T @ pqf + top_cost + atax, None, None
+                fac_per = factor_intensity(econ, w, vunit=vunit_eff,
+                                           aunit=aunit_eff) * va_per[None, :]
+            else:
+                k, free = nest.capital, nest.free
+                sk, s_ke, s_top = nest.k_share, nest.sigma_ke, nest.sigma_top
+                pke = _two_input_ces(sk, w[k], 1.0 - sk, pe, s_ke)
+                prices = np.vstack([np.broadcast_to(w[:, None], (nf, na)), pke[None, :]])
+                shares = np.vstack([nest.top_share, nest.ke_share[None, :]])
+                ptop = _energy_index(shares, prices, s_top)
+                ke_per = vae_q * nest.ke_share * _ratio_power(ptop, pke, s_top)
+                e_per = ke_per * (1.0 - sk) * _ratio_power(pke, pe, s_ke)
+                fac_per = (vae_q[None, :] * nest.top_share
+                           * _ratio_power(ptop[None, :], w[:, None], s_top[None, :]))
+                fac_per[k] = ke_per * sk * _ratio_power(pke, w[k], s_ke)
+                top_cost = vae_q * ptop
+                # Activities without substitution keep their Leontief inputs.
+                fac_per[:, ~free] = aunit_eff[:, ~free]
+                e_per = np.where(free, e_per, 0.0)
+                top_cost = np.where(free, top_cost, w @ aunit_eff
+                                    + ((pqf[:, None] + carb_fuel) * np.where(
+                                        emask[:, None], io_eff, 0.0)).sum(axis=0))
             fuel = np.where(emask[:, None], e_per[None, :] * theta
                             * _ratio_power(pe[None, :], fuel_rel, sig_e[None, :]) / p_fuel0,
                             0.0)
+        if nest.mode == "capital":
+            fuel[:, ~nest.free] = np.where(emask[:, None], io_eff, 0.0)[:, ~nest.free]
         coef = io_fixed + fuel
-        cost = io_fixed.T @ pqf + vae_q * pvae + atax
-        return cost, coef, va_per
+        cost = io_fixed.T @ pqf + top_cost + atax
+        return cost, coef, fac_per
 
     X_exog = econ.X0 * act_scale * exog
 
@@ -480,7 +516,7 @@ def solve_period(econ: Economy, closure: Closure | None = None,
         pqf = 1.0 + ptax_f
         real_wage_target = 1.0 if closure.real_wage is None else float(closure.real_wage)
         for _ in range(_PRICE_ITERS):
-            pa, _, _ = production(pqf, pva)
+            pa, _, _ = production(pqf, w, quantities=False, pva=pva)
             pd_ = econ.msh.T @ pa
             arm, dsh, msh_ = armington(
                 econ.dom_share, domestic_price(pd_ * out_wedge, pe), pm, econ.sigma_arm)
@@ -497,7 +533,7 @@ def solve_period(econ: Economy, closure: Closure | None = None,
                 pqf = new
                 break
             pqf = new
-        pa, coef, va_per = production(pqf, pva)
+        pa, coef, fac_per = production(pqf, w, pva=pva)
         pd_ = econ.msh.T @ pa
         p_dom = domestic_price(pd_ * out_wedge, pe)
         arm, dsh, msh_ = armington(econ.dom_share, p_dom, pm, econ.sigma_arm)
@@ -707,8 +743,7 @@ def solve_period(econ: Economy, closure: Closure | None = None,
             arm_q = econ.arm_share * A
             imports = msh_ * arm_q / tf0                  # at the border
             exports = exp_frac * tz0 * Q
-            fac_by_act = (factor_intensity(econ, w, vunit=vunit_eff, aunit=aunit_eff)
-                          * (va_per * X)[None, :])
+            fac_by_act = fac_per * X[None, :]
             fac_dem = fac_by_act.sum(axis=1)
             trade = float((pm_border * imports).sum() - (p_exp * exports).sum())
             # The current account: trade plus factor income paid abroad, less net
@@ -783,7 +818,7 @@ def solve_period(econ: Economy, closure: Closure | None = None,
                 walras=float(gaps[num]), levy=levy, foreign_sav=foreign_sav, pe=p_exp,
                 hh_dtax_paid=hh_dtax_paid, row_fac=row_fac, gov_fac=gov_fac,
                 gov_account=gov_account, hh_sav=hh_sav, tax_scale=tax_scale,
-                io_used=coef, va_per=va_per,
+                io_used=coef, va_per=fac_per.sum(axis=0),
                 real=dict(hh_real=float(p_base_yard @ hh_q.sum(axis=0)),
                           gov_real=float(p_base_yard @ gov_q),
                           inv_real=float(p_base_yard @ inv_q),

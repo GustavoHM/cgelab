@@ -47,6 +47,7 @@ Constructors: `SAM.from_long(df, row="row", col="col", value="value", name="sam"
 | `export_demand` | `None` | export-demand elasticity η, `E / E0 = (pWe / export_price)^(-η)`; scalar or mapping by commodity, a missing commodity stays a price taker; `export_rule="cet"` only |
 | `import_supply` | `None` | import-supply elasticity ψ, `M / M0 = (pWm / world_price)^ψ`; scalar or mapping by commodity |
 | `energy`, `sigma_vae`, `sigma_energy` | `None`, `0.5`, `1.0` | energy commodities; a CES between value added and an energy bundle, and across fuels inside it; scalar or mapping by activity |
+| `energy_nest`, `energy_capital`, `sigma_ke` | `"value_added"`, `"f_cap"`, `0.5` | `"capital"` puts energy with that capital factor in a composite (`sigma_ke`) inside the value-added nest (`sigma_va`), as in GTAP-E |
 | `household_demand`, `frisch` | `"cobb_douglas"`, `-1.5` | `"les"` uses `frisch` for subsistence |
 | `negative_value_added` | `"leontief"` | or `"net"` |
 | `margins` | `True` | read the commodity-to-commodity margin block |
@@ -202,7 +203,7 @@ that finances the fixed investment. Under `ModelSpec.export_demand` or
 | `hh_quantity`, `hh_income`, `hh_commodity_spend`, `hh_direct_outlay`, `hh_wedge_paid` | the household block |
 | `gov_quantity`, `investment_quantity`, `savings`, `factor_demand` | the rest of final demand |
 | `wedge_revenue`, `government_cost` | recycled revenue; cost falling on the budget |
-| `input_coefficients`, `value_added_per_unit` | intermediate input and value added per unit of output as solved; under an energy nest they answer to prices |
+| `input_coefficients`, `value_added_per_unit` | intermediate input and primary factor use (base-year value) per unit of output as solved; under an energy nest they answer to prices |
 | `government`, `household_saving`, `forced_saving` | the government account at the solution; voluntary household saving; the levy that finances fixed real investment |
 | `real` | `hh_real`, `gov_real`, `inv_real`, `hh_sav_real`, `gov_sav_real`, `for_sav_real`, `hh_price_index`, `hh_real_income`, `hh_committed_value` |
 | `gaps`, `walras`, `residual`, `converged`, `attempt`, `message` | the evidence |

@@ -7,15 +7,34 @@ on:
 
 jobs:
   pytest:
-    runs-on: ubuntu-latest
+    runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
       matrix:
-        python-version: ["3.10", "3.11", "3.12", "3.13"]
+        os: [ubuntu-latest, macos-latest, windows-latest]
+        python-version: ["3.10", "3.11", "3.12", "3.13", "3.14"]
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-python@v7
         with:
           python-version: ${{ matrix.python-version }}
-      - run: pip install -e ".[test]"
-      - run: pytest -q
+      - run: python -m pip install ".[test,parquet]"
+      - run: python -m pytest -q
+
+  wheel:
+    # The suite against the INSTALLED wheel, not the source tree. An editable
+    # install can break silently (Python 3.14 on macOS skips some .pth files),
+    # and a run against src/ would not notice a file left out of the wheel.
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.13"
+      - run: python -m pip install build twine
+      - run: python -m build
+      - run: python -m twine check --strict dist/*
+      - run: |
+          python -m venv /tmp/wheel-env
+          /tmp/wheel-env/bin/pip install dist/*.whl pytest
+          cd /tmp && CGELAB_TEST_INSTALLED=1 /tmp/wheel-env/bin/python -m pytest -q "$GITHUB_WORKSPACE/tests"

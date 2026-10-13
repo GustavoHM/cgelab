@@ -1,0 +1,29 @@
+name: validation
+
+# The checks that need Julia: the JuMP replica of the period equilibrium and the
+# line-by-line JuMP transcription of Hosoe's stdcge and lrgcge. Slow (each case
+# starts Julia), so on demand and weekly rather than on every push.
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "0 6 * * 1"
+
+jobs:
+  jump:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.13"
+      - uses: julia-actions/setup-julia@v3
+        with:
+          version: "1"
+      - run: julia --project=validation -e 'using Pkg; Pkg.instantiate()'
+      - run: python -m pip install ".[test]"
+      - name: JuMP round trip
+        run: python validation/roundtrip_jump.py
+      - name: Hosoe's stdcge and lrgcge against their transcription
+        run: python validation/replicate_hosoe.py
+      - name: Julia tests in the suite
+        run: CGELAB_RUN_JULIA=1 python -m pytest -q tests/test_jump_roundtrip.py

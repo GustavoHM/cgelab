@@ -1,125 +1,128 @@
-# Como o cgelab se compara ao que já existe
+# How cgelab compares with what exists
 
-O levantamento dos outros pacotes foi feito em 9 de setembro de 2026. As colunas do `cgelab`
-foram revistas em 25 de setembro de 2026, para a versão 0.2.0. As linhas que mudaram nessa
-revisão estão marcadas com †. As colunas dos outros pacotes **não** foram refeitas.
+*Versão em português: [`comparison.pt-br.md`](comparison.pt-br.md).*
 
-A pergunta que originou este levantamento foi se já existia um pacote de EGC em Python. A resposta
-curta é que há alguns, todos em escala de livro-texto, e que o EGC aplicado se faz em GAMS ou
+The survey of the other packages was made on 9 September 2026. The `cgelab` column was revised
+on 13 October 2026, for version 0.5. Rows that changed since 0.1 are marked †. The other
+packages' columns were **not** redone.
+
+The question behind the survey was whether a CGE package in Python already existed. The short
+answer is that there are a few, all at textbook scale, and that applied CGE is done in GAMS or
 GEMPACK.
 
-## Como ler a tabela
+## Reading the table
 
-| Marca | Significa |
+| Mark | Means |
 |---|---|
-| **✅** | verificado: o pacote foi instalado ou o código foi clonado e lido |
-| **📄** | consta da documentação oficial, mas **não** foi verificado no código |
-| **—** | ausente até onde se apurou |
-| **?** | não apurado |
+| **✅** | verified: the package was installed, or its code cloned and read |
+| **📄** | in the official documentation, **not** verified in the code |
+| **—** | absent as far as was found |
+| **?** | not checked |
 
-A distinção importa. O código de `pycge`, `PSLmodels/CGE` e `python-cge` foi clonado e lido. Uma
-célula **📄** pode estar errada.
+The distinction matters. The code of `pycge`, `PSLmodels/CGE` and `python-cge` was cloned and
+read. A **📄** cell may be wrong.
 
-## A tabela
+## The table
 
-| Capacidade | cgelab 0.2 | pycge | PSLmodels/CGE | python-cge | GAMS / GEMPACK (ref.) |
+| Capability | cgelab 0.5 | pycge | PSLmodels/CGE | python-cge | GAMS / GEMPACK (ref.) |
 |---|---|---|---|---|---|
-| **Origem** | escrito para uma MCS aplicada | ✅ porte do `splcge.gams` da biblioteca do GAMS | ✅ "o modelo CGE mais simples de Hosoe, Gawana e Hashimoto (2010)" | ✅ transcrição direta do livro de Hosoe, p. 72 | plataformas de propósito geral |
-| **Escala demonstrada** | ✅ a MCS aplicada para a qual foi escrito, ainda não pública; em público, exemplos didáticos | ✅ 3 exemplos didáticos e um regional | ✅ MCS de **16×18**: 4 setores, 3 fatores | ✅ **2 bens** (`BRD`, `MLK`) | milhares de contas (GTAP) |
-| Backend | ✅ `scipy.optimize.root` sobre poucas incógnitas | ✅ Pyomo + IPOPT | ✅ `scipy` `root` | ✅ próprio | resolvedores dedicados |
-| Linhas de Python | ~2.900 † | ✅ 3.267 | ✅ 2.660 | ✅ 533 | n/a |
-| **MCS: leitura, verificação de balanço, balanceamento** | ✅ formato longo ou quadrado, porta dura, RAS que preserva sinais | ? | ✅ lê `SAM.xlsx` | ✅ tem `balance.py` | ✅ |
-| Fluxos da MCS que o modelo não lê | ✅ listados na calibração † | ? | ? | ? | convenção do modelador |
-| Ninho de valor adicionado configurável (CES / CD / Leontief) | ✅ | ? | ✅ CES e Leontief | — | ✅ |
+| **Origin** | written for an applied SAM | ✅ port of `splcge.gams` from the GAMS library | ✅ "the simplest CGE model of Hosoe, Gawana and Hashimoto (2010)" | ✅ direct transcription of Hosoe's book, p. 72 | general-purpose platforms |
+| **Demonstrated scale** | ✅ the applied SAM it was written for, not public yet; in public, teaching examples | ✅ 3 teaching examples and a regional one | ✅ a **16×18** SAM: 4 sectors, 3 factors | ✅ **2 goods** (`BRD`, `MLK`) | thousands of accounts (GTAP) |
+| Backend | ✅ `scipy.optimize.root` on a few unknowns | ✅ Pyomo + IPOPT | ✅ `scipy` `root` | ✅ its own | dedicated solvers |
+| Lines of Python | ~7,100 † | ✅ 3,267 | ✅ 2,660 | ✅ 533 | n/a |
+| **SAM: reading, balance check, balancing** | ✅ long or square form, a hard gate, sign-preserving RAS | ? | ✅ reads `SAM.xlsx` | ✅ has `balance.py` | ✅ |
+| SAM flows the model does not read | ✅ listed at calibration † | ? | ? | ? | the modeller's convention |
+| Configurable value-added nest (CES / CD / Leontief) | ✅ | ? | ✅ CES and Leontief | — | ✅ |
 | Armington | ✅ | ✅ | ✅ | — | ✅ |
-| CET nas exportações | ✅ † resolvida, com preço mundial de exportação; o padrão fixa participações | ? | ✅ | — | ✅ |
-| **Bloco de margens de comércio e transporte** | ✅ | ? | — | — | ✅ |
-| **Valor adicionado negativo tratado** | ✅ duas regras | ? | — | — | — |
-| Demanda LES / Stone-Geary | ✅ calibrada pelo parâmetro de Frisch | ? | — | — | ✅ |
-| **Atividades de conta própria** | ✅ detectadas e escaláveis | — | — | — | — |
-| Split creditável/não creditável do tributo | ✅ | — | — | — | ✅ |
-| **Impostos diretos, transferências e remessas** | ✅ † | ? | ? | ? | ✅ |
-| **Capital de propriedade estrangeira e IED** | ✅ † remessa de lucros na conta corrente | ? | ? | ? | ✅ |
-| **Fechamentos alternativos** | ✅ 5 combinações, cada uma com a sua variável de ajuste | ? | — | — | ✅ |
-| **Walras como verificação e não como equação** | ✅ mercado do numerário fora do sistema | ? | — | — | convenção do modelador |
-| **Teste de reprodução do ano-base** | ✅ automático | 📄 "compara base e simulação" | — | — | convenção do modelador |
-| **Teste de homogeneidade de grau zero** | ✅ automático | — | — | — | convenção do modelador |
-| **Dinâmica recursiva** | ✅ vários estoques de capital, alocação pelo retorno, economia por ano † | — | ✅ laço de iteração temporal | — | ✅ |
-| **Bem-estar: VE e VC** | ✅ | — | — | — | convenção do modelador |
-| Agregação por grupo imune à composição | ✅ | — | — | — | — |
-| **Réplica independente para validação** | ✅ † JuMP/Ipopt, 34 casos | ? | ? | ? | n/a |
-| Licença | MIT | ? | CC0-1.0 | ? | proprietária/comercial |
-| Estado declarado pelos autores | — | — | ✅ "muito preliminar… por favor não cite" | livro-texto | maduro |
+| CET on exports | ✅ † solved, with a world export price; the default fixes shares | ? | ✅ | — | ✅ |
+| **Trade and transport margins block** | ✅ | ? | — | — | ✅ |
+| **Negative value added handled** | ✅ two rules | ? | — | — | — |
+| LES / Stone-Geary demand | ✅ calibrated from the Frisch parameter | ? | — | — | ✅ |
+| **Own-account activities** | ✅ detected and scalable | — | — | — | — |
+| Creditable / non-creditable split of the product tax | ✅ | — | — | — | ✅ |
+| **Direct taxes, transfers and remittances** | ✅ † | ? | ? | ? | ✅ |
+| **Foreign-owned capital and FDI** | ✅ † profit remittances in the current account | ? | ? | ? | ✅ |
+| **Alternative closures** | ✅ each with its own adjusting variable | ? | — | — | ✅ |
+| **Walras as a check, not an equation** | ✅ the numeraire market is left out of the system | ? | — | — | the modeller's convention |
+| **Base-year reproduction test** | ✅ automatic | 📄 "compares base and simulation" | — | — | the modeller's convention |
+| **Zero-degree homogeneity test** | ✅ automatic | — | — | — | the modeller's convention |
+| **Recursive dynamics** | ✅ several capital stocks, allocation by return, a per-year economy † | — | ✅ a time-iteration loop | — | ✅ |
+| **Welfare: EV and CV** | ✅ | — | — | — | the modeller's convention |
+| Group aggregation immune to composition | ✅ | — | — | — | — |
+| **Independent replica for validation** | ✅ † JuMP/Ipopt, 34 cases | ? | ? | ? | n/a |
+| Licence | MIT | ? | CC0-1.0 | ? | proprietary / commercial |
+| State declared by the authors | — | — | ✅ "very preliminary… please do not cite" | textbook | mature |
 
-## O que a tabela diz
+## What the table says
 
-Nas linhas novas (†), as colunas dos outros pacotes estão como "?" porque não foram reapuradas.
+In the new rows (†), the other packages' columns are "?" because they were not checked again.
 
-Os três pacotes de EGC em Python encontrados implementam o modelo-texto de Hosoe, Gawana e
-Hashimoto (2010) ou o `splcge` da biblioteca do GAMS, com dois a quatro setores. O `PSLmodels/CGE`
-diz de si mesmo, no README, que é "muito preliminar" e pede que não seja citado. Até onde se apurou,
-não há pacote de EGC em Python em escala aplicada.
+The three Python CGE packages found implement the textbook model of Hosoe, Gawana and Hashimoto
+(2010) or the GAMS library's `splcge`, with two to four sectors. `PSLmodels/CGE` says of itself,
+in its README, that it is "very preliminary" and asks not to be cited. As far as was found, there
+is no Python CGE package at applied scale.
 
-Isso não faz do `cgelab` uma contribuição por si. Ele preenche uma lacuna que existe porque quem
-faz EGC aplicado usa GAMS ou GEMPACK, e com bons motivos: resolvedores dedicados, comunidade e
-bases como a GTAP. A afirmação defensável é estreita. Para um EGC de escala aplicada em Python, sem
-licença comercial e com as verificações contábeis embutidas, não se achou alternativa.
+That does not make `cgelab` a contribution by itself. It fills a gap that exists because applied
+CGE is done in GAMS or GEMPACK, and for good reasons: dedicated solvers, a community, and
+databases such as GTAP. The defensible claim is narrow: for an applied-scale CGE in Python,
+without a commercial licence and with the accounting checks built in, no alternative was found.
 
-## Uma advertência
+## A caution
 
-O `cgelab` foi validado de quatro formas:
+`cgelab` was validated in four ways:
 
-- contra uma réplica independente em JuMP/Ipopt do mesmo equilíbrio, em 34 casos;
-- contra uma transcrição linha a linha, em JuMP, dos programas `stdcge` e `lrgcge` da
-  biblioteca do GAMS (Hosoe, Gasawa e Hashimoto, 2004): a abolição das tarifas coincide nas 49
-  variáveis exibidas, a 2,4e-12;
-- contra o pipeline de pesquisa que o originou, na versão 0.1.0;
-- pela reprodução do ano-base, pela homogeneidade e pela lei de Walras à precisão de máquina, na
-  MCS aplicada para a qual foi escrito, que ainda não é pública.
+- against an independent JuMP/Ipopt replica of the same equilibrium, in 34 cases;
+- against a line-by-line JuMP transcription of the GAMS library programs `stdcge` and `lrgcge`
+  (Hosoe, Gasawa and Hashimoto, 2004): the tariff abolition agrees in all 49 displayed variables,
+  to 2.4e-12;
+- against the research pipeline it came from, at version 0.1.0;
+- by base-year reproduction, homogeneity and Walras' law to machine precision, on the applied
+  SAM it was written for, which is not public yet.
 
-Isso é evidência de que o que ele faz, faz certo. **Não** é evidência de que cubra o que um GAMS
-cobre. O ninho de várias regiões não tem migração de fatores, e o pacote não estima
-elasticidades, não tem expectativas racionais, nem a maturidade de uma plataforma com trinta
-anos de uso.
+That is evidence that what it does, it does right. It is **not** evidence that it covers what
+GAMS covers. The multi-region nest has neither factor migration nor bilateral trade, there is no
+complementarity, the package does not estimate elasticities, rational expectations go through
+the bridge to `dsgelab`, and it does not have the maturity of a platform with thirty years of
+use.
 
 ---
 
-## Lacunas, também contra plataformas de outras linguagens
+## Gaps, measured against platforms in other languages
 
-A tabela acima compara com pacotes em Python. Esta seção amplia a régua para GAMS/MPSGE, GEMPACK,
-GTAP e os modelos-padrão do IFPRI e do PEP, que não estão instalados aqui: as células vêm da
-literatura e da documentação, e são **📄**. Desde 11 de outubro de 2026 o objetivo é cobrir toda a
-lista até a 1.0; a versão de cada item é a do [`ROADMAP.md`](../ROADMAP.md).
+The table above compares with Python packages. This section widens the yardstick to
+GAMS/MPSGE, GEMPACK, GTAP and the IFPRI and PEP standard models, which are not installed here:
+the cells come from the literature and the documentation, and are **📄**. Since 11 October 2026
+the goal is to cover the whole list by 1.0; each item's version is the one in
+[`ROADMAP.md`](../ROADMAP.md).
 
-| Item | Quem tem | Estado no `cgelab` | Versão |
+| Item | Who has it | State in `cgelab` | Version |
 |---|---|---|---|
-| Instituições da MCS: impostos diretos, transferências, remessas, renda de fatores ao governo e ao exterior | 📄 IFPRI, PEP | **feito** na 0.2.0 | 0.2 |
-| Fechamentos do mercado de trabalho | 📄 IFPRI, ORANI | **feito**: salário real fixo, curva de salário, oferta elástica | 0.2 |
-| Tarifa e imposto indireto separados do imposto sobre produtos | 📄 Hosoe (`stdcge`), IFPRI | **feito**: a tarifa dentro do preço de importação e o imposto indireto sobre todo o produto, como no `stdcge`; a abolição de tarifas do `stdcge` e do `lrgcge` reproduz a transcrição dos programas do GAMS a 2,4e-12 | 0.2 |
-| Exportador JuMP convergindo a frio em escala aplicada | — | **feito**, numa MCS aplicada ainda não pública | 0.2 |
-| Demanda de exportação e oferta de importação com elasticidade finita | 📄 Hosoe (`lrgcge`) | **feito**: as equações do `lrgcge`; a abolição de tarifas do `lrgcge` reproduz a transcrição do programa do GAMS | 0.2 |
-| Decomposição de resultados por choque (*subtotals*) | 📄 GEMPACK | **feito**: Harrison, Horridge e Pearson, integrada ao longo da trajetória reta | 0.3 |
-| Sensibilidade sistemática (quadratura, Monte Carlo) | 📄 GEMPACK | **feito**: quadratura de Stroud de grau 3 e Monte Carlo, com recalibração a cada ponto | 0.3 |
-| Contas e relatórios: PIB por despesa e renda, índices de preço, termos de troca | 📄 GEMPACK, GTAP | **feito**: PIB pelos dois lados, índices de Laspeyres, Paasche e Fisher, termos de troca, conta do governo | 0.3 |
-| Decomposição do bem-estar (Huff e Hertel) | 📄 GTAP | **feito** para a absorção real, com a identidade fechando abaixo de 1e-9; a comparação com o GTAP espera a base de dados | 0.3 |
-| Multiplicadores da MCS e insumo-produto | 📄 Pyatt e Round; Defourny e Thorbecke | **feito**: contábeis, a preço fixo, Leontief, encadeamentos (Rasmussen e Ghosh), análise de caminhos estruturais | 0.3 |
-| Ninhos de energia (KLEM), emissões, imposto de carbono | 📄 ENVISAGE, EPPA, GTAP-E | **feito**: ninho valor adicionado-energia com substituição entre combustíveis, emissões por fonte, preço do carbono no preço do combustível de cada atividade, reciclagem neutra em arrecadação; unidades físicas faltam | 0.4 |
-| Fechamentos do governo | 📄 IFPRI | **feito**: taxa de poupança fixa (a de Hosoe), meta de poupança e receita fixa (substituição neutra em arrecadação), atingidas pelo imposto direto, pelo imposto sobre produtos ou pelo gasto | 0.4 |
-| Poupança externa fixa em moeda estrangeira | 📄 Hosoe, IFPRI | **feito** | 0.2 |
-| Ponte com o `dsgelab` | — | **feito**: CGE de Ramsey com investimento por Euler; estado estacionário, primeira ordem, previsão perfeita e política anunciada; igual ao modelo de crescimento numa economia de um bem | 0.4 |
-| Mobilidade imperfeita de fatores; informalidade | 📄 IFPRI, ORANI | falta | 0.6 |
-| Elo com microssimulação; Gini e FGT | 📄 prática corrente | falta | 0.6 |
-| Calibração dinâmica da linha de base; capital setorial e safras | 📄 MONASH, GDyn, LINKAGE | falta | 0.6 |
-| Construção e desagregação de MCS | 📄 IFPRI, PEP | falta | 0.6 |
-| Múltiplas regiões | 📄 GTAP, TERM, ORANI-G | ninho de origem feito; migração, fechamentos regionais e comércio bilateral faltam | 0.7 |
-| Dados do GTAP | 📄 GTAPAgg, FlexAgg | leitura e escrita de HAR feitas, conferidas contra o harpy3 no GTAP 10A; agregação e MCS de uma região faltam | 0.7 |
-| Complementaridade (MCP); resolvedores alternativos | 📄 GAMS/MPSGE com PATH; pycge (Pyomo) | falta | 0.8 |
-| Troca de fechamento genérica; entropia cruzada; EGC intertemporal; concorrência imperfeita; uso da terra; exportar para GAMS e GEMPACK | 📄 GEMPACK, MPSGE, GTAP-AEZ | falta | 0.9 |
+| SAM institutions: direct taxes, transfers, remittances, factor income to government and abroad | 📄 IFPRI, PEP | **done** in 0.2.0 | 0.2 |
+| Labour-market closures | 📄 IFPRI, ORANI | **done**: fixed real wage, wage curve, elastic supply | 0.2 |
+| Tariff and indirect tax separate from the product tax | 📄 Hosoe (`stdcge`), IFPRI | **done**: the tariff inside the import price and the indirect tax on all of output, as in `stdcge`; the tariff abolition of `stdcge` and `lrgcge` reproduces the transcription of the GAMS programs to 2.4e-12 | 0.2 |
+| JuMP replica converging cold at applied scale | — | **done**, on an applied SAM that is not public yet | 0.2 |
+| Export demand and import supply with finite elasticities | 📄 Hosoe (`lrgcge`) | **done**: the equations of `lrgcge`; its tariff abolition reproduces the transcription | 0.2 |
+| Foreign saving fixed in foreign currency | 📄 Hosoe, IFPRI | **done** | 0.2 |
+| Decomposition of results by shock (subtotals) | 📄 GEMPACK | **done**: Harrison, Horridge and Pearson, integrated along the straight path | 0.3 |
+| Systematic sensitivity (quadrature, Monte Carlo) | 📄 GEMPACK | **done**: Stroud degree-3 quadrature and Monte Carlo, recalibrating at every point | 0.3 |
+| Accounts and reports: GDP by expenditure and income, price indices, terms of trade | 📄 GEMPACK, GTAP | **done**: GDP from both sides, Laspeyres, Paasche and Fisher indices, terms of trade, the government account | 0.3 |
+| Welfare decomposition (Huff and Hertel) | 📄 GTAP | **done** for real absorption, the identity closing below 1e-9; the comparison with GTAP waits on running GTAP | 0.3 |
+| SAM multipliers and input–output | 📄 Pyatt and Round; Defourny and Thorbecke | **done**: accounting, fixed-price, Leontief, linkages (Rasmussen and Ghosh), structural path analysis | 0.3 |
+| Energy nests (KLEM), emissions, carbon tax | 📄 ENVISAGE, EPPA, GTAP-E | **done**: a value-added-energy or capital-energy nest (GTAP-E's arrangement) with interfuel substitution, emissions by source, the carbon price inside each activity's fuel price, revenue-neutral recycling, physical units | 0.4 |
+| Government closures | 📄 IFPRI | **done**: fixed saving rate (Hosoe's), a saving target and fixed revenue (revenue-neutral replacement), met by the direct tax, the product tax or spending | 0.4 |
+| Bridge to `dsgelab` | — | **done**: a Ramsey CGE with investment set by an Euler equation; steady state, first order, perfect foresight and announced policy; the growth model in a one-good economy | 0.4 |
+| Imperfect factor mobility; informality | 📄 IFPRI, ORANI | missing | 0.6 |
+| Link to microsimulation; Gini and FGT | 📄 common practice | missing | 0.6 |
+| Dynamic calibration of the baseline; sectoral capital and vintages | 📄 MONASH, GDyn, LINKAGE | missing | 0.6 |
+| SAM construction and disaggregation | 📄 IFPRI, PEP | missing | 0.6 |
+| Several regions | 📄 GTAP, TERM, ORANI-G | origin nest done; migration, regional closures and bilateral trade missing | 0.7 |
+| GTAP data | 📄 GTAPAgg, FlexAgg | HAR reading and writing done, exact against harpy3 on GTAP 10A; aggregation and a one-region SAM missing | 0.7 |
+| Complementarity (MCP); alternative solvers | 📄 GAMS/MPSGE with PATH; pycge (Pyomo) | missing | 0.8 |
+| Generic closure swap; cross entropy; intertemporal CGE; imperfect competition; land use; export to GAMS and GEMPACK | 📄 GEMPACK, MPSGE, GTAP-AEZ | missing | 0.9 |
 
-
-## Fontes
+## Sources
 
 - [pycge](https://github.com/juanfung/pycge), [PSLmodels/CGE](https://github.com/PSLmodels/CGE),
-  [python-cge](https://github.com/DavoudTaghawiNejad/python-cge): clonados e lidos
-- [Banco Mundial sobre EGC](https://www.worldbank.org/en/programs/economicpolicy-macro-modeling/cge)
+  [python-cge](https://github.com/DavoudTaghawiNejad/python-cge): cloned and read
+- [World Bank on CGE](https://www.worldbank.org/en/programs/economicpolicy-macro-modeling/cge)
 - [GEMPACK](https://en.wikipedia.org/wiki/Gempack)

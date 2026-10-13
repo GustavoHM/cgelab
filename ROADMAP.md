@@ -23,7 +23,7 @@ is that every number was checked against an independent reference.
 3. Tested in the package's suite without external tools; what needs Julia or GAMS lives in
    `validation/`.
 4. Documented in the guide and the API reference, with a runnable example on the site.
-5. The matching row of `docs/comparison.md` updated.
+5. The matching row of `docs/comparison.md` (and `comparison.pt-br.md`) updated.
 6. A `CHANGELOG.md` entry.
 
 ## Milestones
@@ -78,7 +78,15 @@ several regions, the result helpers, and the JuMP export replicating all of it. 
   11 October 2026. The name still has to be reserved with a first upload to TestPyPI and PyPI.
 - [x] **One canonical repository**: `https://github.com/GustavoHM/cgelab`. The copies in the
   research repository are archived.
-- [ ] **Language**, **reproducible validation**, release engineering: see *Infrastructure*.
+- [x] **Language**: `docs/comparison.md` in English, with the Portuguese version alongside.
+- [x] **Reproducible validation**: the `validation` workflow runs the JuMP replica and the
+  Hosoe transcription in CI, on demand and weekly.
+- [x] **Packaging**: tests on Python 3.10–3.14 on Linux, macOS and Windows; the suite run
+  against the installed wheel; `python -m build` and `twine check` in CI; `py.typed`;
+  `CONTRIBUTING.md` with a release checklist; issue and pull request templates; known
+  limitations in the README; a `release` workflow for trusted publishing.
+- [ ] **Release**, by a maintainer: trusted publishers on TestPyPI and PyPI, the first upload
+  (which reserves the name), Zenodo for a DOI, the repository made public and Pages turned on.
 
 **0.6 — the distributional side and the labour market.** Imperfect factor mobility and the
 proximity matrix; segmentation and informality; a link to microsimulation with Gini and FGT
@@ -252,18 +260,15 @@ sparse linear algebra.
 
 ## Infrastructure
 
-- **Release:** publish to PyPI and connect Zenodo for a DOI. Until then the citation points to
-  a repository URL, which is not archivable.
+- **Release:** publish to PyPI and connect Zenodo for a DOI; the steps are in
+  `CONTRIBUTING.md`, "Releasing". Until then the citation points to a repository URL, which is
+  not archivable.
 - **Site:** turn the Pages workflow back on when the repository goes public, and render the
   Markdown docs on the site instead of linking to GitHub.
-- **Validation in CI:** an optional job that installs Julia and runs
-  `validation/roundtrip_jump.py`, which today runs only locally.
-- **Language:** the site has English and Portuguese versions; `docs/comparison.md` is still in
-  Portuguese only.
-- **Packaging:** tests on Python 3.10–3.14 on Linux, macOS and Windows; installation tested from
-  the wheel (an editable install can break silently on Python 3.14 on macOS); `python -m build`,
-  `twine check`, trusted publishing through TestPyPI first; `CONTRIBUTING.md`, issue and pull
-  request templates; `py.typed`; a known-limitations section in the README.
+- **Validation in CI:** done, the `validation` workflow.
+- **Language:** done for the documents a reader meets first. The whitepaper and the comments in
+  the JuMP template and the validation scripts are still in Portuguese.
+- **Packaging:** done; see the 0.5 milestone.
 - **External cross-check:** replicate a published standard model against someone else's code.
   Done for Hosoe, Gasawa and Hashimoto (2004): the `splcge` benchmark, and the tariff
   abolition of `stdcge` and `lrgcge` against a transcription of the GAMS programs. The GAMS

@@ -98,6 +98,19 @@ before 1.0, a minor version may add to the API and a patch version only fixes.
   numeraire, so every `foreign="fixed_rate"` closure failed the test for a
   reason that was the test's. The rate is nominal and now scales too.
 
+### Release engineering (0.5)
+
+- CI runs the suite on Python 3.10–3.14 on Linux, macOS and Windows, and against
+  the installed wheel (`CGELAB_TEST_INSTALLED=1`), with `twine check`. A
+  `validation` workflow runs the JuMP replica and the Hosoe transcription on
+  demand and weekly. A `release` workflow publishes to TestPyPI and PyPI by
+  trusted publishing when a GitHub release is published.
+- `py.typed`; Python-version, OS and typing classifiers; the `dsge` extra.
+- `CONTRIBUTING.md` with the definition of done and a release checklist; issue
+  and pull request templates; a known-limitations section in the README.
+- `docs/comparison.md` in English; the Portuguese version is
+  `docs/comparison.pt-br.md`.
+
 ### Added toward 0.7
 
 - `read_har` and `write_har`: GEMPACK header array files, the format of the GTAP

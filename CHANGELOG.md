@@ -3,7 +3,11 @@
 All notable changes to `cgelab`. Versions follow [semantic versioning](https://semver.org/);
 before 1.0, a minor version may add to the API and a patch version only fixes.
 
-## Unreleased
+## 0.5.0 — 2026-10-18
+
+The first public release, on PyPI together with dsgelab 0.5. It gathers the roadmap's
+milestones 0.3 and 0.4, which were not released on their own, and the release engineering of
+0.5. Python 3.10 is no longer supported.
 
 ### Added in 0.3
 
@@ -100,12 +104,19 @@ before 1.0, a minor version may add to the API and a patch version only fixes.
 
 ### Release engineering (0.5)
 
-- CI runs the suite on Python 3.10–3.14 on Linux, macOS and Windows, and against
+- CI runs the suite on Python 3.11–3.14 on Linux, macOS and Windows, and against
   the installed wheel (`CGELAB_TEST_INSTALLED=1`), with `twine check`. A
   `validation` workflow runs the JuMP replica and the Hosoe transcription on
-  demand and weekly. A `release` workflow publishes to TestPyPI and PyPI by
-  trusted publishing when a GitHub release is published.
-- `py.typed`; Python-version, OS and typing classifiers; the `dsge` extra.
+  demand and weekly. A `release` workflow, started by pushing a tag `vX.Y.Z`,
+  checks that the tag matches the version in `pyproject.toml`, publishes to
+  TestPyPI by trusted publishing, installs what TestPyPI serves and runs the
+  suite against it, and only then publishes to PyPI.
+- `py.typed`; Python-version, OS and typing classifiers; the `dsge` extra, which
+  needs `dsgelab>=0.5`. The licence is declared as an SPDX expression (`MIT`),
+  with `LICENSE` as the licence file.
+- The examples, the docs and the site import the package as `cge` and dsgelab as
+  `dsg`, and link to dsgelab's site. The site's language selector names both
+  languages with an icon.
 - `CONTRIBUTING.md` with the definition of done and a release checklist; issue
   and pull request templates; a known-limitations section in the README.
 - `docs/comparison.md` in English; the Portuguese version is

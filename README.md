@@ -38,7 +38,7 @@ git clone https://github.com/GustavoHM/cgelab && cd cgelab
 pip install -e ".[test]" && pytest
 ```
 
-Requires Python 3.10+, numpy, scipy and pandas. Try it with no data at all:
+Requires Python 3.11+, numpy, scipy and pandas. Try it with no data at all:
 
 ```
 cgelab                    # runs the bundled toy economy and prints the diagnostics
@@ -195,18 +195,16 @@ where it stands. Things to know before relying on it:
   `run_path` itself has no forward-looking agent.
 - **GTAP data** can be read, but not yet aggregated or turned into a SAM, and the
   welfare decomposition has not been compared with GTAP's own.
-- **Platforms**: on macOS 27 the SciPy wheels for Python 3.10 do not load; use
-  Python 3.11 or later there. An editable install (`pip install -e`) can break
-  silently on Python 3.14 on macOS; install from the wheel if `import cgelab`
-  fails.
+- **Platforms**: an editable install (`pip install -e`) can break silently on
+  Python 3.14 on macOS; install from the wheel if `import cgelab` fails.
 
 ## Citing
 
 If a published result went through this package, cite it. Software is a
 methodological input like any other, and the version matters: a number that
 only reproduces under one version is not reproducible without it.
-[`CITATION.cff`](CITATION.cff) carries the metadata in the format GitHub reads;
-fill in the DOI and ORCID before citing.
+[`CITATION.cff`](CITATION.cff) carries the metadata, with the author's ORCID, in
+the format GitHub reads; the DOI is added with the first release archived on Zenodo.
 
 A repository URL is not an archivable reference. Connect the repository to
 Zenodo, cut a release, and cite the DOI that comes out of it.

@@ -1,13 +1,18 @@
 name: release
 
-# Publishes to TestPyPI and then PyPI when a GitHub release is published, by
-# trusted publishing: no token is stored here. Before the first release, add
-# this repository as a trusted publisher on both indexes (workflow
-# "release.yml", environments "testpypi" and "pypi"), and create those two
-# environments in the repository settings. See CONTRIBUTING.md, "Releasing".
+# Publishes to TestPyPI and then to PyPI when a tag vX.Y.Z is pushed, by trusted
+# publishing: no token is stored in the repository. Set-up, once per index
+# (test.pypi.org and pypi.org): Account > Publishing > add a pending publisher
+# with owner GustavoHM, repository cgelab, workflow release.yml, and the
+# environment named below (testpypi, pypi). In the repository settings, create
+# the two environments; giving pypi a required reviewer makes the final upload
+# wait for a click after TestPyPI has succeeded. See CONTRIBUTING.md, "Releasing".
 on:
-  release:
-    types: [published]
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: read
 
 jobs:
   build:
@@ -17,7 +22,11 @@ jobs:
       - uses: actions/setup-python@v7
         with:
           python-version: "3.13"
-      - run: python -m pip install build twine
+      - name: The tag must match the version in pyproject.toml
+        run: |
+          version=$(python -c "import tomllib; print(tomllib.load(open('pyproject.toml','rb'))['project']['version'])")
+          test "v$version" = "$GITHUB_REF_NAME" || { echo "tag $GITHUB_REF_NAME, pyproject $version"; exit 1; }
+      - run: python -m pip install --upgrade build twine
       - run: python -m build
       - run: python -m twine check --strict dist/*
       - uses: actions/upload-artifact@v7
@@ -28,7 +37,9 @@ jobs:
   testpypi:
     needs: build
     runs-on: ubuntu-latest
-    environment: testpypi
+    environment:
+      name: testpypi
+      url: https://test.pypi.org/p/cgelab
     permissions:
       id-token: write
     steps:
@@ -36,14 +47,40 @@ jobs:
         with:
           name: dist
           path: dist/
-      - uses: pypa/gh-action-pypi-publish@release/v1
+      - uses: pypa/gh-action-pypi-publish@v1.14.2
         with:
           repository-url: https://test.pypi.org/legacy/
 
-  pypi:
+  # Install what TestPyPI now serves, with dependencies from PyPI, and run the
+  # suite against it before the real upload. The dsge extra pulls dsgelab>=0.5
+  # from PyPI, so dsgelab 0.5 has to be published first.
+  check-testpypi:
     needs: testpypi
     runs-on: ubuntu-latest
-    environment: pypi
+    env:
+      CGELAB_TEST_INSTALLED: "1"
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.13"
+      - name: Install from TestPyPI
+        run: |
+          version="${GITHUB_REF_NAME#v}"
+          for i in 1 2 3 4 5 6; do
+            python -m pip install --index-url https://test.pypi.org/simple/ \
+              --extra-index-url https://pypi.org/simple/ "cgelab[test,parquet,dsge]==$version" && break
+            sleep 30   # the index can take a moment to serve a new upload
+          done
+          python -c "import cgelab; assert cgelab.__version__ == '$version'"
+      - run: python -m pytest -q
+
+  pypi:
+    needs: check-testpypi
+    runs-on: ubuntu-latest
+    environment:
+      name: pypi
+      url: https://pypi.org/p/cgelab
     permissions:
       id-token: write
     steps:
@@ -51,4 +88,4 @@ jobs:
         with:
           name: dist
           path: dist/
-      - uses: pypa/gh-action-pypi-publish@release/v1
+      - uses: pypa/gh-action-pypi-publish@v1.14.2

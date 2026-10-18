@@ -81,7 +81,7 @@ several regions, the result helpers, and the JuMP export replicating all of it. 
 - [x] **Language**: `docs/comparison.md` in English, with the Portuguese version alongside.
 - [x] **Reproducible validation**: the `validation` workflow runs the JuMP replica and the
   Hosoe transcription in CI, on demand and weekly.
-- [x] **Packaging**: tests on Python 3.10–3.14 on Linux, macOS and Windows; the suite run
+- [x] **Packaging**: tests on Python 3.11–3.14 on Linux, macOS and Windows; the suite run
   against the installed wheel; `python -m build` and `twine check` in CI; `py.typed`;
   `CONTRIBUTING.md` with a release checklist; issue and pull request templates; known
   limitations in the README; a `release` workflow for trusted publishing.

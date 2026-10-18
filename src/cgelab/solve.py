@@ -40,6 +40,7 @@ from .calibrate import Economy
 from .closure import Closure
 from .functions import (armington, ces_intensity, ces_price, cet, cet_domestic_price,
                         cobb_douglas_price)
+from .mobility import pool_endowment
 from .scenario import Scenario, investment_shares
 
 __all__ = ["PeriodResult", "solve_period", "value_added_price", "factor_intensity"]
@@ -52,13 +53,29 @@ _RECYCLE_TOL = 1e-13
 # Price blocks
 # ---------------------------------------------------------------------------
 
+def _factor_price_matrix(econ: Economy, w: np.ndarray) -> np.ndarray:
+    """Factor prices as ``(n_fac, n_act)``: a vector is the same price everywhere."""
+    w = np.asarray(w, dtype=float)
+    if w.ndim == 1:
+        return np.broadcast_to(w[:, None], (w.size, econ.n_act))
+    if w.shape != (econ.n_fac, econ.n_act):
+        raise ValueError(f"factor prices must be ({econ.n_fac},) or "
+                         f"({econ.n_fac}, {econ.n_act}), got {w.shape}")
+    return w
+
+
 def value_added_price(econ: Economy, w: np.ndarray) -> np.ndarray:
-    """Unit cost index of value added, by activity."""
+    """Unit cost index of value added, by activity.
+
+    ``w`` is one price per factor, or ``(n_fac, n_act)`` when a factor earns a
+    different price in each activity (``ModelSpec.factor_mobility``).
+    """
+    w = _factor_price_matrix(econ, w)
     if econ.spec.value_added == "cobb_douglas":
         nest = cobb_douglas_price(econ.theta, w)
     else:
         nest = ces_price(econ.theta, w, econ.sigma_va)
-    leo = w @ econ.aunit
+    leo = (w * econ.aunit).sum(axis=0)
     with np.errstate(divide="ignore", invalid="ignore"):
         leo_unit = np.where(econ.vunit != 0, leo / np.where(econ.vunit == 0, 1.0, econ.vunit), 0.0)
     return np.where(econ.leontief, leo_unit, nest)
@@ -67,16 +84,18 @@ def value_added_price(econ: Economy, w: np.ndarray) -> np.ndarray:
 def factor_intensity(econ: Economy, w: np.ndarray, *, vunit=None, aunit=None) -> np.ndarray:
     """Factor input per unit of value added, ``(n_fac, n_act)``.
 
-    ``vunit`` and ``aunit`` override the calibrated coefficients, which is how a
+    ``w`` is a vector or a matrix, as in :func:`value_added_price`. ``vunit``
+    and ``aunit`` override the calibrated coefficients, which is how a
     productivity path enters: the CES branch is scale-free and unaffected, but
     the fixed-proportions branch is a ratio of the two and must see both.
     """
     vunit = econ.vunit if vunit is None else vunit
     aunit = econ.aunit if aunit is None else aunit
+    w = _factor_price_matrix(econ, w)
     pva = value_added_price(econ, w)
     if econ.spec.value_added == "cobb_douglas":
         with np.errstate(divide="ignore", invalid="ignore"):
-            nest = np.where(econ.theta > 0, econ.theta * pva[None, :] / w[:, None], 0.0)
+            nest = np.where(econ.theta > 0, econ.theta * pva[None, :] / w, 0.0)
     else:
         nest = ces_intensity(econ.theta, w, pva, econ.sigma_va)
     with np.errstate(divide="ignore", invalid="ignore"):
@@ -157,6 +176,18 @@ class PeriodResult:
     #: The common factor on the adjusting tax's rates under a government
     #: target (``Closure.government_adjusts``); one otherwise.
     tax_scale: float = 1.0
+    #: Price of each factor in each activity, ``(n_fac, n_act)``. A perfectly
+    #: mobile factor earns ``factor_prices`` everywhere. An imperfectly mobile
+    #: one (``ModelSpec.factor_mobility``) earns its own price in each activity
+    #: that uses it; for it, ``factor_prices`` is its income over its endowment
+    #: and ``factor_demand`` is the endowment, so their product is still the
+    #: factor's income. Under a CET, the row of ``factor_demand_by_activity``
+    #: does not add up to the endowment off the base year.
+    factor_prices_by_activity: np.ndarray | None = None
+    #: Pools of each imperfectly mobile factor, ``{factor: {"pools", "price",
+    #: "endowment", "supply"}}``, ``supply`` being ``(n_pool, n_act)``. None
+    #: when every factor is perfectly mobile.
+    factor_pools: dict | None = None
     #: Intermediate input per unit of activity output, ``(n_com, n_act)``, and
     #: primary factor use per unit (in base-year value), as solved: with an
     #: energy nest both answer to prices, and these are the coefficients the
@@ -215,6 +246,13 @@ def solve_period(econ: Economy, closure: Closure | None = None,
     num = econ.numeraire_index
     lab = (econ.factor(closure.labour_factor)
            if closure.labour_factor in econ.factors else None)
+    mob = econ.mobility
+    if closure.labour != "full_employment" and lab in mob:
+        raise ValueError(
+            f"closure.labour={closure.labour!r} on {closure.labour_factor!r}, which is not "
+            f"perfectly mobile (ModelSpec.factor_mobility). With a wage in every activity "
+            f"there is no single wage for the closure to set; only 'full_employment' is "
+            f"available for it.")
     if closure.labour != "full_employment":
         if lab is None:
             raise ValueError(
@@ -228,13 +266,27 @@ def solve_period(econ: Economy, closure: Closure | None = None,
                 f"Set ModelSpec.numeraire_factor to another factor.")
     # A fixed real wage is not an unknown: it is the price index times the target.
     # Dropping it without dropping the market equation would overdetermine the model.
-    others = [i for i in range(nf) if i != num
+    # An imperfectly mobile factor has no single price: its unknowns are its
+    # prices in each activity that uses it, appended after every other block.
+    others = [i for i in range(nf) if i != num and i not in mob
               and not (closure.labour == "fixed_real_wage" and i == lab)]
     i_ext = len(others)                       # external-closure unknown
     i_inv = i_ext + 1                         # forced-saving unknown, when present
     n_unknown = i_ext + 1 + (1 if closure.investment == "fixed_real" else 0)
 
-    supply = econ.fac_supply if sc.factor_supply is None else np.asarray(sc.factor_supply, float)
+    supply = (econ.fac_supply if sc.factor_supply is None
+              else np.asarray(sc.factor_supply, float)).copy()
+    pool_given = dict(sc.pool_supply or {})
+    stray = [f for f in pool_given if f not in econ.factors or econ.factor(f) not in mob]
+    if stray:
+        raise ValueError(f"Scenario.pool_supply names {stray}, which are not imperfectly "
+                         f"mobile factors of this economy")
+    if sc.factor_supply is None:
+        for f, v in pool_given.items():
+            supply[econ.factor(f)] = float(np.sum(v))
+    endow = {i: pool_endowment(m, float(supply[i]), float(econ.fac_supply[i]), pool_given)
+             for i, m in mob.items()}
+    base_use = econ.aunit * econ.X0[None, :]
     facshare = (econ.hh_facshare if sc.factor_ownership is None
                 else np.asarray(sc.factor_ownership, float))
     tfp = np.ones(na) if sc.productivity is None else np.asarray(sc.productivity, float)
@@ -304,6 +356,10 @@ def solve_period(econ: Economy, closure: Closure | None = None,
     tax_lever = target is not None and adjusts in ("direct_tax", "product_tax")
     i_gov = n_unknown
     n_unknown += 1 if tax_lever else 0
+    i_mob = {}
+    for i, m in mob.items():
+        i_mob[i] = np.arange(n_unknown, n_unknown + int(m.users.sum()))
+        n_unknown += int(m.users.sum())
     if target == "saving":
         target_value = (econ.gov_saving0 if closure.government_target_value is None
                         else float(closure.government_target_value)) * closure.numeraire
@@ -399,6 +455,8 @@ def solve_period(econ: Economy, closure: Closure | None = None,
     def production(pqf, w, quantities=True, pva=None):
         """Unit cost by activity, input coefficients and factor use per unit of output.
 
+        ``w`` is the factor price matrix, ``(n_fac, n_act)``.
+
         Without an energy nest these are the Leontief coefficients and the
         value-added nest. With one, the energy bundle (a CES across fuels, at
         the fuel prices each activity pays, carbon included) either substitutes
@@ -434,19 +492,19 @@ def solve_period(econ: Economy, closure: Closure | None = None,
                 k, free = nest.capital, nest.free
                 sk, s_ke, s_top = nest.k_share, nest.sigma_ke, nest.sigma_top
                 pke = _two_input_ces(sk, w[k], 1.0 - sk, pe, s_ke)
-                prices = np.vstack([np.broadcast_to(w[:, None], (nf, na)), pke[None, :]])
+                prices = np.vstack([w, pke[None, :]])
                 shares = np.vstack([nest.top_share, nest.ke_share[None, :]])
                 ptop = _energy_index(shares, prices, s_top)
                 ke_per = vae_q * nest.ke_share * _ratio_power(ptop, pke, s_top)
                 e_per = ke_per * (1.0 - sk) * _ratio_power(pke, pe, s_ke)
                 fac_per = (vae_q[None, :] * nest.top_share
-                           * _ratio_power(ptop[None, :], w[:, None], s_top[None, :]))
+                           * _ratio_power(ptop[None, :], w, s_top[None, :]))
                 fac_per[k] = ke_per * sk * _ratio_power(pke, w[k], s_ke)
                 top_cost = vae_q * ptop
                 # Activities without substitution keep their Leontief inputs.
                 fac_per[:, ~free] = aunit_eff[:, ~free]
                 e_per = np.where(free, e_per, 0.0)
-                top_cost = np.where(free, top_cost, w @ aunit_eff
+                top_cost = np.where(free, top_cost, (w * aunit_eff).sum(axis=0)
                                     + ((pqf[:, None] + carb_fuel) * np.where(
                                         emask[:, None], io_eff, 0.0)).sum(axis=0))
             fuel = np.where(emask[:, None], e_per[None, :] * theta
@@ -478,6 +536,9 @@ def solve_period(econ: Economy, closure: Closure | None = None,
         w = np.full(nf, nu)
         for k, i in enumerate(others):
             w[i] = nu * float(np.exp(z[k]))
+        Wm = np.tile(w[:, None], (1, na))
+        for i, m in mob.items():
+            Wm[i, m.users] = nu * np.exp(z[i_mob[i]])
         if closure.solves_exchange_rate:
             er = float(np.exp(z[i_ext]))
             foreign_sav = er * trade_target if in_dollars else trade_target
@@ -490,7 +551,7 @@ def solve_period(econ: Economy, closure: Closure | None = None,
         ptax_f = ptax_f_set * (tax_scale if adjusts == "product_tax" and tax_lever else 1.0)
         dtax = dtax_set * (tax_scale if adjusts == "direct_tax" and tax_lever else 1.0)
         log_px = z[i_curve:i_curve + curve_x.size]
-        log_pm = z[i_curve + curve_x.size:n_unknown]
+        log_pm = z[i_curve + curve_x.size:i_curve + curve_x.size + curve_m.size]
         world_p_now = world_p.copy()
         world_p_now[curve_m] *= np.exp(log_pm)
         world_pe_now = world_pe.copy()
@@ -512,11 +573,11 @@ def solve_period(econ: Economy, closure: Closure | None = None,
         # wage itself helps determine. Stopping on the price gap alone would
         # leave the wage one iteration behind, and the finite-difference
         # Jacobian would see a jump.
-        pva = value_added_price(econ, w)
+        pva = value_added_price(econ, Wm)
         pqf = 1.0 + ptax_f
         real_wage_target = 1.0 if closure.real_wage is None else float(closure.real_wage)
         for _ in range(_PRICE_ITERS):
-            pa, _, _ = production(pqf, w, quantities=False, pva=pva)
+            pa, _, _ = production(pqf, Wm, quantities=False, pva=pva)
             pd_ = econ.msh.T @ pa
             arm, dsh, msh_ = armington(
                 econ.dom_share, domestic_price(pd_ * out_wedge, pe), pm, econ.sigma_arm)
@@ -528,12 +589,21 @@ def solve_period(econ: Economy, closure: Closure | None = None,
                 w_target = real_wage_target * P_now
                 wage_settled = abs(w_target - w[lab]) < 1e-14
                 w[lab] = w_target
-                pva = value_added_price(econ, w)
+                Wm[lab, :] = w_target
+                pva = value_added_price(econ, Wm)
             if np.max(np.abs(new - pqf)) < 1e-14 and wage_settled:
                 pqf = new
                 break
             pqf = new
-        pa, coef, fac_per = production(pqf, w, pva=pva)
+        pa, coef, fac_per = production(pqf, Wm, pva=pva)
+        # Supply of each imperfectly mobile factor to each activity, and its
+        # income: the pools' prices times their endowments, which is also the
+        # activity prices times the supplies.
+        mob_supply, mob_price, mob_income = {}, {}, {}
+        for i, m in mob.items():
+            S_o, W_o = m.supply(Wm[i], endow[i])
+            mob_supply[i], mob_price[i] = S_o, W_o
+            mob_income[i] = float(W_o @ endow[i])
         pd_ = econ.msh.T @ pa
         p_dom = domestic_price(pd_ * out_wedge, pe)
         arm, dsh, msh_ = armington(econ.dom_share, p_dom, pm, econ.sigma_arm)
@@ -565,6 +635,8 @@ def solve_period(econ: Economy, closure: Closure | None = None,
             # --- household budgets, with the wedge recycled in closed form
             transfers = base_transfers - levy * econ.pop_share + gov_tr + remit
             fac_inc = w * paid
+            for i in mob:
+                fac_inc[i] = mob_income[i]
             gov_fac = float(fac_inc @ fac_gov_sh)
             row_fac = float(fac_inc @ fac_row_sh)
             base_income = facshare @ (fac_inc * (1.0 - fac_gov_sh - fac_row_sh)) + transfers
@@ -745,6 +817,19 @@ def solve_period(econ: Economy, closure: Closure | None = None,
             exports = exp_frac * tz0 * Q
             fac_by_act = fac_per * X[None, :]
             fac_dem = fac_by_act.sum(axis=1)
+            # Each imperfectly mobile factor clears activity by activity. Its
+            # endowment is what `factor_demand` reports, and its price is its
+            # income over that endowment.
+            w_report = w.copy()
+            mob_gaps, mob_out = {}, []
+            for i, m in mob.items():
+                g = ((fac_by_act[i] - mob_supply[i].sum(axis=0))
+                     / np.maximum(np.abs(base_use[i]), 1.0))[m.users]
+                mob_out.extend(g)
+                mob_gaps[i] = float(g[np.argmax(np.abs(g))])
+                total = float(endow[i].sum())
+                w_report[i] = mob_income[i] / total if total > 0 else nu
+                fac_dem[i] = total
             trade = float((pm_border * imports).sum() - (p_exp * exports).sum())
             # The current account: trade plus factor income paid abroad, less net
             # transfers received from abroad. It is this, not trade alone, that
@@ -758,6 +843,8 @@ def solve_period(econ: Economy, closure: Closure | None = None,
             # The numeraire market stays the Walras check against its SUPPLY. A labour
             # closure that changed this denominator would make the check an identity.
             gaps[num] = (fac_dem[num] - supply[num]) / max(abs(float(supply[num])), 1.0)
+            for i, g in mob_gaps.items():
+                gaps[i] = g
             out = []
             for i in others:
                 if closure.labour == "wage_curve" and i == lab:
@@ -788,6 +875,7 @@ def solve_period(econ: Economy, closure: Closure | None = None,
                 hit = (gov_account["saving"] if target == "saving"
                        else gov_account["revenue"])
                 out.append((hit - target_value) / sav_scale)
+            out.extend(mob_out)
 
             p_base_yard = 1.0 + econ.ptax          # constant-price yardstick, scenario independent
             gov_sav = savings - hh_sav - levy - foreign_sav
@@ -797,7 +885,7 @@ def solve_period(econ: Economy, closure: Closure | None = None,
                 unemployment = 0.0
                 real_wage_now = float("nan")
             else:
-                real_wage_now = float(w[lab] / P_level)
+                real_wage_now = float(w_report[lab] / P_level)
                 employment = float(fac_dem[lab])
                 if closure.labour == "wage_curve":
                     force = float(supply[lab]) / (1.0 - closure.natural_unemployment)
@@ -806,8 +894,16 @@ def solve_period(econ: Economy, closure: Closure | None = None,
                     unemployment = float(supply[lab]) - employment
                 else:
                     unemployment = 0.0
+            Wm_report = Wm.copy()
+            for i, m in mob.items():
+                Wm_report[i, ~m.users] = w_report[i]
             state.update(
-                w=w, er=er, pa=pa, pd=pd_, pq=pq, pqf=pqf, pbase=pbase, Q=Q, X=X, A=A,
+                w=w_report, w_by_act=Wm_report,
+                pools={econ.factors[i]: dict(pools=list(m.pools), price=mob_price[i].copy(),
+                                             endowment=endow[i].copy(),
+                                             supply=mob_supply[i].copy())
+                       for i, m in mob.items()} or None,
+                er=er, pa=pa, pd=pd_, pq=pq, pqf=pqf, pbase=pbase, Q=Q, X=X, A=A,
                 hh_q=hh_q, hh_income=hh_income, hh_com_spend=hh_com_spend, direct=direct,
                 wedge_paid=wedge_paid, wedge_rev=wedge_rev, gov_cost=gov_cost,
                 gov_q=gov_q, inv_q=inv_q, savings=savings, fac_dem=fac_dem,
@@ -918,6 +1014,7 @@ def solve_period(econ: Economy, closure: Closure | None = None,
         p_domestic=state["p_dom"], government=state["gov_account"],
         household_saving=state["hh_sav"], forced_saving=state["levy"],
         tax_scale=state["tax_scale"], input_coefficients=state["io_used"],
+        factor_prices_by_activity=state["w_by_act"], factor_pools=state["pools"],
         value_added_per_unit=state["va_per"])
 
 

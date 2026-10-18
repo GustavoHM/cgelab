@@ -21,7 +21,9 @@ __all__ = ["factor_demand_by_activity", "real_gdp", "sectoral_path", "national_a
 def factor_demand_by_activity(period: PeriodResult) -> pd.DataFrame:
     """Factor use by activity. Rows are factors, columns are activities.
 
-    The row sums equal ``period.factor_demand``. Productivity is the scenario's,
+    The row sums equal ``period.factor_demand``, except for a factor under a CET
+    transformation (``ModelSpec.factor_mobility``), whose ``factor_demand`` is
+    its endowment. Productivity is the scenario's,
     because the matrix stored on the result was built with the same coefficients
     the equilibrium was solved at.
     """
@@ -63,7 +65,10 @@ def real_gdp(period: PeriodResult) -> dict:
     own_account = float((econ.hh_direct * scale[None, :]).sum())
     expenditure = float(yard @ final + period.exports.sum() - period.imports.sum()
                         + own_account)
-    value_added = float(period.factor_demand.sum())
+    # The factor services activities use, each at its base-year price of one.
+    # For an imperfectly mobile factor under a CET this is not its endowment,
+    # which `factor_demand` reports: moving between activities costs services.
+    value_added = float(period.factor_demand_by_activity.sum())
     product_tax = float(econ.ptax @ period.absorption)
     activity_tax = float(econ.atax @ period.X)
     gap = expenditure - value_added

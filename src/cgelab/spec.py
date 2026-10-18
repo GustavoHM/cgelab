@@ -136,6 +136,20 @@ class ModelSpec:
     #: Zero is Leontief: the base-year origin mix does not answer to prices.
     sigma_interregional: float | Mapping[str, float] = 2.0
 
+    #: Factors that are not perfectly mobile across activities, ``{factor: ω}``.
+    #: The factor's endowment is split among the activities that use it by a
+    #: transformation with elasticity ω ≥ 0, and each activity pays its own
+    #: price. Zero holds the base-year allocation; a large ω approaches one
+    #: price. A factor left out is perfectly mobile, as before. The numeraire
+    #: cannot be listed: its market is the Walras check. Pools of origin (a
+    #: proximity matrix) are data and go to ``calibrate(..., factor_pools=)``.
+    factor_mobility: Mapping[str, float] | None = None
+    #: The transformation. ``"cet"``: a CET frontier, the sluggish endowments
+    #: of GTAP; pool income is its price index times its endowment, exactly.
+    #: ``"logit"``: shares of a fixed head count, so the supplies add up to the
+    #: endowment at any prices. One form for every factor, or a mapping by factor.
+    factor_mobility_form: str | Mapping[str, str] = "cet"
+
     def __post_init__(self):
         self.factors = list(self.factors)
         if self.regions is not None:
@@ -178,11 +192,51 @@ class ModelSpec:
                 raise ValueError(
                     f"{field_name} must be a positive elasticity, got {got!r}. "
                     f"Omit it to keep the economy a price taker.")
+        if self.factor_mobility is not None:
+            self._check_mobility()
         if self.export_demand is not None and self.export_rule != "cet":
             raise ValueError(
                 "export_demand needs export_rule='cet'. With fixed export shares the "
                 "export volume is a fixed fraction of output, so no world price could "
                 "clear a demand curve for it.")
+
+    def _check_mobility(self):
+        import math
+        if not isinstance(self.factor_mobility, Mapping):
+            raise TypeError("factor_mobility must be a mapping {factor: elasticity}")
+        if self.regions:
+            raise ValueError(
+                "factor_mobility is not available in a regional model yet; factor "
+                "markets by region come with the regional closures of 0.7.")
+        for f, om in self.factor_mobility.items():
+            if f not in self.factors:
+                raise ValueError(f"factor_mobility names {f!r}, which is not among "
+                                 f"the factors {self.factors}")
+            if not (math.isfinite(float(om)) and float(om) >= 0):
+                raise ValueError(
+                    f"factor_mobility[{f!r}] must be a finite elasticity >= 0, got {om!r}. "
+                    f"A perfectly mobile factor is one left out of the mapping.")
+        if self.numeraire_factor in self.factor_mobility:
+            raise ValueError(
+                f"the numeraire {self.numeraire_factor!r} cannot be imperfectly mobile: its "
+                f"market is left to Walras' law, and with a price in every activity there "
+                f"would be no single market to leave out. Choose another numeraire_factor.")
+        forms = (self.factor_mobility_form if isinstance(self.factor_mobility_form, Mapping)
+                 else {f: self.factor_mobility_form for f in self.factor_mobility})
+        for f, form in forms.items():
+            if f not in self.factor_mobility:
+                raise ValueError(f"factor_mobility_form names {f!r}, which factor_mobility "
+                                 f"does not list")
+            if form not in ("cet", "logit"):
+                raise ValueError(f"factor_mobility_form must be 'cet' or 'logit', "
+                                 f"got {form!r} for {f!r}")
+
+    def mobility_form_of(self, factor: str) -> str:
+        """The transformation form of an imperfectly mobile factor."""
+        form = self.factor_mobility_form
+        if isinstance(form, Mapping):
+            return form.get(factor, "cet")
+        return form
 
     # -- helpers ---------------------------------------------------------
     def classify(self, sam) -> AccountLayout:

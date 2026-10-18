@@ -26,6 +26,7 @@ from typing import Mapping
 
 import numpy as np
 
+from .mobility import build_mobility
 from .sam import SAM
 from .spec import AccountLayout, ModelSpec
 
@@ -155,6 +156,10 @@ class Economy:
     physical_units: object | None = field(default=None, repr=False)
     #: Value-added-energy nesting (``ModelSpec.energy``). None: Leontief inputs.
     energy_nest: EnergyNest | None = field(default=None, repr=False)
+    #: Imperfectly mobile factors (``ModelSpec.factor_mobility``), by factor
+    #: index: :class:`cgelab.mobility.FactorMobility`. Empty: every factor is
+    #: perfectly mobile.
+    mobility: dict = field(default_factory=dict, repr=False)
 
     def zeros_if_none(self, name: str, n: int) -> np.ndarray:
         v = getattr(self, name)
@@ -273,6 +278,7 @@ def calibrate(sam: SAM, spec: ModelSpec | None = None, *,
               population: Mapping[str, float] | None = None,
               tariffs=None,
               output_taxes=None,
+              factor_pools: Mapping | None = None,
               check_balance: bool = True) -> Economy:
     """Build an :class:`Economy` from a balanced SAM.
 
@@ -294,6 +300,11 @@ def calibrate(sam: SAM, spec: ModelSpec | None = None, *,
         and enters the import price and the gross output price, as in Hosoe's
         ``stdcge``. At those rates the base year is unchanged. A scenario then
         moves one instrument.
+    factor_pools : mapping, optional
+        Factor -> DataFrame of base-year use, pools of origin by activities:
+        the proximity matrix of a factor in ``ModelSpec.factor_mobility``. Each
+        column must add up to what the SAM pays the factor in that activity.
+        Absent, the factor's whole endowment is one pool.
     """
     spec = spec or ModelSpec()
     if check_balance:
@@ -476,6 +487,7 @@ def calibrate(sam: SAM, spec: ModelSpec | None = None, *,
         hh_spend0=hh_com.sum(axis=1), hh_gross0=gross0,
         tm0=tm0, tauz0=tauz0, gov_savrate=gov_savrate,
         energy_nest=energy_nest,
+        mobility=build_mobility(spec, facs, acts, aunit * X0[None, :], factor_pools),
         gov_saving0=gov_income0 - float(gov_dem.sum()),
         gov_revenue0=gov_income0 + float(gov_tr.sum()),
         diagnostics=dict(negative_value_added=negative,

@@ -36,6 +36,7 @@ from .har import read_har, write_har
 from .dynamics import Growth, PathResult, run_path
 from .functions import (armington, ces_intensity, ces_price, cet, cet_domestic_price,
                         cobb_douglas_price)
+from .mobility import FactorMobility
 from .multipliers import (Multipliers, accounting_multipliers, fixed_price_multipliers,
                           leontief_multipliers, linkages, structural_paths)
 from .results import (factor_demand_by_activity, government_account, national_accounts,
@@ -57,6 +58,7 @@ __all__ = [
     "Closure", "Scenario", "consumer_wedge",
     "solve_period", "PeriodResult", "value_added_price", "factor_intensity",
     "run_path", "PathResult", "Growth",
+    "FactorMobility",
     "equivalent_variation", "ev_by_group", "compensating_variation",
     "base_year_reproduction", "homogeneity_test", "walras_check", "report",
     "to_jump", "read_har", "write_har",

@@ -19,32 +19,53 @@ __all__ = ["ces_price", "ces_intensity", "leontief_price", "armington", "cet", "
            "cobb_douglas_price"]
 
 
+def _by_column(prices: np.ndarray, shares: np.ndarray) -> np.ndarray:
+    """Input prices as ``(n_inputs, n_columns)``.
+
+    A vector is one price per input, the same in every column. A matrix is a
+    price per input and column: a factor that is not perfectly mobile earns a
+    different price in each activity, and the nest of each activity sees its own.
+    """
+    prices = np.asarray(prices, dtype=float)
+    if prices.ndim == 1:
+        return np.broadcast_to(prices[:, None], shares.shape)
+    if prices.shape != shares.shape:
+        raise ValueError(f"prices of shape {prices.shape} do not match shares {shares.shape}")
+    return prices
+
+
 def cobb_douglas_price(shares: np.ndarray, prices: np.ndarray) -> np.ndarray:
-    """Unit cost of a Cobb-Douglas nest: ``prod_i p_i^{theta_i}``, by column."""
+    """Unit cost of a Cobb-Douglas nest: ``prod_i p_i^{theta_i}``, by column.
+
+    ``prices`` is one per input, or ``(n_inputs, n_columns)``.
+    """
+    prices = _by_column(prices, shares)
     with np.errstate(divide="ignore", invalid="ignore"):
-        return np.prod(np.where(shares > 0, prices[:, None] ** shares, 1.0), axis=0)
+        return np.prod(np.where(shares > 0, prices ** shares, 1.0), axis=0)
 
 
 def ces_price(shares: np.ndarray, prices: np.ndarray, sigma) -> np.ndarray:
     """Unit cost of a CES nest, column by column.
 
     ``shares`` is ``(n_inputs, n_columns)`` and sums to one down each column;
+    ``prices`` is one per input, or a matrix of the same shape as ``shares``;
     ``sigma`` is a scalar or one value per column. ``sigma == 1`` falls back to
     Cobb-Douglas, which is its limit and not a special case to be approximated.
     """
+    prices = _by_column(prices, shares)
     sigma = np.asarray(sigma, dtype=float)
     if sigma.ndim == 0:
         sigma = np.full(shares.shape[1], float(sigma))
     out = np.zeros(shares.shape[1])
     unit = np.abs(sigma - 1.0) < 1e-9
     if unit.any():
-        out[unit] = cobb_douglas_price(shares[:, unit], prices)
+        out[unit] = cobb_douglas_price(shares[:, unit], prices[:, unit])
     other = ~unit
     if other.any():
         s = sigma[other]
         sh = shares[:, other]
         with np.errstate(divide="ignore", invalid="ignore"):
-            terms = np.where(sh > 0, sh * prices[:, None] ** (1.0 - s[None, :]), 0.0)
+            terms = np.where(sh > 0, sh * prices[:, other] ** (1.0 - s[None, :]), 0.0)
             tot = terms.sum(axis=0)
             out[other] = np.where(sh.sum(axis=0) > 0, tot ** (1.0 / (1.0 - s)), 0.0)
     return out
@@ -52,13 +73,17 @@ def ces_price(shares: np.ndarray, prices: np.ndarray, sigma) -> np.ndarray:
 
 def ces_intensity(shares: np.ndarray, prices: np.ndarray, unit_cost: np.ndarray,
                   sigma) -> np.ndarray:
-    """Input per unit of the CES composite: ``theta_i (P/p_i)^sigma``."""
+    """Input per unit of the CES composite: ``theta_i (P/p_i)^sigma``.
+
+    ``prices`` is one per input, or a matrix of the same shape as ``shares``.
+    """
+    prices = _by_column(prices, shares)
     sigma = np.asarray(sigma, dtype=float)
     if sigma.ndim == 0:
         sigma = np.full(shares.shape[1], float(sigma))
     with np.errstate(divide="ignore", invalid="ignore"):
         return np.where(shares > 0,
-                        shares * (unit_cost[None, :] / prices[:, None]) ** sigma[None, :], 0.0)
+                        shares * (unit_cost[None, :] / prices) ** sigma[None, :], 0.0)
 
 
 def leontief_price(unit_inputs: np.ndarray, prices: np.ndarray,

@@ -353,6 +353,63 @@ model's and not the solver's.
 it. All five combinations in the test matrix reproduce the base year and hold
 Walras to `~2e-15` under a 20% product-tax shock.
 
+### Factors that move only partway
+
+A perfectly mobile factor earns one price in every activity. A sector-specific
+one is a factor of its own, as `f_kind` is in `toy.build_with_specific_capital`.
+`ModelSpec.factor_mobility` sits between them: the factor's endowment is split
+among the activities that use it by a transformation with elasticity ω, and
+each activity pays its own price.
+
+```python
+spec = toy.spec(numeraire_factor="f_cap", factor_mobility={"f_lab": 2.0})
+econ = cge.calibrate(sam, spec)
+r = cge.solve_period(econ, scenario=cge.Scenario(world_price=np.array([1.0, 1.3])))
+r.factor_prices_by_activity[0]     # the wage in each activity
+```
+
+Two forms, by `factor_mobility_form`:
+
+- `"cet"`, the default, is the frontier of GTAP's sluggish endowments. A pool
+  with endowment `L` and base-year shares `δ_a` has the price index
+  `W = [Σ δ_a w_a^(1+ω)]^(1/(1+ω))` and supplies `δ_a L (w_a / W)^ω` to activity
+  `a`. Its income is `W L` exactly. The supplies do not add up to `L` away from
+  equal prices: moving between activities costs efficiency units.
+- `"logit"` keeps the head count: activity `a` gets the share
+  `δ_a w_a^ω / Σ δ_b w_b^ω` of `L`, whatever the prices. The pool's price is its
+  income over its head count. There is no frontier behind it, so the wage gaps it
+  leaves are a gain from moving that the welfare decomposition reports as
+  `factor_reallocation`; under the CET that term is zero.
+
+The two agree to first order around equal wages and part at second order. ω = 0
+holds the base-year allocation, and the model is then exactly the one with the
+factor split into one account per activity. As ω grows the solution approaches
+perfect mobility at a rate of 1/ω.
+
+**Pools of origin.** One national pool is the default. `calibrate(...,
+factor_pools={"f_lab": table})` takes a proximity matrix instead: a table of
+base-year use with pools of origin (occupations, regions, neighbouring sectors)
+as rows and activities as columns, each column adding up to what the SAM pays
+the factor there. A pool supplies only the activities it reached in the base
+year, so a shock to one sector draws first on its neighbours.
+`Scenario.pool_supply` moves the pools' endowments; absent, they scale with
+the factor's supply, as a growth path needs. `PeriodResult.factor_pools` reports
+each pool's price, endowment and supply by activity.
+
+```python
+pools = pd.DataFrame([[30.0, 10.0], [10.0, 60.0]], index=["rural", "urban"],
+                     columns=["a_agr", "a_ind"])
+econ = cge.calibrate(sam, spec, factor_pools={"f_lab": pools})
+```
+
+For such a factor, `factor_prices` is its income over its endowment and
+`factor_demand` is the endowment, so their product is still its income.
+`factor_demand_by_activity` holds the use by activity. The numeraire cannot be
+imperfectly mobile: its market is the Walras check, and with a price in every
+activity there is no single market to leave out. Labour closures other than
+full employment are refused on such a factor for now; segmentation and
+informality will bring them. Regional models refuse `factor_mobility`.
+
 ---
 
 ## 7. Scenarios

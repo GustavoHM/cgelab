@@ -56,6 +56,8 @@ Constructors: `SAM.from_long(df, row="row", col="col", value="value", name="sam"
 | `sigma_interregional` | `2.0` | CES across regions of origin, under the Armington. Scalar or mapping by local commodity |
 | `tariff_account` | `None` | account that collects the import tariff from commodities (Hosoe's TRF). The tariff goes inside the Armington import price |
 | `indirect_tax_account` | `None` | account that collects the indirect tax on all of output (Hosoe's IDT). The tax goes inside the gross output price the CET splits, so exports carry it |
+| `factor_mobility` | `None` | `{factor: ω}`, ω ≥ 0: the factor's endowment is transformed across the activities that use it, and each activity pays its own price. Zero holds the base-year allocation. A factor left out is perfectly mobile. Not the numeraire; not with `regions` |
+| `factor_mobility_form` | `"cet"` | `"cet"` (a CET frontier, GTAP's sluggish endowments) or `"logit"` (shares of a fixed head count); one form, or a mapping by factor |
 
 Methods: `classify(sam) -> AccountLayout`, `prepare(sam)` (expands regional
 accounts), `sigma_va_vector(activities)`, `sigma_armington_vector(commodities)`.
@@ -76,7 +78,7 @@ and non-default closures are refused by name rather than ignored. `to_jump` and
 
 ## Calibration
 
-### `calibrate(sam, spec=None, *, income_elasticities=None, population=None, tariffs=None, output_taxes=None, check_balance=True) -> Economy`
+### `calibrate(sam, spec=None, *, income_elasticities=None, population=None, tariffs=None, output_taxes=None, factor_pools=None, check_balance=True) -> Economy`
 
 `income_elasticities` maps commodity to income elasticity (LES only).
 `population` maps household account to a household count — the weight of a per
@@ -85,6 +87,10 @@ capita transfer, and neither the income nor the expenditure share.
 SAM has no separate account for them. Their revenue leaves the product tax and
 enters the import price and the gross output price; at those rates the base year
 is unchanged.
+`factor_pools` maps a factor in `ModelSpec.factor_mobility` to a DataFrame of
+base-year use, pools of origin by activities: a proximity matrix. Each column must
+add up to what the SAM pays the factor in that activity. Absent, the endowment is
+one pool. The calibrated transformations are `econ.mobility`, by factor index.
 
 ### `Economy`
 
@@ -154,6 +160,7 @@ Properties: `solves_exchange_rate`, `describe()`.
 |---|---|---|
 | `name` | str | carried into results and summaries |
 | `factor_supply` | `(nf,)` | absolute endowments |
+| `pool_supply` | mapping | `{factor: endowment of each pool}` for an imperfectly mobile factor; absent, the pools scale with `factor_supply`, and when both are set they must agree on the total |
 | `factor_ownership` | `(nh, nf)` | ownership shares, columns sum to one |
 | `productivity` | `(na,)` | Hicks-neutral multiplier per activity |
 | `activity_scale` | mapping | own-account activity levels, as a multiple of the base year |
@@ -188,7 +195,9 @@ Unknowns: one price per non-numeraire factor, one for the external closure (the
 exchange rate under `foreign="fixed_saving"`, foreign saving under
 `"fixed_rate"`), and under `investment="fixed_real"` the forced household saving
 that finances the fixed investment. Under `ModelSpec.export_demand` or
-`import_supply`, the log world price of each commodity on a curve.
+`import_supply`, the log world price of each commodity on a curve. For a factor
+in `ModelSpec.factor_mobility`, its price in each activity that uses it instead
+of one price, with one market per activity.
 
 ### `PeriodResult`
 
@@ -202,7 +211,9 @@ that finances the fixed investment. Under `ModelSpec.export_demand` or
 | `hh_direct_tax`, `factor_income_abroad`, `foreign_saving` | direct tax by household; factor income paid abroad; the period's foreign saving, FDI included |
 | `Q`, `X`, `absorption`, `imports`, `exports` | the quantity system; `imports` at the border, `exports` at their tax-inclusive value |
 | `hh_quantity`, `hh_income`, `hh_commodity_spend`, `hh_direct_outlay`, `hh_wedge_paid` | the household block |
-| `gov_quantity`, `investment_quantity`, `savings`, `factor_demand` | the rest of final demand |
+| `gov_quantity`, `investment_quantity`, `savings`, `factor_demand` | the rest of final demand; for an imperfectly mobile factor, `factor_demand` is its endowment and `factor_prices` its income over that endowment |
+| `factor_demand_by_activity`, `factor_prices_by_activity` | `(nf, na)` factor use and the price each activity pays. Under a CET the use does not add up to the endowment off the base year |
+| `factor_pools` | `{factor: {"pools", "price", "endowment", "supply"}}` for each imperfectly mobile factor, `supply` by pool and activity; `None` when every factor is mobile |
 | `wedge_revenue`, `government_cost` | recycled revenue; cost falling on the budget |
 | `input_coefficients`, `value_added_per_unit` | intermediate input and primary factor use (base-year value) per unit of output as solved; under an energy nest they answer to prices |
 | `government`, `household_saving`, `forced_saving` | the government account at the solution; voluntary household saving; the levy that finances fixed real investment |
@@ -212,7 +223,8 @@ that finances the fixed investment. Under `ModelSpec.export_demand` or
 
 ### `value_added_price(econ, w)` / `factor_intensity(econ, w, *, vunit=None, aunit=None)`
 
-The value-added nest on its own. `vunit` and `aunit` override the calibrated
+The value-added nest on its own. `w` is one price per factor, or `(nf, na)`
+when a factor earns a different price in each activity. `vunit` and `aunit` override the calibrated
 coefficients, which is how a productivity path enters: the CES branch is
 scale-free and unaffected, the fixed-proportions branch is a ratio of the two and
 must see both.
@@ -339,8 +351,12 @@ Huff–Hertel decomposition of the change in real absorption (Divisia, current
 prices along the path): `absorption` and its four components
 (`absorption_households`, `_own_account`, `_government`, `_investment`);
 `endowment`, `technology`, `allocative_product_tax`, `allocative_consumer_wedge`,
-`allocative_activity_tax`, `allocative_tariff`, `allocative_output_tax`,
-`terms_of_trade`, `external_account`; `sum_of_terms` and `residual`.
+`allocative_activity_tax`, `allocative_carbon_tax`, `allocative_tariff`,
+`allocative_output_tax`, `factor_reallocation`, `terms_of_trade`,
+`external_account`; `sum_of_terms` and `residual`. For an imperfectly mobile
+factor, `endowment` prices each pool's endowment, and `factor_reallocation` is
+the activity prices times the change in use less that: zero under a CET, the
+gain from moving workers under a logit.
 
 ### `path_decomposition(f, x0, x1, groups, *, nodes=6, step=1e-4, solve_at=None) -> DataFrame`
 

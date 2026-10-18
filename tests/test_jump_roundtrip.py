@@ -64,3 +64,8 @@ def test_hosoe_tariff_abolition(roundtrip):
     r = roundtrip.caso("pytest_stdcge", econ, hosoe.CLOSURE,
                        cge.Scenario(tariff=np.zeros(2)))
     assert r["ok"], r
+
+
+def test_imperfect_factor_mobility(roundtrip):
+    for case, r in roundtrip.casos_mobilidade().items():
+        assert r["ok"], (case, r)

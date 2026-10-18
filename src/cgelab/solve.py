@@ -40,7 +40,7 @@ from .calibrate import Economy
 from .closure import Closure
 from .functions import (armington, ces_intensity, ces_price, cet, cet_domestic_price,
                         cobb_douglas_price)
-from .mobility import pool_endowment
+from .mobility import period_endowments
 from .scenario import Scenario, investment_shares
 
 __all__ = ["PeriodResult", "solve_period", "value_added_price", "factor_intensity"]
@@ -274,18 +274,7 @@ def solve_period(econ: Economy, closure: Closure | None = None,
     i_inv = i_ext + 1                         # forced-saving unknown, when present
     n_unknown = i_ext + 1 + (1 if closure.investment == "fixed_real" else 0)
 
-    supply = (econ.fac_supply if sc.factor_supply is None
-              else np.asarray(sc.factor_supply, float)).copy()
-    pool_given = dict(sc.pool_supply or {})
-    stray = [f for f in pool_given if f not in econ.factors or econ.factor(f) not in mob]
-    if stray:
-        raise ValueError(f"Scenario.pool_supply names {stray}, which are not imperfectly "
-                         f"mobile factors of this economy")
-    if sc.factor_supply is None:
-        for f, v in pool_given.items():
-            supply[econ.factor(f)] = float(np.sum(v))
-    endow = {i: pool_endowment(m, float(supply[i]), float(econ.fac_supply[i]), pool_given)
-             for i, m in mob.items()}
+    supply, endow = period_endowments(econ, sc)
     base_use = econ.aunit * econ.X0[None, :]
     facshare = (econ.hh_facshare if sc.factor_ownership is None
                 else np.asarray(sc.factor_ownership, float))

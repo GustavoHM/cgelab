@@ -238,6 +238,26 @@ absorption is incomplete by construction, not approximately right.
 
 ---
 
+## A factor that moves only partway keeps its income in one place
+
+An imperfectly mobile factor has a price in every activity it works in, and
+its market clears activity by activity. Its income is computed once, on the
+supply side: each pool's price times its endowment, which under a CET is also
+the activity prices times the supplies. Computing it on the demand side as well
+and letting the two drift would leak exactly the income the Walras residual is
+there to catch. For the same reason the numeraire stays perfectly mobile: with
+a price in every activity there would be no single market left out.
+
+The form is a statement about the economy, and the welfare decomposition shows
+which one was made. Under a CET the wage gaps are the price of moving, the
+envelope theorem makes the reallocation term zero, and every gain is endowment.
+Under a logit the head count is fixed and nothing prices the move, so a worker
+who moves toward a higher wage adds output. That is reported as
+`factor_reallocation`. Folding it into `endowment` would close the identity and
+hide where the gain came from.
+
+---
+
 ## Negative value added is data
 
 An activity can report a negative operating surplus — a sector that collapsed in

@@ -186,7 +186,8 @@ where it stands. Things to know before relying on it:
 - **No complementarity**: activities cannot switch off, and there are no quotas,
   price floors or capacity limits. That is 0.8.
 - **The solver** uses finite-difference Jacobians on a few unknowns. It is fine up
-  to a few hundred accounts; each commodity put on a trade curve adds an unknown.
+  to a few hundred accounts; each commodity put on a trade curve adds an unknown,
+  and so does each activity that uses an imperfectly mobile factor.
 - **Fixed proportions everywhere** (`sigma_va = 0` in every activity) can leave
   the model without a solution under full employment of every factor.
 - **Under fixed export shares** with a Cobb-Douglas Armington, the exchange rate is

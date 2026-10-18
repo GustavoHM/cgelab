@@ -165,6 +165,27 @@ def build_mobility(spec, facs, acts, base_use, factor_pools) -> dict:
     return out
 
 
+def period_endowments(econ, scenario) -> tuple:
+    """Factor supplies and pool endowments for one period: ``(supply, {index: endowment})``.
+
+    A factor whose pools ``Scenario.pool_supply`` sets, and whose supply
+    ``Scenario.factor_supply`` leaves unset, has the pools' sum as its supply.
+    """
+    supply = (econ.fac_supply if scenario.factor_supply is None
+              else np.asarray(scenario.factor_supply, float)).copy()
+    given = dict(scenario.pool_supply or {})
+    stray = [f for f in given if f not in econ.factors or econ.factor(f) not in econ.mobility]
+    if stray:
+        raise ValueError(f"Scenario.pool_supply names {stray}, which are not imperfectly "
+                         f"mobile factors of this economy")
+    if scenario.factor_supply is None:
+        for f, v in given.items():
+            supply[econ.factor(f)] = float(np.sum(v))
+    endow = {i: pool_endowment(m, float(supply[i]), float(econ.fac_supply[i]), given)
+             for i, m in econ.mobility.items()}
+    return supply, endow
+
+
 def pool_endowment(mob: FactorMobility, total: float, base_total: float,
                    given: Mapping | None) -> np.ndarray:
     """Endowment of each pool this period.

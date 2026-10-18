@@ -3,6 +3,32 @@
 All notable changes to `cgelab`. Versions follow [semantic versioning](https://semver.org/);
 before 1.0, a minor version may add to the API and a patch version only fixes.
 
+## Unreleased
+
+### Added
+
+- Imperfect factor mobility. `ModelSpec.factor_mobility = {factor: ω}` transforms
+  a factor's endowment across the activities that use it, and each activity pays
+  its own price. `factor_mobility_form` is `"cet"` (a CET frontier, GTAP's sluggish
+  endowments; pool income is its price index times its endowment) or `"logit"`
+  (shares of a fixed head count). `calibrate(..., factor_pools=)` takes a proximity
+  matrix, base-year use by pool of origin and activity, and `Scenario.pool_supply`
+  moves the pools' endowments. `PeriodResult.factor_prices_by_activity` and
+  `factor_pools` report the result; `value_added_price` and `factor_intensity`
+  accept a price matrix. At ω = 0, and with pools that each reach one activity,
+  the model equals the factor split into separate accounts of a hand-built SAM,
+  to 1e-10; the approach to perfect mobility goes as 1/ω. The JuMP replica
+  carries the pools and the markets by activity, and six new round-trip cases
+  match it to 1e-13.
+- `welfare_decomposition` has a `factor_reallocation` term: what moving an
+  imperfectly mobile factor between activities adds beyond its endowment. It is
+  zero under a CET, by the envelope theorem, and the identity still closes.
+
+### Changed
+
+- `real_gdp` values factor services by activity at base-year prices, which for a
+  perfectly mobile factor is the same number as before.
+
 ## 0.5.0 — 2026-10-18
 
 The first public release, on PyPI together with dsgelab 0.5. It gathers the roadmap's

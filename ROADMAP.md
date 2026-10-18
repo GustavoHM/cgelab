@@ -151,11 +151,13 @@ stated in tonnes is a bound on an activity, and that is a complementarity condit
 replacement, met by direct taxes, product taxes or spending (`Closure.government_target`,
 `government_adjusts`).
 
-**Imperfect factor mobility.** Several capital stocks already accumulate separately. Between
-fully mobile and fully sector-specific, a CET over sectors for labour or capital would allow
-partial mobility. Lofgren and Cicowiez (2017) ask for a further instrument: a proximity matrix,
-in which sectors hire from neighbouring occupations rather than from one national nest. That
-is what their food-export-price result turns on.
+**Imperfect factor mobility.** Done in 0.6: `ModelSpec.factor_mobility`, a CET or a logit
+across the activities that use a factor, and `calibrate(factor_pools=)`, pools of origin that
+reach only the activities they supplied in the base year. That is the proximity matrix
+Lofgren and Cicowiez (2017) ask for, in which sectors hire from neighbouring occupations
+rather than from one national nest. Their food-export-price result is the replication still
+open. Labour closures on such a factor (unemployment by segment) come with segmentation and
+informality.
 
 **Asymmetric Armington.** The substitution elasticity is one number per commodity. Cicowiez and
 Lofgren (2022) make it depend on the origin of the import. Their Mongolia 2015 workbook also

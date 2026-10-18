@@ -109,7 +109,8 @@ lista até a 1.0; a versão de cada item é a do [`ROADMAP.md`](../ROADMAP.md).
 | Fechamentos do governo | 📄 IFPRI | **feito**: taxa de poupança fixa (a de Hosoe), meta de poupança e receita fixa (substituição neutra em arrecadação), atingidas pelo imposto direto, pelo imposto sobre produtos ou pelo gasto | 0.4 |
 | Poupança externa fixa em moeda estrangeira | 📄 Hosoe, IFPRI | **feito** | 0.2 |
 | Ponte com o `dsgelab` | — | **feito**: CGE de Ramsey com investimento por Euler; estado estacionário, primeira ordem, previsão perfeita e política anunciada; igual ao modelo de crescimento numa economia de um bem | 0.4 |
-| Mobilidade imperfeita de fatores; informalidade | 📄 IFPRI, ORANI | falta | 0.6 |
+| Mobilidade imperfeita de fatores; matriz de proximidade | 📄 GTAP, ORANI | **feito**: CET (os fatores "sluggish" do GTAP) ou logit entre as atividades, pools de origem como matriz de proximidade; exato contra fatores específicos separados em ω = 0 e contra a réplica JuMP | 0.6 |
+| Segmentação e informalidade | 📄 IFPRI | falta | 0.6 |
 | Elo com microssimulação; Gini e FGT | 📄 prática corrente | falta | 0.6 |
 | Calibração dinâmica da linha de base; capital setorial e safras | 📄 MONASH, GDyn, LINKAGE | falta | 0.6 |
 | Construção e desagregação de MCS | 📄 IFPRI, PEP | falta | 0.6 |

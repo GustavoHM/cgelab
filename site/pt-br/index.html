@@ -362,6 +362,22 @@ r2.input_coefficients[1]           # combustível por unidade de produto: 0,089 
   valor adicionado. O carbono de um combustível entra no preço que aquela atividade paga por ele,
   então o mesmo preço de carbono muda como se produz, não só quanto. Com as duas elasticidades em
   zero, o ninho é o modelo Leontief, à precisão de máquina.</p>
+
+  <h3>17. Trabalho que se move só em parte</h3>
+<pre><code>pools = pd.DataFrame([[30.0, 10.0], [10.0, 60.0]], index=["rural", "urbano"],
+                     columns=["a_agr", "a_ind"])   # quem trabalhava onde no ano-base
+spec_m = toy.spec(numeraire_factor="f_cap", factor_mobility={"f_lab": 2.0})
+econ_m = cge.calibrate(sam_toy, spec_m, factor_pools={"f_lab": pools})
+caro = cge.Scenario(world_price=np.array([1.0, 1.3]))   # manufaturas importadas 30% mais caras
+r_m = cge.solve_period(econ_m, scenario=caro)
+r_m.factor_prices_by_activity[0]    # o salário na agricultura e na indústria: 0,985 e 1,015
+r_m.factor_pools["f_lab"]["price"]  # o que cada pool ganha: 0,993 o rural, 1,010 o urbano</code></pre>
+  <p>Com <code>factor_mobility</code>, o trabalho se reparte entre as atividades por uma CET
+  de elasticidade 2, e cada atividade paga o seu salário. Com todos os fatores móveis, o mesmo
+  choque eleva o salário único para 1,004. Os pools de origem, uma matriz de proximidade, mostram
+  quem ganha: o pool urbano trabalha sobretudo na indústria, que o choque expande. Com elasticidade
+  zero, o modelo é o trabalho partido num fator por atividade, e
+  <code>factor_mobility_form="logit"</code> preserva o número de pessoas em vez da fronteira CET.</p>
 </div></section>
 
 <section id="portarias"><div class="wrap">

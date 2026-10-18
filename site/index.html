@@ -362,6 +362,22 @@ r2.input_coefficients[1]           # fuel per unit of output: 0.089 and 0.276, f
   value added. The carbon on a fuel enters the price that activity pays for it, so the same carbon
   price now changes how things are produced, not only how much. With both elasticities at zero the
   nest is the Leontief model, to machine precision.</p>
+
+  <h3>17. Labour that moves only partway</h3>
+<pre><code>pools = pd.DataFrame([[30.0, 10.0], [10.0, 60.0]], index=["rural", "urban"],
+                     columns=["a_agr", "a_ind"])   # who worked where in the base year
+spec_m = toy.spec(numeraire_factor="f_cap", factor_mobility={"f_lab": 2.0})
+econ_m = cge.calibrate(sam_toy, spec_m, factor_pools={"f_lab": pools})
+dear = cge.Scenario(world_price=np.array([1.0, 1.3]))   # imported manufactures 30% dearer
+r_m = cge.solve_period(econ_m, scenario=dear)
+r_m.factor_prices_by_activity[0]    # the wage in agriculture and in industry: 0.985 and 1.015
+r_m.factor_pools["f_lab"]["price"]  # what each pool earns: 0.993 rural, 1.010 urban</code></pre>
+  <p>With <code>factor_mobility</code>, labour is split among activities by a CET with
+  elasticity 2, and each activity pays its own wage. With every factor mobile the same shock raises
+  the one wage to 1.004. The pools of origin, a proximity matrix, show who gains: the urban
+  pool works mostly in industry, which the shock expands. At elasticity zero the model is labour
+  split into one factor per activity, and <code>factor_mobility_form="logit"</code> keeps the head
+  count instead of the CET frontier.</p>
 </div></section>
 
 <section id="gates"><div class="wrap">

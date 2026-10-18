@@ -7,11 +7,12 @@ e uma inversão de Leontief. Cada uma é uma dedução do autor. Em JuMP nada di
 bloco é uma restrição e o Ipopt encontra o ponto fixo. Um erro na álgebra do Python não pode,
 portanto, ser reproduzido do outro lado por construção.
 
-Roda 34 casos sobre as economias de brinquedo do pacote: sem margens, com bloco de margens, com
+Roda 40 casos sobre as economias de brinquedo do pacote: sem margens, com bloco de margens, com
 atividade de conta própria, com CET, com curvas de demanda de exportação e de oferta de
 importação (país grande, como o `lrgcge`), com tarifa e imposto sobre o produto dentro dos preços
 (como o `stdcge`), com instituições (impostos diretos, transferências, remessas,
-capital do governo e do exterior, IED), em cenário-base e com choques, em vários fechamentos.
+capital do governo e do exterior, IED), com mobilidade imperfeita de fatores (CET ou logit, com e
+sem pools de origem), em cenário-base e com choques, em vários fechamentos.
 
     cd validation && julia --project=. -e 'using Pkg; Pkg.instantiate()' && cd ..
     python validation/roundtrip_jump.py
@@ -33,7 +34,7 @@ from cgelab.examples import hosoe, toy
 
 AQUI = Path(__file__).resolve().parent
 OUT = AQUI / "out"
-CAMPOS = ("w", "er", "pa", "pd", "pbase", "Q", "X", "hh_income", "hh_com_spend",
+CAMPOS = ("w", "w_act", "er", "pa", "pd", "pbase", "Q", "X", "hh_income", "hh_com_spend",
           "savings", "uplift_rev", "exports", "world_pe", "world_pm")
 
 
@@ -44,7 +45,8 @@ def _rel(a, b, piso=1.0):
 
 
 def _referencia(res) -> dict:
-    return dict(w=list(res.factor_prices), er=res.exchange_rate, pa=list(res.pa),
+    return dict(w=list(res.factor_prices), w_act=res.factor_prices_by_activity.tolist(),
+                er=res.exchange_rate, pa=list(res.pa),
                 pd=list(res.pd), pbase=list(res.pbase), Q=list(res.Q), X=list(res.X),
                 Aabs=list(res.absorption), hh_income=list(res.hh_income),
                 hh_com_spend=list(res.hh_commodity_spend), savings=res.savings,
@@ -87,6 +89,38 @@ def caso(nome: str, econ, closure, scenario) -> dict:
     print(f"  {'Walras cgelab':<16}{cge.solve_period(econ, closure, scenario).walras:>14.2e}"
           f"   JuMP {jlres['walras']:>10.2e}")
     return {"pior": pior, "viol": jlres["violacao_max"], "ok": pior < 1e-8}
+
+
+POOLS = pd.DataFrame([[30.0, 10.0], [10.0, 60.0]], index=["rural", "urbano"],
+                     columns=["a_agr", "a_ind"])
+
+
+def casos_mobilidade() -> dict:
+    casos = {}
+    choque = cge.Scenario(name="mobilidade", productivity=np.array([1.1, 1.0]),
+                          world_price=np.array([1.0, 1.2]))
+    for forma in ("cet", "logit"):
+        for etiqueta, pools in (("um_pool", None), ("pools", {"f_lab": POOLS})):
+            econ = cge.calibrate(toy._frame(toy._BASE), toy.spec(
+                numeraire_factor="f_cap", factor_mobility={"f_lab": 2.0},
+                factor_mobility_form=forma), factor_pools=pools)
+            nome = f"mobilidade_{forma}_{etiqueta}"
+            casos[nome] = caso(nome, econ, cge.Closure(), choque)
+    econ = cge.calibrate(toy._frame(toy._BASE), toy.spec(
+        numeraire_factor="f_cap", factor_mobility={"f_lab": 0.0}), factor_pools={"f_lab": POOLS})
+    casos["mobilidade_fixa_fechamento_alternativo"] = caso(
+        "mobilidade_fixa_fechamento_alternativo", econ,
+        cge.Closure(investment="fixed_real", foreign="fixed_rate", government="saving_rate"),
+        cge.Scenario(name="pools", pool_supply={"f_lab": [30.0, 80.0]},
+                     product_tax=econ.ptax * 1.2))
+    _, econ = toy.build_with_margins(model_spec=toy.spec(
+        energy=["c_agr", "c_ind"], energy_nest="capital", sigma_va=0.8, sigma_ke=0.3,
+        sigma_energy=2.0, numeraire_factor="f_lab", factor_mobility={"f_cap": 1.5}))
+    casos["mobilidade_capital_energia"] = caso(
+        "mobilidade_capital_energia", econ, cge.Closure(),
+        cge.Scenario(name="ke", product_tax=econ.ptax * 1.5,
+                     productivity=np.array([1.02, 1.0, 1.0])))
+    return casos
 
 
 def main() -> int:
@@ -240,6 +274,10 @@ def main() -> int:
         "klem_capital_energia", econ,
         cge.Closure(government_target="revenue", government_adjusts="product_tax"),
         cge.Scenario(name="ke", carbon_price=0.8, productivity=np.array([1.02, 1.0, 1.0])))
+
+    # Mobilidade imperfeita do trabalho: CET ou logit entre as atividades, com e sem pools de
+    # origem (a matriz de proximidade), e o capital CET dentro do composto capital-energia
+    casos.update(casos_mobilidade())
 
     _, econ = toy.build()
     casos["fechamento_alternativo"] = caso(

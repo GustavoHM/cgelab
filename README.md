@@ -2,6 +2,7 @@
 
 [![tests](https://github.com/GustavoHM/cgelab/actions/workflows/tests.yml/badge.svg)](https://github.com/GustavoHM/cgelab/actions/workflows/tests.yml)
 [![license: MIT](https://img.shields.io/badge/license-MIT-blue)](https://github.com/GustavoHM/cgelab/blob/main/LICENSE)
+[![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.23458851.svg)](https://doi.org/10.5281/zenodo.23458851)
 
 A general toolkit for SAM-based computable general equilibrium models in Python.
 You supply a social accounting matrix. The package calibrates a standard nested
@@ -213,7 +214,7 @@ without knowing which. [`CITATION.cff`](https://github.com/GustavoHM/cgelab/blob
 holds the same metadata in the format GitHub reads.
 
 Moreira, G. H. (2026). cgelab: A general toolkit for SAM-based computable general equilibrium
-models in Python (Version 0.5.0) [Computer software]. https://github.com/GustavoHM/cgelab
+models in Python (Version 0.5.0) [Computer software]. Zenodo. https://doi.org/10.5281/zenodo.23458852
 
 ```bibtex
 @software{cgelab_2026,
@@ -222,10 +223,12 @@ models in Python (Version 0.5.0) [Computer software]. https://github.com/Gustavo
   year    = {2026},
   version = {0.5.0},
   license = {MIT},
+  doi     = {10.5281/zenodo.23458852},
   url     = {https://github.com/GustavoHM/cgelab},
   note    = {Python package}
 }
 ```
 
-Each release is archived on Zenodo with a DOI of its own, starting with 0.5.0. The DOI is added
-here and to `CITATION.cff` when Zenodo assigns it.
+Each release is archived on Zenodo with a DOI of its own; the DOI above is that of version
+0.5.0. The concept DOI [10.5281/zenodo.23458851](https://doi.org/10.5281/zenodo.23458851)
+resolves to the latest release.

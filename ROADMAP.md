@@ -85,8 +85,8 @@ several regions, the result helpers, and the JuMP export replicating all of it. 
   against the installed wheel; `python -m build` and `twine check` in CI; `py.typed`;
   `CONTRIBUTING.md` with a release checklist; issue and pull request templates; known
   limitations in the README; a `release` workflow for trusted publishing.
-- [ ] **Release**, by a maintainer: trusted publishers on TestPyPI and PyPI, the first upload
-  (which reserves the name), Zenodo for a DOI, the repository made public and Pages turned on.
+- [x] **Release**: 0.5.0 on PyPI on 18 October 2026, archived on Zenodo
+  ([10.5281/zenodo.23458852](https://doi.org/10.5281/zenodo.23458852)), the repository public and the site on Pages.
 
 **0.6 — the distributional side and the labour market.** Imperfect factor mobility and the
 proximity matrix; segmentation and informality; a link to microsimulation with Gini and FGT
@@ -114,8 +114,7 @@ land use allocated by CET; export to GAMS/MPSGE and GEMPACK.
 
 ## Next: gaps an applied model hit
 
-Nothing from 0.2, 0.3 or 0.4 is open, and 0.5 waits only on the release itself, the last item
-of its milestone above. Next is 0.6.
+Nothing from 0.2 to 0.5 is open; 0.5.0 is released. Next is 0.6.
 
 Done, and no longer gaps:
 
@@ -262,11 +261,10 @@ sparse linear algebra.
 
 ## Infrastructure
 
-- **Release:** publish to PyPI and connect Zenodo for a DOI; the steps are in
-  `CONTRIBUTING.md`, "Releasing". Until then the citation points to a repository URL, which is
-  not archivable.
-- **Site:** turn the Pages workflow back on when the repository goes public, and render the
-  Markdown docs on the site instead of linking to GitHub.
+- **Release:** done for 0.5.0, on PyPI and archived on Zenodo; the steps for the next ones are
+  in `CONTRIBUTING.md`, "Releasing".
+- **Site:** on Pages since 0.5.0. Still open: render the Markdown docs on the site instead of
+  linking to GitHub.
 - **Validation in CI:** done, the `validation` workflow.
 - **Language:** done for the documents a reader meets first. The whitepaper and the comments in
   the JuMP template and the validation scripts are still in Portuguese.

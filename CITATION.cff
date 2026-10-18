@@ -12,11 +12,11 @@ authors:
 version: "0.5.0"
 date-released: "2026-10-18"
 license: MIT
-# A repository URL is not an archivable reference. Connect the repository to Zenodo, cut a
-# release, and add the DOI below; that is what makes the citation stable.
+# The concept DOI on Zenodo resolves to the latest archived release; each release also has a DOI
+# of its own (0.5.0: 10.5281/zenodo.23458852). A repository URL is not an archivable reference.
+doi: "10.5281/zenodo.23458851"
 repository-code: "https://github.com/GustavoHM/cgelab"
 url: "https://gustavohm.github.io/cgelab/"
-# doi: "10.5281/zenodo.XXXXXXX"
 keywords:
   - "computable general equilibrium"
   - "social accounting matrix"

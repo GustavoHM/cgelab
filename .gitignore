@@ -20,3 +20,6 @@ validation/out/
 *.prm
 *.pkg
 *.sl4
+
+# local review tool for the public texts, not part of the package
+.review/

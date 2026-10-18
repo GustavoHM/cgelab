@@ -18,7 +18,7 @@ jobs:
       - uses: actions/setup-python@v7
         with:
           python-version: ${{ matrix.python-version }}
-      - run: python -m pip install ".[test,parquet]"
+      - run: python -m pip install ".[test,parquet,dsge]"   # dsge: the bridge tests run too
       - run: python -m pytest -q
 
   wheel:
@@ -36,5 +36,5 @@ jobs:
       - run: python -m twine check --strict dist/*
       - run: |
           python -m venv /tmp/wheel-env
-          /tmp/wheel-env/bin/pip install dist/*.whl pytest
+          /tmp/wheel-env/bin/pip install "$(ls dist/*.whl)[dsge]" pytest
           cd /tmp && CGELAB_TEST_INSTALLED=1 /tmp/wheel-env/bin/python -m pytest -q "$GITHUB_WORKSPACE/tests"

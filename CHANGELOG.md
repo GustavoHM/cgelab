@@ -192,7 +192,8 @@ milestones 0.3 and 0.4, which were not released on their own, and the release en
 ### Release engineering (0.5)
 
 - CI runs the suite on Python 3.11–3.14 on Linux, macOS and Windows, and against
-  the installed wheel (`CGELAB_TEST_INSTALLED=1`), with `twine check`. A
+  the installed wheel (`CGELAB_TEST_INSTALLED=1`), with `twine check`, both with
+  dsgelab installed so the bridge is tested. A
   `validation` workflow runs the JuMP replica and the Hosoe transcription on
   demand and weekly. A `release` workflow, started by pushing a tag `vX.Y.Z`,
   checks that the tag matches the version in `pyproject.toml`, the package and

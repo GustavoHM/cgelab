@@ -123,7 +123,7 @@ def test_to_jump_exports_the_institutions(tmp_path):
     assert np.allclose(dados["remit_net"], econ.hh_remit_net * nu)
     assert np.allclose(dados["fac_row_share"], share)                      # the scenario's
     assert dados["foreign_sav"] == pytest.approx((econ.foreign_sav + 5.0) * nu)
-    assert "current == fsav" in (tmp_path / "m.jl").read_text()
+    assert "current == fsav" in (tmp_path / "m.jl").read_text(encoding="utf-8")
 
 
 # ---------------------------------------------------------------------------

@@ -16,7 +16,7 @@ import cgelab as cge
 from cgelab.examples import hosoe
 
 REFERENCE = json.loads(
-    (Path(__file__).parent / "data" / "hosoe_tariff_abolition.json").read_text())
+    (Path(__file__).parent / "data" / "hosoe_tariff_abolition.json").read_text(encoding="utf-8"))
 CASES = {"base": None, "abolicao": cge.Scenario(tariff=np.zeros(2))}
 
 

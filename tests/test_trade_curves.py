@@ -136,4 +136,4 @@ def test_to_jump_writes_the_curves(tmp_path):
     assert dados["export_demand"] == pytest.approx([0.0, 0.8])
     assert dados["import_supply"] == pytest.approx([3.0, 3.0])
     assert dados["exp0"] == pytest.approx(list(econ.exp0))
-    assert "pwe" in (tmp_path / "m.jl").read_text()
+    assert "pwe" in (tmp_path / "m.jl").read_text(encoding="utf-8")

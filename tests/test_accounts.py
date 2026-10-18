@@ -86,7 +86,7 @@ def test_government_account_closes_on_the_saving_that_financed_investment():
 
 
 REFERENCE = json.loads(
-    (Path(__file__).parent / "data" / "hosoe_tariff_abolition.json").read_text())
+    (Path(__file__).parent / "data" / "hosoe_tariff_abolition.json").read_text(encoding="utf-8"))
 
 
 @pytest.mark.parametrize("model,large", [("stdcge", False), ("lrgcge", True)])

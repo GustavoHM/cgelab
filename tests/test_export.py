@@ -19,7 +19,7 @@ from cgelab.examples import toy
 def _exporta(tmp_path, econ, closure=None, scenario=None):
     jl = tmp_path / "m.jl"
     dados = cge.to_jump(econ, closure, scenario, path=jl)
-    return dados, jl.read_text(), json.loads((tmp_path / "m_data.json").read_text())
+    return dados, jl.read_text(encoding="utf-8"), json.loads((tmp_path / "m_data.json").read_text(encoding="utf-8"))
 
 
 def test_exporta_os_coeficientes_com_a_produtividade_embutida(tmp_path):

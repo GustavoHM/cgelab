@@ -162,7 +162,7 @@ def test_output_tax_revenue_cannot_exceed_the_commodity_tax():
 def test_to_jump_writes_the_tariff_power(tmp_path):
     _, econ, tm = _with_tariff()
     dados = cge.to_jump(econ, scenario=cge.Scenario(tariff=tm * 2), path=tmp_path / "m.jl")
-    text = (tmp_path / "m.jl").read_text()
+    text = (tmp_path / "m.jl").read_text(encoding="utf-8")
     assert np.allclose(dados["tm"], tm * 2)
     assert np.allclose(dados["tm0"], tm)
     assert "(1 + tm[c]) / (1 + tm0[c])" in text

@@ -107,7 +107,7 @@ def test_to_jump_exports_the_cet_block(tmp_path):
     assert dados["cet"] is True
     assert np.allclose(dados["export_price"], pe)
     assert np.allclose(dados["sigma_cet"], 3.0)
-    assert "pdom" in (tmp_path / "m.jl").read_text()
+    assert "pdom" in (tmp_path / "m.jl").read_text(encoding="utf-8")
 
 
 # ---------------------------------------------------------------------------

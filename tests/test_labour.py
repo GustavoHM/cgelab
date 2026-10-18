@@ -111,7 +111,7 @@ def test_to_jump_exports_the_labour_closure(tmp_path):
                     path=tmp_path / "no.jl")
     closure = cge.Closure(labour="fixed_real_wage")
     dados = cge.to_jump(econ, closure=closure, path=tmp_path / "m.jl")
-    text = (tmp_path / "m.jl").read_text()
+    text = (tmp_path / "m.jl").read_text(encoding="utf-8")
     assert dados["labour"] == "fixed_real_wage"
     assert dados["labour_index"] == econ.factor("f_lab") + 1
     assert "f == NUM && continue" in text

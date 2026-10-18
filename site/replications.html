@@ -14,7 +14,7 @@
 
 <header class="hero">
   <div class="wrap">
-    <p class="lang"><strong>English</strong> · <a href="pt-br/replications.html" hreflang="pt-BR" lang="pt-BR">Português</a></p>
+    <p class="lang"><strong><span aria-hidden="true">🌐</span> English</strong> · <a href="pt-br/replications.html" hreflang="pt-BR" lang="pt-BR"><span aria-hidden="true">🇧🇷</span> Português</a></p>
     <h1>Replications</h1>
     <p class="tag">A published model, rerun from the social accounting matrix that paper used.
     The page records the number that matched and the mechanism the package does not have.</p>
@@ -70,7 +70,7 @@
   investment and no rest of the world; the package requires those three accounts, so they are
   entered empty. Investment of zero is a shut block, not a basket to be split.</p>
 <pre><code>import pandas as pd
-import cgelab as ck
+import cgelab as cge
 
 entries = [
     ("c_brd", "hh_1", 15.0), ("c_mlk", "hh_1", 35.0),
@@ -80,15 +80,15 @@ entries = [
     ("a_brd", "c_brd", 15.0), ("a_mlk", "c_mlk", 35.0),
     ("gov", "gov", 0.0), ("s_i", "s_i", 0.0), ("row", "row", 0.0),
 ]
-sam = ck.SAM.from_long(pd.DataFrame(entries, columns=["row", "col", "value"]), name="hosoe")
+sam = cge.SAM.from_long(pd.DataFrame(entries, columns=["row", "col", "value"]), name="hosoe")
 sam.check_balance(abs_tol=1e-9)
-spec = ck.ModelSpec(
+spec = cge.ModelSpec(
     activities=["a_brd", "a_mlk"], commodities=["c_brd", "c_mlk"],
     households=["hh_1"], factors=("f_lab", "f_cap"),
     government="gov", investment="s_i", rest_of_world="row",
     sigma_va=1.0, margins=False, numeraire_factor="f_lab")
-econ = ck.calibrate(sam, spec)
-base = ck.solve_period(econ)
+econ = cge.calibrate(sam, spec)
+base = cge.solve_period(econ)
 assert base.converged and abs(base.walras) &lt; 1e-9
 assert abs(base.X[econ.activity("a_brd")] - 15) &lt; 1e-8
 assert abs(base.X[econ.activity("a_mlk")] - 35) &lt; 1e-8
@@ -113,13 +113,13 @@ print(base.X, base.walras)</code></pre>
   of its income, and foreign saving is fixed in dollars. The tariff sits inside the import price
   and the indirect tax inside the gross output price, as in his calibration.</p>
 <pre><code>import numpy as np
-import cgelab as ck
+import cgelab as cge
 from cgelab.examples import hosoe
 
 for large in (False, True):
     _, econ = hosoe.build(large_country=large)
-    base = ck.solve_period(econ, hosoe.CLOSURE)
-    free = ck.solve_period(econ, hosoe.CLOSURE, ck.Scenario(tariff=np.zeros(econ.n_com)))
+    base = cge.solve_period(econ, hosoe.CLOSURE)
+    free = cge.solve_period(econ, hosoe.CLOSURE, cge.Scenario(tariff=np.zeros(econ.n_com)))
     assert free.converged and abs(free.walras) &lt; 1e-9
     print("lrgcge" if large else "stdcge",
           np.round(100 * (free.imports / base.imports - 1), 2),   # imports, % change

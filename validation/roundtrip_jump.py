@@ -28,7 +28,7 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 
-import cgelab as ck
+import cgelab as cge
 from cgelab.examples import hosoe, toy
 
 AQUI = Path(__file__).resolve().parent
@@ -69,8 +69,8 @@ def caso(nome: str, econ, closure, scenario) -> dict:
     OUT.mkdir(exist_ok=True)
     jl = OUT / f"{nome}.jl"
     dados = OUT / f"{nome}_data.json"
-    ck.to_jump(econ, closure, scenario, path=jl, data_path=dados)
-    ref = _referencia(ck.solve_period(econ, closure, scenario))
+    cge.to_jump(econ, closure, scenario, path=jl, data_path=dados)
+    ref = _referencia(cge.solve_period(econ, closure, scenario))
     (OUT / f"{nome}_ref.json").write_text(json.dumps(ref))
 
     jlres, linhas = roda_julia(jl, dados, OUT / f"{nome}_out.json")
@@ -84,7 +84,7 @@ def caso(nome: str, econ, closure, scenario) -> dict:
         d = _rel(jlres[k], ref[k])
         pior = max(pior, d)
         print(f"  {k:<16}{d:>14.2e}")
-    print(f"  {'Walras cgelab':<16}{ck.solve_period(econ, closure, scenario).walras:>14.2e}"
+    print(f"  {'Walras cgelab':<16}{cge.solve_period(econ, closure, scenario).walras:>14.2e}"
           f"   JuMP {jlres['walras']:>10.2e}")
     return {"pior": pior, "viol": jlres["violacao_max"], "ok": pior < 1e-8}
 
@@ -97,101 +97,101 @@ def main() -> int:
     for etiqueta, build in (("simples", toy.build), ("margens", toy.build_with_margins),
                             ("conta_propria", toy.build_with_own_production)):
         _, econ = build()
-        W = ck.consumer_wedge(econ, {"c_ind": 0.08})
-        casos[f"{etiqueta}_base"] = caso(f"{etiqueta}_base", econ, ck.Closure(), None)
+        W = cge.consumer_wedge(econ, {"c_ind": 0.08})
+        casos[f"{etiqueta}_base"] = caso(f"{etiqueta}_base", econ, cge.Closure(), None)
         casos[f"{etiqueta}_gravame"] = caso(
-            f"{etiqueta}_gravame", econ, ck.Closure(),
-            ck.Scenario(name="gravame", consumer_wedge=W, wedge_revenue_to="capital",
-                        wedge_revenue_factor="f_cap"))
+            f"{etiqueta}_gravame", econ, cge.Closure(),
+            cge.Scenario(name="gravame", consumer_wedge=W, wedge_revenue_to="capital",
+                         wedge_revenue_factor="f_cap"))
     # CET: a repartição do produto responde ao preço de exportação
     _, econ = toy.build(model_spec=toy.spec(export_rule="cet", sigma_cet=2.0))
-    casos["cet_base"] = caso("cet_base", econ, ck.Closure(), None)
-    choque_cet = ck.Scenario(name="cet_choque", export_price=np.array([1.15, 0.9]),
-                             product_tax=econ.ptax * 1.2)
-    casos["cet_choque"] = caso("cet_choque", econ, ck.Closure(), choque_cet)
+    casos["cet_base"] = caso("cet_base", econ, cge.Closure(), None)
+    choque_cet = cge.Scenario(name="cet_choque", export_price=np.array([1.15, 0.9]),
+                              product_tax=econ.ptax * 1.2)
+    casos["cet_choque"] = caso("cet_choque", econ, cge.Closure(), choque_cet)
     casos["cet_fechamento_alternativo"] = caso(
         "cet_fechamento_alternativo", econ,
-        ck.Closure(investment="fixed_real", foreign="fixed_rate"), choque_cet)
+        cge.Closure(investment="fixed_real", foreign="fixed_rate"), choque_cet)
 
     # País grande: demanda de exportação e oferta de importação com elasticidade finita
     _, econ = toy.build(model_spec=toy.spec(export_rule="cet", export_demand=2.0,
                                             import_supply=2.0))
-    casos["pais_grande_choque"] = caso("pais_grande_choque", econ, ck.Closure(), choque_cet)
+    casos["pais_grande_choque"] = caso("pais_grande_choque", econ, cge.Closure(), choque_cet)
     casos["pais_grande_fechamento_alternativo"] = caso(
         "pais_grande_fechamento_alternativo", econ,
-        ck.Closure(investment="fixed_real", foreign="fixed_rate"), choque_cet)
+        cge.Closure(investment="fixed_real", foreign="fixed_rate"), choque_cet)
     _, econ = toy.build_with_margins(model_spec=toy.spec(
         export_rule="cet", export_demand={"c_ind": 0.8}, import_supply={"c_agr": 3.0}))
     casos["pais_grande_margens_parcial"] = caso(
-        "pais_grande_margens_parcial", econ, ck.Closure(),
-        ck.Scenario(name="parcial", world_price=np.array([1.2, 1.0, 1.0]),
-                    export_price=np.array([1.0, 1.1, 1.0])))
+        "pais_grande_margens_parcial", econ, cge.Closure(),
+        cge.Scenario(name="parcial", world_price=np.array([1.2, 1.0, 1.0]),
+                     export_price=np.array([1.0, 1.1, 1.0])))
 
     # Tarifa e imposto sobre todo o produto dentro dos preços, como no stdcge; o governo que poupa
     # uma fração da renda; a poupança externa fixa em dólares
     tributos = toy.spec(tariff_account="trf", indirect_tax_account="idt")
     _, econ = toy.build_with_trade_taxes()
-    abolicao = ck.Scenario(name="abolicao", tariff=np.zeros(2))
-    casos["tarifa_abolicao"] = caso("tarifa_abolicao", econ, ck.Closure(), abolicao)
+    abolicao = cge.Scenario(name="abolicao", tariff=np.zeros(2))
+    casos["tarifa_abolicao"] = caso("tarifa_abolicao", econ, cge.Closure(), abolicao)
     casos["tarifa_abolicao_stdcge"] = caso(
         "tarifa_abolicao_stdcge", econ,
-        ck.Closure(government="saving_rate", foreign_saving_unit="foreign_currency"), abolicao)
+        cge.Closure(government="saving_rate", foreign_saving_unit="foreign_currency"), abolicao)
     _, econ = toy.build_with_trade_taxes(model_spec=tributos.__class__(
         **{**tributos.__dict__, "export_rule": "cet"}))
     casos["imposto_produto_cet"] = caso(
         "imposto_produto_cet", econ,
-        ck.Closure(investment="fixed_real", government="saving_rate"),
-        ck.Scenario(name="idt", output_tax=econ.tauz0 * 3, tariff=econ.tm0 * 0.5))
+        cge.Closure(investment="fixed_real", government="saving_rate"),
+        cge.Scenario(name="idt", output_tax=econ.tauz0 * 3, tariff=econ.tm0 * 0.5))
     _, econ = toy.build_with_trade_taxes(model_spec=tributos.__class__(
         **{**tributos.__dict__, "export_rule": "cet", "export_demand": 2.0,
            "import_supply": 2.0}))
     casos["lrgcge_abolicao"] = caso(
         "lrgcge_abolicao", econ,
-        ck.Closure(government="saving_rate", foreign_saving_unit="foreign_currency"), abolicao)
+        cge.Closure(government="saving_rate", foreign_saving_unit="foreign_currency"), abolicao)
 
     _, econ = hosoe.build()
     casos["hosoe_stdcge_abolicao"] = caso("hosoe_stdcge_abolicao", econ, hosoe.CLOSURE, abolicao)
 
     # Instituições: imposto direto, transferências, remessas, capital do governo e estrangeiro
     _, econ = toy.build_with_institutions()
-    casos["instituicoes_base"] = caso("instituicoes_base", econ, ck.Closure(), None)
+    casos["instituicoes_base"] = caso("instituicoes_base", econ, cge.Closure(), None)
     casos["instituicoes_imposto"] = caso(
         "instituicoes_imposto", dataclasses.replace(econ, hh_dtax=econ.hh_dtax * 1.5),
-        ck.Closure(), ck.Scenario(name="imposto"))
+        cge.Closure(), cge.Scenario(name="imposto"))
     fsh = econ.fac_row_share.copy()
     fsh[econ.factor("f_cap")] = 0.4
     casos["instituicoes_ied"] = caso(
-        "instituicoes_ied", econ, ck.Closure(),
-        ck.Scenario(name="ied", foreign_factor_share=fsh, fdi={"f_cap": 5.0}))
+        "instituicoes_ied", econ, cge.Closure(),
+        cge.Scenario(name="ied", foreign_factor_share=fsh, fdi={"f_cap": 5.0}))
     casos["instituicoes_fechamento_alternativo"] = caso(
         "instituicoes_fechamento_alternativo", econ,
-        ck.Closure(investment="fixed_real", foreign="fixed_rate", government="nominal_fixed"),
-        ck.Scenario(name="tributo", product_tax=econ.ptax * 1.2, foreign_factor_share=fsh))
+        cge.Closure(investment="fixed_real", foreign="fixed_rate", government="nominal_fixed"),
+        cge.Scenario(name="tributo", product_tax=econ.ptax * 1.2, foreign_factor_share=fsh))
     _, econ = toy.build_with_institutions(model_spec=toy.spec(household_demand="les",
                                                               frisch=-2.0))
-    W = ck.consumer_wedge(econ, {"c_ind": 0.08})
+    W = cge.consumer_wedge(econ, {"c_ind": 0.08})
     casos["instituicoes_les_gravame"] = caso(
-        "instituicoes_les_gravame", econ, ck.Closure(),
-        ck.Scenario(name="gravame", consumer_wedge=W, wedge_revenue_to="capital",
-                    wedge_revenue_factor="f_cap"))
+        "instituicoes_les_gravame", econ, cge.Closure(),
+        cge.Scenario(name="gravame", consumer_wedge=W, wedge_revenue_to="capital",
+                     wedge_revenue_factor="f_cap"))
     _, econ = toy.build_with_institutions(model_spec=toy.spec(export_rule="cet"))
     casos["instituicoes_cet_ied"] = caso(
-        "instituicoes_cet_ied", econ, ck.Closure(),
-        ck.Scenario(name="cet_ied", export_price=np.array([1.1, 1.0]), fdi={"f_cap": 3.0}))
+        "instituicoes_cet_ied", econ, cge.Closure(),
+        cge.Scenario(name="cet_ied", export_price=np.array([1.1, 1.0]), fdi={"f_cap": 3.0}))
 
     # Metas do governo: poupança ou receita fixas, atingidas por um tributo ou pelo gasto
     _, econ = toy.build_with_institutions()
-    corte = ck.Scenario(name="corte", product_tax=econ.ptax * 0.5)
+    corte = cge.Scenario(name="corte", product_tax=econ.ptax * 0.5)
     for alvo, ajusta in (("saving", "direct_tax"), ("saving", "spending"),
                          ("revenue", "direct_tax")):
         casos[f"meta_{alvo}_{ajusta}"] = caso(
             f"meta_{alvo}_{ajusta}", econ,
-            ck.Closure(government_target=alvo, government_adjusts=ajusta), corte)
+            cge.Closure(government_target=alvo, government_adjusts=ajusta), corte)
     casos["meta_revenue_product_tax"] = caso(
         "meta_revenue_product_tax", econ,
-        ck.Closure(government_target="revenue", government_adjusts="product_tax",
-                   investment="fixed_real"),
-        ck.Scenario(name="dotacao", factor_supply=econ.fac_supply * np.array([1.05, 1.0])))
+        cge.Closure(government_target="revenue", government_adjusts="product_tax",
+                    investment="fixed_real"),
+        cge.Scenario(name="dotacao", factor_supply=econ.fac_supply * np.array([1.05, 1.0])))
 
     # Emissões e preço do carbono: nas atividades (imposto por unidade de produto) e nas famílias
     # (imposto específico, bloco de famílias expandido no JuMP)
@@ -199,15 +199,15 @@ def main() -> int:
         _, econ = toy.build_with_institutions(model_spec=spec_)
         inter = pd.DataFrame(0.0, index=econ.coms, columns=econ.acts)
         inter.loc["c_ind", "a_agr"], inter.loc["c_ind", "a_ind"] = 3.0, 12.0
-        econ = ck.add_emissions(econ, intermediate=inter, household={"c_ind": 5.0},
-                                government={"c_ind": 1.0}, process={"a_ind": 2.0})
-        casos[f"carbono_{etiqueta}"] = caso(f"carbono_{etiqueta}", econ, ck.Closure(),
-                                           ck.Scenario(name="carbono", carbon_price=0.5))
+        econ = cge.add_emissions(econ, intermediate=inter, household={"c_ind": 5.0},
+                                 government={"c_ind": 1.0}, process={"a_ind": 2.0})
+        casos[f"carbono_{etiqueta}"] = caso(f"carbono_{etiqueta}", econ, cge.Closure(),
+                                           cge.Scenario(name="carbono", carbon_price=0.5))
     casos["carbono_neutro"] = caso(
         "carbono_neutro", econ,
-        ck.Closure(government_target="revenue", government_adjusts="direct_tax"),
-        ck.Scenario(name="carbono", carbon_price=0.5,
-                    productivity=np.array([1.0, 1.04])))
+        cge.Closure(government_target="revenue", government_adjusts="direct_tax"),
+        cge.Scenario(name="carbono", carbon_price=0.5,
+                     productivity=np.array([1.0, 1.04])))
 
     # Ninho valor adicionado-energia: substituição entre combustíveis e entre energia e valor
     # adicionado, com o carbono no preço dos combustíveis
@@ -215,19 +215,19 @@ def main() -> int:
         energy=["c_ind"], sigma_vae={"__default__": 0.6, "a_agr": 1.0}, sigma_energy=1.0))
     inter = pd.DataFrame(0.0, index=econ.coms, columns=econ.acts)
     inter.loc["c_ind", "a_agr"], inter.loc["c_ind", "a_ind"] = 3.0, 12.0
-    econ = ck.add_emissions(econ, intermediate=inter, household={"c_ind": 5.0},
-                            process={"a_ind": 2.0})
-    casos["klem_carbono"] = caso("klem_carbono", econ, ck.Closure(), ck.Scenario(
+    econ = cge.add_emissions(econ, intermediate=inter, household={"c_ind": 5.0},
+                             process={"a_ind": 2.0})
+    casos["klem_carbono"] = caso("klem_carbono", econ, cge.Closure(), cge.Scenario(
         name="klem", carbon_price=0.5, productivity=np.array([1.02, 1.0])))
     _, econ = toy.build_with_margins(model_spec=toy.spec(
         energy=["c_agr", "c_ind"], sigma_vae=0.4, sigma_energy={"__default__": 2.0, "a_ind": 0.5}))
     inter = pd.DataFrame(0.0, index=econ.coms, columns=econ.acts)
     inter.loc[["c_agr", "c_ind"], ["a_agr", "a_ind"]] = [[2.0, 1.0], [4.0, 9.0]]
-    econ = ck.add_emissions(econ, intermediate=inter)
+    econ = cge.add_emissions(econ, intermediate=inter)
     casos["klem_dois_combustiveis"] = caso(
         "klem_dois_combustiveis", econ,
-        ck.Closure(government_target="revenue", government_adjusts="product_tax"),
-        ck.Scenario(name="klem2", carbon_price=0.8))
+        cge.Closure(government_target="revenue", government_adjusts="product_tax"),
+        cge.Scenario(name="klem2", carbon_price=0.8))
 
     # Composto capital-energia dentro do ninho do valor adicionado (o arranjo do GTAP-E)
     _, econ = toy.build_with_margins(model_spec=toy.spec(
@@ -235,17 +235,17 @@ def main() -> int:
         sigma_ke={"__default__": 0.3, "a_ind": 1.0}, sigma_energy=2.0))
     inter = pd.DataFrame(0.0, index=econ.coms, columns=econ.acts)
     inter.loc[["c_agr", "c_ind"], ["a_agr", "a_ind"]] = [[2.0, 1.0], [4.0, 9.0]]
-    econ = ck.add_emissions(econ, intermediate=inter)
+    econ = cge.add_emissions(econ, intermediate=inter)
     casos["klem_capital_energia"] = caso(
         "klem_capital_energia", econ,
-        ck.Closure(government_target="revenue", government_adjusts="product_tax"),
-        ck.Scenario(name="ke", carbon_price=0.8, productivity=np.array([1.02, 1.0, 1.0])))
+        cge.Closure(government_target="revenue", government_adjusts="product_tax"),
+        cge.Scenario(name="ke", carbon_price=0.8, productivity=np.array([1.02, 1.0, 1.0])))
 
     _, econ = toy.build()
     casos["fechamento_alternativo"] = caso(
         "fechamento_alternativo", econ,
-        ck.Closure(investment="fixed_real", foreign="fixed_rate"),
-        ck.Scenario(name="tributo", product_tax=econ.ptax * 1.2))
+        cge.Closure(investment="fixed_real", foreign="fixed_rate"),
+        cge.Scenario(name="tributo", product_tax=econ.ptax * 1.2))
 
     print(f"\n{'=' * 78}\nRESUMO")
     for nome, r in casos.items():

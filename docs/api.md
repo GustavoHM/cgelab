@@ -1,7 +1,7 @@
 # cgelab API reference
 
 Everything listed here is importable from the top-level package
-(`import cgelab as ck`).
+(`import cgelab as cge`).
 
 ---
 

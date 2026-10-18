@@ -14,7 +14,7 @@
 
 <header class="hero">
   <div class="wrap">
-    <p class="lang"><a href="../" hreflang="en" lang="en">English</a> · <strong>Português</strong></p>
+    <p class="lang"><a href="../" hreflang="en" lang="en"><span aria-hidden="true">🌐</span> English</a> · <strong><span aria-hidden="true">🇧🇷</span> Português</strong></p>
     <h1>cgelab</h1>
     <p class="tag">Você fornece uma matriz de contabilidade social. O pacote calibra um EGC aninhado
     padrão a partir dela, resolve cada período, percorre uma trajetória dinâmica recursiva e mede
@@ -83,34 +83,34 @@ cgelab minha_mcs.parquet --sigma-armington 2.0 --sigma-va 0.5</code></pre>
   papel. São os mesmos exemplos que a suíte de testes executa.</p>
 
   <h3>1. Da MCS ao equilíbrio</h3>
-<pre><code>import cgelab as ck
+<pre><code>import cgelab as cge
 from cgelab.examples import toy
 
 sam, econ = toy.build()          # 2 atividades, 2 mercadorias, 2 fatores, 2 domicílios
-print(ck.report(econ))           # ano-base, Walras, homogeneidade
+print(cge.report(econ))          # ano-base, Walras, homogeneidade
 
-base = ck.solve_period(econ)
+base = cge.solve_period(econ)
 print(base.summary())
 base.pq                          # preços ao consumidor
 base.X                           # nível de cada atividade
 base.walras                      # o mercado que o solucionador NÃO resolveu</code></pre>
 
   <h3>2. Um contrafactual</h3>
-<pre><code>choque = ck.Scenario(name="tributo +50%", product_tax=econ.ptax * 1.5)
-alt = ck.solve_period(econ, scenario=choque)
+<pre><code>choque = cge.Scenario(name="tributo +50%", product_tax=econ.ptax * 1.5)
+alt = cge.solve_period(econ, scenario=choque)
 
 alt.pq / base.pq - 1                 # variação de preço, mercadoria a mercadoria
 alt.real["hh_real_income"]           # renda real por domicílio
 abs(alt.walras) &lt; 1e-9               # a contabilidade continua fechando</code></pre>
 
   <h3>3. Um gravame ao consumidor, e a quem volta a receita</h3>
-<pre><code>W = ck.consumer_wedge(econ, {"c_ind": 0.08})       # 8% sobre uma mercadoria
+<pre><code>W = cge.consumer_wedge(econ, {"c_ind": 0.08})      # 8% sobre uma mercadoria
 
-capital = ck.solve_period(econ, scenario=ck.Scenario(
+capital = cge.solve_period(econ, scenario=cge.Scenario(
     consumer_wedge=W, wedge_revenue_to="capital"))   # devolve por propriedade do capital
-percap  = ck.solve_period(econ, scenario=ck.Scenario(
+percap  = cge.solve_period(econ, scenario=cge.Scenario(
     consumer_wedge=W, wedge_revenue_to="lumpsum"))   # devolve per capita
-meio    = ck.solve_period(econ, scenario=ck.Scenario(
+meio    = cge.solve_period(econ, scenario=cge.Scenario(
     consumer_wedge=W, wedge_revenue_to=0.5))         # combinação convexa
 
 capital.hh_income[0] &gt; percap.hh_income[0]           # o domicílio rico em capital ganha
@@ -126,14 +126,14 @@ sum(capital.hh_wedge_paid) == capital.wedge_revenue  # a identidade vale exatame
   iterá-la converge, mas deixa descontinuidades que arruínam a jacobiana do Newton externo.</p>
 
   <h3>4. Uma trajetória de 25 anos</h3>
-<pre><code>crescimento = ck.Growth(labour=0.005, tfp=0.010,
+<pre><code>crescimento = cge.Growth(labour=0.005, tfp=0.010,
                         depreciation=0.05, discount=0.05)
 
 def politica(ano, t):
-    return ck.Scenario(consumer_wedge=W) if ano &gt;= 2026 else ck.Scenario()
+    return cge.Scenario(consumer_wedge=W) if ano &gt;= 2026 else cge.Scenario()
 
-ref = ck.run_path(econ, years=range(2021, 2046), growth=crescimento)
-alt = ck.run_path(econ, years=range(2021, 2046), growth=crescimento, scenario=politica)
+ref = cge.run_path(econ, years=range(2021, 2046), growth=crescimento)
+alt = cge.run_path(econ, years=range(2021, 2046), growth=crescimento, scenario=politica)
 
 ref.aggregates()          # preços, absorção real, poupança, Walras — uma linha por ano
 ref.worst_walras          # o número a olhar primeiro
@@ -143,7 +143,7 @@ ref.capital_stock         # estoque, recuperado do custo de uso e não da MCS</c
   num horizonte de vinte e cinco anos.</p>
 
   <h3>5. Bem-estar, sem confundir composição com bem-estar</h3>
-<pre><code>ev = ck.equivalent_variation(ref, alt)
+<pre><code>ev = cge.equivalent_variation(ref, alt)
 ev.ev              # valorado aos preços do cenário de referência
 ev.ev_base         # valorado aos preços do ano-base
 ev.ev_pct_account  # por CONTA — leia a nota abaixo antes de usar</code></pre>
@@ -158,15 +158,15 @@ for f in range(econ2.n_fac):
     tot = migrado[a, f] + migrado[b, f]
     migrado[a, f], migrado[b, f] = 0.6 * tot, 0.4 * tot
 
-r1 = ck.run_path(econ2, years=range(2021, 2024))
-r2 = ck.run_path(econ2, years=range(2021, 2024),
-                 scenario=ck.Scenario(factor_ownership=migrado))
+r1 = cge.run_path(econ2, years=range(2021, 2024))
+r2 = cge.run_path(econ2, years=range(2021, 2024),
+                  scenario=cge.Scenario(factor_ownership=migrado))
 
-ev2 = ck.equivalent_variation(r1, r2)
+ev2 = cge.equivalent_variation(r1, r2)
 ev2.ev_pct_account.abs().max()               # &gt; 5% — composição, reportada como bem-estar
 
 grupos = {"hh_1": "g1", "hh_2a": "g2", "hh_2b": "g2"}
-ck.ev_by_group(ev2, grupos).ev_pct.abs().max()   # ~0 — o zero que de fato está lá</code></pre>
+cge.ev_by_group(ev2, grupos).ev_pct.abs().max()  # ~0 — o zero que de fato está lá</code></pre>
   <p><code>ev_by_group</code> soma rendas reais <em>dentro</em> do grupo antes de dividir, de modo
   que o conjunto de domicílios somado é o mesmo nos dois cenários e a razão não depende de quantos
   migraram. Toda conta precisa estar no mapeamento: descartar uma em silêncio subestimaria o grupo, e
@@ -180,8 +180,8 @@ j = econ_cet.commodity("c_ind")
 pe = np.ones(econ_cet.n_com)
 pe[j] = 1.2                                        # o mundo paga 20% mais pela indústria
 
-antes = ck.solve_period(econ_cet)
-depois = ck.solve_period(econ_cet, scenario=ck.Scenario(export_price=pe))
+antes = cge.solve_period(econ_cet)
+depois = cge.solve_period(econ_cet, scenario=cge.Scenario(export_price=pe))
 
 depois.exports[j] / depois.Q[j]    # 0,119: a parcela exportada sobe de 0,100
 depois.pe[j] / depois.pd[j]        # 1,09: exportar agora rende mais que vender em casa
@@ -193,7 +193,7 @@ depois.exchange_rate               # 0,89: o câmbio se valoriza e absorve parte
 
 <pre><code>_, econ_big = toy.build(model_spec=toy.spec(export_rule="cet", sigma_cet=2.0,
                                            export_demand={"c_ind": 2.0}))
-big = ck.solve_period(econ_big, scenario=ck.Scenario(export_price=pe))
+big = cge.solve_period(econ_big, scenario=cge.Scenario(export_price=pe))
 
 big.world_export_price[j]        # 1.12: vender mais desce pela curva de demanda do comprador
 big.exports[j] / econ_big.exp0[j]    # 1.14: as exportações sobem 14%, contra 22% do tomador de preço</code></pre>
@@ -211,12 +211,12 @@ econ_i.hh_dtax          # alíquota de imposto direto por domicílio, lida da MC
 econ_i.fac_row_share    # parcela de cada fator que pertence ao exterior
 econ_i.foreign_sav      # 18: a conta corrente, e não só a balança comercial (10)
 
-cresc = ck.Growth(labour=0.01, tfp=0.01)
+cresc = cge.Growth(labour=0.01, tfp=0.01)
 anos = range(2021, 2031)
-ied = ck.run_path(econ_i, years=anos, growth=cresc,
-                  scenario=lambda ano, t: ck.Scenario(fdi={"f_cap": 3.0}))
-doado = ck.run_path(econ_i, years=anos, growth=cresc,
-                    economy=lambda ano, t: dataclasses.replace(
+ied = cge.run_path(econ_i, years=anos, growth=cresc,
+                   scenario=lambda ano, t: cge.Scenario(fdi={"f_cap": 3.0}))
+doado = cge.run_path(econ_i, years=anos, growth=cresc,
+                     economy=lambda ano, t: dataclasses.replace(
                         econ_i, foreign_sav=econ_i.foreign_sav + 3.0))
 
 ied[2030].factor_income_abroad &gt; doado[2030].factor_income_abroad   # os lucros saem
@@ -229,16 +229,16 @@ ied[2030].hh_income.sum() &lt; doado[2030].hh_income.sum()             # e a ren
   <h3>8. Vários estoques de capital e uma tecnologia que muda com o tempo</h3>
 <pre><code>_, econ_k = toy.build_with_specific_capital()     # a indústria usa um capital só dela
 
-g = ck.Growth(capital_factor=("f_cap", "f_kind"),
-              depreciation={"f_cap": 0.05, "f_kind": 0.08},
-              allocation=2.0)                     # o investimento segue o aluguel relativo
+g = cge.Growth(capital_factor=("f_cap", "f_kind"),
+               depreciation={"f_cap": 0.05, "f_kind": 0.08},
+               allocation=2.0)                     # o investimento segue o aluguel relativo
 
 def economia(ano, t):                             # a indústria poupa 2% de insumo agrícola ao ano
     io = econ_k.io.copy()
     io[econ_k.commodity("c_agr"), econ_k.activity("a_ind")] *= 0.98 ** t
     return dataclasses.replace(econ_k, io=io)
 
-traj = ck.run_path(econ_k, years=range(2021, 2036), growth=g, economy=economia)
+traj = cge.run_path(econ_k, years=range(2021, 2036), growth=g, economy=economia)
 traj.capital_stock[-1]     # um estoque por fator de capital
 traj.worst_walras          # continua à precisão de máquina</code></pre>
   <p>Uma mudança que não é preço, tributo nem dotação (a adoção de uma tecnologia, um plano de
@@ -249,10 +249,10 @@ traj.worst_walras          # continua à precisão de máquina</code></pre>
   <h3>9. Com a sua própria MCS</h3>
   <p>A economia de brinquedo existe para os exemplos rodarem. Com dados seus, o que muda são as duas
   primeiras linhas e o <code>ModelSpec</code>:</p>
-<pre><code class="plain">sam  = ck.SAM.read("minha_mcs.parquet")        # ou SAM.from_long(df) / SAM.from_square(df)
+<pre><code class="plain">sam  = cge.SAM.read("minha_mcs.parquet")       # ou SAM.from_long(df) / SAM.from_square(df)
 sam.check_balance()                            # porta dura: nada roda sobre MCS desbalanceada
 
-spec = ck.ModelSpec(
+spec = cge.ModelSpec(
     activity_prefix="a_", commodity_prefix="c_", household_prefix="hh_",
     factors=("f_lab", "f_cap"),
     government="gov", investment="s_i", rest_of_world="row",
@@ -263,20 +263,20 @@ spec = ck.ModelSpec(
     household_demand="cobb_douglas",  # ou "les", com o parâmetro de Frisch
     negative_value_added="leontief",  # um excedente operacional negativo é dado, não erro
 )
-econ = ck.calibrate(sam, spec, population={"hh_d1": 8.3e6, "hh_d2": 8.3e6})
+econ = cge.calibrate(sam, spec, population={"hh_d1": 8.3e6, "hh_d2": 8.3e6})
 
-assert ck.base_year_reproduction(econ)["ok"]   # não prossiga sem isto
-assert ck.homogeneity_test(econ)["ok"]
+assert cge.base_year_reproduction(econ)["ok"]  # não prossiga sem isto
+assert cge.homogeneity_test(econ)["ok"]
 econ.diagnostics["unmodelled_flows"]           # células da MCS que o modelo não lê</code></pre>
   <p>Contas são encontradas por prefixo, ou por listas explícitas — que são a escolha mais segura
   numa MCS cuja nomenclatura não é sistemática, já que uma regra de prefixo que perde uma conta em
   silêncio produz um modelo que balanceia e está errado.</p>
   <h3>10. Multiplicadores, com todos os preços fixos</h3>
 <pre><code>sam_toy, _ = toy.build()
-m = ck.accounting_multipliers(sam_toy, spec=toy.spec())   # gov, investment, rest of world exogenous
+m = cge.accounting_multipliers(sam_toy, spec=toy.spec())  # gov, investment, rest of world exogenous
 
 m.M.loc["hh_2", "c_agr"]         # 0.546: o que uma unidade de demanda por agricultura soma à renda do domicílio 2
-paths = ck.structural_paths(m, "c_agr", "hh_2", threshold=1e-3)
+paths = cge.structural_paths(m, "c_agr", "hh_2", threshold=1e-3)
 paths[["path", "total", "share"]].head(2)
 # (c_agr, a_agr, f_lab, hh_2)  0.323  0.59    pelos salários, com a realimentação de fora do caminho
 # (c_agr, a_agr, f_cap, hh_2)  0.131  0.24</code></pre>
@@ -286,34 +286,34 @@ paths[["path", "total", "share"]].head(2)
   <code>linkages</code> dá a tabela de setores-chave, para trás e para frente. Somadas sobre todos
   os caminhos elementares, as influências totais dão o multiplicador.</p>
   <h3>11. Contas</h3>
-<pre><code>taxed = ck.solve_period(econ, scenario=ck.Scenario(product_tax=econ.ptax * 1.5))
-na = ck.national_accounts(taxed)       # o contrafactual do exemplo 2
+<pre><code>taxed = cge.solve_period(econ, scenario=cge.Scenario(product_tax=econ.ptax * 1.5))
+na = cge.national_accounts(taxed)      # o contrafactual do exemplo 2
 na["gdp_expenditure"], na["gdp_income"]   # 202.78 and 202.78: o PIB pelos dois lados, em qualquer equilíbrio
-pi = ck.price_indices(taxed)
+pi = cge.price_indices(taxed)
 pi.loc["gdp", ["fisher", "quantity_fisher"]]  # 1.040, 0.9999: preços 4% acima, volume parado
-ck.government_account(taxed)["saving"]    # 12.04, contra 5 no ano-base</code></pre>
+cge.government_account(taxed)["saving"]   # 12.04, contra 5 no ano-base</code></pre>
   <p>O PIB a preços correntes pelos lados da despesa e da renda, índices de Laspeyres, Paasche e
   Fisher para cada componente da demanda final, para o PIB e para os termos de troca, e a conta do
   governo por instrumento. A conta do governo é registrada pelo solver na solução, então a poupança
   dela é a que financiou o investimento.</p>
   <h3>12. Quanto um resultado depende das elasticidades</h3>
-<pre><code>run = ck.spec_sweep(sam, toy.spec(), scenario=ck.Scenario(product_tax=econ.ptax * 1.5),
+<pre><code>run = cge.spec_sweep(sam, toy.spec(), scenario=cge.Scenario(product_tax=econ.ptax * 1.5),
                     measure=lambda base, alt: {"gdp_pct": 100 * (
-                        ck.real_gdp(alt)["expenditure"] / ck.real_gdp(base)["expenditure"] - 1)})
-params = {"sigma_va": ck.Uniform(0.3, 1.3), "sigma_armington": ck.Uniform(1.5, 3.5)}
-ck.sensitivity(run, params).summary()        # quadratura de Stroud: 4 pontos para 2 parâmetros
-ck.sensitivity(run, params, method="monte_carlo", draws=40).summary()</code></pre>
+                        cge.real_gdp(alt)["expenditure"] / cge.real_gdp(base)["expenditure"] - 1)})
+params = {"sigma_va": cge.Uniform(0.3, 1.3), "sigma_armington": cge.Uniform(1.5, 3.5)}
+cge.sensitivity(run, params).summary()       # quadratura de Stroud: 4 pontos para 2 parâmetros
+cge.sensitivity(run, params, method="monte_carlo", draws=40).summary()</code></pre>
   <p>Cada ponto recalibra e resolve o ano-base e o cenário. A regra de Stroud dá uma média exata
   até o grau três nos parâmetros com <code>2n</code> soluções; o Monte Carlo acrescenta quantis. A
   elasticidade de Armington perto de 1 fica de fora de propósito: com parcelas de exportação fixas
   o câmbio não é determinado em 1, e é mal condicionado perto dele.</p>
   <h3>13. Que choque fez o quê</h3>
 <pre><code>_, econ_tt = toy.build_with_trade_taxes()
-reform = ck.Scenario(tariff=np.zeros(2), world_price=np.array([1.1, 0.95]),
-                     product_tax=econ_tt.ptax * 1.2)
-parts = ck.subtotals(econ_tt, ck.Scenario(), reform,
-                     {"tariff": ["tariff"], "world": ["world_price"], "tax": ["product_tax"]},
-                     measure=lambda p: {"gdp": ck.real_gdp(p)["expenditure"]})
+reform = cge.Scenario(tariff=np.zeros(2), world_price=np.array([1.1, 0.95]),
+                      product_tax=econ_tt.ptax * 1.2)
+parts = cge.subtotals(econ_tt, cge.Scenario(), reform,
+                      {"tariff": ["tariff"], "world": ["world_price"], "tax": ["product_tax"]},
+                      measure=lambda p: {"gdp": cge.real_gdp(p)["expenditure"]})
 parts[["tariff", "world", "tax", "change", "residual"]]
 # gdp  -0.723  -0.125  -0.007   -0.855   ~1e-10      as partes somam a variação resolvida</code></pre>
   <p>A decomposição que o GEMPACK chama de <em>subtotals</em>. Todos os choques andam juntos pela
@@ -323,8 +323,8 @@ parts[["tariff", "world", "tax", "change", "residual"]]
 <pre><code>from cgelab.examples import hosoe
 
 _, lrg = hosoe.build(large_country=True)
-w = ck.welfare_decomposition(lrg, ck.Scenario(), ck.Scenario(tariff=np.zeros(2)),
-                             closure=hosoe.CLOSURE)
+w = cge.welfare_decomposition(lrg, cge.Scenario(), cge.Scenario(tariff=np.zeros(2)),
+                              closure=hosoe.CLOSURE)
 w["allocative_tariff"], w["terms_of_trade"]   # +0.054, -0.831: o ganho com a tarifa, e o que um país grande paga por ele lá fora
 w["absorption_households"]                    # +0.506: a VE de Hosoe para o mesmo experimento é +0,508
 w["residual"]                                 # ~1e-10: os termos somam a variação da absorção</code></pre>
@@ -338,12 +338,12 @@ w["residual"]                                 # ~1e-10: os termos somam a varia�
 _, inst = toy.build_with_institutions()
 fuel = pd.DataFrame(0.0, index=inst.coms, columns=inst.acts)
 fuel.loc["c_ind", ["a_agr", "a_ind"]] = [3.0, 12.0]          # toneladas queimadas na produção
-green = ck.add_emissions(inst, intermediate=fuel, household={"c_ind": 5.0},
-                         process={"a_ind": 2.0})
-neutral = ck.Closure(government_target="revenue", government_adjusts="product_tax")
-r = ck.solve_period(green, neutral, ck.Scenario(carbon_price=0.5))
+green = cge.add_emissions(inst, intermediate=fuel, household={"c_ind": 5.0},
+                          process={"a_ind": 2.0})
+neutral = cge.Closure(government_target="revenue", government_adjusts="product_tax")
+r = cge.solve_period(green, neutral, cge.Scenario(carbon_price=0.5))
 
-ck.emissions(r)["total"]          # 21.79, eram 22 no ano-base
+cge.emissions(r)["total"]         # 21.79, eram 22 no ano-base
 r.tax_scale                       # 0.26: a receita do carbono paga um corte de 74% nas alíquotas sobre produtos</code></pre>
   <p>As emissões são uma conta satélite calibrada a partir dos totais do ano-base, por fonte. O
   preço do carbono é um imposto por unidade de produto, pela intensidade de emissão, nas atividades,
@@ -351,10 +351,10 @@ r.tax_scale                       # 0.26: a receita do carbono paga um corte de 
   para manter a arrecadação; aqui, o imposto sobre produtos.</p>
   <h3>16. Combustível que responde ao preço</h3>
 <pre><code>_, nested = toy.build_with_institutions(model_spec=toy.spec(energy=["c_ind"], sigma_vae=0.6))
-nested = ck.add_emissions(nested, intermediate=fuel, household={"c_ind": 5.0},
-                          process={"a_ind": 2.0})
-r2 = ck.solve_period(nested, neutral, ck.Scenario(carbon_price=0.5))
-ck.emissions(r2)["total"]          # 20.85, contra 21,79 com coeficientes fixos
+nested = cge.add_emissions(nested, intermediate=fuel, household={"c_ind": 5.0},
+                           process={"a_ind": 2.0})
+r2 = cge.solve_period(nested, neutral, cge.Scenario(carbon_price=0.5))
+cge.emissions(r2)["total"]         # 20.85, contra 21,79 com coeficientes fixos
 r2.input_coefficients[1]           # combustível por unidade de produto: 0,089 e 0,276, eram 0,095 e 0,286</code></pre>
   <p>Com <code>ModelSpec.energy</code>, cada atividade compra um agregado de energia que substitui
   valor adicionado. O carbono de um combustível entra no preço que aquela atividade paga por ele,
@@ -365,7 +365,7 @@ r2.input_coefficients[1]           # combustível por unidade de produto: 0,089 
 <section id="portarias"><div class="wrap">
   <h2>As três portarias</h2>
   <p class="lede">Não são formalidades. Um modelo que falha a primeira não está calibrado.</p>
-<pre><code class="plain"># ck.report(econ) em toy.build_with_margins()
+<pre><code class="plain"># cge.report(econ) em toy.build_with_margins()
 cgelab diagnostics -- Economy(3 activities, 3 commodities, 2 households, 2 factors)
   base-year reproduction : PASS (worst 7.11e-16)
       imports                7.11e-16
@@ -558,6 +558,10 @@ https://github.com/GustavoHM/cgelab. Acesso em: [data].</code></pre>
 <footer><div class="wrap">
   <p>cgelab 0.2.0 — MIT. Código, documentação e issues em
   <a href="https://github.com/GustavoHM/cgelab">github.com/GustavoHM/cgelab</a>.</p>
+  <p>O <a href="https://gustavohm.github.io/dsgelab/pt-br/">dsgelab</a>, do mesmo autor, resolve
+  modelos de equilíbrio geral dinâmico estocástico (DSGE). O <code>cgelab.bridge</code> o usa na parte
+  intertemporal de um modelo (<code>pip install "cgelab[dsge]"</code>), e os dois pacotes são
+  desenvolvidos em conjunto.</p>
 </div></footer>
 
 <script src="../highlight.js"></script>

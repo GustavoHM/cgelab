@@ -23,7 +23,7 @@ from pathlib import Path
 
 import numpy as np
 
-import cgelab as ck
+import cgelab as cge
 
 FILES = ("sets.har", "basedata.har", "default.prm", "metadata.har")
 
@@ -58,7 +58,7 @@ def main() -> int:
                         *[str(folder / f) for f in FILES]], check=True,
                        stderr=subprocess.DEVNULL)
         ref = pickle.loads(dump.read_bytes())
-    ours = {f: ck.read_har(folder / f) for f in FILES}
+    ours = {f: cge.read_har(folder / f) for f in FILES}
     worst, bad = 0.0, []
     for (fn, name), (arr, sets) in ref.items():
         h = ours[fn][name]

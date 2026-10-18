@@ -9,14 +9,14 @@ the results instead of living in a branch inside a solver.
 
 Quick start::
 
-    import cgelab as ck
+    import cgelab as cge
     from cgelab.examples import toy
 
     sam, econ = toy.build()
-    print(ck.report(econ))                       # base year, Walras, homogeneity
+    print(cge.report(econ))                      # base year, Walras, homogeneity
 
-    base = ck.solve_period(econ)
-    shock = ck.solve_period(econ, scenario=ck.Scenario(
+    base = cge.solve_period(econ)
+    shock = cge.solve_period(econ, scenario=cge.Scenario(
         name="tax", product_tax=econ.ptax * 1.10))
     print(shock.summary())
 

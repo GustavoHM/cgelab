@@ -21,20 +21,20 @@ from pathlib import Path
 
 import numpy as np
 
-import cgelab as ck
+import cgelab as cge
 from cgelab.examples import hosoe
 
 AQUI = Path(__file__).resolve().parent
 OUT = AQUI / "out"
 REFERENCIA = AQUI.parent / "tests" / "data" / "hosoe_tariff_abolition.json"
-CASOS = {"base": None, "abolicao": ck.Scenario(name="abolicao", tariff=np.zeros(2))}
+CASOS = {"base": None, "abolicao": cge.Scenario(name="abolicao", tariff=np.zeros(2))}
 
 
 def cgelab_niveis() -> dict:
     out = {}
     for modelo, grande in (("stdcge", False), ("lrgcge", True)):
         _, econ = hosoe.build(large_country=grande)
-        out[modelo] = {caso: hosoe.variables(econ, ck.solve_period(econ, hosoe.CLOSURE, sc))
+        out[modelo] = {caso: hosoe.variables(econ, cge.solve_period(econ, hosoe.CLOSURE, sc))
                        for caso, sc in CASOS.items()}
     return out
 

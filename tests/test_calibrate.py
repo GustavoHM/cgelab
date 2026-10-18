@@ -3,7 +3,7 @@
 import numpy as np
 import pytest
 
-import cgelab as ck
+import cgelab as cge
 from cgelab.examples import toy
 
 
@@ -14,7 +14,7 @@ def test_coefficients_are_in_basic_price_units():
     prices. It is not if the tax is counted twice.
     """
     sam, econ = toy.build()
-    res = ck.solve_period(econ)
+    res = cge.solve_period(econ)
     assert np.allclose(res.pa, 1.0, atol=1e-12)
 
 
@@ -29,7 +29,7 @@ def test_margin_block_is_read_and_its_diagonal_dropped():
     sam, econ = toy.build_with_margins()
     assert econ.mq.sum() > 0.0
     assert np.allclose(np.diag(econ.mq), 0.0)
-    assert ck.base_year_reproduction(econ)["ok"]
+    assert cge.base_year_reproduction(econ)["ok"]
 
 
 def test_own_account_activity_is_detected_and_carried():
@@ -37,7 +37,7 @@ def test_own_account_activity_is_detected_and_carried():
     j = econ.activity("a_own")
     assert econ.own_account[j]
     assert not econ.own_account[econ.activity("a_agr")]
-    res = ck.solve_period(econ)
+    res = cge.solve_period(econ)
     assert res.X[j] == pytest.approx(econ.X0[j], rel=1e-12)
     assert res.hh_direct_outlay.sum() == pytest.approx(9.0, rel=1e-12)
 
@@ -53,19 +53,19 @@ def test_negative_value_added_falls_back_to_fixed_proportions():
     entries = [e for e in toy._BASE if tuple(e) not in drop]
     entries += [("f_lab", "a_agr", 70.0), ("f_cap", "a_agr", -5.0),
                 ("hh_1", "f_lab", 100.0), ("hh_1", "f_cap", 15.0)]
-    sam = ck.SAM.from_long(pd.DataFrame(entries, columns=["row", "col", "value"]))
+    sam = cge.SAM.from_long(pd.DataFrame(entries, columns=["row", "col", "value"]))
     assert sam.check_balance()["ok"]
-    econ = ck.calibrate(sam, toy.spec())
+    econ = cge.calibrate(sam, toy.spec())
     assert econ.leontief[econ.activity("a_agr")]
     assert "a_agr" in econ.diagnostics["negative_value_added"]
-    assert ck.base_year_reproduction(econ)["ok"]
+    assert cge.base_year_reproduction(econ)["ok"]
 
 
 def test_les_calibration_gives_positive_subsistence():
     sam, econ = toy.build(model_spec=toy.spec(household_demand="les", frisch=-2.0))
     assert np.all(econ.hh_committed >= 0.0)
     assert econ.hh_committed.sum() > 0.0
-    assert ck.base_year_reproduction(econ)["ok"]
+    assert cge.base_year_reproduction(econ)["ok"]
 
 
 def test_impossible_frisch_parameter_is_refused():

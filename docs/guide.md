@@ -21,9 +21,9 @@ holds it in long form: `row`, `col`, `value`, where the entry is the payment
 outlays, a row its receipts.
 
 ```python
-sam = ck.SAM.read("sam_2021.parquet")            # .parquet or .csv, long form
-sam = ck.SAM.from_long(df, row="row", col="col", value="value")
-sam = ck.SAM.from_square(square_df)              # indexed by account on both axes
+sam = cge.SAM.read("sam_2021.parquet")           # .parquet or .csv, long form
+sam = cge.SAM.from_long(df, row="row", col="col", value="value")
+sam = cge.SAM.from_square(square_df)             # indexed by account on both axes
 ```
 
 Inspect and check:
@@ -65,7 +65,7 @@ rather than returning a SAM that merely looks balanced.
 ## 2. Specifying the model
 
 ```python
-spec = ck.ModelSpec(
+spec = cge.ModelSpec(
     activity_prefix="a_", commodity_prefix="c_", household_prefix="hh_",
     factors=("f_lab", "f_cap"),
     government="gov", investment="s_i", rest_of_world="row",
@@ -146,9 +146,9 @@ it with that explanation rather than clipping.
 ## 3. Calibration
 
 ```python
-econ = ck.calibrate(sam, spec,
-                    income_elasticities={"c_food": 0.6, "c_services": 1.3},
-                    population={"hh_d1": 8.3e6, ...})
+econ = cge.calibrate(sam, spec,
+                     income_elasticities={"c_food": 0.6, "c_services": 1.3},
+                     population={"hh_d1": 8.3e6, ...})
 ```
 
 `income_elasticities` are used only under LES. `population` is the weight of a
@@ -183,7 +183,7 @@ Helpers: `econ.commodity("c_x")`, `econ.activity`, `econ.household`,
 ## 4. Diagnostics: the three gates
 
 ```python
-print(ck.report(econ))
+print(cge.report(econ))
 ```
 
 ```
@@ -219,7 +219,7 @@ dicts with the per-check detail when you need to see which one moved.
 ## 5. Solving one period
 
 ```python
-res = ck.solve_period(econ, closure, scenario, warm_start=previous)
+res = cge.solve_period(econ, closure, scenario, warm_start=previous)
 print(res.summary())
 ```
 
@@ -246,10 +246,10 @@ twenty-five year path cheap.
 ### Accounts
 
 ```python
-ck.national_accounts(res)          # GDP by expenditure and by income, current prices
-ck.price_indices(res)              # Laspeyres, Paasche, Fisher, against the base year
-ck.price_indices(res, reference=baseline)   # or against another solved period
-ck.government_account(res)         # revenue by instrument, outlays, saving
+cge.national_accounts(res)         # GDP by expenditure and by income, current prices
+cge.price_indices(res)             # Laspeyres, Paasche, Fisher, against the base year
+cge.price_indices(res, reference=baseline)  # or against another solved period
+cge.government_account(res)        # revenue by instrument, outlays, saving
 ```
 
 `national_accounts` builds GDP at market prices twice. The expenditure side adds
@@ -275,13 +275,13 @@ investment.
 ## 6. Closures
 
 ```python
-closure = ck.Closure(numeraire=1.0,
-                     investment="savings_driven",   # or "fixed_real"
-                     government="real_fixed",       # or "nominal_fixed", "saving_rate"
-                     foreign="fixed_saving",        # or "fixed_rate"
-                     foreign_saving_unit="numeraire",   # or "foreign_currency"
-                     exchange_rate=1.0,
-                     tolerance=1e-9)
+closure = cge.Closure(numeraire=1.0,
+                      investment="savings_driven",   # or "fixed_real"
+                      government="real_fixed",       # or "nominal_fixed", "saving_rate"
+                      foreign="fixed_saving",        # or "fixed_rate"
+                      foreign_saving_unit="numeraire",   # or "foreign_currency"
+                      exchange_rate=1.0,
+                      tolerance=1e-9)
 ```
 
 Every closure carries its own adjusting variable. A closure that pins a magnitude
@@ -311,8 +311,8 @@ that works under a saving target only, because spending does not change revenue.
 The factor is `PeriodResult.tax_scale`.
 
 ```python
-swap = ck.Closure(government_target="revenue", government_adjusts="direct_tax")
-r = ck.solve_period(econ, swap, ck.Scenario(product_tax=econ.ptax * 0.5))
+swap = cge.Closure(government_target="revenue", government_adjusts="direct_tax")
+r = cge.solve_period(econ, swap, cge.Scenario(product_tax=econ.ptax * 0.5))
 r.tax_scale        # 1.55 on the institutions toy: direct tax rates rise 55%
 ```
 
@@ -347,7 +347,7 @@ Everything a counterfactual can change lives in one object, so a run can be
 logged, compared and swept:
 
 ```python
-sc = ck.Scenario(
+sc = cge.Scenario(
     name="reform 2027",
     product_tax=new_consumer_rates,
     product_tax_firm=non_creditable_part,
@@ -386,9 +386,9 @@ See §10 for what that does to a welfare measure.
 ## 8. Wedges and revenue recycling
 
 ```python
-W = ck.consumer_wedge(econ, {"c_electricity": 0.031})              # all households
-W = ck.consumer_wedge(econ, {"c_electricity": 0.031},
-                      households=["hh_d1_npr", "hh_d2_npr"])       # a subset
+W = cge.consumer_wedge(econ, {"c_electricity": 0.031})             # all households
+W = cge.consumer_wedge(econ, {"c_electricity": 0.031},
+                       households=["hh_d1_npr", "hh_d2_npr"])       # a subset
 ```
 
 A `consumer_wedge` is an ad valorem charge on household purchases whose revenue
@@ -433,13 +433,13 @@ A robustness exercise that does not vary this is not a robustness exercise.
 ## 9. Recursive dynamics
 
 ```python
-growth = ck.Growth(labour=0.005, tfp=0.010,
-                   depreciation=0.05, discount=0.05,
-                   labour_factor="f_lab", capital_factor="f_cap")
+growth = cge.Growth(labour=0.005, tfp=0.010,
+                    depreciation=0.05, discount=0.05,
+                    labour_factor="f_lab", capital_factor="f_cap")
 
-path = ck.run_path(econ, closure, years=range(2021, 2046),
-                   scenario=lambda year, t: ck.Scenario(...),
-                   growth=growth)
+path = cge.run_path(econ, closure, years=range(2021, 2046),
+                    scenario=lambda year, t: cge.Scenario(...),
+                    growth=growth)
 ```
 
 Each year is a static equilibrium; what carries across is the capital stock, the
@@ -464,18 +464,18 @@ changes foreign saving. Neither is a price, a tax or an endowment, so neither is
 a `Scenario` field. Pass the whole economy for the year instead:
 
 ```python
-path = ck.run_path(econ, years=years, growth=growth,
-                   economy=lambda year, t: dataclasses.replace(econ, io=io_path[t]))
+path = cge.run_path(econ, years=years, growth=growth,
+                    economy=lambda year, t: dataclasses.replace(econ, io=io_path[t]))
 ```
 
 ### Several capital stocks, and who owns them
 
 ```python
-growth = ck.Growth(capital_factor=("f_cap", "f_cap_h2"),
-                   depreciation={"f_cap": 0.05, "f_cap_h2": 0.065},
-                   allocation=2.0)          # investment follows relative rents
-path = ck.run_path(econ, years=years, growth=growth,
-                   scenario=lambda year, t: ck.Scenario(fdi={"f_cap_h2": capex[t]}))
+growth = cge.Growth(capital_factor=("f_cap", "f_cap_h2"),
+                    depreciation={"f_cap": 0.05, "f_cap_h2": 0.065},
+                    allocation=2.0)          # investment follows relative rents
+path = cge.run_path(econ, years=years, growth=growth,
+                    scenario=lambda year, t: cge.Scenario(fdi={"f_cap_h2": capex[t]}))
 ```
 
 Each capital factor is accumulated from its own service flow. Domestic
@@ -508,7 +508,7 @@ over a horizon.
 ## 10. Welfare
 
 ```python
-ev = ck.equivalent_variation(reference_path, alternative_path)
+ev = cge.equivalent_variation(reference_path, alternative_path)
 ```
 
 Columns: `ev` (valued at the reference scenario's prices), `ev_base` (at
@@ -526,7 +526,7 @@ difference and reports it as welfare. The column is named to say so; the
 distributional object is:
 
 ```python
-ck.ev_by_group(ev, {"hh_d1_pro": "d1", "hh_d1_npr": "d1", "hh_d2_pro": "d2", ...})
+cge.ev_by_group(ev, {"hh_d1_pro": "d1", "hh_d1_npr": "d1", "hh_d2_pro": "d2", ...})
 ```
 
 which sums real incomes **within** a group before dividing, so the set of
@@ -540,7 +540,7 @@ price. The per-account measure reports more than ±5%; the group measure returns
 the zero that is actually there.
 
 ```python
-ck.compensating_variation(reference_path, alternative_path)
+cge.compensating_variation(reference_path, alternative_path)
 ```
 
 The same move valued at the alternative's prices. Report it alongside EV when the
@@ -557,7 +557,7 @@ a reader will set a CGE result against. When the two disagree, the difference is
 the work done by prices and by supply constraints.
 
 ```python
-m = ck.accounting_multipliers(sam, spec=spec)     # gov, investment, rest of world exogenous
+m = cge.accounting_multipliers(sam, spec=spec)    # gov, investment, rest of world exogenous
 m.M                                                # (I - A)^-1, account by account
 m.impact({"c_agr": 100.0})                         # an injection into agriculture's demand
 m.leakage                                          # what each account pays the exogenous ones
@@ -609,13 +609,13 @@ rests on one should come with its spread. `sensitivity` solves a run over the
 parameters' distributions:
 
 ```python
-run = ck.spec_sweep(sam, spec, scenario=policy,
-                    measure=lambda base, alt: {"gdp_pct": 100 * (
-                        ck.real_gdp(alt)["expenditure"] / ck.real_gdp(base)["expenditure"] - 1)})
-params = {"sigma_va": ck.Uniform(0.3, 1.3), "sigma_armington[c_ind]": ck.Normal(2.0, 0.5)}
+run = cge.spec_sweep(sam, spec, scenario=policy,
+                     measure=lambda base, alt: {"gdp_pct": 100 * (
+                        cge.real_gdp(alt)["expenditure"] / cge.real_gdp(base)["expenditure"] - 1)})
+params = {"sigma_va": cge.Uniform(0.3, 1.3), "sigma_armington[c_ind]": cge.Normal(2.0, 0.5)}
 
-ck.sensitivity(run, params).summary()                                 # Stroud quadrature
-ck.sensitivity(run, params, method="monte_carlo", draws=500).summary()
+cge.sensitivity(run, params).summary()                                # Stroud quadrature
+cge.sensitivity(run, params, method="monte_carlo", draws=500).summary()
 ```
 
 `spec_sweep` sets `ModelSpec` fields, `"field"` whole or `"field[account]"` for
@@ -655,11 +655,11 @@ then depend on the order of removal and do not add up once the model is
 nonlinear.
 
 ```python
-reform = ck.Scenario(tariff=np.zeros(n), world_price=new_world, product_tax=econ.ptax * 1.2)
-ck.subtotals(econ, ck.Scenario(), reform,
-             {"tariff": ["tariff"], "world": ["world_price"], "tax": ["product_tax"]},
-             measure=lambda p: {"gdp": ck.real_gdp(p)["expenditure"],
-                                "er": p.exchange_rate})
+reform = cge.Scenario(tariff=np.zeros(n), world_price=new_world, product_tax=econ.ptax * 1.2)
+cge.subtotals(econ, cge.Scenario(), reform,
+              {"tariff": ["tariff"], "world": ["world_price"], "tax": ["product_tax"]},
+              measure=lambda p: {"gdp": cge.real_gdp(p)["expenditure"],
+                                 "er": p.exchange_rate})
 ```
 
 The method is the one GEMPACK reports as subtotals (Harrison, Horridge and
@@ -693,7 +693,7 @@ terms of trade, the external account. The accounting is Huff and Hertel's (2000)
 written for this model's instruments.
 
 ```python
-w = ck.welfare_decomposition(econ, ck.Scenario(), reform, closure=closure)
+w = cge.welfare_decomposition(econ, cge.Scenario(), reform, closure=closure)
 w[["absorption", "endowment", "technology", "allocative_tariff", "terms_of_trade",
    "external_account", "residual"]]
 ```
@@ -741,12 +741,12 @@ The GTAP database and every GEMPACK model store their arrays in header array
 (HAR) files. `read_har` reads them without GEMPACK:
 
 ```python
-base = ck.read_har("GTAP10A/GTAP/2014/basedata.har")
+base = cge.read_har("GTAP10A/GTAP/2014/basedata.har")
 base["VIMS"]                       # Header('VIMS', RE, TRAD_COMM[65] x REG[141] x REG[141]: ...)
 base["VIMS"].array                 # numpy, (65, 141, 141)
 base["VIMS"].labels[1][:3]         # ['aus', 'nzl', 'xoc']
 base["VIMS"].to_series()           # long form indexed by the set labels
-prm = ck.read_har("GTAP10A/GTAP/2014/default.prm")
+prm = cge.read_har("GTAP10A/GTAP/2014/default.prm")
 prm["ESBD"].to_series()["pdr"]     # 5.05, the Armington elasticity for paddy rice
 ```
 
@@ -775,12 +775,12 @@ the regional work of 0.7.
 An emissions account is data, calibrated from base-year totals like the SAM:
 
 ```python
-econ = ck.add_emissions(econ,
+econ = cge.add_emissions(econ,
     intermediate=fuel_by_activity,     # DataFrame, commodities x activities: combustion in production
     household={"c_fuel": 5.0},         # by commodity bought
     government={"c_fuel": 1.0},
     process={"a_cement": 2.0})         # per unit of output, whatever the inputs
-ck.emissions(ck.solve_period(econ))    # the totals again, by source
+cge.emissions(cge.solve_period(econ))  # the totals again, by source
 ```
 
 Each coefficient is a total divided by the base-year quantity of its flow, so the
@@ -805,8 +805,8 @@ The revenue goes to government, as `carbon_production` and `carbon_households` i
 the government account. A revenue-neutral closure recycles it:
 
 ```python
-neutral = ck.Closure(government_target="revenue", government_adjusts="product_tax")
-r = ck.solve_period(econ, neutral, ck.Scenario(carbon_price=0.5))
+neutral = cge.Closure(government_target="revenue", government_adjusts="product_tax")
+r = cge.solve_period(econ, neutral, cge.Scenario(carbon_price=0.5))
 r.tax_scale        # product tax rates scaled down by what the carbon tax raises
 ```
 
@@ -822,9 +822,9 @@ never how it is produced. `ModelSpec.energy` names the energy commodities and
 nests them:
 
 ```python
-spec = ck.ModelSpec(..., energy=["c_coal", "c_oil", "c_gas", "c_ely"],
-                    sigma_vae=0.5,      # value added against the energy bundle
-                    sigma_energy=1.0)   # between fuels
+spec = cge.ModelSpec(..., energy=["c_coal", "c_oil", "c_gas", "c_ely"],
+                     sigma_vae=0.5,      # value added against the energy bundle
+                     sigma_energy=1.0)   # between fuels
 ```
 
 Each activity buys an energy bundle, a CES across fuels, which substitutes for
@@ -867,13 +867,13 @@ model. [dsgelab](https://github.com/GustavoHM/dsgelab) solves the intertemporal
 part; it never reads the SAM. Install it with `pip install cgelab[dsge]`.
 
 ```python
-import dsgelab as dk
+import dsgelab as dsg
 from cgelab import bridge
 
 model, params, guess = bridge.ramsey(econ, depreciation=0.05, discount=0.05)
-ss = dk.steady_state(model, guess, params)              # the model's steady state
-path = dk.perfect_foresight(model, ss, ss, params=params, T=150,
-                            initial_states=[0.75 * ss.values["k"]])
+ss = dsg.steady_state(model, guess, params)             # the model's steady state
+path = dsg.perfect_foresight(model, ss, ss, params=params, T=150,
+                             initial_states=[0.75 * ss.values["k"]])
 ```
 
 The model has one state, the capital stock `k` (base-year value), and one jump,
@@ -896,8 +896,8 @@ next date's, because the Euler equation at `t` solves the period at `t + 1` too.
 A tax announced for date 5 moves investment at date 0. `run_path` cannot do that.
 
 **Aggregate uncertainty.** `tfp_persistence=ρ` adds a TFP state with an AR(1) in
-logs and a shock `eps_a`. `dk.solve` then gives the first-order solution and
-impulse responses, and `dk.solve_second_order` gives risk corrections.
+logs and a shock `eps_a`. `dsg.solve` then gives the first-order solution and
+impulse responses, and `dsg.solve_second_order` gives risk corrections.
 
 **What it is checked against.** In a one-good closed economy with Cobb–Douglas
 production (`toy.build_one_good()`), the Ramsey CGE is the stochastic growth
@@ -907,7 +907,7 @@ first forty periods of the perfect-foresight path.
 
 **The base year is not, in general, a steady state.** It is one only when the
 SAM's investment equals the depreciation of the stock the user cost implies.
-`dk.steady_state` finds the model's own steady state, which is another point, and
+`dsg.steady_state` finds the model's own steady state, which is another point, and
 a published table has to say which of the two it reports.
 
 ---
@@ -915,10 +915,10 @@ a published table has to say which of the two it reports.
 ## 18. Physical units
 
 ```python
-econ = ck.add_physical_units(econ,
+econ = cge.add_physical_units(econ,
     commodities={"c_ely": ("GWh", 48_000.0)},     # domestic sales plus imports, base year
     activities={"a_h2": ("t", 1_200.0)})          # physical output, base year
-p = ck.physical(ck.solve_period(econ, closure, scenario))
+p = cge.physical(cge.solve_period(econ, closure, scenario))
 p["supply"], p["use"]["c_ely"], p["output"], p["intensity"][("c_ely", "a_h2")]   # GWh per tonne
 ```
 

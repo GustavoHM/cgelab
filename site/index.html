@@ -14,7 +14,7 @@
 
 <header class="hero">
   <div class="wrap">
-    <p class="lang"><strong>English</strong> · <a href="pt-br/" hreflang="pt-BR" lang="pt-BR">Português</a></p>
+    <p class="lang"><strong><span aria-hidden="true">🌐</span> English</strong> · <a href="pt-br/" hreflang="pt-BR" lang="pt-BR"><span aria-hidden="true">🇧🇷</span> Português</a></p>
     <h1>cgelab</h1>
     <p class="tag">You supply a social accounting matrix. The package calibrates a standard nested
     CGE from it, solves each period, runs a recursive-dynamic path and measures welfare. The
@@ -82,34 +82,34 @@ cgelab my_sam.parquet --sigma-armington 2.0 --sigma-va 0.5</code></pre>
   test suite runs these same examples.</p>
 
   <h3>1. From the SAM to the equilibrium</h3>
-<pre><code>import cgelab as ck
+<pre><code>import cgelab as cge
 from cgelab.examples import toy
 
 sam, econ = toy.build()          # 2 activities, 2 commodities, 2 factors, 2 households
-print(ck.report(econ))           # base year, Walras, homogeneity
+print(cge.report(econ))          # base year, Walras, homogeneity
 
-base = ck.solve_period(econ)
+base = cge.solve_period(econ)
 print(base.summary())
 base.pq                          # consumer prices
 base.X                           # level of each activity
 base.walras                      # the market the solver did NOT solve</code></pre>
 
   <h3>2. A counterfactual</h3>
-<pre><code>shock = ck.Scenario(name="tax +50%", product_tax=econ.ptax * 1.5)
-alt = ck.solve_period(econ, scenario=shock)
+<pre><code>shock = cge.Scenario(name="tax +50%", product_tax=econ.ptax * 1.5)
+alt = cge.solve_period(econ, scenario=shock)
 
 alt.pq / base.pq - 1                 # price change, commodity by commodity
 alt.real["hh_real_income"]           # real income by household
 abs(alt.walras) &lt; 1e-9               # the accounting still closes</code></pre>
 
   <h3>3. A consumer wedge, and who gets the revenue back</h3>
-<pre><code>W = ck.consumer_wedge(econ, {"c_ind": 0.08})       # 8% on one commodity
+<pre><code>W = cge.consumer_wedge(econ, {"c_ind": 0.08})      # 8% on one commodity
 
-capital = ck.solve_period(econ, scenario=ck.Scenario(
+capital = cge.solve_period(econ, scenario=cge.Scenario(
     consumer_wedge=W, wedge_revenue_to="capital"))   # returned by capital ownership
-percap  = ck.solve_period(econ, scenario=ck.Scenario(
+percap  = cge.solve_period(econ, scenario=cge.Scenario(
     consumer_wedge=W, wedge_revenue_to="lumpsum"))   # returned per capita
-half    = ck.solve_period(econ, scenario=ck.Scenario(
+half    = cge.solve_period(econ, scenario=cge.Scenario(
     consumer_wedge=W, wedge_revenue_to=0.5))         # a convex combination
 
 capital.hh_income[0] &gt; percap.hh_income[0]           # the capital-rich household gains
@@ -126,14 +126,14 @@ sum(capital.hh_wedge_paid) == capital.wedge_revenue  # the identity holds exactl
   Jacobian.</p>
 
   <h3>4. A 25-year path</h3>
-<pre><code>growth = ck.Growth(labour=0.005, tfp=0.010,
+<pre><code>growth = cge.Growth(labour=0.005, tfp=0.010,
                    depreciation=0.05, discount=0.05)
 
 def policy(year, t):
-    return ck.Scenario(consumer_wedge=W) if year &gt;= 2026 else ck.Scenario()
+    return cge.Scenario(consumer_wedge=W) if year &gt;= 2026 else cge.Scenario()
 
-ref = ck.run_path(econ, years=range(2021, 2046), growth=growth)
-alt = ck.run_path(econ, years=range(2021, 2046), growth=growth, scenario=policy)
+ref = cge.run_path(econ, years=range(2021, 2046), growth=growth)
+alt = cge.run_path(econ, years=range(2021, 2046), growth=growth, scenario=policy)
 
 ref.aggregates()          # prices, real absorption, saving, Walras: one row per year
 ref.worst_walras          # the number to look at first
@@ -143,7 +143,7 @@ ref.capital_stock         # the stock, recovered from the user cost and not from
   twenty-five years.</p>
 
   <h3>5. Welfare, without mistaking composition for welfare</h3>
-<pre><code>ev = ck.equivalent_variation(ref, alt)
+<pre><code>ev = cge.equivalent_variation(ref, alt)
 ev.ev              # valued at the reference scenario's prices
 ev.ev_base         # valued at base-year prices
 ev.ev_pct_account  # by ACCOUNT: read the note below before using it</code></pre>
@@ -158,15 +158,15 @@ for f in range(econ2.n_fac):
     tot = moved[a, f] + moved[b, f]
     moved[a, f], moved[b, f] = 0.6 * tot, 0.4 * tot
 
-r1 = ck.run_path(econ2, years=range(2021, 2024))
-r2 = ck.run_path(econ2, years=range(2021, 2024),
-                 scenario=ck.Scenario(factor_ownership=moved))
+r1 = cge.run_path(econ2, years=range(2021, 2024))
+r2 = cge.run_path(econ2, years=range(2021, 2024),
+                  scenario=cge.Scenario(factor_ownership=moved))
 
-ev2 = ck.equivalent_variation(r1, r2)
+ev2 = cge.equivalent_variation(r1, r2)
 ev2.ev_pct_account.abs().max()               # &gt; 5%: composition, reported as welfare
 
 groups = {"hh_1": "g1", "hh_2a": "g2", "hh_2b": "g2"}
-ck.ev_by_group(ev2, groups).ev_pct.abs().max()   # ~0: the zero that is really there</code></pre>
+cge.ev_by_group(ev2, groups).ev_pct.abs().max()  # ~0: the zero that is really there</code></pre>
   <p><code>ev_by_group</code> sums real incomes <em>within</em> the group before dividing, so the set
   of households summed over is the same in both scenarios and the ratio does not depend on how many
   migrated. Every account must be in the mapping: dropping one silently would understate the group,
@@ -180,8 +180,8 @@ j = econ_cet.commodity("c_ind")
 pe = np.ones(econ_cet.n_com)
 pe[j] = 1.2                                        # the world pays 20% more for industry
 
-before = ck.solve_period(econ_cet)
-after = ck.solve_period(econ_cet, scenario=ck.Scenario(export_price=pe))
+before = cge.solve_period(econ_cet)
+after = cge.solve_period(econ_cet, scenario=cge.Scenario(export_price=pe))
 
 after.exports[j] / after.Q[j]    # 0.119: the exported share rises from 0.100
 after.pe[j] / after.pd[j]        # 1.09: exporting now pays more than selling at home
@@ -193,7 +193,7 @@ after.exchange_rate              # 0.89: the currency appreciates and absorbs pa
 
 <pre><code>_, econ_big = toy.build(model_spec=toy.spec(export_rule="cet", sigma_cet=2.0,
                                            export_demand={"c_ind": 2.0}))
-big = ck.solve_period(econ_big, scenario=ck.Scenario(export_price=pe))
+big = cge.solve_period(econ_big, scenario=cge.Scenario(export_price=pe))
 
 big.world_export_price[j]        # 1.12: selling more moves the buyer down its demand curve
 big.exports[j] / econ_big.exp0[j]    # 1.14: exports rise 14%, against 22% for the price taker</code></pre>
@@ -211,12 +211,12 @@ econ_i.hh_dtax          # direct tax rate by household, read from the SAM
 econ_i.fac_row_share    # share of each factor owned abroad
 econ_i.foreign_sav      # 18: the current account, not just the trade balance (10)
 
-growth_i = ck.Growth(labour=0.01, tfp=0.01)
+growth_i = cge.Growth(labour=0.01, tfp=0.01)
 years = range(2021, 2031)
-fdi = ck.run_path(econ_i, years=years, growth=growth_i,
-                  scenario=lambda year, t: ck.Scenario(fdi={"f_cap": 3.0}))
-gift = ck.run_path(econ_i, years=years, growth=growth_i,
-                   economy=lambda year, t: dataclasses.replace(
+fdi = cge.run_path(econ_i, years=years, growth=growth_i,
+                   scenario=lambda year, t: cge.Scenario(fdi={"f_cap": 3.0}))
+gift = cge.run_path(econ_i, years=years, growth=growth_i,
+                    economy=lambda year, t: dataclasses.replace(
                        econ_i, foreign_sav=econ_i.foreign_sav + 3.0))
 
 fdi[2030].factor_income_abroad &gt; gift[2030].factor_income_abroad   # the profits leave
@@ -229,16 +229,16 @@ fdi[2030].hh_income.sum() &lt; gift[2030].hh_income.sum()             # and loca
   <h3>8. Several capital stocks and a technology that changes over time</h3>
 <pre><code>_, econ_k = toy.build_with_specific_capital()     # industry uses capital of its own
 
-g = ck.Growth(capital_factor=("f_cap", "f_kind"),
-              depreciation={"f_cap": 0.05, "f_kind": 0.08},
-              allocation=2.0)                     # investment follows the relative rent
+g = cge.Growth(capital_factor=("f_cap", "f_kind"),
+               depreciation={"f_cap": 0.05, "f_kind": 0.08},
+               allocation=2.0)                     # investment follows the relative rent
 
 def economy(year, t):                             # industry saves 2% of farm input a year
     io = econ_k.io.copy()
     io[econ_k.commodity("c_agr"), econ_k.activity("a_ind")] *= 0.98 ** t
     return dataclasses.replace(econ_k, io=io)
 
-path = ck.run_path(econ_k, years=range(2021, 2036), growth=g, economy=economy)
+path = cge.run_path(econ_k, years=range(2021, 2036), growth=g, economy=economy)
 path.capital_stock[-1]     # one stock per capital factor
 path.worst_walras          # still at machine precision</code></pre>
   <p>A change that is not a price, a tax or an endowment (a technology being adopted, a financing
@@ -249,10 +249,10 @@ path.worst_walras          # still at machine precision</code></pre>
   <h3>9. With your own SAM</h3>
   <p>The toy economy exists so the examples run. With your own data, what changes is the first two
   lines and the <code>ModelSpec</code>:</p>
-<pre><code class="plain">sam  = ck.SAM.read("my_sam.parquet")           # or SAM.from_long(df) / SAM.from_square(df)
+<pre><code class="plain">sam  = cge.SAM.read("my_sam.parquet")          # or SAM.from_long(df) / SAM.from_square(df)
 sam.check_balance()                            # a hard gate: nothing runs on an unbalanced SAM
 
-spec = ck.ModelSpec(
+spec = cge.ModelSpec(
     activity_prefix="a_", commodity_prefix="c_", household_prefix="hh_",
     factors=("f_lab", "f_cap"),
     government="gov", investment="s_i", rest_of_world="row",
@@ -263,20 +263,20 @@ spec = ck.ModelSpec(
     household_demand="cobb_douglas",  # or "les", with the Frisch parameter
     negative_value_added="leontief",  # a negative operating surplus is data, not an error
 )
-econ = ck.calibrate(sam, spec, population={"hh_d1": 8.3e6, "hh_d2": 8.3e6})
+econ = cge.calibrate(sam, spec, population={"hh_d1": 8.3e6, "hh_d2": 8.3e6})
 
-assert ck.base_year_reproduction(econ)["ok"]   # do not go on without this
-assert ck.homogeneity_test(econ)["ok"]
+assert cge.base_year_reproduction(econ)["ok"]  # do not go on without this
+assert cge.homogeneity_test(econ)["ok"]
 econ.diagnostics["unmodelled_flows"]           # SAM cells the model does not read</code></pre>
   <p>Accounts are found by prefix, or by explicit lists. Explicit lists are the safer choice for a
   SAM whose naming is not systematic: a prefix rule that silently misses an account produces a model
   that balances and is wrong.</p>
   <h3>10. Multipliers, with every price fixed</h3>
 <pre><code>sam_toy, _ = toy.build()
-m = ck.accounting_multipliers(sam_toy, spec=toy.spec())   # gov, investment, rest of world exogenous
+m = cge.accounting_multipliers(sam_toy, spec=toy.spec())  # gov, investment, rest of world exogenous
 
 m.M.loc["hh_2", "c_agr"]         # 0.546: what one unit of demand for agriculture adds to household 2's income
-paths = ck.structural_paths(m, "c_agr", "hh_2", threshold=1e-3)
+paths = cge.structural_paths(m, "c_agr", "hh_2", threshold=1e-3)
 paths[["path", "total", "share"]].head(2)
 # (c_agr, a_agr, f_lab, hh_2)  0.323  0.59    through wages, with the feedback off the path
 # (c_agr, a_agr, f_cap, hh_2)  0.131  0.24</code></pre>
@@ -286,34 +286,34 @@ paths[["path", "total", "share"]].head(2)
   <code>linkages</code> gives the backward and forward key-sector table. Over every elementary
   path, the total influences add up to the multiplier.</p>
   <h3>11. Accounts</h3>
-<pre><code>taxed = ck.solve_period(econ, scenario=ck.Scenario(product_tax=econ.ptax * 1.5))
-na = ck.national_accounts(taxed)       # the counterfactual of example 2
+<pre><code>taxed = cge.solve_period(econ, scenario=cge.Scenario(product_tax=econ.ptax * 1.5))
+na = cge.national_accounts(taxed)      # the counterfactual of example 2
 na["gdp_expenditure"], na["gdp_income"]   # 202.78 and 202.78: GDP from both sides, in any equilibrium
-pi = ck.price_indices(taxed)
+pi = cge.price_indices(taxed)
 pi.loc["gdp", ["fisher", "quantity_fisher"]]  # 1.040, 0.9999: prices up 4%, volume flat
-ck.government_account(taxed)["saving"]    # 12.04, against 5 in the base year</code></pre>
+cge.government_account(taxed)["saving"]   # 12.04, against 5 in the base year</code></pre>
   <p>GDP at current prices from the expenditure and the income side, Laspeyres, Paasche and Fisher
   indices for each component of final demand, GDP and the terms of trade, and the government
   account by instrument. The government account is recorded by the solver at the solution, so its
   saving is the one that financed investment.</p>
   <h3>12. How much a result rests on its elasticities</h3>
-<pre><code>run = ck.spec_sweep(sam, toy.spec(), scenario=ck.Scenario(product_tax=econ.ptax * 1.5),
+<pre><code>run = cge.spec_sweep(sam, toy.spec(), scenario=cge.Scenario(product_tax=econ.ptax * 1.5),
                     measure=lambda base, alt: {"gdp_pct": 100 * (
-                        ck.real_gdp(alt)["expenditure"] / ck.real_gdp(base)["expenditure"] - 1)})
-params = {"sigma_va": ck.Uniform(0.3, 1.3), "sigma_armington": ck.Uniform(1.5, 3.5)}
-ck.sensitivity(run, params).summary()        # Stroud quadrature: 4 points for 2 parameters
-ck.sensitivity(run, params, method="monte_carlo", draws=40).summary()</code></pre>
+                        cge.real_gdp(alt)["expenditure"] / cge.real_gdp(base)["expenditure"] - 1)})
+params = {"sigma_va": cge.Uniform(0.3, 1.3), "sigma_armington": cge.Uniform(1.5, 3.5)}
+cge.sensitivity(run, params).summary()       # Stroud quadrature: 4 points for 2 parameters
+cge.sensitivity(run, params, method="monte_carlo", draws=40).summary()</code></pre>
   <p>Each point recalibrates and solves base and scenario. Stroud's rule gives a mean exact up to
   cubic in the parameters at <code>2n</code> solves; Monte Carlo adds quantiles. An Armington
   elasticity near 1 is kept out of the range on purpose: under fixed export shares the exchange
   rate is not determined at 1, and badly conditioned near it.</p>
   <h3>13. Which shock did what</h3>
 <pre><code>_, econ_tt = toy.build_with_trade_taxes()
-reform = ck.Scenario(tariff=np.zeros(2), world_price=np.array([1.1, 0.95]),
-                     product_tax=econ_tt.ptax * 1.2)
-parts = ck.subtotals(econ_tt, ck.Scenario(), reform,
-                     {"tariff": ["tariff"], "world": ["world_price"], "tax": ["product_tax"]},
-                     measure=lambda p: {"gdp": ck.real_gdp(p)["expenditure"]})
+reform = cge.Scenario(tariff=np.zeros(2), world_price=np.array([1.1, 0.95]),
+                      product_tax=econ_tt.ptax * 1.2)
+parts = cge.subtotals(econ_tt, cge.Scenario(), reform,
+                      {"tariff": ["tariff"], "world": ["world_price"], "tax": ["product_tax"]},
+                      measure=lambda p: {"gdp": cge.real_gdp(p)["expenditure"]})
 parts[["tariff", "world", "tax", "change", "residual"]]
 # gdp  -0.723  -0.125  -0.007   -0.855   ~1e-10      the parts add up to the solved change</code></pre>
   <p>The decomposition GEMPACK calls subtotals. Every shock moves together along the straight line
@@ -323,8 +323,8 @@ parts[["tariff", "world", "tax", "change", "residual"]]
 <pre><code>from cgelab.examples import hosoe
 
 _, lrg = hosoe.build(large_country=True)
-w = ck.welfare_decomposition(lrg, ck.Scenario(), ck.Scenario(tariff=np.zeros(2)),
-                             closure=hosoe.CLOSURE)
+w = cge.welfare_decomposition(lrg, cge.Scenario(), cge.Scenario(tariff=np.zeros(2)),
+                              closure=hosoe.CLOSURE)
 w["allocative_tariff"], w["terms_of_trade"]   # +0.054, -0.831: the gain from the tariff, and what a large country pays for it abroad
 w["absorption_households"]                    # +0.506: Hosoe's EV for the same experiment is +0.508
 w["residual"]                                 # ~1e-10: the terms add up to the change in absorption</code></pre>
@@ -338,12 +338,12 @@ w["residual"]                                 # ~1e-10: the terms add up to the 
 _, inst = toy.build_with_institutions()
 fuel = pd.DataFrame(0.0, index=inst.coms, columns=inst.acts)
 fuel.loc["c_ind", ["a_agr", "a_ind"]] = [3.0, 12.0]          # tonnes burnt in production
-green = ck.add_emissions(inst, intermediate=fuel, household={"c_ind": 5.0},
-                         process={"a_ind": 2.0})
-neutral = ck.Closure(government_target="revenue", government_adjusts="product_tax")
-r = ck.solve_period(green, neutral, ck.Scenario(carbon_price=0.5))
+green = cge.add_emissions(inst, intermediate=fuel, household={"c_ind": 5.0},
+                          process={"a_ind": 2.0})
+neutral = cge.Closure(government_target="revenue", government_adjusts="product_tax")
+r = cge.solve_period(green, neutral, cge.Scenario(carbon_price=0.5))
 
-ck.emissions(r)["total"]          # 21.79, from 22 at the base year
+cge.emissions(r)["total"]         # 21.79, from 22 at the base year
 r.tax_scale                       # 0.26: the carbon revenue pays for cutting product tax rates by 74%</code></pre>
   <p>Emissions are a satellite account calibrated from base-year totals by source. A carbon price
   is a tax per unit of output by emission intensity on activities and a specific tax on household
@@ -351,10 +351,10 @@ r.tax_scale                       # 0.26: the carbon revenue pays for cutting pr
   product tax.</p>
   <h3>16. Fuel that answers to the price</h3>
 <pre><code>_, nested = toy.build_with_institutions(model_spec=toy.spec(energy=["c_ind"], sigma_vae=0.6))
-nested = ck.add_emissions(nested, intermediate=fuel, household={"c_ind": 5.0},
-                          process={"a_ind": 2.0})
-r2 = ck.solve_period(nested, neutral, ck.Scenario(carbon_price=0.5))
-ck.emissions(r2)["total"]          # 20.85, against 21.79 with fixed fuel coefficients
+nested = cge.add_emissions(nested, intermediate=fuel, household={"c_ind": 5.0},
+                           process={"a_ind": 2.0})
+r2 = cge.solve_period(nested, neutral, cge.Scenario(carbon_price=0.5))
+cge.emissions(r2)["total"]         # 20.85, against 21.79 with fixed fuel coefficients
 r2.input_coefficients[1]           # fuel per unit of output: 0.089 and 0.276, from 0.095 and 0.286</code></pre>
   <p>With <code>ModelSpec.energy</code>, each activity buys an energy bundle that substitutes for
   value added. The carbon on a fuel enters the price that activity pays for it, so the same carbon
@@ -365,7 +365,7 @@ r2.input_coefficients[1]           # fuel per unit of output: 0.089 and 0.276, f
 <section id="gates"><div class="wrap">
   <h2>The three gates</h2>
   <p class="lede">They are not formalities. A model that fails the first one is not calibrated.</p>
-<pre><code class="plain"># ck.report(econ) on toy.build_with_margins()
+<pre><code class="plain"># cge.report(econ) on toy.build_with_margins()
 cgelab diagnostics -- Economy(3 activities, 3 commodities, 2 households, 2 factors)
   base-year reproduction : PASS (worst 7.11e-16)
       imports                7.11e-16
@@ -554,6 +554,10 @@ models in Python (Version 0.2.0) [Computer software]. https://github.com/Gustavo
 <footer><div class="wrap">
   <p>cgelab 0.2.0 — MIT. Code, documentation and issues at
   <a href="https://github.com/GustavoHM/cgelab">github.com/GustavoHM/cgelab</a>.</p>
+  <p><a href="https://gustavohm.github.io/dsgelab/">dsgelab</a>, by the same author, solves dynamic
+  stochastic general equilibrium (DSGE) models. <code>cgelab.bridge</code> uses it for the
+  intertemporal part of a model (<code>pip install "cgelab[dsge]"</code>), and the two packages are
+  developed together.</p>
 </div></footer>
 
 <script src="highlight.js"></script>

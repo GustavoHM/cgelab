@@ -33,7 +33,7 @@ two runs then exists only in the code that produced them.
 ## Step 1 — the SAM
 
 ```python
-sam = ck.SAM.read("data/processed/sam_2021_final.parquet")
+sam = cge.SAM.read("data/processed/sam_2021_final.parquet")
 sam.check_balance()
 ```
 
@@ -48,7 +48,7 @@ metadata and the policy calendar — things that are about the data rather than
 about the model.
 
 ```python
-spec = ck.ModelSpec(
+spec = cge.ModelSpec(
     factors=("f_lab", "f_cap"),
     sigma_armington=cfg.SIGMA_ARMINGTON,
     sigma_va=cfg.SIGMA_PRODUCTION,
@@ -56,14 +56,14 @@ spec = ck.ModelSpec(
     export_rule="fixed_shares",
     numeraire_factor="f_lab",
 )
-econ = ck.calibrate(sam, spec, population=cfg.HOUSEHOLDS_BY_ACCOUNT)
+econ = cge.calibrate(sam, spec, population=cfg.HOUSEHOLDS_BY_ACCOUNT)
 ```
 
 Then, before anything else:
 
 ```python
-assert ck.base_year_reproduction(econ)["ok"]
-assert ck.homogeneity_test(econ)["ok"]
+assert cge.base_year_reproduction(econ)["ok"]
+assert cge.homogeneity_test(econ)["ok"]
 ```
 
 If either fails, the port is not done and no later comparison means anything.
@@ -75,7 +75,7 @@ variable by variable, before going further:
 
 ```python
 old = legacy.solve_period(legacy_econ)          # your existing script
-new = ck.solve_period(econ)
+new = cge.solve_period(econ)
 assert np.max(np.abs(new.X / old["X"] - 1)) < 1e-8
 assert np.max(np.abs(new.pq / old["pq"] - 1)) < 1e-8
 ```
@@ -110,11 +110,11 @@ part no general package should own.
 ## Step 5 — the path
 
 ```python
-path = ck.run_path(econ, closure, years=range(2021, 2046),
-                   scenario=lambda year, t: my_policy_scenario(year, t),
-                   growth=ck.Growth(labour=cfg.LABOUR_GROWTH, tfp=cfg.TFP_GROWTH,
-                                    depreciation=cfg.DEPRECIATION_RATE,
-                                    discount=cfg.DISCOUNT_RATE))
+path = cge.run_path(econ, closure, years=range(2021, 2046),
+                    scenario=lambda year, t: my_policy_scenario(year, t),
+                    growth=cge.Growth(labour=cfg.LABOUR_GROWTH, tfp=cfg.TFP_GROWTH,
+                                      depreciation=cfg.DEPRECIATION_RATE,
+                                      discount=cfg.DISCOUNT_RATE))
 assert path.worst_walras < 1e-9
 ```
 
@@ -125,8 +125,8 @@ invisible in any single period.
 ## Step 6 — welfare
 
 ```python
-ev = ck.equivalent_variation(ref_path, alt_path)
-grad = ck.ev_by_group(ev, decile_of_account)
+ev = cge.equivalent_variation(ref_path, alt_path)
+grad = cge.ev_by_group(ev, decile_of_account)
 ```
 
 If your existing code reports a per-account percentage, check it against the

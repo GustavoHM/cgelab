@@ -11,7 +11,7 @@ from pathlib import Path
 import numpy as np
 import pytest
 
-import cgelab as ck
+import cgelab as cge
 from cgelab.har import Header
 
 GTAP = os.environ.get("CGELAB_GTAP_DIR")
@@ -31,8 +31,8 @@ def _sample():
 
 def test_round_trip(tmp_path):
     src = _sample()
-    ck.write_har(tmp_path / "x.har", src)
-    got = ck.read_har(tmp_path / "x.har")
+    cge.write_har(tmp_path / "x.har", src)
+    got = cge.read_har(tmp_path / "x.har")
     assert list(got) == list(src)
     assert list(got["SETA"].array) == ["alpha", "beta", "gamma"]
     cube = got["CUBE"]
@@ -48,27 +48,27 @@ def test_round_trip(tmp_path):
 
 
 def test_single_precision_is_what_the_format_holds(tmp_path):
-    ck.write_har(tmp_path / "p.har", {"PI  ": np.array([[np.pi]])})
-    value = ck.read_har(tmp_path / "p.har")["PI"].array[0, 0]
+    cge.write_har(tmp_path / "p.har", {"PI  ": np.array([[np.pi]])})
+    value = cge.read_har(tmp_path / "p.har")["PI"].array[0, 0]
     assert value == pytest.approx(np.pi, rel=1e-7) and value != np.pi
 
 
 def test_labelled_long_form(tmp_path):
-    ck.write_har(tmp_path / "x.har", _sample())
-    s = ck.read_har(tmp_path / "x.har", headers=["CUBE"])["CUBE"].to_series()
+    cge.write_har(tmp_path / "x.har", _sample())
+    s = cge.read_har(tmp_path / "x.har", headers=["CUBE"])["CUBE"].to_series()
     assert list(s.index.names) == ["COM", "REG", "REG"]
     assert s.loc[("c2", "r3", "r4")] == pytest.approx(_sample()["CUBE"].array[1, 2, 3])
 
 
 def test_damage_is_refused(tmp_path):
-    ck.write_har(tmp_path / "x.har", _sample())
+    cge.write_har(tmp_path / "x.har", _sample())
     raw = bytearray((tmp_path / "x.har").read_bytes())
     raw[8:12] = b"\x00\x00\x00\x09"            # the first record's trailer
     (tmp_path / "bad.har").write_bytes(bytes(raw))
     with pytest.raises(ValueError, match="trailer|truncated"):
-        ck.read_har(tmp_path / "bad.har")
+        cge.read_har(tmp_path / "bad.har")
     with pytest.raises(ValueError, match="four characters"):
-        ck.write_har(tmp_path / "y.har", {"TOOLONG": np.zeros((1, 1))})
+        cge.write_har(tmp_path / "y.har", {"TOOLONG": np.zeros((1, 1))})
 
 
 gtap = pytest.mark.skipif(not GTAP or not (Path(GTAP or ".") / "basedata.har").exists(),
@@ -77,7 +77,7 @@ gtap = pytest.mark.skipif(not GTAP or not (Path(GTAP or ".") / "basedata.har").e
 
 @pytest.fixture(scope="module")
 def base():
-    return ck.read_har(Path(GTAP) / "basedata.har")
+    return cge.read_har(Path(GTAP) / "basedata.har")
 
 
 @gtap

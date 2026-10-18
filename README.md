@@ -50,14 +50,14 @@ The bundled toy economy has every SAM entry written out, so the base year is
 known on paper and this runs as it is:
 
 ```python
-import cgelab as ck
+import cgelab as cge
 from cgelab.examples import toy
 
 sam, econ = toy.build()
-print(ck.report(econ))            # base-year reproduction, Walras, homogeneity
+print(cge.report(econ))           # base-year reproduction, Walras, homogeneity
 
-base  = ck.solve_period(econ)
-shock = ck.solve_period(econ, scenario=ck.Scenario(
+base  = cge.solve_period(econ)
+shock = cge.solve_period(econ, scenario=cge.Scenario(
     name="tax +50%", product_tax=econ.ptax * 1.5))
 print(shock.summary())
 ```
@@ -65,26 +65,26 @@ print(shock.summary())
 A counterfactual over a horizon, and its welfare incidence:
 
 ```python
-growth = ck.Growth(labour=0.005, tfp=0.010, depreciation=0.05, discount=0.05)
+growth = cge.Growth(labour=0.005, tfp=0.010, depreciation=0.05, discount=0.05)
 years  = range(2021, 2046)
 
-W   = ck.consumer_wedge(econ, {"c_ind": 0.03})
-ref = ck.run_path(econ, years=years, growth=growth)
-alt = ck.run_path(econ, years=years, growth=growth,
-                  scenario=lambda y, t: ck.Scenario(consumer_wedge=W,
-                                                    wedge_revenue_to="capital")
-                                        if y >= 2026 else ck.Scenario())
+W   = cge.consumer_wedge(econ, {"c_ind": 0.03})
+ref = cge.run_path(econ, years=years, growth=growth)
+alt = cge.run_path(econ, years=years, growth=growth,
+                   scenario=lambda y, t: cge.Scenario(consumer_wedge=W,
+                                                      wedge_revenue_to="capital")
+                                         if y >= 2026 else cge.Scenario())
 
-ev = ck.equivalent_variation(ref, alt)
-ck.ev_by_group(ev, {"hh_1": "rich", "hh_2": "poor"})
+ev = cge.equivalent_variation(ref, alt)
+cge.ev_by_group(ev, {"hh_1": "rich", "hh_2": "poor"})
 ```
 
 With your own data, the first lines change:
 
 ```python
-sam  = ck.SAM.read("my_sam.parquet")        # or SAM.from_long(df) / SAM.from_square(df)
+sam  = cge.SAM.read("my_sam.parquet")       # or SAM.from_long(df) / SAM.from_square(df)
 sam.check_balance()                         # a hard gate, not a warning
-econ = ck.calibrate(sam, ck.ModelSpec(sigma_armington=2.0, sigma_va=0.5))
+econ = cge.calibrate(sam, cge.ModelSpec(sigma_armington=2.0, sigma_va=0.5))
 ```
 
 ## Model structure

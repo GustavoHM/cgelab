@@ -14,19 +14,19 @@ def main(argv=None) -> int:
     parser.add_argument("--sigma-va", type=float, default=0.8)
     args = parser.parse_args(argv)
 
-    import cgelab as ck
+    import cgelab as cge
 
     if args.sam:
-        sam = ck.SAM.read(args.sam)
-        spec = ck.ModelSpec(sigma_armington=args.sigma_armington, sigma_va=args.sigma_va)
-        econ = ck.calibrate(sam, spec)
+        sam = cge.SAM.read(args.sam)
+        spec = cge.ModelSpec(sigma_armington=args.sigma_armington, sigma_va=args.sigma_va)
+        econ = cge.calibrate(sam, spec)
     else:
         from cgelab.examples import toy
         sam, econ = toy.build()
         print("(no SAM given -- running the bundled toy economy)\n")
 
     print(sam)
-    print(ck.report(econ))
+    print(cge.report(econ))
     return 0
 
 

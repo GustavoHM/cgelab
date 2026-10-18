@@ -8,7 +8,7 @@ check is the benchmark: output 15 and 35, prices equal to one, Walras at zero.
 import pandas as pd
 import pytest
 
-import cgelab as ck
+import cgelab as cge
 
 
 def hosoe_economy():
@@ -22,20 +22,20 @@ def hosoe_economy():
         # The package requires the three accounts, so they are entered empty.
         ("gov", "gov", 0.0), ("s_i", "s_i", 0.0), ("row", "row", 0.0),
     ]
-    sam = ck.SAM.from_long(pd.DataFrame(entries, columns=["row", "col", "value"]),
-                           name="hosoe")
+    sam = cge.SAM.from_long(pd.DataFrame(entries, columns=["row", "col", "value"]),
+                            name="hosoe")
     sam.check_balance(abs_tol=1e-9)
-    spec = ck.ModelSpec(
+    spec = cge.ModelSpec(
         activities=["a_brd", "a_mlk"], commodities=["c_brd", "c_mlk"],
         households=["hh_1"], factors=("f_lab", "f_cap"),
         government="gov", investment="s_i", rest_of_world="row",
         sigma_va=1.0, margins=False, numeraire_factor="f_lab")
-    return ck.calibrate(sam, spec)
+    return cge.calibrate(sam, spec)
 
 
 def test_the_published_benchmark_reproduces():
     econ = hosoe_economy()
-    base = ck.solve_period(econ)
+    base = cge.solve_period(econ)
     assert base.converged
     assert abs(base.walras) < 1e-9
     assert base.X[econ.activity("a_brd")] == pytest.approx(15.0, abs=1e-8)

@@ -12,12 +12,12 @@ from pathlib import Path
 import numpy as np
 import pytest
 
-import cgelab as ck
+import cgelab as cge
 from cgelab.examples import hosoe
 
 REFERENCE = json.loads(
     (Path(__file__).parent / "data" / "hosoe_tariff_abolition.json").read_text())
-CASES = {"base": None, "abolicao": ck.Scenario(tariff=np.zeros(2))}
+CASES = {"base": None, "abolicao": cge.Scenario(tariff=np.zeros(2))}
 
 
 def _flat(d, prefix=""):
@@ -32,7 +32,7 @@ def _flat(d, prefix=""):
 @pytest.mark.parametrize("case", list(CASES))
 def test_every_displayed_variable_matches_the_transcription(model, large, case):
     _, econ = hosoe.build(large_country=large)
-    res = ck.solve_period(econ, hosoe.CLOSURE, CASES[case])
+    res = cge.solve_period(econ, hosoe.CLOSURE, CASES[case])
     assert res.converged and abs(res.walras) < 1e-10
     ours = dict(_flat(hosoe.variables(econ, res)))
     ref = dict(_flat(REFERENCE[model][case]))
@@ -52,7 +52,7 @@ def test_the_calibration_is_hosoes():
 
 def test_abolition_removes_the_whole_tariff():
     _, econ = hosoe.build()
-    out = hosoe.variables(econ, ck.solve_period(econ, hosoe.CLOSURE, CASES["abolicao"]))
+    out = hosoe.variables(econ, cge.solve_period(econ, hosoe.CLOSURE, CASES["abolicao"]))
     assert out["Tm"] == {"BRD": 0.0, "MLK": 0.0}
     base = REFERENCE["stdcge"]["base"]
     # Total imports rise; milk, which carried the higher tariff, takes the share.

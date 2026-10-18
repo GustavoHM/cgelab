@@ -12,13 +12,13 @@ import json
 import numpy as np
 import pytest
 
-import cgelab as ck
+import cgelab as cge
 from cgelab.examples import toy
 
 
 def _exporta(tmp_path, econ, closure=None, scenario=None):
     jl = tmp_path / "m.jl"
-    dados = ck.to_jump(econ, closure, scenario, path=jl)
+    dados = cge.to_jump(econ, closure, scenario, path=jl)
     return dados, jl.read_text(), json.loads((tmp_path / "m_data.json").read_text())
 
 
@@ -31,16 +31,16 @@ def test_exporta_os_coeficientes_com_a_produtividade_embutida(tmp_path):
     """
     _, econ = toy.build()
     tfp = np.full(econ.n_act, 1.25)
-    dados, _, _ = _exporta(tmp_path, econ, scenario=ck.Scenario(productivity=tfp))
+    dados, _, _ = _exporta(tmp_path, econ, scenario=cge.Scenario(productivity=tfp))
     assert np.allclose(np.array(dados["io"]), econ.io / tfp[None, :])
     assert np.allclose(np.array(dados["vunit"]), econ.vunit / tfp)
 
 
 def test_o_fechamento_e_o_cenario_viajam_com_os_dados(tmp_path):
     _, econ = toy.build()
-    W = ck.consumer_wedge(econ, {"c_ind": 0.05})
-    clo = ck.Closure(investment="fixed_real", foreign="fixed_rate", government="nominal_fixed")
-    sc = ck.Scenario(name="teste", consumer_wedge=W, wedge_revenue_to="lumpsum")
+    W = cge.consumer_wedge(econ, {"c_ind": 0.05})
+    clo = cge.Closure(investment="fixed_real", foreign="fixed_rate", government="nominal_fixed")
+    sc = cge.Scenario(name="teste", consumer_wedge=W, wedge_revenue_to="lumpsum")
     dados, _, disco = _exporta(tmp_path, econ, clo, sc)
     assert dados["investment"] == "fixed_real"
     assert dados["foreign"] == "fixed_rate"
@@ -74,7 +74,7 @@ def test_o_modelo_gerado_e_o_mesmo_para_qualquer_economia(tmp_path):
 def test_atividades_de_conta_propria_saem_marcadas(tmp_path):
     _, econ = toy.build_with_own_production()
     dados, _, _ = _exporta(tmp_path, econ,
-                           scenario=ck.Scenario(activity_scale={"a_own": 2.0}))
+                           scenario=cge.Scenario(activity_scale={"a_own": 2.0}))
     j = econ.activity("a_own")
     assert dados["own_account"][j] is True
     assert dados["act_scale"][j] == 2.0
@@ -87,5 +87,5 @@ def test_to_jump_writes_cobb_douglas_value_added_as_unit_elasticity(tmp_path):
     """The spec's sigma_va is not read under value_added='cobb_douglas'; exporting
     it made the replica solve a CES the package never solved."""
     _, econ = toy.build(model_spec=toy.spec(value_added="cobb_douglas", sigma_va=0.5))
-    dados = ck.to_jump(econ, path=tmp_path / "m.jl")
+    dados = cge.to_jump(econ, path=tmp_path / "m.jl")
     assert dados["sigma_va"] == [1.0] * econ.n_act

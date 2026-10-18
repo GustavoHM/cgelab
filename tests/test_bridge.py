@@ -12,7 +12,7 @@ import pytest
 
 dk = pytest.importorskip("dsgelab")
 
-import cgelab as ck  # noqa: E402
+import cgelab as cge  # noqa: E402
 from cgelab import bridge  # noqa: E402
 from cgelab.examples import toy  # noqa: E402
 
@@ -83,9 +83,9 @@ def test_an_announced_tax_moves_investment_before_it_starts():
     _, econ = toy.build_with_institutions()
     model, params, guess = bridge.ramsey(econ)
     ss = dk.steady_state(model, guess, params)
-    tax = ck.Scenario(product_tax=econ.ptax * 1.5)
+    tax = cge.Scenario(product_tax=econ.ptax * 1.5)
     T = 80
-    path_params = bridge.announced(params, [ck.Scenario()] * 5 + [tax] * (T + 1 - 5))
+    path_params = bridge.announced(params, [cge.Scenario()] * 5 + [tax] * (T + 1 - 5))
     terminal = dk.steady_state(model, ss.values, bridge.announced(params, [tax])[0])
     path = dk.perfect_foresight(model, ss, terminal, params=path_params, T=T)
     assert path.converged
@@ -95,7 +95,7 @@ def test_an_announced_tax_moves_investment_before_it_starts():
 
 def test_the_period_equilibrium_is_cgelabs():
     _, econ = toy.build_one_good()
-    res = bridge.period_at(econ, ck.Closure(investment="fixed_real"), ck.Scenario(), 400.0, 20.0,
+    res = bridge.period_at(econ, cge.Closure(investment="fixed_real"), cge.Scenario(), 400.0, 20.0,
                            user_cost=0.10)
     assert res.converged and abs(res.walras) < 1e-10
     assert res.factor_prices[econ.factor("f_cap")] == pytest.approx(1.0, rel=1e-10)

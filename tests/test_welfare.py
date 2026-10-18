@@ -3,40 +3,40 @@
 import numpy as np
 import pytest
 
-import cgelab as ck
+import cgelab as cge
 from cgelab.examples import toy
 
 
 def _paths(econ, scenario=None, years=range(2021, 2031)):
-    return ck.run_path(econ, years=years, scenario=scenario)
+    return cge.run_path(econ, years=years, scenario=scenario)
 
 
 def test_a_path_against_itself_has_zero_welfare_change():
     _, econ = toy.build()
     ref = _paths(econ)
-    ev = ck.equivalent_variation(ref, ref)
+    ev = cge.equivalent_variation(ref, ref)
     assert ev.ev.abs().max() < 1e-12
     assert ev.ev_base.abs().max() < 1e-12
 
 
 def test_a_consumer_wedge_makes_everyone_worse_off():
     _, econ = toy.build()
-    W = ck.consumer_wedge(econ, {"c_ind": 0.06})
+    W = cge.consumer_wedge(econ, {"c_ind": 0.06})
     ref = _paths(econ)
-    alt = _paths(econ, ck.Scenario(name="wedge", consumer_wedge=W))
-    ev = ck.equivalent_variation(ref, alt)
+    alt = _paths(econ, cge.Scenario(name="wedge", consumer_wedge=W))
+    ev = cge.equivalent_variation(ref, alt)
     assert (ev.ev < 0).all()
 
 
 def test_the_incidence_follows_the_recycling_rule():
     """Under capital recycling the capital-rich household bears less of the wedge."""
     _, econ = toy.build()
-    W = ck.consumer_wedge(econ, {"c_ind": 0.06})
+    W = cge.consumer_wedge(econ, {"c_ind": 0.06})
     ref = _paths(econ)
-    cap = ck.equivalent_variation(ref, _paths(
-        econ, ck.Scenario(consumer_wedge=W, wedge_revenue_to="capital")))
-    lump = ck.equivalent_variation(ref, _paths(
-        econ, ck.Scenario(consumer_wedge=W, wedge_revenue_to="lumpsum")))
+    cap = cge.equivalent_variation(ref, _paths(
+        econ, cge.Scenario(consumer_wedge=W, wedge_revenue_to="capital")))
+    lump = cge.equivalent_variation(ref, _paths(
+        econ, cge.Scenario(consumer_wedge=W, wedge_revenue_to="lumpsum")))
     rich = cap[cap.account == "hh_1"].ev_pct_account.mean()
     rich_lump = lump[lump.account == "hh_1"].ev_pct_account.mean()
     assert rich > rich_lump
@@ -60,30 +60,30 @@ def test_group_aggregation_is_immune_to_migration_between_accounts():
         shifted[a, f], shifted[b, f] = 0.6 * total, 0.4 * total
 
     ref = _paths(econ)
-    alt = _paths(econ, ck.Scenario(name="migration", factor_ownership=shifted))
+    alt = _paths(econ, cge.Scenario(name="migration", factor_ownership=shifted))
 
-    ev = ck.equivalent_variation(ref, alt)
+    ev = cge.equivalent_variation(ref, alt)
     per_account = ev[ev.account.isin(["hh_2a", "hh_2b"])].ev_pct_account.abs().max()
     assert per_account > 5.0                       # composition, reported as welfare
 
     groups = {"hh_1": "hh_1", "hh_2a": "hh_2", "hh_2b": "hh_2"}
-    grouped = ck.ev_by_group(ev, groups)
+    grouped = cge.ev_by_group(ev, groups)
     assert grouped.ev_pct.abs().max() < 1e-9       # the zero that is actually there
 
 
 def test_every_account_must_be_assigned_to_a_group():
     _, econ = toy.build_with_twin_accounts()
     ref = _paths(econ, years=range(2021, 2023))
-    ev = ck.equivalent_variation(ref, ref)
+    ev = cge.equivalent_variation(ref, ref)
     with pytest.raises(KeyError, match="no group given"):
-        ck.ev_by_group(ev, {"hh_1": "all"})
+        cge.ev_by_group(ev, {"hh_1": "all"})
 
 
 def test_compensating_and_equivalent_variation_agree_for_a_small_shock():
     _, econ = toy.build()
-    W = ck.consumer_wedge(econ, {"c_ind": 0.002})
+    W = cge.consumer_wedge(econ, {"c_ind": 0.002})
     ref = _paths(econ, years=range(2021, 2024))
-    alt = _paths(econ, ck.Scenario(consumer_wedge=W), years=range(2021, 2024))
-    ev = ck.equivalent_variation(ref, alt).set_index(["year", "account"]).ev
-    cv = ck.compensating_variation(ref, alt).set_index(["year", "account"]).cv
+    alt = _paths(econ, cge.Scenario(consumer_wedge=W), years=range(2021, 2024))
+    ev = cge.equivalent_variation(ref, alt).set_index(["year", "account"]).ev
+    cv = cge.compensating_variation(ref, alt).set_index(["year", "account"]).cv
     assert np.allclose(ev, cv, rtol=5e-3)

@@ -6,7 +6,7 @@ import numpy as np
 import pandas as pd
 import pytest
 
-import cgelab as ck
+import cgelab as cge
 from cgelab.examples import toy
 
 # Miller and Blair (2009), Input-Output Analysis, 2nd ed., section 2.3: two sectors,
@@ -27,17 +27,17 @@ def miller_blair_sam():
         rows += [("f_va", f"a_{j + 1}", va[j]), (f"a_{j + 1}", f"c_{j + 1}", X[j]),
                  (f"c_{j + 1}", "hh", F[j])]
     rows.append(("hh", "f_va", va.sum()))
-    sam = ck.SAM.from_long(pd.DataFrame(rows, columns=["row", "col", "value"]))
+    sam = cge.SAM.from_long(pd.DataFrame(rows, columns=["row", "col", "value"]))
     sam.check_balance()
     return sam
 
 
-SPEC = ck.ModelSpec(activities=["a_1", "a_2"], commodities=["c_1", "c_2"], households=["hh"],
-                    factors=("f_va",), government="hh", investment="hh", rest_of_world="hh")
+SPEC = cge.ModelSpec(activities=["a_1", "a_2"], commodities=["c_1", "c_2"], households=["hh"],
+                     factors=("f_va",), government="hh", investment="hh", rest_of_world="hh")
 
 
 def test_the_leontief_inverse_is_miller_and_blairs():
-    m = ck.leontief_multipliers(miller_blair_sam(), SPEC)
+    m = cge.leontief_multipliers(miller_blair_sam(), SPEC)
     L = m.M.loc[["a_1", "a_2"], ["a_1", "a_2"]].to_numpy()
     A = Z / X[None, :]
     np.testing.assert_allclose(L, np.linalg.inv(np.eye(2) - A), rtol=1e-12)
@@ -48,7 +48,7 @@ def test_the_leontief_inverse_is_miller_and_blairs():
 
 
 def test_impact_of_an_injection():
-    m = ck.leontief_multipliers(miller_blair_sam(), SPEC)
+    m = cge.leontief_multipliers(miller_blair_sam(), SPEC)
     out = m.impact({"c_1": 100.0})
     np.testing.assert_allclose(out[["a_1", "a_2"]], 100 * np.linalg.inv(
         np.eye(2) - Z / X[None, :])[:, 0], rtol=1e-12)
@@ -58,9 +58,9 @@ def test_impact_of_an_injection():
 
 def test_ghosh_forward_linkages_and_the_similarity_identity():
     """G = diag(x)^-1 L diag(x): the Ghosh and Leontief inverses are similar."""
-    m = ck.leontief_multipliers(miller_blair_sam(), SPEC)
+    m = cge.leontief_multipliers(miller_blair_sam(), SPEC)
     acts = ["a_1", "a_2"]
-    link = ck.linkages(m, acts)
+    link = cge.linkages(m, acts)
     L = np.linalg.inv(np.eye(2) - Z / X[None, :])
     G = np.linalg.inv(np.eye(2) - Z / X[:, None])
     np.testing.assert_allclose(G, np.diag(1 / X) @ L @ np.diag(X), rtol=1e-12)
@@ -75,13 +75,13 @@ def test_ghosh_forward_linkages_and_the_similarity_identity():
 
 def test_accounting_multipliers_on_the_toy_close_through_households():
     sam, _ = toy.build()
-    m = ck.accounting_multipliers(sam, spec=toy.spec())
+    m = cge.accounting_multipliers(sam, spec=toy.spec())
     assert {"gov", "s_i", "row"}.isdisjoint(m.accounts)
     assert {"hh_1", "hh_2", "f_lab", "a_agr", "c_ind"} <= set(m.accounts)
     # Every endogenous account leaks something, or M would not exist.
     assert (m.leakage > -1e-12).all()
     # Closing households in raises every multiplier over the open Leontief model.
-    leo = ck.leontief_multipliers(sam, toy.spec())
+    leo = cge.leontief_multipliers(sam, toy.spec())
     open_ = leo.M.loc[leo.accounts, leo.accounts]
     closed = m.M.loc[leo.accounts, leo.accounts]
     assert (closed.to_numpy() >= open_.to_numpy() - 1e-12).all()
@@ -91,21 +91,21 @@ def test_accounting_multipliers_on_the_toy_close_through_households():
 
 def test_fixed_price_with_unit_elasticities_is_the_accounting_multiplier():
     sam, econ = toy.build()
-    acc = ck.accounting_multipliers(sam, spec=toy.spec())
-    fp = ck.fixed_price_multipliers(sam, spec=toy.spec(), households=econ.hhs,
-                                    income_elasticities={c: 1.0 for c in econ.coms})
+    acc = cge.accounting_multipliers(sam, spec=toy.spec())
+    fp = cge.fixed_price_multipliers(sam, spec=toy.spec(), households=econ.hhs,
+                                     income_elasticities={c: 1.0 for c in econ.coms})
     np.testing.assert_allclose(fp.M, acc.M, rtol=1e-12)
 
 
 def test_fixed_price_marginal_propensities():
     sam, econ = toy.build()
     with pytest.raises(ValueError, match="Engel"):
-        ck.fixed_price_multipliers(sam, spec=toy.spec(), households=econ.hhs,
-                                   income_elasticities={"c_agr": 0.5, "c_ind": 1.2})
-    fp = ck.fixed_price_multipliers(sam, spec=toy.spec(), households=econ.hhs,
-                                    income_elasticities={"c_agr": 0.5, "c_ind": 1.2},
-                                    engel="rescale")
-    acc = ck.accounting_multipliers(sam, spec=toy.spec())
+        cge.fixed_price_multipliers(sam, spec=toy.spec(), households=econ.hhs,
+                                    income_elasticities={"c_agr": 0.5, "c_ind": 1.2})
+    fp = cge.fixed_price_multipliers(sam, spec=toy.spec(), households=econ.hhs,
+                                     income_elasticities={"c_agr": 0.5, "c_ind": 1.2},
+                                     engel="rescale")
+    acc = cge.accounting_multipliers(sam, spec=toy.spec())
     for h in econ.hhs:
         # same total propensity to consume, shifted toward industry
         assert fp.A.loc[econ.coms, h].sum() == pytest.approx(acc.A.loc[econ.coms, h].sum())
@@ -117,15 +117,15 @@ def test_fixed_price_marginal_propensities():
 
 
 def _all_paths_sum(mult, origin, destination):
-    paths = ck.structural_paths(mult, origin, destination,
-                                max_length=len(mult.accounts), threshold=0.0)
+    paths = cge.structural_paths(mult, origin, destination,
+                                 max_length=len(mult.accounts), threshold=0.0)
     return paths, float(paths.total.sum())
 
 
 def test_structural_paths_add_up_to_the_global_influence():
     """Lantner's theorem: global influence = sum of total influences of all elementary paths."""
     sam, _ = toy.build()
-    m = ck.accounting_multipliers(sam, spec=toy.spec())
+    m = cge.accounting_multipliers(sam, spec=toy.spec())
     for origin, destination in (("c_agr", "hh_2"), ("hh_1", "a_ind"), ("f_cap", "c_agr")):
         paths, total = _all_paths_sum(m, origin, destination)
         assert total == pytest.approx(m.M.loc[destination, origin], rel=1e-10)
@@ -134,8 +134,8 @@ def test_structural_paths_add_up_to_the_global_influence():
 
 def test_structural_path_influences():
     sam, _ = toy.build()
-    m = ck.accounting_multipliers(sam, spec=toy.spec())
-    paths = ck.structural_paths(m, "c_agr", "hh_1", threshold=1e-3)
+    m = cge.accounting_multipliers(sam, spec=toy.spec())
+    paths = cge.structural_paths(m, "c_agr", "hh_1", threshold=1e-3)
     first = paths.iloc[0]
     assert first.path[0] == "c_agr" and first.path[-1] == "hh_1"
     # Direct influence is the product of propensities along the arcs.
@@ -148,9 +148,9 @@ def test_structural_path_influences():
 def test_misuse_is_refused():
     sam, _ = toy.build()
     with pytest.raises(ValueError, match="exogenous"):
-        ck.accounting_multipliers(sam)
+        cge.accounting_multipliers(sam)
     with pytest.raises(ValueError, match="not both"):
-        ck.accounting_multipliers(sam, exogenous=["gov"], endogenous=["hh_1"])
-    m = ck.accounting_multipliers(sam, spec=toy.spec())
+        cge.accounting_multipliers(sam, exogenous=["gov"], endogenous=["hh_1"])
+    m = cge.accounting_multipliers(sam, spec=toy.spec())
     with pytest.raises(ValueError, match="different"):
-        ck.structural_paths(m, "c_agr", "c_agr")
+        cge.structural_paths(m, "c_agr", "c_agr")

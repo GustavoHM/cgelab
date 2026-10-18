@@ -3,7 +3,7 @@
 import numpy as np
 import pytest
 
-import cgelab as ck
+import cgelab as cge
 from cgelab.examples import toy
 
 
@@ -16,23 +16,23 @@ def economy():
 def test_a_labour_closure_refuses_the_numeraire_factor():
     _, econ = toy.build()  # f_lab is the default numeraire
     with pytest.raises(ValueError, match="numeraire"):
-        ck.solve_period(econ, closure=ck.Closure(labour="fixed_real_wage"))
+        cge.solve_period(econ, closure=cge.Closure(labour="fixed_real_wage"))
 
 
 def test_the_wage_curve_refuses_zero_unemployment():
     with pytest.raises(ValueError, match="natural_unemployment"):
-        ck.Closure(labour="wage_curve", natural_unemployment=0.0)
+        cge.Closure(labour="wage_curve", natural_unemployment=0.0)
 
 
 @pytest.mark.parametrize("closure", [
-    ck.Closure(labour="full_employment"),
-    ck.Closure(labour="fixed_real_wage"),
-    ck.Closure(labour="elastic_supply", labour_supply_elasticity=0.4),
-    ck.Closure(labour="wage_curve", natural_unemployment=0.06, wage_curve_elasticity=0.1),
+    cge.Closure(labour="full_employment"),
+    cge.Closure(labour="fixed_real_wage"),
+    cge.Closure(labour="elastic_supply", labour_supply_elasticity=0.4),
+    cge.Closure(labour="wage_curve", natural_unemployment=0.06, wage_curve_elasticity=0.1),
 ], ids=["full", "fixed_real", "elastic", "curve"])
 def test_the_base_year_still_reproduces(closure):
     econ = economy()
-    period = ck.solve_period(econ, closure=closure)
+    period = cge.solve_period(econ, closure=closure)
     assert period.converged
     assert abs(period.walras) < 1e-8
     assert np.allclose(period.X, econ.X0, atol=1e-6)
@@ -50,9 +50,9 @@ def test_the_base_year_still_reproduces(closure):
 
 def test_a_fixed_real_wage_is_homogeneous_and_creates_unemployment():
     econ = economy()
-    base = ck.solve_period(econ, closure=ck.Closure(labour="fixed_real_wage"))
-    doubled = ck.solve_period(
-        econ, closure=ck.Closure(numeraire=2.0, labour="fixed_real_wage"))
+    base = cge.solve_period(econ, closure=cge.Closure(labour="fixed_real_wage"))
+    doubled = cge.solve_period(
+        econ, closure=cge.Closure(numeraire=2.0, labour="fixed_real_wage"))
     assert np.allclose(doubled.X, base.X, atol=1e-6)
     assert doubled.factor_prices[econ.factor("f_lab")] == pytest.approx(
         2.0 * base.factor_prices[econ.factor("f_lab")], rel=1e-6)
@@ -60,9 +60,9 @@ def test_a_fixed_real_wage_is_homogeneous_and_creates_unemployment():
 
     supply = econ.fac_supply.copy()
     supply[econ.factor("f_lab")] *= 1.10
-    shock = ck.Scenario(factor_supply=supply)
-    full = ck.solve_period(econ, closure=ck.Closure(labour="full_employment"), scenario=shock)
-    fixed = ck.solve_period(econ, closure=ck.Closure(labour="fixed_real_wage"), scenario=shock)
+    shock = cge.Scenario(factor_supply=supply)
+    full = cge.solve_period(econ, closure=cge.Closure(labour="full_employment"), scenario=shock)
+    fixed = cge.solve_period(econ, closure=cge.Closure(labour="fixed_real_wage"), scenario=shock)
     lab = econ.factor("f_lab")
     assert full.unemployment == pytest.approx(0.0, abs=1e-6)
     assert full.employment == pytest.approx(supply[lab], abs=1e-6)
@@ -78,10 +78,10 @@ def test_elastic_supply_answers_a_higher_wage_with_more_employment():
     econ = economy()
     supply = econ.fac_supply.copy()
     supply[econ.factor("f_cap")] *= 1.20
-    shock = ck.Scenario(factor_supply=supply)
-    full = ck.solve_period(econ, closure=ck.Closure(labour="full_employment"), scenario=shock)
-    elastic = ck.solve_period(
-        econ, closure=ck.Closure(labour="elastic_supply", labour_supply_elasticity=1.0),
+    shock = cge.Scenario(factor_supply=supply)
+    full = cge.solve_period(econ, closure=cge.Closure(labour="full_employment"), scenario=shock)
+    elastic = cge.solve_period(
+        econ, closure=cge.Closure(labour="elastic_supply", labour_supply_elasticity=1.0),
         scenario=shock)
     lab = econ.factor("f_lab")
     assert full.employment == pytest.approx(econ.fac_supply[lab], abs=1e-6)
@@ -92,12 +92,12 @@ def test_elastic_supply_answers_a_higher_wage_with_more_employment():
 
 def test_the_wage_curve_lets_the_real_wage_fall_when_unemployment_rises():
     econ = economy()
-    closure = ck.Closure(labour="wage_curve", natural_unemployment=0.06,
-                         wage_curve_elasticity=0.1)
-    base = ck.solve_period(econ, closure=closure)
+    closure = cge.Closure(labour="wage_curve", natural_unemployment=0.06,
+                          wage_curve_elasticity=0.1)
+    base = cge.solve_period(econ, closure=closure)
     supply = econ.fac_supply.copy()
     supply[econ.factor("f_lab")] *= 1.10
-    shock = ck.solve_period(econ, closure=closure, scenario=ck.Scenario(factor_supply=supply))
+    shock = cge.solve_period(econ, closure=closure, scenario=cge.Scenario(factor_supply=supply))
     assert shock.unemployment > base.unemployment
     assert shock.real_wage < base.real_wage
     assert abs(shock.walras) < 1e-8
@@ -107,10 +107,10 @@ def test_to_jump_exports_the_labour_closure(tmp_path):
     econ = economy()
     _, econ_default = toy.build()
     with pytest.raises(ValueError, match="numeraire"):
-        ck.to_jump(econ_default, closure=ck.Closure(labour="fixed_real_wage"),
-                   path=tmp_path / "no.jl")
-    closure = ck.Closure(labour="fixed_real_wage")
-    dados = ck.to_jump(econ, closure=closure, path=tmp_path / "m.jl")
+        cge.to_jump(econ_default, closure=cge.Closure(labour="fixed_real_wage"),
+                    path=tmp_path / "no.jl")
+    closure = cge.Closure(labour="fixed_real_wage")
+    dados = cge.to_jump(econ, closure=closure, path=tmp_path / "m.jl")
     text = (tmp_path / "m.jl").read_text()
     assert dados["labour"] == "fixed_real_wage"
     assert dados["labour_index"] == econ.factor("f_lab") + 1
@@ -122,14 +122,14 @@ def test_to_jump_exports_the_labour_closure(tmp_path):
 
 def test_walras_holds_under_a_tax_in_every_labour_closure():
     econ = economy()
-    shock = ck.Scenario(product_tax=econ.ptax * 1.2)
+    shock = cge.Scenario(product_tax=econ.ptax * 1.2)
     closures = [
-        ck.Closure(labour="full_employment"),
-        ck.Closure(labour="fixed_real_wage"),
-        ck.Closure(labour="elastic_supply", labour_supply_elasticity=0.4),
-        ck.Closure(labour="wage_curve", natural_unemployment=0.06, wage_curve_elasticity=0.1),
+        cge.Closure(labour="full_employment"),
+        cge.Closure(labour="fixed_real_wage"),
+        cge.Closure(labour="elastic_supply", labour_supply_elasticity=0.4),
+        cge.Closure(labour="wage_curve", natural_unemployment=0.06, wage_curve_elasticity=0.1),
     ]
     for closure in closures:
-        period = ck.solve_period(econ, closure=closure, scenario=shock)
+        period = cge.solve_period(econ, closure=closure, scenario=shock)
         assert period.converged
         assert abs(period.walras) < 1e-8, closure.describe()

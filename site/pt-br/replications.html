@@ -14,7 +14,7 @@
 
 <header class="hero">
   <div class="wrap">
-    <p class="lang"><a href="../replications.html" hreflang="en" lang="en">English</a> · <strong>Português</strong></p>
+    <p class="lang"><a href="../replications.html" hreflang="en" lang="en"><span aria-hidden="true">🌐</span> English</a> · <strong><span aria-hidden="true">🇧🇷</span> Português</strong></p>
     <h1>Replicações</h1>
     <p class="tag">Um modelo publicado, refeito a partir da matriz de contabilidade social que o
     artigo usou. A página registra o número que bateu e o mecanismo que o pacote não tem.</p>
@@ -67,7 +67,7 @@
   o pacote exige essas três contas, então elas entram vazias. Investimento zero é um bloco
   fechado, não uma cesta a repartir.</p>
 <pre><code>import pandas as pd
-import cgelab as ck
+import cgelab as cge
 
 entries = [
     ("c_brd", "hh_1", 15.0), ("c_mlk", "hh_1", 35.0),
@@ -77,15 +77,15 @@ entries = [
     ("a_brd", "c_brd", 15.0), ("a_mlk", "c_mlk", 35.0),
     ("gov", "gov", 0.0), ("s_i", "s_i", 0.0), ("row", "row", 0.0),
 ]
-sam = ck.SAM.from_long(pd.DataFrame(entries, columns=["row", "col", "value"]), name="hosoe")
+sam = cge.SAM.from_long(pd.DataFrame(entries, columns=["row", "col", "value"]), name="hosoe")
 sam.check_balance(abs_tol=1e-9)
-spec = ck.ModelSpec(
+spec = cge.ModelSpec(
     activities=["a_brd", "a_mlk"], commodities=["c_brd", "c_mlk"],
     households=["hh_1"], factors=("f_lab", "f_cap"),
     government="gov", investment="s_i", rest_of_world="row",
     sigma_va=1.0, margins=False, numeraire_factor="f_lab")
-econ = ck.calibrate(sam, spec)
-base = ck.solve_period(econ)
+econ = cge.calibrate(sam, spec)
+base = cge.solve_period(econ)
 assert base.converged and abs(base.walras) &lt; 1e-9
 assert abs(base.X[econ.activity("a_brd")] - 15) &lt; 1e-8
 assert abs(base.X[econ.activity("a_mlk")] - 35) &lt; 1e-8
@@ -110,13 +110,13 @@ print(base.X, base.walras)</code></pre>
   fixa da renda, e a poupança externa é fixa em dólares. A tarifa fica dentro do preço de
   importação e o imposto indireto dentro do preço bruto do produto, como na calibração dele.</p>
 <pre><code>import numpy as np
-import cgelab as ck
+import cgelab as cge
 from cgelab.examples import hosoe
 
 for large in (False, True):
     _, econ = hosoe.build(large_country=large)
-    base = ck.solve_period(econ, hosoe.CLOSURE)
-    free = ck.solve_period(econ, hosoe.CLOSURE, ck.Scenario(tariff=np.zeros(econ.n_com)))
+    base = cge.solve_period(econ, hosoe.CLOSURE)
+    free = cge.solve_period(econ, hosoe.CLOSURE, cge.Scenario(tariff=np.zeros(econ.n_com)))
     assert free.converged and abs(free.walras) &lt; 1e-9
     print("lrgcge" if large else "stdcge",
           np.round(100 * (free.imports / base.imports - 1), 2),   # importações, variação %

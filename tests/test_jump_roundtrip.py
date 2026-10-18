@@ -15,7 +15,7 @@ from pathlib import Path
 import numpy as np
 import pytest
 
-import cgelab as ck
+import cgelab as cge
 from cgelab.examples import hosoe, toy
 
 VALIDATION = Path(__file__).resolve().parents[1] / "validation"
@@ -37,30 +37,30 @@ def roundtrip():
 
 def test_cet_with_an_export_price_shock(roundtrip):
     _, econ = toy.build(model_spec=toy.spec(export_rule="cet"))
-    r = roundtrip.caso("pytest_cet", econ, ck.Closure(),
-                       ck.Scenario(export_price=np.array([1.15, 0.9])))
+    r = roundtrip.caso("pytest_cet", econ, cge.Closure(),
+                       cge.Scenario(export_price=np.array([1.15, 0.9])))
     assert r["ok"], r
 
 
 def test_institutions_with_fdi_and_a_tax_change(roundtrip):
     _, econ = toy.build_with_institutions()
     econ = dataclasses.replace(econ, hh_dtax=econ.hh_dtax * 1.5)
-    r = roundtrip.caso("pytest_instituicoes", econ, ck.Closure(foreign="fixed_rate"),
-                       ck.Scenario(fdi={"f_cap": 4.0}))
+    r = roundtrip.caso("pytest_instituicoes", econ, cge.Closure(foreign="fixed_rate"),
+                       cge.Scenario(fdi={"f_cap": 4.0}))
     assert r["ok"], r
 
 
 def test_large_country_curves(roundtrip):
     _, econ = toy.build(model_spec=toy.spec(export_rule="cet", export_demand=1.5,
                                             import_supply={"c_agr": 2.0}))
-    r = roundtrip.caso("pytest_pais_grande", econ, ck.Closure(foreign="fixed_rate"),
-                       ck.Scenario(export_price=np.array([1.15, 0.9]),
-                                   world_price=np.array([1.1, 1.0])))
+    r = roundtrip.caso("pytest_pais_grande", econ, cge.Closure(foreign="fixed_rate"),
+                       cge.Scenario(export_price=np.array([1.15, 0.9]),
+                                    world_price=np.array([1.1, 1.0])))
     assert r["ok"], r
 
 
 def test_hosoe_tariff_abolition(roundtrip):
     _, econ = hosoe.build()
     r = roundtrip.caso("pytest_stdcge", econ, hosoe.CLOSURE,
-                       ck.Scenario(tariff=np.zeros(2)))
+                       cge.Scenario(tariff=np.zeros(2)))
     assert r["ok"], r

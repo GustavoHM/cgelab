@@ -1,7 +1,9 @@
 name: site
 
 # Publishes site/ to GitHub Pages. In the repository settings, set
-# Pages > Build and deployment > Source to "GitHub Actions".
+# Pages > Build and deployment > Source to "GitHub Actions". GitHub Pages is
+# free only for public repositories, so the job is skipped while the
+# repository is private.
 on:
   push:
     branches: [main]
@@ -19,6 +21,7 @@ concurrency:
 
 jobs:
   deploy:
+    if: ${{ !github.event.repository.private }}
     runs-on: ubuntu-latest
     environment:
       name: github-pages

@@ -1,7 +1,6 @@
 # cgelab
 
 [![tests](https://github.com/GustavoHM/cgelab/actions/workflows/tests.yml/badge.svg)](https://github.com/GustavoHM/cgelab/actions/workflows/tests.yml)
-[![site](https://img.shields.io/badge/site-gustavohm.github.io%2Fcgelab-2b6cb0)](https://gustavohm.github.io/cgelab/)
 [![license: MIT](https://img.shields.io/badge/license-MIT-blue)](https://github.com/GustavoHM/cgelab/blob/main/LICENSE)
 
 A general toolkit for SAM-based computable general equilibrium models in Python.
@@ -199,16 +198,34 @@ where it stands. Things to know before relying on it:
 - **Platforms**: an editable install (`pip install -e`) can break silently on
   Python 3.14 on macOS; install from the wheel if `import cgelab` fails.
 
+## Related package
+
+[dsgelab](https://github.com/GustavoHM/dsgelab), by the same author, solves dynamic stochastic
+general equilibrium (DSGE) models. The module `cgelab.bridge` uses it for the intertemporal part
+of a model, a Ramsey CGE in which investment follows an Euler equation
+(`pip install "cgelab[dsge]"`).
+
 ## Citing
 
-If a published result went through this package, cite it. Software is a
-methodological input like any other, and the version matters: a number that
-only reproduces under one version is not reproducible without it.
-[`CITATION.cff`](https://github.com/GustavoHM/cgelab/blob/main/CITATION.cff) carries the metadata, with the author's ORCID, in
-the format GitHub reads. A repository URL is not an archivable reference: each
-release will be archived on Zenodo, and the DOI it receives, which will be added
-to that file, is the reference to cite.
+If the package contributed to a published result, cite it as any other methodological input,
+with the version, because a number that reproduces only under one version cannot be reproduced
+without knowing which. [`CITATION.cff`](https://github.com/GustavoHM/cgelab/blob/main/CITATION.cff)
+holds the same metadata in the format GitHub reads.
 
-## License
+Moreira, G. H. (2026). cgelab: A general toolkit for SAM-based computable general equilibrium
+models in Python (Version 0.5.0) [Computer software]. https://github.com/GustavoHM/cgelab
 
-MIT. See [`LICENSE`](https://github.com/GustavoHM/cgelab/blob/main/LICENSE).
+```bibtex
+@software{cgelab_2026,
+  author  = {Moreira, Gustavo Hoffmann},
+  title   = {{cgelab}: a general toolkit for SAM-based computable general equilibrium models in Python},
+  year    = {2026},
+  version = {0.5.0},
+  license = {MIT},
+  url     = {https://github.com/GustavoHM/cgelab},
+  note    = {Python package}
+}
+```
+
+Each release is archived on Zenodo with a DOI of its own, starting with 0.5.0. The DOI is added
+here and to `CITATION.cff` when Zenodo assigns it.

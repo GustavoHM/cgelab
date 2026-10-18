@@ -1,7 +1,7 @@
 # Site do `cgelab`
 
 Página estática em dois idiomas, publicada em <https://gustavohm.github.io/cgelab/>. Não usa
-Jekyll, etapa de build nem CDN: são duas páginas HTML, `style.css` e um realçador de sintaxe de
+Jekyll, etapa de build nem CDN: são quatro páginas HTML, duas por idioma, `style.css` e um realçador de sintaxe de
 trinta linhas. Abre num navegador direto do disco.
 
 ```
@@ -28,7 +28,8 @@ divergir. A seção de citação muda de propósito: ABNT em português, APA em 
 
 O workflow `.github/workflows/pages.yml` publica esta pasta a cada push no `main` que mexa nela.
 É preciso configurar uma vez, nas configurações do repositório: *Settings → Pages → Build and
-deployment → Source: GitHub Actions*.
+deployment → Source: GitHub Actions*. Enquanto o repositório for privado, o
+workflow pula a publicação: o GitHub Pages só é gratuito em repositório público.
 
 Os links para a documentação apontam para os arquivos `.md` no GitHub, que os renderiza. O GitHub
 Pages serviria o Markdown como texto puro.

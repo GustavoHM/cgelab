@@ -1,0 +1,9 @@
+# What the sdist needs beyond the package, so that its test suite runs from the
+# unpacked tree: the fixtures, the site whose examples are tested, and the tool
+# that runs them. validation/ needs Julia and stays out.
+include CHANGELOG.md CITATION.cff
+include tests/conftest.py
+recursive-include tests/data *.json
+include tools/check_site_examples.py
+graft site
+global-exclude .DS_Store

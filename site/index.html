@@ -26,7 +26,7 @@
       <span class="pill">Walras as a check</span>
       <span class="pill">5 closures</span>
       <span class="pill">CET, FDI, several capital stocks</span>
-      <span class="pill">checked against JuMP to 3e-12</span>
+      <span class="pill">checked against JuMP to 1.2e-11</span>
       <span class="pill">MIT · v0.5.0</span>
     </div>
   </div>
@@ -66,8 +66,10 @@
 
 <section id="install"><div class="wrap">
   <h2>Install</h2>
-<pre><code class="plain">pip install "cgelab @ git+https://github.com/GustavoHM/cgelab"
-pip install "cgelab[parquet] @ git+https://github.com/GustavoHM/cgelab"   # SAMs in .parquet</code></pre>
+<pre><code class="plain">pip install cgelab
+pip install "cgelab[parquet]"     # SAMs in .parquet
+pip install "cgelab[dsge]"        # forward-looking investment, through dsgelab
+pip install "cgelab @ git+https://github.com/GustavoHM/cgelab"   # the current main branch</code></pre>
   <p>For development:</p>
 <pre><code class="plain">git clone https://github.com/GustavoHM/cgelab &amp;&amp; cd cgelab
 pip install -e ".[test]" &amp;&amp; pytest</code></pre>
@@ -426,8 +428,8 @@ cgelab diagnostics -- Economy(3 activities, 3 commodities, 2 households, 2 facto
 <section id="validation"><div class="wrap">
   <h2>Validation</h2>
 
-  <h3>99 tests on hand-written SAMs</h3>
-  <p>Six toy economies with every entry written in the code, so the comparison is against arithmetic
+  <h3>Tests on hand-written SAMs</h3>
+  <p>Eight toy economies with every entry written in the code, so the comparison is against arithmetic
   and not against previous output:</p>
   <ul>
     <li>the plain case;</li>
@@ -436,7 +438,10 @@ cgelab diagnostics -- Economy(3 activities, 3 commodities, 2 households, 2 facto
     <li>one with an own-account activity;</li>
     <li>one with twin accounts, for the composition test;</li>
     <li>one with direct taxes, transfers, remittances, and capital owned by government and abroad;</li>
-    <li>one with sector-specific capital.</li>
+    <li>one with sector-specific capital;</li>
+    <li>one with a tariff and an indirect tax on output inside the prices;</li>
+    <li>a closed one-good economy with Cobb–Douglas production, which is the stochastic growth model
+    the bridge to dsgelab is checked against.</li>
   </ul>
   <p>The tests cover base-year reproduction to machine precision, homogeneity, and Walras under a
   shock in <em>every</em> closure combination and at every date of a growing path. They also cover
@@ -448,7 +453,7 @@ cgelab diagnostics -- Economy(3 activities, 3 commodities, 2 households, 2 facto
   price fixed point, the wedge series and the saving–revenue relation are plain constraints, and
   Ipopt solves them from a displaced start. In 34 cases (margins, own-account activities, CET, export demand and import supply curves, tariffs and output taxes inside the prices, Hosoe's closure, government targets, a carbon price, two energy nests, direct
   taxes, transfers, foreign capital, FDI, LES and alternative closures) the two solvers agree to at
-  most <code>3e-12</code>. Perturbing the exported data makes the comparison diverge by 1e-3 to
+  most <code>1.2e-11</code>. Perturbing the exported data makes the comparison diverge by 1e-3 to
   3e-1, which shows it can see an error.</p>
 </div></section>
 
@@ -474,7 +479,7 @@ cgelab diagnostics -- Economy(3 activities, 3 commodities, 2 households, 2 facto
   </table>
   <div class="note"><p><strong>Applied CGE work is done in GAMS or GEMPACK</strong>, and for good
   reasons: dedicated solvers, a community, databases such as GTAP. The three Python CGE packages
-  found are implementations of the textbook model of Hosoe, Gawana and Hashimoto (2010) or of the
+  found are implementations of the textbook model of Hosoe, Gasawa and Hashimoto (2010) or of the
   GAMS library's <code>splcge</code>, with two to four sectors. The
   <a href="https://github.com/PSLmodels/CGE">PSLmodels/CGE</a> README calls it "very preliminary"
   and asks not to be cited.</p></div>
@@ -483,8 +488,7 @@ cgelab diagnostics -- Economy(3 activities, 3 commodities, 2 households, 2 facto
   found. That is not the same as covering what GAMS covers: there are no multiple regions, no
   estimation of elasticities, and no thirty years of use. The full table, marking what was verified
   by reading code and what was only read in documentation, is in
-  <a href="https://github.com/GustavoHM/cgelab/blob/main/docs/comparison.md">docs/comparison.md</a>
-  (in Portuguese).</p>
+  <a href="https://github.com/GustavoHM/cgelab/blob/main/docs/comparison.md">docs/comparison.md</a>.</p>
 </div></section>
 
 <section id="cite"><div class="wrap">
@@ -540,7 +544,7 @@ models in Python (Version 0.5.0) [Computer software]. https://github.com/Gustavo
     <div class="card"><h4><a href="https://github.com/GustavoHM/cgelab/blob/main/docs/from-scripts.md">Porting a pipeline</a></h4><p>A
     translation table from an existing solver to <code>Scenario</code> and <code>Closure</code>.</p></div>
     <div class="card"><h4><a href="https://github.com/GustavoHM/cgelab/blob/main/docs/comparison.md">Comparison</a></h4><p>Where the
-    package stands against other Python CGEs and GAMS, and where it does not win (in Portuguese).</p></div>
+    package stands against other Python CGEs and GAMS, and where it does not win.</p></div>
     <div class="card"><h4><a href="https://github.com/GustavoHM/cgelab/blob/main/CHANGELOG.md">Changelog</a></h4><p>What changed from
     one version to the next.</p></div>
     <div class="card"><h4><a href="https://github.com/GustavoHM/cgelab/blob/main/ROADMAP.md">Roadmap</a></h4><p>What is still

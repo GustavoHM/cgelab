@@ -1,7 +1,8 @@
 # cgelab API reference
 
 Everything listed here is importable from the top-level package
-(`import cgelab as cge`).
+(`import cgelab as cge`), except where the heading names a module:
+`cgelab.bridge`, `cgelab.har.Header` and the bundled examples.
 
 ---
 
@@ -124,7 +125,7 @@ Ordered name lists `acts`, `coms`, `hhs`, `factors`; counts `n_act`, `n_com`,
 
 ## Closure and scenario
 
-### `Closure(numeraire=1.0, investment="savings_driven", government="real_fixed", foreign="fixed_saving", foreign_saving_unit="numeraire", government_target=None, government_target_value=None, government_adjusts="direct_tax", exchange_rate=1.0, tolerance=1e-9)`
+### `Closure(numeraire=1.0, investment="savings_driven", government="real_fixed", foreign="fixed_saving", foreign_saving_unit="numeraire", government_target=None, government_target_value=None, government_adjusts="direct_tax", exchange_rate=1.0, tolerance=1e-9, labour="full_employment", labour_factor="f_lab", real_wage=None, wage_curve_elasticity=0.1, natural_unemployment=0.0, labour_supply_elasticity=0.0)`
 
 `investment` ∈ `{"savings_driven", "fixed_real"}`;
 `government` ∈ `{"real_fixed", "nominal_fixed", "saving_rate"}`, the last saving
@@ -345,9 +346,11 @@ prices along the path): `absorption` and its four components
 
 The same integral for any `f` of a dict of arrays.
 
-### `scenario_vector(econ, scenario) -> dict`
+### `scenario_vector(econ, scenario, *, firm_rate=None) -> dict`
 
 A scenario's numeric fields as arrays, absent ones at the value they stand for.
+`product_tax_firm` is left out unless the scenario sets it or `firm_rate=True`;
+absent, it follows `product_tax`.
 
 ---
 
@@ -381,14 +384,20 @@ The `(2n, n)` standardised points of the rule.
 
 ## Dynamics
 
-### `Growth(labour=0.0, tfp=0.0, depreciation=0.05, discount=0.05, labour_factor="f_lab", capital_factor="f_cap", allocation="proportional")`
+### `Growth(labour=0.0, tfp=0.0, depreciation=0.05, discount=0.05, labour_factor="f_lab", capital_factor="f_cap", allocation="proportional", productivity="hicks_neutral", investment_deflator="base_price")`
 
 `capital_factor` is one factor or a sequence of them, each accumulated from its
 own service flow; `depreciation` is a rate or a mapping by capital factor.
 `allocation` shares domestic investment among them: `"proportional"` to the
 stocks, or a number `e` making shares proportional to `K_k (r_k / r_mean)^e`.
 `user_cost` is `discount + depreciation`, the rate that converts the SAM's
-capital service flow into a stock.
+capital service flow into a stock. `productivity` says how `tfp` enters:
+`"hicks_neutral"` scales every activity's input requirements, `"factor_augmenting"`
+scales the factor endowments instead, and the two give different prices.
+`investment_deflator` turns nominal saving into the real investment that adds to
+the stock: `"base_price"` values it at base-year purchaser prices, on the same
+ruler as the other real magnitudes; `"own_price"` at the current price of the
+investment bundle, the volume actually bought.
 
 ### `run_path(econ, closure=None, *, years, scenario=None, growth=None, economy=None, raise_on_fail=True) -> PathResult`
 
@@ -440,9 +449,10 @@ and the capital-accumulation and Euler residuals, each period solved by
 Per-date parameters for `dsgelab.perfect_foresight`: each date's scenario and the
 next date's.
 
-### `period_at(econ, closure, scenario, k, inv, a=1.0, *, capital_factor="f_cap", user_cost) -> PeriodResult`
+### `period_at(econ, closure, scenario, k, inv, a=1.0, *, capital_factor="f_cap", user_cost, warm=None) -> PeriodResult`
 
-The period equilibrium at a capital stock, an investment level and a TFP level.
+The period equilibrium at a capital stock, an investment level and a TFP level. `warm`, a
+previous `PeriodResult`, is the solver's start.
 
 `Scenario.investment_level` is real investment under `investment="fixed_real"`.
 
@@ -478,6 +488,12 @@ revenue is `carbon_production` and `carbon_households` in `PeriodResult.governme
 `commodities` maps a commodity to `(unit, physical supply)` (domestic sales plus
 imports, base year); `activities` maps an activity to `(unit, physical output)`.
 
+### `PhysicalUnits`
+
+What `add_physical_units` stores in `Economy.physical_units`: `commodities` and
+`activities`, each mapping a name to `(unit, physical content per model unit)`.
+`None` there means the economy is in money only.
+
 ### `physical(period) -> dict`
 
 `supply` and `output` as `(unit, quantity)`; `use` by commodity as a Series over
@@ -502,7 +518,7 @@ GEMPACK header array files, the format of the GTAP database. Types `1C`, `2I`,
 `{name: Header or array}`. Plain reals become `2R` up to two dimensions and
 `RL` above; integers `2I`; strings `1C`; a `Header` with sets `RE`.
 
-### `Header`
+### `Header` (`from cgelab.har import Header`)
 
 `name`, `description`, `kind`, `array` (float64, or int64 for `2I`, object for
 `1C`), `sets` and `labels` per dimension, and `to_series()` in long form.
@@ -532,6 +548,10 @@ sam, econ = toy.build_with_twin_accounts()     # identical accounts, for composi
 sam, econ = toy.build_with_institutions()      # direct taxes, transfers, remittances, foreign capital
 sam, econ = toy.build_with_specific_capital()  # industry on a capital factor of its own
 sam, econ = toy.build_with_trade_taxes()       # tariff and indirect-tax accounts (TRF, IDT)
+sam, econ = toy.build_one_good()               # closed, one good: the stochastic growth model
+
+from cgelab.examples import regions
+sam, econ = regions.build()                    # two identical regions under one origin nest
 
 from cgelab.examples import hosoe
 sam, econ = hosoe.build()                      # Hosoe's stdcge; hosoe.CLOSURE is his closure
@@ -548,4 +568,5 @@ on paper and the reproduction test compares the solver against arithmetic.
 ```
 cgelab                              # the bundled toy economy plus diagnostics
 cgelab my_sam.parquet --sigma-armington 2.0 --sigma-va 0.5
+cgelab --version                    # also: python -m cgelab
 ```

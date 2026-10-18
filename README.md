@@ -2,7 +2,7 @@
 
 [![tests](https://github.com/GustavoHM/cgelab/actions/workflows/tests.yml/badge.svg)](https://github.com/GustavoHM/cgelab/actions/workflows/tests.yml)
 [![site](https://img.shields.io/badge/site-gustavohm.github.io%2Fcgelab-2b6cb0)](https://gustavohm.github.io/cgelab/)
-[![license: MIT](https://img.shields.io/badge/license-MIT-blue)](LICENSE)
+[![license: MIT](https://img.shields.io/badge/license-MIT-blue)](https://github.com/GustavoHM/cgelab/blob/main/LICENSE)
 
 A general toolkit for SAM-based computable general equilibrium models in Python.
 You supply a social accounting matrix. The package calibrates a standard nested
@@ -25,7 +25,7 @@ living in a branch inside a solver.
 ## Install
 
 ```
-pip install cgelab                 # from PyPI, once 0.5 is released
+pip install cgelab                 # from PyPI
 pip install "cgelab[parquet]"      # adds pyarrow for .parquet SAMs
 pip install "cgelab[dsge]"         # adds dsgelab, for forward-looking investment
 pip install "cgelab @ git+https://github.com/GustavoHM/cgelab"   # the current main branch
@@ -42,6 +42,7 @@ Requires Python 3.11+, numpy, scipy and pandas. Try it with no data at all:
 
 ```
 cgelab                    # runs the bundled toy economy and prints the diagnostics
+cgelab my_sam.csv --sigma-armington 2.0 --sigma-va 0.5   # the same on your own SAM
 ```
 
 ## Quick start
@@ -76,10 +77,10 @@ alt = cge.run_path(econ, years=years, growth=growth,
                                          if y >= 2026 else cge.Scenario())
 
 ev = cge.equivalent_variation(ref, alt)
-cge.ev_by_group(ev, {"hh_1": "rich", "hh_2": "poor"})
+print(cge.ev_by_group(ev, {"hh_1": "rich", "hh_2": "poor"}))
 ```
 
-With your own data, the first lines change:
+With your own data, the first lines change (a `.parquet` SAM needs the `parquet` extra):
 
 ```python
 sam  = cge.SAM.read("my_sam.parquet")       # or SAM.from_long(df) / SAM.from_square(df)
@@ -138,13 +139,13 @@ period.
 ## Documentation
 
 - [Site](https://gustavohm.github.io/cgelab/): an overview with runnable examples, in English and Portuguese, and a replications page
-- [`docs/guide.md`](docs/guide.md): the user guide, from SAM to welfare
-- [`docs/api.md`](docs/api.md): API reference
-- [`docs/whitepaper.md`](docs/whitepaper.md): the mathematics of calibration, the period equilibrium, recursive dynamics and welfare (in Portuguese)
-- [`docs/design-notes.md`](docs/design-notes.md): the accounting decisions and the errors they prevent
-- [`docs/from-scripts.md`](docs/from-scripts.md): porting an existing CGE pipeline
-- [`docs/comparison.md`](docs/comparison.md): how this package compares with what exists, and where it does not win
-- [`CHANGELOG.md`](CHANGELOG.md), [`ROADMAP.md`](ROADMAP.md), [`CONTRIBUTING.md`](CONTRIBUTING.md)
+- [`docs/guide.md`](https://github.com/GustavoHM/cgelab/blob/main/docs/guide.md): the user guide, from SAM to welfare
+- [`docs/api.md`](https://github.com/GustavoHM/cgelab/blob/main/docs/api.md): API reference
+- [`docs/whitepaper.md`](https://github.com/GustavoHM/cgelab/blob/main/docs/whitepaper.md): the mathematics of calibration, the period equilibrium, recursive dynamics and welfare (in Portuguese)
+- [`docs/design-notes.md`](https://github.com/GustavoHM/cgelab/blob/main/docs/design-notes.md): the accounting decisions and the errors they prevent
+- [`docs/from-scripts.md`](https://github.com/GustavoHM/cgelab/blob/main/docs/from-scripts.md): porting an existing CGE pipeline
+- [`docs/comparison.md`](https://github.com/GustavoHM/cgelab/blob/main/docs/comparison.md): how this package compares with what exists, and where it does not win
+- [`CHANGELOG.md`](https://github.com/GustavoHM/cgelab/blob/main/CHANGELOG.md), [`ROADMAP.md`](https://github.com/GustavoHM/cgelab/blob/main/ROADMAP.md), [`CONTRIBUTING.md`](https://github.com/GustavoHM/cgelab/blob/main/CONTRIBUTING.md)
 
 ## Verification
 
@@ -176,7 +177,7 @@ python validation/replicate_hosoe.py                       # stdcge and lrgcge
 ## Scope and known limitations
 
 `cgelab` covers a single-country CGE at applied scale. It does not have the
-maturity of GAMS or GEMPACK, and [`docs/comparison.md`](docs/comparison.md) says
+maturity of GAMS or GEMPACK, and [`docs/comparison.md`](https://github.com/GustavoHM/cgelab/blob/main/docs/comparison.md) says
 where it stands. Things to know before relying on it:
 
 - **Several regions** share one origin nest under the Armington. Factors do not
@@ -191,8 +192,8 @@ where it stands. Things to know before relying on it:
 - **Under fixed export shares** with a Cobb-Douglas Armington, the exchange rate is
   not determined, and `solve_period` refuses that combination; near an Armington
   elasticity of one it is badly conditioned.
-- **Forward-looking investment** goes through dsgelab (`pip install cgelab[dsge]`).
-  `run_path` itself has no forward-looking agent.
+- **Forward-looking investment** goes through [dsgelab](https://github.com/GustavoHM/dsgelab)
+  (`pip install "cgelab[dsge]"`). `run_path` itself has no forward-looking agent.
 - **GTAP data** can be read, but not yet aggregated or turned into a SAM, and the
   welfare decomposition has not been compared with GTAP's own.
 - **Platforms**: an editable install (`pip install -e`) can break silently on
@@ -203,12 +204,11 @@ where it stands. Things to know before relying on it:
 If a published result went through this package, cite it. Software is a
 methodological input like any other, and the version matters: a number that
 only reproduces under one version is not reproducible without it.
-[`CITATION.cff`](CITATION.cff) carries the metadata, with the author's ORCID, in
-the format GitHub reads; the DOI is added with the first release archived on Zenodo.
-
-A repository URL is not an archivable reference. Connect the repository to
-Zenodo, cut a release, and cite the DOI that comes out of it.
+[`CITATION.cff`](https://github.com/GustavoHM/cgelab/blob/main/CITATION.cff) carries the metadata, with the author's ORCID, in
+the format GitHub reads. A repository URL is not an archivable reference: each
+release will be archived on Zenodo, and the DOI it receives, which will be added
+to that file, is the reference to cite.
 
 ## License
 
-MIT. See [`LICENSE`](LICENSE).
+MIT. See [`LICENSE`](https://github.com/GustavoHM/cgelab/blob/main/LICENSE).

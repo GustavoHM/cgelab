@@ -36,7 +36,7 @@ the user cost implies; :func:`dsgelab.steady_state` finds the steady state of
 the model, which is another point, and a published table has to say which of
 the two it reports.
 
-dsgelab is an optional dependency: ``pip install cgelab[dsge]``.
+dsgelab is an optional dependency: ``pip install "cgelab[dsge]"``.
 """
 
 from __future__ import annotations
@@ -51,7 +51,7 @@ from .closure import Closure
 from .scenario import Scenario
 from .solve import solve_period
 
-__all__ = ["RamseyParams", "ramsey", "period_at"]
+__all__ = ["RamseyParams", "ramsey", "period_at", "announced"]
 
 
 @dataclass
@@ -73,7 +73,7 @@ def _require_dsgelab():
     try:
         import dsgelab
     except ImportError as exc:                      # pragma: no cover
-        raise ImportError("cgelab.bridge needs dsgelab: pip install cgelab[dsge]") from exc
+        raise ImportError('cgelab.bridge needs dsgelab: pip install "cgelab[dsge]"') from exc
     return dsgelab
 
 
@@ -108,7 +108,7 @@ def ramsey(econ, closure: Closure | None = None, *, capital_factor: str = "f_cap
     which is what perfect-foresight experiments need. The closure's investment
     rule is replaced by ``"fixed_real"``: here the Euler equation sets it.
     """
-    dk = _require_dsgelab()
+    dsg = _require_dsgelab()
     closure = dataclasses.replace(closure or Closure(), investment="fixed_real")
     scenario = scenario or Scenario()
     capital = econ.factor(capital_factor)
@@ -150,8 +150,8 @@ def ramsey(econ, closure: Closure | None = None, *, capital_factor: str = "f_cap
         return out
 
     states = ["k", "a"] if shocked else ["k"]
-    model = dk.Model(states=states, jumps=["inv"], shocks=["eps_a"] if shocked else [],
-                     equations=equations, name="ramsey_cge")
+    model = dsg.Model(states=states, jumps=["inv"], shocks=["eps_a"] if shocked else [],
+                      equations=equations, name="ramsey_cge")
     k0 = float(econ.fac_supply[capital]) / user_cost
     guess = {"k": k0, "inv": depreciation * k0}
     if shocked:

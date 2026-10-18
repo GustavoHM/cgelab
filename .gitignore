@@ -23,3 +23,13 @@ validation/out/
 
 # local review tool for the public texts, not part of the package
 .review/
+
+# Local configuration of the AI coding tools the author uses; not part of the package.
+AGENTS.md
+CLAUDE.md
+GEMINI.md
+.ai-memory.toml
+.vscode/
+.claude/
+.github/copilot-instructions.md
+*.log

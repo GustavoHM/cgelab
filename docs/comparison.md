@@ -26,7 +26,7 @@ read. A **📄** cell may be wrong.
 
 | Capability | cgelab 0.5 | pycge | PSLmodels/CGE | python-cge | GAMS / GEMPACK (ref.) |
 |---|---|---|---|---|---|
-| **Origin** | written for an applied SAM | ✅ port of `splcge.gams` from the GAMS library | ✅ "the simplest CGE model of Hosoe, Gawana and Hashimoto (2010)" | ✅ direct transcription of Hosoe's book, p. 72 | general-purpose platforms |
+| **Origin** | written for an applied SAM | ✅ port of `splcge.gams` from the GAMS library | ✅ "the simplest CGE model of Hosoe, Gawana [sic] and Hashimoto (2010)" | ✅ direct transcription of Hosoe's book, p. 72 | general-purpose platforms |
 | **Demonstrated scale** | ✅ the applied SAM it was written for, not public yet; in public, teaching examples | ✅ 3 teaching examples and a regional one | ✅ a **16×18** SAM: 4 sectors, 3 factors | ✅ **2 goods** (`BRD`, `MLK`) | thousands of accounts (GTAP) |
 | Backend | ✅ `scipy.optimize.root` on a few unknowns | ✅ Pyomo + IPOPT | ✅ `scipy` `root` | ✅ its own | dedicated solvers |
 | Lines of Python | ~7,100 † | ✅ 3,267 | ✅ 2,660 | ✅ 533 | n/a |
@@ -42,7 +42,7 @@ read. A **📄** cell may be wrong.
 | Creditable / non-creditable split of the product tax | ✅ | — | — | — | ✅ |
 | **Direct taxes, transfers and remittances** | ✅ † | ? | ? | ? | ✅ |
 | **Foreign-owned capital and FDI** | ✅ † profit remittances in the current account | ? | ? | ? | ✅ |
-| **Alternative closures** | ✅ each with its own adjusting variable | ? | — | — | ✅ |
+| **Alternative closures** | ✅ 5 combinations, each with its own adjusting variable | ? | — | — | ✅ |
 | **Walras as a check, not an equation** | ✅ the numeraire market is left out of the system | ? | — | — | the modeller's convention |
 | **Base-year reproduction test** | ✅ automatic | 📄 "compares base and simulation" | — | — | the modeller's convention |
 | **Zero-degree homogeneity test** | ✅ automatic | — | — | — | the modeller's convention |
@@ -57,7 +57,7 @@ read. A **📄** cell may be wrong.
 
 In the new rows (†), the other packages' columns are "?" because they were not checked again.
 
-The three Python CGE packages found implement the textbook model of Hosoe, Gawana and Hashimoto
+The three Python CGE packages found implement the textbook model of Hosoe, Gasawa and Hashimoto
 (2010) or the GAMS library's `splcge`, with two to four sectors. `PSLmodels/CGE` says of itself,
 in its README, that it is "very preliminary" and asks not to be cited. As far as was found, there
 is no Python CGE package at applied scale.
@@ -106,7 +106,7 @@ the goal is to cover the whole list by 1.0; each item's version is the one in
 | Decomposition of results by shock (subtotals) | 📄 GEMPACK | **done**: Harrison, Horridge and Pearson, integrated along the straight path | 0.3 |
 | Systematic sensitivity (quadrature, Monte Carlo) | 📄 GEMPACK | **done**: Stroud degree-3 quadrature and Monte Carlo, recalibrating at every point | 0.3 |
 | Accounts and reports: GDP by expenditure and income, price indices, terms of trade | 📄 GEMPACK, GTAP | **done**: GDP from both sides, Laspeyres, Paasche and Fisher indices, terms of trade, the government account | 0.3 |
-| Welfare decomposition (Huff and Hertel) | 📄 GTAP | **done** for real absorption, the identity closing below 1e-9; the comparison with GTAP waits on running GTAP | 0.3 |
+| Welfare decomposition (Huff and Hertel) | 📄 GTAP | **done** for real absorption, the identity closing below 1e-9; the comparison with GTAP waits on the GTAP database | 0.3 |
 | SAM multipliers and input–output | 📄 Pyatt and Round; Defourny and Thorbecke | **done**: accounting, fixed-price, Leontief, linkages (Rasmussen and Ghosh), structural path analysis | 0.3 |
 | Energy nests (KLEM), emissions, carbon tax | 📄 ENVISAGE, EPPA, GTAP-E | **done**: a value-added-energy or capital-energy nest (GTAP-E's arrangement) with interfuel substitution, emissions by source, the carbon price inside each activity's fuel price, revenue-neutral recycling, physical units | 0.4 |
 | Government closures | 📄 IFPRI | **done**: fixed saving rate (Hosoe's), a saving target and fixed revenue (revenue-neutral replacement), met by the direct tax, the product tax or spending | 0.4 |

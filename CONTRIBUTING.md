@@ -73,13 +73,17 @@ One-time setup, by a maintainer, outside the repository:
 For each release:
 
 1. Set the version in `pyproject.toml`, `src/cgelab/__init__.py` and
-   `CITATION.cff` (with `date-released`), and give the `Unreleased` section of
-   `CHANGELOG.md` its version and date.
+   `CITATION.cff` (with `date-released`), and on the site: the version pill, the
+   BibTeX, APA and ABNT entries, the example sentence and the footer of
+   `site/index.html` and `site/pt-br/index.html`, and the footers of both
+   `replications.html`. Give the new section at the top of `CHANGELOG.md` its
+   version and date (start one headed `Unreleased` after each release).
 2. Run the suite, the site examples and the `validation` workflow.
-3. Push a tag `vX.Y.Z`. The `release` workflow refuses a tag that differs from
-   the version in `pyproject.toml`, builds the wheel and the sdist, checks them
-   with `twine`, publishes to TestPyPI, installs what TestPyPI serves and runs
-   the suite against it, and only then publishes to PyPI. The `dsge` extra
-   needs the matching dsgelab on PyPI, so dsgelab is released first.
+3. Release dsgelab first: the `dsge` extra needs the matching dsgelab on PyPI.
+   Then push a tag `vX.Y.Z`. The `release` workflow refuses a tag that differs
+   from the version in `pyproject.toml`, the package or `CITATION.cff`, and stops
+   before any upload if that dsgelab is not on PyPI. It builds the wheel and the
+   sdist, checks them with `twine`, publishes to TestPyPI, installs what TestPyPI
+   serves and runs the suite against it, and only then publishes to PyPI.
 4. Publish a GitHub release from the tag; Zenodo archives it and assigns the DOI.
 5. Add the Zenodo DOI to `CITATION.cff` and the README.

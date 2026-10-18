@@ -114,8 +114,8 @@ land use allocated by CET; export to GAMS/MPSGE and GEMPACK.
 
 ## Next: gaps an applied model hit
 
-Nothing from 0.2, 0.3 or 0.4 is open. Next is 0.5, the public release: no new features, the
-blocking items under *Infrastructure*.
+Nothing from 0.2, 0.3 or 0.4 is open, and 0.5 waits only on the release itself, the last item
+of its milestone above. Next is 0.6.
 
 Done, and no longer gaps:
 
@@ -148,8 +148,9 @@ the rest) would be further nests of the same kind.
 becomes a SAM entry with `physical_coefficient`, and a path reports kWh and tonnes. A capacity
 stated in tonnes is a bound on an activity, and that is a complementarity condition, in 0.8.
 
-**Government closures.** Add a fixed public deficit or saving target, and revenue-neutral tax
-replacement (one tax adjusts to keep revenue constant). These are needed for any fiscal study.
+**Government closures.** Done in 0.4: a fixed public saving target and revenue-neutral tax
+replacement, met by direct taxes, product taxes or spending (`Closure.government_target`,
+`government_adjusts`).
 
 **Imperfect factor mobility.** Several capital stocks already accumulate separately. Between
 fully mobile and fully sector-specific, a CET over sectors for labour or capital would allow
@@ -195,8 +196,8 @@ extensions in this section are a different object, and they are the reason to ke
 packages apart rather than fold one into the other: the period equilibrium remains a SAM model
 solved here, and the intertemporal residual is solved by dsgelab.
 
-dsgelab never reads a SAM. cgelab would take it as an optional dependency, imported only by the
-bridge, so a static model keeps today's install (numpy, scipy, pandas). The bridge is one
+dsgelab never reads a SAM. cgelab takes it as an optional dependency (the `dsge` extra),
+imported only by the bridge, so a static model keeps the plain install (numpy, scipy, pandas). The bridge is one
 residual. Given the predetermined stocks and the forward-looking guesses, cgelab returns the
 period equilibrium: rentals, purchaser prices, investment, household consumption. The residual
 dsgelab sees is the Euler gap, or Tobin's q. Commodity balances stay inside `solve_period`,
@@ -212,8 +213,8 @@ forward-looking migration are still open.
 know will change on a dated schedule leaves year-1 investment where it was, under `run_path`.
 `dsgelab.perfect_foresight` already stacks one residual over a horizon and already accepts a
 parameter path of length `T+1`. The extension is that residual calling `solve_period`. The
-instrument stays a `Scenario` field. An emissions account and a carbon-tax field are still the
-gaps under model structure; this item is the anticipation of a path those fields would supply.
+instrument stays a `Scenario` field. The emissions account and the carbon price came in 0.4;
+this item is the anticipation of a path those fields supply.
 A news shock to a world price uses the same bridge.
 
 **Aggregate uncertainty.** The states to perturb are the capital stocks `Growth` already
@@ -239,8 +240,9 @@ that answers to expected utility differences is the same bridge as the Euler: th
 market stays a closure, and the migration decision is an asset equation dsgelab can stack. It
 waits on that closure.
 
-KLEM nesting, tariff accounting, several regions, government closures and a GTAP-style global
-bank stay in the sections above. They change the period equilibrium. dsgelab has no
+Changes to the period equilibrium stay in the sections above, whether done (energy nests,
+tariff accounting, government closures) or open (bilateral trade among regions, a GTAP-style
+global bank). dsgelab has no
 representation for a SAM, and calling it does not close those gaps.
 
 ## Tools around the model

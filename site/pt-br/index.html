@@ -27,7 +27,7 @@
       <span class="pill">Walras como verificação</span>
       <span class="pill">5 fechamentos</span>
       <span class="pill">CET, IED, vários capitais</span>
-      <span class="pill">conferido contra JuMP a 3e-12</span>
+      <span class="pill">conferido contra JuMP a 1.2e-11</span>
       <span class="pill">MIT · v0.5.0</span>
     </div>
   </div>
@@ -67,8 +67,10 @@
 
 <section id="instalar"><div class="wrap">
   <h2>Instalar</h2>
-<pre><code class="plain">pip install "cgelab @ git+https://github.com/GustavoHM/cgelab"
-pip install "cgelab[parquet] @ git+https://github.com/GustavoHM/cgelab"   # MCS em .parquet</code></pre>
+<pre><code class="plain">pip install cgelab
+pip install "cgelab[parquet]"     # MCS em .parquet
+pip install "cgelab[dsge]"        # investimento com expectativas, pelo dsgelab
+pip install "cgelab @ git+https://github.com/GustavoHM/cgelab"   # o ramo main atual</code></pre>
   <p>Para desenvolver:</p>
 <pre><code class="plain">git clone https://github.com/GustavoHM/cgelab &amp;&amp; cd cgelab
 pip install -e ".[test]" &amp;&amp; pytest</code></pre>
@@ -288,7 +290,7 @@ paths[["path", "total", "share"]].head(2)
   <h3>11. Contas</h3>
 <pre><code>taxed = cge.solve_period(econ, scenario=cge.Scenario(product_tax=econ.ptax * 1.5))
 na = cge.national_accounts(taxed)      # o contrafactual do exemplo 2
-na["gdp_expenditure"], na["gdp_income"]   # 202.78 and 202.78: o PIB pelos dois lados, em qualquer equilíbrio
+na["gdp_expenditure"], na["gdp_income"]   # 202.78 e 202.78: o PIB pelos dois lados, em qualquer equilíbrio
 pi = cge.price_indices(taxed)
 pi.loc["gdp", ["fisher", "quantity_fisher"]]  # 1.040, 0.9999: preços 4% acima, volume parado
 cge.government_account(taxed)["saving"]   # 12.04, contra 5 no ano-base</code></pre>
@@ -428,8 +430,8 @@ cgelab diagnostics -- Economy(3 activities, 3 commodities, 2 households, 2 facto
 <section id="validacao"><div class="wrap">
   <h2>Validação</h2>
 
-  <h3>99 testes sobre MCS escritas à mão</h3>
-  <p>Seis economias de brinquedo com cada entrada escrita no código, de modo que a comparação é
+  <h3>Testes sobre MCS escritas à mão</h3>
+  <p>Oito economias de brinquedo com cada entrada escrita no código, de modo que a comparação é
   contra aritmética e não contra saída anterior:</p>
   <ul>
     <li>o caso simples;</li>
@@ -438,7 +440,10 @@ cgelab diagnostics -- Economy(3 activities, 3 commodities, 2 households, 2 facto
     <li>um com atividade de conta própria;</li>
     <li>um com contas gêmeas, para o teste de composição;</li>
     <li>um com impostos diretos, transferências, remessas e capital do governo e do exterior;</li>
-    <li>um com capital específico de setor.</li>
+    <li>um com capital específico de setor;</li>
+    <li>um com tarifa e imposto indireto sobre o produto dentro dos preços;</li>
+    <li>uma economia fechada de um bem com produção Cobb–Douglas, que é o modelo de crescimento
+    estocástico contra o qual a ponte com o dsgelab é conferida.</li>
   </ul>
   <p>Os testes cobrem reprodução do ano-base à precisão de máquina, homogeneidade, e Walras sob
   choque em <em>todas</em> as combinações de fechamento e em cada data de uma trajetória em
@@ -450,7 +455,7 @@ cgelab diagnostics -- Economy(3 activities, 3 commodities, 2 households, 2 facto
   ponto fixo de preços, a série da reciclagem e a relação entre poupança e arrecadação são
   restrições comuns, e o Ipopt as resolve de um ponto de partida deslocado. Em 34 casos (margens, curvas de demanda de exportação e de oferta de importação, tarifa e imposto sobre o produto dentro dos preços, o fechamento de Hosoe, metas do governo, preço do carbono, dois ninhos de energia,
   conta própria, CET, impostos diretos, transferências, capital estrangeiro, IED, LES e fechamentos
-  alternativos), os dois resolvedores concordam a no máximo <code>3e-12</code>. Perturbar os dados
+  alternativos), os dois resolvedores concordam a no máximo <code>1.2e-11</code>. Perturbar os dados
   exportados faz a comparação divergir de 1e-3 a 3e-1, o que mostra que ela enxerga erro.</p>
 </div></section>
 
@@ -476,7 +481,7 @@ cgelab diagnostics -- Economy(3 activities, 3 commodities, 2 households, 2 facto
   </table>
   <div class="note"><p><strong>Quem faz EGC aplicado usa GAMS ou GEMPACK</strong>, e com bons motivos:
   resolvedores dedicados, comunidade, bases como a GTAP. Os três pacotes de EGC em Python que
-  encontrei são implementações do modelo-texto de Hosoe, Gawana e Hashimoto (2010) ou do
+  encontrei são implementações do modelo-texto de Hosoe, Gasawa e Hashimoto (2010) ou do
   <code>splcge</code> da biblioteca do GAMS — dois a quatro setores; o
   <a href="https://github.com/PSLmodels/CGE">PSLmodels/CGE</a> diz de si mesmo, no README, que é
   "muito preliminar" e pede que não seja citado.</p></div>

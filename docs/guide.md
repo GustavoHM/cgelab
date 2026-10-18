@@ -10,6 +10,20 @@
 8. [Wedges and revenue recycling](#8-wedges-and-revenue-recycling)
 9. [Recursive dynamics](#9-recursive-dynamics)
 10. [Welfare](#10-welfare)
+11. [Multipliers and input–output analysis](#11-multipliers-and-inputoutput-analysis)
+12. [Systematic sensitivity](#12-systematic-sensitivity)
+13. [Subtotals: which shock did what](#13-subtotals-which-shock-did-what)
+14. [Welfare decomposition](#14-welfare-decomposition)
+15. [GTAP data and HAR files](#15-gtap-data-and-har-files)
+16. [Emissions and a carbon price](#16-emissions-and-a-carbon-price)
+17. [Forward-looking investment, through dsgelab](#17-forward-looking-investment-through-dsgelab)
+18. [Physical units](#18-physical-units)
+
+The examples assume `import cgelab as cge` (and `numpy as np` where it appears).
+They are fragments: `econ` is a calibrated economy and `...` marks where your own
+data go. To run one without data, build `econ` from the bundled toy economy
+(`from cgelab.examples import toy`, then `sam, econ = toy.build()`); the
+[site](https://gustavohm.github.io/cgelab/) has complete examples that run as they are.
 
 ---
 
@@ -795,8 +809,8 @@ emissions:
   intermediates, taxing the fuel an activity burns and taxing its output by that
   fuel's emissions are the same thing, and the test
   `test_on_production_it_is_an_activity_tax_by_emission_intensity` solves both and
-  finds the same equilibrium. KLEM nesting, next on the roadmap, will make fuel use
-  answer to the price.
+  finds the same equilibrium. With an energy nest (see *Fuel that answers to
+  prices* below), fuel use also answers to the price.
 - **On households,** it is a specific tax on the fuel they buy.
 - **Government's own fuel use** emits and is not taxed, because it would pay the
   tax to itself.
@@ -864,7 +878,7 @@ higher elasticity cuts emissions more for the same carbon price.
 `cgelab.bridge` builds the other object: a representative household that chooses
 investment by an Euler equation, while every period's equilibrium is still the SAM
 model. [dsgelab](https://github.com/GustavoHM/dsgelab) solves the intertemporal
-part; it never reads the SAM. Install it with `pip install cgelab[dsge]`.
+part; it never reads the SAM. Install it with `pip install "cgelab[dsge]"`.
 
 ```python
 import dsgelab as dsg

@@ -6,12 +6,18 @@ import argparse
 import sys
 
 
+def _version() -> str:
+    from . import __version__
+    return __version__
+
+
 def main(argv=None) -> int:
     parser = argparse.ArgumentParser(prog="cgelab", description=__doc__)
     parser.add_argument("sam", nargs="?", help="path to a long-form SAM (.parquet or .csv); "
                                                "omitted, the bundled toy economy is used")
     parser.add_argument("--sigma-armington", type=float, default=2.0)
     parser.add_argument("--sigma-va", type=float, default=0.8)
+    parser.add_argument("--version", action="version", version=f"%(prog)s {_version()}")
     args = parser.parse_args(argv)
 
     import cgelab as cge

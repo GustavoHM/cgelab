@@ -22,10 +22,19 @@ jobs:
       - uses: actions/setup-python@v7
         with:
           python-version: "3.13"
-      - name: The tag must match the version in pyproject.toml
+      - name: The tag must match the version in pyproject.toml, the package and CITATION.cff
         run: |
           version=$(python -c "import tomllib; print(tomllib.load(open('pyproject.toml','rb'))['project']['version'])")
           test "v$version" = "$GITHUB_REF_NAME" || { echo "tag $GITHUB_REF_NAME, pyproject $version"; exit 1; }
+          grep -qx "__version__ = \"$version\"" src/cgelab/__init__.py || { echo "src/cgelab/__init__.py is not $version"; exit 1; }
+          grep -qx "version: \"$version\"" CITATION.cff || { echo "CITATION.cff is not $version"; exit 1; }
+      # The dsge extra needs dsgelab on PyPI itself. The TestPyPI check below would
+      # also accept a dsgelab that only reached TestPyPI, so look at PyPI alone,
+      # before anything is uploaded.
+      - name: dsgelab, required by the dsge extra, must be on PyPI
+        run: |
+          python -m pip download --no-deps --index-url https://pypi.org/simple/ \
+            -d /tmp/dsgelab-check "$(python -c "import tomllib; print(tomllib.load(open('pyproject.toml','rb'))['project']['optional-dependencies']['dsge'][0])")"
       - run: python -m pip install --upgrade build twine
       - run: python -m build
       - run: python -m twine check --strict dist/*
@@ -50,6 +59,8 @@ jobs:
       - uses: pypa/gh-action-pypi-publish@v1.14.2
         with:
           repository-url: https://test.pypi.org/legacy/
+          # A re-run of the whole workflow finds the files already there.
+          skip-existing: true
 
   # Install what TestPyPI now serves, with dependencies from PyPI, and run the
   # suite against it before the real upload. The dsge extra pulls dsgelab>=0.5
@@ -70,6 +81,7 @@ jobs:
           for i in 1 2 3 4 5 6; do
             python -m pip install --index-url https://test.pypi.org/simple/ \
               --extra-index-url https://pypi.org/simple/ "cgelab[test,parquet,dsge]==$version" && break
+            test "$i" = 6 && { echo "could not install cgelab $version from TestPyPI"; exit 1; }
             sleep 30   # the index can take a moment to serve a new upload
           done
           python -c "import cgelab; assert cgelab.__version__ == '$version'"

@@ -26,7 +26,7 @@ célula **📄** pode estar errada.
 
 | Capacidade | cgelab 0.5 | pycge | PSLmodels/CGE | python-cge | GAMS / GEMPACK (ref.) |
 |---|---|---|---|---|---|
-| **Origem** | escrito para uma MCS aplicada | ✅ porte do `splcge.gams` da biblioteca do GAMS | ✅ "o modelo CGE mais simples de Hosoe, Gawana e Hashimoto (2010)" | ✅ transcrição direta do livro de Hosoe, p. 72 | plataformas de propósito geral |
+| **Origem** | escrito para uma MCS aplicada | ✅ porte do `splcge.gams` da biblioteca do GAMS | ✅ "o modelo CGE mais simples de Hosoe, Gawana [sic] e Hashimoto (2010)" | ✅ transcrição direta do livro de Hosoe, p. 72 | plataformas de propósito geral |
 | **Escala demonstrada** | ✅ a MCS aplicada para a qual foi escrito, ainda não pública; em público, exemplos didáticos | ✅ 3 exemplos didáticos e um regional | ✅ MCS de **16×18**: 4 setores, 3 fatores | ✅ **2 bens** (`BRD`, `MLK`) | milhares de contas (GTAP) |
 | Backend | ✅ `scipy.optimize.root` sobre poucas incógnitas | ✅ Pyomo + IPOPT | ✅ `scipy` `root` | ✅ próprio | resolvedores dedicados |
 | Linhas de Python | ~7.100 † | ✅ 3.267 | ✅ 2.660 | ✅ 533 | n/a |
@@ -57,7 +57,7 @@ célula **📄** pode estar errada.
 
 Nas linhas novas (†), as colunas dos outros pacotes estão como "?" porque não foram reapuradas.
 
-Os três pacotes de EGC em Python encontrados implementam o modelo-texto de Hosoe, Gawana e
+Os três pacotes de EGC em Python encontrados implementam o modelo-texto de Hosoe, Gasawa e
 Hashimoto (2010) ou o `splcge` da biblioteca do GAMS, com dois a quatro setores. O `PSLmodels/CGE`
 diz de si mesmo, no README, que é "muito preliminar" e pede que não seja citado. Até onde se apurou,
 não há pacote de EGC em Python em escala aplicada.

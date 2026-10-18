@@ -9,145 +9,13 @@ The first public release, on PyPI together with dsgelab 0.5. It gathers the road
 milestones 0.3 and 0.4, which were not released on their own, and the release engineering of
 0.5. Python 3.10 is no longer supported.
 
-### Added in 0.3
-
-- SAM multipliers and input–output analysis (`cgelab.multipliers`):
-  `accounting_multipliers` (Pyatt and Round), `fixed_price_multipliers` with
-  marginal propensities from income elasticities and an Engel-aggregation check,
-  `leontief_multipliers` (activities and commodities endogenous), `linkages`
-  (backward from the Leontief inverse, forward from the Ghosh inverse, with
-  Rasmussen indices) and `structural_paths` (Defourny and Thorbecke). The
-  Leontief inverse reproduces Miller and Blair's two-sector example; the total
-  influences of all elementary paths add up to the multiplier (Lantner's
-  identity), to 1e-10.
-
-- National accounts (`national_accounts`): GDP at current prices by expenditure
-  and by income, which agree in every equilibrium, and GNI. Price and quantity
-  indices (`price_indices`): Laspeyres, Paasche and Fisher by component of final
-  demand, for GDP and for the terms of trade, against the base year or another
-  solved period. The government account (`government_account`,
-  `PeriodResult.government`): revenue by instrument, outlays and saving, recorded
-  by the solver at the solution. `PeriodResult.household_saving` and
-  `forced_saving`.
-
-- Systematic sensitivity (`sensitivity`, `spec_sweep`): Stroud's degree-3
-  quadrature, exact in the mean for results up to cubic in the parameters, and
-  Monte Carlo with a fixed seed, over `Uniform`, `Normal` and `Triangular`
-  parameters. `spec_sweep` recalibrates at every point.
-
-- Subtotals (`subtotals`, `path_decomposition`): the Harrison, Horridge and
-  Pearson decomposition of a result by groups of shocks, integrated along the
-  straight path from reference to alternative. The contributions add up to the
-  solved change, with a residual of order 1e-8 that is reported. On closed forms
-  they are the line integrals.
-
-- Welfare decomposition (`welfare_decomposition`): Huff and Hertel's split of
-  the change in real absorption into endowment, technology, one allocative term
-  per instrument, terms of trade and the external account, integrated along the
-  path. The identity closes to below 1e-9 in ten economies and closures; it is
-  not validated against GTAP, which needs the GTAP database.
-- `cgelab.examples.hosoe.build_simple()`: Hosoe's chapter 5 (`splcge`).
-
-### Added in 0.4
-
-- Government targets (`Closure.government_target`, `government_adjusts`):
-  government saving held fixed (a deficit target) or total revenue held fixed
-  (revenue-neutral tax replacement), met by scaling every direct tax rate, every
-  product tax rate, or government consumption in base-year shares.
-  `PeriodResult.tax_scale` is the factor. The JuMP replica carries the same
-  closures; `Economy.gov_saving0` and `gov_revenue0` are the base-year targets.
-
-- Emissions accounts (`add_emissions`, `emissions`) calibrated from base-year
-  totals by source (combustion in production, household and government fuel
-  use, process), and a carbon price (`Scenario.carbon_price`): a tax per unit of
-  output by emission intensity on activities, a specific tax on household fuel.
-  The revenue is reported by source and recycled by the revenue-neutral
-  closure. GDP, the welfare decomposition, subtotals and the JuMP replica carry
-  it.
-
-- Value-added-energy nesting (`ModelSpec.energy`, `sigma_vae`,
-  `sigma_energy`): an energy bundle, a CES across fuels, substitutes for value
-  added in a CES; other intermediates stay Leontief. The carbon price on a fuel
-  enters the price each activity pays for it. With zero elasticities the nest is
-  the Leontief model exactly; with positive ones the fuel ratios meet the CES
-  first-order conditions. The JuMP replica carries the nest.
-  `PeriodResult.input_coefficients` and `value_added_per_unit` are the
-  coefficients the equilibrium used.
-
-- GTAP-E's arrangement (`ModelSpec.energy_nest="capital"`, `energy_capital`,
-  `sigma_ke`): energy joins a capital factor in a capital-energy composite that
-  sits inside the value-added nest. With `sigma_ke = sigma_va` it collapses to the
-  value-added nest with `sigma_vae = sigma_va`, and the two solve to the same
-  equilibrium to 1e-11; capital and energy meet their first-order condition; the
-  JuMP replica carries both arrangements.
-- The bridge to dsgelab (`cgelab.bridge`, `pip install cgelab[dsge]`): a
-  Ramsey CGE in which an Euler equation chooses investment and every period is
-  the SAM model. dsgelab gives its steady state, first-order solution, impulse
-  responses and perfect-foresight transitions; `announced` turns a sequence of
-  scenarios into an announced policy. In a one-good closed economy it is the
-  stochastic growth model: same steady state, transition matrices and path, to
-  1e-7. `toy.build_one_good()` is that economy; `Scenario.investment_level`
-  sets real investment under `fixed_real`.
-
-- Physical units (`add_physical_units`, `physical`, `physical_coefficient`):
-  physical content per unit of a commodity's Armington composite and of an
-  activity's output, calibrated from base-year totals; physical supply, use by
-  agent, output and intensity of a solved period; and the translation of a
-  physical technical coefficient into a SAM entry. Supply meets use in every
-  equilibrium, margins included.
-
-### Fixed in 0.4
-
-- `homogeneity_test` held a fixed exchange rate at one while it scaled the
-  numeraire, so every `foreign="fixed_rate"` closure failed the test for a
-  reason that was the test's. The rate is nominal and now scales too.
-
-### Release engineering (0.5)
-
-- CI runs the suite on Python 3.11–3.14 on Linux, macOS and Windows, and against
-  the installed wheel (`CGELAB_TEST_INSTALLED=1`), with `twine check`. A
-  `validation` workflow runs the JuMP replica and the Hosoe transcription on
-  demand and weekly. A `release` workflow, started by pushing a tag `vX.Y.Z`,
-  checks that the tag matches the version in `pyproject.toml`, publishes to
-  TestPyPI by trusted publishing, installs what TestPyPI serves and runs the
-  suite against it, and only then publishes to PyPI.
-- `py.typed`; Python-version, OS and typing classifiers; the `dsge` extra, which
-  needs `dsgelab>=0.5`. The licence is declared as an SPDX expression (`MIT`),
-  with `LICENSE` as the licence file.
-- The examples, the docs and the site import the package as `cge` and dsgelab as
-  `dsg`, and link to dsgelab's site. The site's language selector names both
-  languages with an icon.
-- `CONTRIBUTING.md` with the definition of done and a release checklist; issue
-  and pull request templates; a known-limitations section in the README.
-- `docs/comparison.md` in English; the Portuguese version is
-  `docs/comparison.pt-br.md`.
-
-### Added toward 0.7
-
-- `read_har` and `write_har`: GEMPACK header array files, the format of the GTAP
-  database, without GEMPACK. On GTAP 10A (2014) the 86 headers harpy3 reads
-  agree with it exactly, and four GTAP identities close to single precision.
-  The data are licensed and never committed.
-
-### Fixed in 0.3
-
-- An undetermined exchange rate is refused. With fixed export shares, a
-  Cobb–Douglas Armington on every imported commodity and foreign saving fixed in
-  numeraire units, every exchange rate is an equilibrium; the solver used to
-  return whichever its start point was.
-
-- The activity tax paid by an own-account activity never reached government:
-  households paid it in the price and the tax block counted market activities
-  only, so the base year did not reproduce and Walras was off by the tax. The
-  JuMP replica had the same omission.
-
-### Changed
+### Changed since 0.2.0
 
 - Renamed from `cgekit` to `cgelab`: `cgekit` is taken on PyPI by an
   unrelated project. The import name, distribution name, CLI entry point,
   the `CGELAB_RUN_JULIA` switch and the URLs all move together.
 
-### Added
+### Added in 0.2, after 0.2.0
 
 - Large-country trade. `ModelSpec.export_demand` puts exports on a demand curve,
   `E / E0 = (pWe / export_price)^(-η)`, and `ModelSpec.import_supply` puts
@@ -208,6 +76,143 @@ milestones 0.3 and 0.4, which were not released on their own, and the release en
   `wage_curve` and `elastic_supply`. The three new closures refuse a labour
   numeraire. Unemployment is not paid. `PeriodResult.employment`,
   `unemployment` and `real_wage`. The JuMP export carries the same equations.
+
+### Added in 0.3
+
+- SAM multipliers and input–output analysis (`cgelab.multipliers`):
+  `accounting_multipliers` (Pyatt and Round), `fixed_price_multipliers` with
+  marginal propensities from income elasticities and an Engel-aggregation check,
+  `leontief_multipliers` (activities and commodities endogenous), `linkages`
+  (backward from the Leontief inverse, forward from the Ghosh inverse, with
+  Rasmussen indices) and `structural_paths` (Defourny and Thorbecke). The
+  Leontief inverse reproduces Miller and Blair's two-sector example; the total
+  influences of all elementary paths add up to the multiplier (Lantner's
+  identity), to 1e-10.
+
+- National accounts (`national_accounts`): GDP at current prices by expenditure
+  and by income, which agree in every equilibrium, and GNI. Price and quantity
+  indices (`price_indices`): Laspeyres, Paasche and Fisher by component of final
+  demand, for GDP and for the terms of trade, against the base year or another
+  solved period. The government account (`government_account`,
+  `PeriodResult.government`): revenue by instrument, outlays and saving, recorded
+  by the solver at the solution. `PeriodResult.household_saving` and
+  `forced_saving`.
+
+- Systematic sensitivity (`sensitivity`, `spec_sweep`): Stroud's degree-3
+  quadrature, exact in the mean for results up to cubic in the parameters, and
+  Monte Carlo with a fixed seed, over `Uniform`, `Normal` and `Triangular`
+  parameters. `spec_sweep` recalibrates at every point.
+
+- Subtotals (`subtotals`, `path_decomposition`): the Harrison, Horridge and
+  Pearson decomposition of a result by groups of shocks, integrated along the
+  straight path from reference to alternative. The contributions add up to the
+  solved change, with a residual of order 1e-8 that is reported. On closed forms
+  they are the line integrals.
+
+- Welfare decomposition (`welfare_decomposition`): Huff and Hertel's split of
+  the change in real absorption into endowment, technology, one allocative term
+  per instrument, terms of trade and the external account, integrated along the
+  path. The identity closes to below 1e-9 in ten economies and closures; it is
+  not validated against GTAP, which needs the GTAP database.
+- `cgelab.examples.hosoe.build_simple()`: Hosoe's chapter 5 (`splcge`).
+
+### Fixed in 0.3
+
+- An undetermined exchange rate is refused. With fixed export shares, a
+  Cobb–Douglas Armington on every imported commodity and foreign saving fixed in
+  numeraire units, every exchange rate is an equilibrium; the solver used to
+  return whichever its start point was.
+
+- The activity tax paid by an own-account activity never reached government:
+  households paid it in the price and the tax block counted market activities
+  only, so the base year did not reproduce and Walras was off by the tax. The
+  JuMP replica had the same omission.
+
+### Added in 0.4
+
+- Government targets (`Closure.government_target`, `government_adjusts`):
+  government saving held fixed (a deficit target) or total revenue held fixed
+  (revenue-neutral tax replacement), met by scaling every direct tax rate, every
+  product tax rate, or government consumption in base-year shares.
+  `PeriodResult.tax_scale` is the factor. The JuMP replica carries the same
+  closures; `Economy.gov_saving0` and `gov_revenue0` are the base-year targets.
+
+- Emissions accounts (`add_emissions`, `emissions`) calibrated from base-year
+  totals by source (combustion in production, household and government fuel
+  use, process), and a carbon price (`Scenario.carbon_price`): a tax per unit of
+  output by emission intensity on activities, a specific tax on household fuel.
+  The revenue is reported by source and recycled by the revenue-neutral
+  closure. GDP, the welfare decomposition, subtotals and the JuMP replica carry
+  it.
+
+- Value-added-energy nesting (`ModelSpec.energy`, `sigma_vae`,
+  `sigma_energy`): an energy bundle, a CES across fuels, substitutes for value
+  added in a CES; other intermediates stay Leontief. The carbon price on a fuel
+  enters the price each activity pays for it. With zero elasticities the nest is
+  the Leontief model exactly; with positive ones the fuel ratios meet the CES
+  first-order conditions. The JuMP replica carries the nest.
+  `PeriodResult.input_coefficients` and `value_added_per_unit` are the
+  coefficients the equilibrium used.
+
+- GTAP-E's arrangement (`ModelSpec.energy_nest="capital"`, `energy_capital`,
+  `sigma_ke`): energy joins a capital factor in a capital-energy composite that
+  sits inside the value-added nest. With `sigma_ke = sigma_va` it collapses to the
+  value-added nest with `sigma_vae = sigma_va`, and the two solve to the same
+  equilibrium to 1e-11; capital and energy meet their first-order condition; the
+  JuMP replica carries both arrangements.
+- The bridge to dsgelab (`cgelab.bridge`, `pip install "cgelab[dsge]"`): a
+  Ramsey CGE in which an Euler equation chooses investment and every period is
+  the SAM model. dsgelab gives its steady state, first-order solution, impulse
+  responses and perfect-foresight transitions; `announced` turns a sequence of
+  scenarios into an announced policy. In a one-good closed economy it is the
+  stochastic growth model: same steady state, transition matrices and path, to
+  1e-7. `toy.build_one_good()` is that economy; `Scenario.investment_level`
+  sets real investment under `fixed_real`.
+
+- Physical units (`add_physical_units`, `physical`, `physical_coefficient`):
+  physical content per unit of a commodity's Armington composite and of an
+  activity's output, calibrated from base-year totals; physical supply, use by
+  agent, output and intensity of a solved period; and the translation of a
+  physical technical coefficient into a SAM entry. Supply meets use in every
+  equilibrium, margins included.
+
+### Fixed in 0.4
+
+- `homogeneity_test` held a fixed exchange rate at one while it scaled the
+  numeraire, so every `foreign="fixed_rate"` closure failed the test for a
+  reason that was the test's. The rate is nominal and now scales too.
+
+### Added toward 0.7
+
+- `read_har` and `write_har`: GEMPACK header array files, the format of the GTAP
+  database, without GEMPACK. On GTAP 10A (2014) the 86 headers harpy3 reads
+  agree with it exactly, and four GTAP identities close to single precision.
+  The data are licensed and never committed.
+
+### Release engineering (0.5)
+
+- CI runs the suite on Python 3.11–3.14 on Linux, macOS and Windows, and against
+  the installed wheel (`CGELAB_TEST_INSTALLED=1`), with `twine check`. A
+  `validation` workflow runs the JuMP replica and the Hosoe transcription on
+  demand and weekly. A `release` workflow, started by pushing a tag `vX.Y.Z`,
+  checks that the tag matches the version in `pyproject.toml`, the package and
+  `CITATION.cff`, and that the dsgelab the `dsge` extra needs is on PyPI;
+  publishes to TestPyPI by trusted publishing, installs what TestPyPI serves and
+  runs the suite against it, and only then publishes to PyPI. The site's deploy
+  is skipped while the repository is private.
+- The sdist carries what its test suite needs (`MANIFEST.in`): the fixtures, the
+  site and the tool that runs its examples. `cgelab --version` and
+  `python -m cgelab`. The README's links are absolute, so they also work on PyPI.
+- `py.typed`; Python-version, OS and typing classifiers; the `dsge` extra, which
+  needs `dsgelab>=0.5`. The licence is declared as an SPDX expression (`MIT`),
+  with `LICENSE` as the licence file.
+- The examples, the docs and the site import the package as `cge` and dsgelab as
+  `dsg`, and link to dsgelab's site. The site's language selector names both
+  languages with an icon.
+- `CONTRIBUTING.md` with the definition of done and a release checklist; issue
+  and pull request templates; a known-limitations section in the README.
+- `docs/comparison.md` in English; the Portuguese version is
+  `docs/comparison.pt-br.md`.
 
 ## 0.2.0 — 2026-09-25
 

@@ -1157,6 +1157,47 @@ unemployment moves a lot for a small change in the rigid wage, and a small
 survey spans only so much of it. One household per account cannot be reweighted
 at all; `reweight=False` keeps the weights.
 
+### Behavioural microsimulation
+
+The reweighting changes how many households are like each other; it does not
+say which person loses a formal job. Following Bourguignon, Robilliard and
+Robinson (2005), `persons=` lets the people decide. A `PersonSurvey` holds one
+row per person of the households: the household (its row in the household
+survey), a status (a labour segment, `"unemployed"`, `"inactive"`), labour
+earnings and characteristics. A `Behaviour` is estimated on it, unless one is
+given: earnings equations by segment, `ln y = a_k + X b_k + e`, by weighted
+least squares, and the occupational choice by a multinomial logit on the
+characteristics, by maximum likelihood (no dependency beyond scipy).
+
+```python
+people = cge.microsimulate(toy.survey(), ref, alt, persons=toy.persons())
+people.workers                 # persons by status: hh_1 formal 7.5 to 7.09, informal 2.5 to 3.31
+people.calibration             # the intercepts' targets, reached
+```
+
+A counterfactual reaches the persons through two sets of intercepts, by SAM
+account: the choice intercepts move until employment in each segment changes as
+the account's does in the model (and unemployment, where the model has a queue),
+and the earnings intercepts until earnings per worker change as the account's
+income per worker does. The household survey's segment columns are replaced by
+the members' earnings, reconciled with the SAM the same way, and the weights
+stay. The micro labour income of every account is the model's, segment by
+segment.
+
+The choice residuals are what the observed choice reveals. `method="draws"` is
+BRR's procedure: Gumbel errors drawn conditional on each person's observed
+status, so that the base reproduces the survey; a mover into a segment earns the
+equation's prediction plus a normal draw. The results depend on the seed, so
+`seed` and `replications` are arguments, the tables report each measure's mean
+over the replications and its standard error (`alt_se`), and
+`result.replications` keeps every replication's real incomes.
+`method="expected"`, the default, is the limit of those replications in closed
+form: the probability that a person observed in `j` moves to `k` when the
+intercepts shift by `δ`, `transition_probabilities(V, δ)`, which is a logit for
+staying and a piecewise analytic integral for moving. It is deterministic and
+smooth in `δ`, which is what lets the intercepts hit the model's targets
+exactly; draws hit them only up to the granularity of a finite sample.
+
 **Measures.** `gini`, `fgt`, `generalized_entropy` (`theil` is GE(1),
 `mean_log_deviation` GE(0)) and `atkinson` take any vector and weights.
 `ge_decomposition` splits GE(α) into inequality within and between groups,

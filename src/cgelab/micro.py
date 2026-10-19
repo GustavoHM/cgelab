@@ -366,6 +366,11 @@ class MicroResult:
     #: ``(group, column)``: persons in each ``Survey.workers`` column, with the
     #: survey weights and with the new ones.
     workers: pd.DataFrame = field(default_factory=pd.DataFrame, repr=False)
+    #: Behavioural ``"draws"`` mode: real disposable income in the alternative,
+    #: one column per replication, ``(n_households, replications)``. The
+    #: ``real_alt`` column of ``frame`` is their mean; the tables report each
+    #: measure's mean over the replications and its standard error.
+    replications: np.ndarray | None = field(default=None, repr=False)
 
     def welfare(self, equivalence: float = 1.0) -> pd.DataFrame:
         """Real disposable income per adult equivalent, ``size ** equivalence``,
@@ -381,7 +386,9 @@ class MicroResult:
 
 
 def microsimulate(survey: Survey, reference, alternative, *, reconcile: bool = True,
-                  reweight: bool = True, price_index: str = "geometric") -> MicroResult:
+                  reweight: bool = True, price_index: str = "geometric", persons=None,
+                  behaviour=None, method: str = "expected", seed: int = 0,
+                  replications: int = 100) -> MicroResult:
     """Carry the change from ``reference`` to ``alternative`` to the survey's households.
 
     Both are solved periods of the same economy. The survey is taken to
@@ -398,12 +405,25 @@ def microsimulate(survey: Survey, reference, alternative, *, reconcile: bool = T
     source, and the number of households, stays where it was. Each segment's
     income per worker then moves with its wage, and the micro totals are still
     the model's.
+
+    With ``persons`` (a :class:`cgelab.behaviour.PersonSurvey`), the people
+    decide instead: an occupational choice and earnings equations
+    (``behaviour``, estimated on ``persons`` when absent) move each person's
+    status and earnings, by intercepts shifted per account until employment and
+    earnings per worker move as the model's do (:mod:`cgelab.behaviour`). The
+    household survey's labour-segment columns are then replaced by its members'
+    earnings, and the weights stay. ``method`` is ``"expected"`` (the exact
+    limit of the draws) or ``"draws"`` (``replications`` draws from ``seed``).
     """
     econ = reference.econ
     if alternative.econ.hhs != econ.hhs or alternative.econ.coms != econ.coms:
         raise ValueError("reference and alternative must come from the same economy")
     if price_index not in ("geometric", "laspeyres"):
         raise ValueError(f"price_index must be 'geometric' or 'laspeyres', got {price_index!r}")
+    model_segments = [fac for g in econ.segments.values() for fac in g.factors]
+    if persons is not None and not model_segments:
+        raise ValueError("the behavioural microsimulation moves people between labour "
+                         "segments, and this economy has none (ModelSpec.labour_segments)")
     survey.check(econ)
     f = survey.frame
     grp = f[survey.group].to_numpy()
@@ -411,11 +431,18 @@ def microsimulate(survey: Survey, reference, alternative, *, reconcile: bool = T
     size = f[survey.size].to_numpy(float)
     A_ref, A_alt = account_sources(reference), account_sources(alternative)
 
-    # Survey income by source: several columns may share one.
+    # Survey income by source: several columns may share one. Under the
+    # behavioural model, the labour segments come from the persons instead.
     sources = sorted(set(survey.sources.values()))
+    if persons is not None:
+        if any(":" in src and src.split(":")[0] in model_segments for src in sources):
+            raise ValueError("a labour segment is mapped by activity; under the behavioural "
+                             "model its income comes from the persons, so map it whole")
+        sources = [src for src in sources if src not in model_segments]
     Y = pd.DataFrame(0.0, index=f.index, columns=sources)
     for col, s in survey.sources.items():
-        Y[s] += f[col].to_numpy(float)
+        if s in Y.columns:                       # a segment's comes from the persons
+            Y[s] += f[col].to_numpy(float)
 
     recon_rows = []
     if reconcile:
@@ -441,6 +468,8 @@ def microsimulate(survey: Survey, reference, alternative, *, reconcile: bool = T
                 recon_rows.append(dict(group=h, source=s, survey=T, sam=A, factor=A / T))
             # A source the account has and the survey does not map at all.
             for s in _total_columns(econ):
+                if persons is not None and s in model_segments:
+                    continue
                 if s not in sources and abs(float(A_ref.at[h, s])) > 1e-9 and not any(
                         src.startswith(f"{s}:") for src in sources):
                     problems.append((h, s, 0.0, float(A_ref.at[h, s])))
@@ -465,7 +494,7 @@ def microsimulate(survey: Survey, reference, alternative, *, reconcile: bool = T
                          "employment by segment, so map the segment whole")
     w_alt = w.copy()
     calib_rows = []
-    reweighted = reweight and bool(seg_sources)
+    reweighted = reweight and bool(seg_sources) and persons is None
     if reweighted:
         U_ref = sum((m_["household_unemployed"] for m_ in reference.labour_markets.values()),
                     np.zeros(econ.n_hh))
@@ -514,7 +543,7 @@ def microsimulate(survey: Survey, reference, alternative, *, reconcile: bool = T
         m = grp == h
         if not m.any():
             continue
-        persons = float(w_alt[m] @ size[m])
+        people = float(w_alt[m] @ size[m])
         hi = econ.hhs.index(h)
         for s in sources:
             if s == "fixed":
@@ -529,7 +558,7 @@ def microsimulate(survey: Survey, reference, alternative, *, reconcile: bool = T
                     ratio = ratio / (e1 / e0) if abs(e0) > 1e-12 and abs(e1) > 1e-12 else ratio
                 Y_alt.loc[m, s] = Y.loc[m, s].to_numpy() * ratio
             elif abs(a1) > 1e-12:
-                Y_alt.loc[m, s] = a1 * size[m] / persons
+                Y_alt.loc[m, s] = a1 * size[m] / people
     # A source in neither the survey's mapping nor the reference, that the
     # alternative creates (a new transfer), is shared per person too.
     extra = pd.Series(0.0, index=f.index)
@@ -537,16 +566,46 @@ def microsimulate(survey: Survey, reference, alternative, *, reconcile: bool = T
         m = grp == h
         if not m.any():
             continue
-        persons = float(w_alt[m] @ size[m])
+        people = float(w_alt[m] @ size[m])
         for s in ("transfers", "remittances", "recycled"):
             if s in sources:
                 continue
             a0, a1 = float(A_ref.at[h, s]), float(A_alt.at[h, s])
             if abs(a0) <= 1e-12 and abs(a1) > 1e-12:
-                extra[m] += a1 * size[m] / persons
+                extra[m] += a1 * size[m] / people
     if extra.any():
         Y_alt["new_flows"] = extra
         Y["new_flows"] = 0.0
+
+    draws = None
+    if persons is not None:
+        from .behaviour import Behaviour, link
+        pf = persons.frame
+        household_of = f.index.get_indexer(pf[persons.household])
+        if np.any(household_of < 0):
+            bad = sorted(set(pf[persons.household][household_of < 0]))[:5]
+            raise ValueError(f"persons belong to households not in the survey: {bad}")
+        if behaviour is None:
+            present = set(pf[persons.status].astype(str))
+            behaviour = Behaviour.estimate(persons, [fac for fac in model_segments
+                                                     if fac in present],
+                                           weights=w[household_of])
+        out = link(persons, behaviour, person_group=grp[household_of],
+                   person_weight=w[household_of], household_of=household_of,
+                   n_households=len(f), hhs=list(econ.hhs), A_ref=A_ref, A_alt=A_alt,
+                   reference=reference, alternative=alternative, reconcile=reconcile,
+                   method=method, seed=seed, replications=replications)
+        for k, fac in enumerate(behaviour.segments):
+            Y[fac] = out["base"][:, k]
+            Y_alt[fac] = out["alt"][:, k]
+        if out["recon"]:
+            recon = pd.concat([recon, pd.DataFrame(out["recon"])], ignore_index=True)
+        calib = pd.DataFrame(out["calib"], columns=["group", "constraint", "base", "target",
+                                                    "reached", "iterations"])
+        if out["draws"] is not None:
+            labour_mean = out["alt"].sum(axis=1)
+            draws = (Y_alt.sum(axis=1).to_numpy()[:, None] - labour_mean[:, None]
+                     + out["draws"].sum(axis=2).T)            # gross income, (n_hh, R)
 
     gross_ref = Y.sum(axis=1).to_numpy()
     gross_alt = Y_alt.sum(axis=1).to_numpy()
@@ -565,6 +624,11 @@ def microsimulate(survey: Survey, reference, alternative, *, reconcile: bool = T
     else:
         P = (shares * rel_i).sum(axis=1)
 
+    real_draws = None
+    if draws is not None:
+        real_draws = draws * (1.0 - rate_alt[hidx])[:, None] / P[:, None]
+        gross_alt = draws.mean(axis=1)
+        disp_alt = gross_alt * (1.0 - rate_alt[hidx])
     frame = pd.DataFrame({
         "group": grp, "weight": w, "weight_alt": w_alt, "size": size,
         "gross_ref": gross_ref, "gross_alt": gross_alt,
@@ -578,9 +642,11 @@ def microsimulate(survey: Survey, reference, alternative, *, reconcile: bool = T
             if m.any():
                 rows.append(dict(group=h, column=col, workers=what,
                                  ref=float(w[m] @ x[m]), alt=float(w_alt[m] @ x[m])))
+    if persons is not None:
+        rows += out["workers"]
     workers = pd.DataFrame(rows, columns=["group", "column", "workers", "ref", "alt"])
     return MicroResult(frame=frame, income_ref=Y, income_alt=Y_alt, reconciliation=recon,
-                       calibration=calib, workers=workers)
+                       calibration=calib, workers=workers, replications=real_draws)
 
 
 def _rake(w, X, targets, *, names=None, group=None, tol=1e-12, max_iter=200):
@@ -670,17 +736,33 @@ def inequality(result: MicroResult, *, equivalence: float = 1.0,
                epsilons: Sequence[float] = (0.5, 1.0, 2.0)) -> pd.DataFrame:
     """Gini, Theil's T and L, GE(2) and Atkinson indices, in the two periods."""
     d = result.welfare(equivalence)
-    rows = {}
-    for col in ("ref", "alt"):
-        x, p = d[col].to_numpy(), d[f"persons_{col}"].to_numpy()
+
+    def measures(x, p):
         vals = {"gini": gini(x, p), "theil_t": theil(x, p), "theil_l": mean_log_deviation(x, p),
                 "ge_2": generalized_entropy(x, 2.0, p)}
         for e in epsilons:
             vals[f"atkinson_{e:g}"] = atkinson(x, e, p)
-        rows[col] = vals
-    out = pd.DataFrame(rows)
+        return pd.Series(vals)
+
+    out = pd.DataFrame({"ref": measures(d["ref"].to_numpy(), d["persons_ref"].to_numpy())})
+    alt, se = _over_replications(result, equivalence, d, measures)
+    out["alt"] = alt
+    if se is not None:
+        out["alt_se"] = se
     out["change"] = out["alt"] - out["ref"]
     return out
+
+
+def _over_replications(result, equivalence, d, measure):
+    """A measure in the alternative: on the mean incomes, or averaged over replications."""
+    p = d["persons_alt"].to_numpy()
+    if result.replications is None:
+        return measure(d["alt"].to_numpy(), p), None
+    scale = (result.frame["size"] ** float(equivalence)).to_numpy()
+    values = pd.concat([measure(result.replications[:, r] / scale, p)
+                        for r in range(result.replications.shape[1])], axis=1)
+    R = values.shape[1]
+    return values.mean(axis=1), values.std(axis=1, ddof=1) / np.sqrt(R)
 
 
 def poverty(result: MicroResult, lines, *, alphas: Sequence[int] = (0, 1, 2),
@@ -700,9 +782,22 @@ def poverty(result: MicroResult, lines, *, alphas: Sequence[int] = (0, 1, 2),
             for col in ("ref", "alt"):
                 persons = d[f"persons_{col}"]
                 if by_group:
+                    if col == "alt" and result.replications is not None:
+                        def contrib(x, p, z=z, a=a):
+                            dec = fgt_decomposition(x, z, a, d["group"], p)
+                            return dec["contribution"]
+                        mean, _ = _over_replications(result, equivalence, d, contrib)
+                        for g in mean.index:
+                            row[(col, g)] = float(mean[g])
+                        continue
                     dec = fgt_decomposition(d[col], z, a, d["group"], persons)
                     for g in dec.index:
                         row[(col, g)] = float(dec.at[g, "contribution"])
+                elif col == "alt" and result.replications is not None:
+                    mean, se = _over_replications(
+                        result, equivalence, d,
+                        lambda x, p, z=z, a=a: pd.Series({"v": fgt(x, z, a, p)}))
+                    row["alt"], row["alt_se"] = float(mean["v"]), float(se["v"])
                 else:
                     row[col] = fgt(d[col], z, a, persons)
             rows.append(row)

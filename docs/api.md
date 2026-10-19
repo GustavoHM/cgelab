@@ -580,7 +580,7 @@ not both. `budget` maps a spending column to a commodity. `workers` maps a
 head-count column to a segment or `"unemployed"`: the unemployed are a target of
 the reweighting, and every column is reported with both sets of weights. Weights and sizes must be positive.
 
-### `microsimulate(survey, reference, alternative, *, reconcile=True, reweight=True, price_index="geometric") -> MicroResult`
+### `microsimulate(survey, reference, alternative, *, reconcile=True, reweight=True, price_index="geometric", persons=None, behaviour=None, method="expected", seed=0, replications=100) -> MicroResult`
 
 Moves each household's income from a source as its account's does between the
 two solved periods, applies the account's direct tax rate, and deflates by the
@@ -591,7 +591,11 @@ source; a mismatch in which accounts have which sources is refused. With
 account: segment income at base wages moves as the account's employment in the
 segment, unemployed persons as its queue, households and every other source stay
 fixed; segment income per worker then moves with the wage. Targets no positive
-weights reach are refused by name.
+weights reach are refused by name. With `persons`, the behavioural model moves
+each person's status and earnings instead (below), the segment columns of
+`survey` are replaced by the members' earnings, and the weights stay;
+`behaviour` defaults to `Behaviour.estimate(persons, segments)` with the
+household weights; `method` is `"expected"` or `"draws"`.
 
 ### `MicroResult`
 
@@ -603,6 +607,31 @@ source), `reconciliation` (`group`, `source`, `survey`, `sam`, `factor`),
 `iterations`), `workers` (`group`, `column`, `workers`, `ref`, `alt`: persons
 with the old and the new weights), and `welfare(equivalence=1.0)` (real income
 per adult equivalent, and person weights `persons_ref` and `persons_alt`).
+In `"draws"` mode, `replications` holds real income in the alternative,
+households by replications, `real_alt` is its mean, and `inequality` and
+`poverty` add an `alt_se` column.
+
+### `PersonSurvey(frame, household="household", status="status", earnings="earnings", characteristics=(), choice_characteristics=None)`
+
+One row per person: the household's index in `Survey.frame`, a status (a
+segment, `"unemployed"`, `"inactive"`, ...), non-negative labour earnings, and
+the regressors of the earnings equations (`characteristics`) and of the choice
+(`choice_characteristics`, by default the same).
+
+### `Behaviour.estimate(persons, segments, *, weights=None, base=None) -> Behaviour`
+
+Earnings equations by weighted least squares on the segment's earners, and a
+multinomial logit over all statuses by maximum likelihood; `base` (default
+`"inactive"`) has zero coefficients. Fields: `statuses`, `base`, `segments`,
+`choice` (one row per status), `earnings` (`{segment: {"coef", "sigma", "n"}}`),
+`loglik`, `iterations`; methods `utilities(persons)` and
+`predicted_log_earnings(persons)`.
+
+### `transition_probabilities(V, delta) -> ndarray`
+
+`T[i, j, k]`: the probability that person `i` chooses `j` with utilities `V`
+and `k` with `V + delta`, under fixed i.i.d. Gumbel errors. Rows add up to the
+logit probabilities of the first choice, columns to those of the second.
 
 ### `account_sources(period) -> DataFrame`
 

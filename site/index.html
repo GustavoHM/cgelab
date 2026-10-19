@@ -421,6 +421,19 @@ cge.poverty(micro, 3.0)                   # headcount 0.698 to 0.731, poverty ga
   SAM, source by source, and the factors are reported rather than hidden. Who loses a formal job
   enters through the weights: within each account they are recalibrated so that the survey's
   formal and informal employment move as the model's, which is what moves the headcount.</p>
+
+  <h3>20. People who choose: a behavioural microsimulation</h3>
+<pre><code>people = cge.microsimulate(survey, ref_s, alt_s, persons=toy.persons())   # 42 synthetic persons
+people.workers                            # hh_1: formal 7.5 to 7.09, informal 2.5 to 3.31 persons
+cge.inequality(people).loc["gini"]        # 0.526 to 0.542
+drawn = cge.microsimulate(survey, ref_s, alt_s, persons=toy.persons(), method="draws",
+                          replications=200, seed=1)
+cge.inequality(drawn).loc["gini"]         # 0.526 to 0.544, standard error 0.0008</code></pre>
+  <p>An occupational choice (a multinomial logit) and earnings equations are estimated on the
+  persons, and the model reaches them through intercepts moved, account by account, until
+  employment and earnings per worker change as the model says, as in Bourguignon, Robilliard and
+  Robinson (2005). The default uses the exact expectation of their conditional draws; the draws
+  themselves give a Monte Carlo mean and its error.</p>
 </div></section>
 
 <section id="gates"><div class="wrap">

@@ -421,6 +421,19 @@ cge.poverty(micro, 3.0)                   # proporção de pobres de 0,698 para 
   à MCS, fonte por fonte, e os fatores são reportados em vez de escondidos. Quem perde o emprego
   formal entra pelos pesos: dentro de cada conta, eles são recalibrados para o emprego formal e
   informal da pesquisa variar como o do modelo, e é isso que move a proporção de pobres.</p>
+
+  <h3>20. Pessoas que escolhem: microssimulação comportamental</h3>
+<pre><code>pessoas = cge.microsimulate(pesquisa, ref_s, alt_s, persons=toy.persons())   # 42 pessoas sintéticas
+pessoas.workers                           # hh_1: formal de 7,5 para 7,09, informal de 2,5 para 3,31
+cge.inequality(pessoas).loc["gini"]       # de 0,526 para 0,542
+sorteado = cge.microsimulate(pesquisa, ref_s, alt_s, persons=toy.persons(), method="draws",
+                             replications=200, seed=1)
+cge.inequality(sorteado).loc["gini"]      # de 0,526 para 0,544, erro-padrão 0,0008</code></pre>
+  <p>Uma escolha ocupacional (logit multinomial) e equações de rendimento são estimadas nas
+  pessoas, e o modelo chega a elas por interceptos deslocados, conta por conta, até o emprego e o
+  rendimento por trabalhador variarem como o modelo diz, como em Bourguignon, Robilliard e
+  Robinson (2005). O padrão usa a expectativa exata dos sorteios condicionais; os próprios
+  sorteios dão uma média de Monte Carlo e o seu erro.</p>
 </div></section>
 
 <section id="portarias"><div class="wrap">

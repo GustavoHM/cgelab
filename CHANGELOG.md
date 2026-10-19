@@ -66,6 +66,20 @@ before 1.0, a minor version may add to the API and a patch version only fixes.
   report it, and the tables use each period's weights. Raking on cells that
   partition the sample gives the closed-form ratio per cell; the micro totals
   stay the model's to 1e-10 under a dual market and Harris–Todaro.
+- Behavioural microsimulation, in the manner of Bourguignon, Robilliard and
+  Robinson (2005). `microsimulate(..., persons=PersonSurvey(...))` estimates
+  earnings equations by segment and a multinomial logit of the occupational
+  choice (`Behaviour.estimate`, scipy only) and moves each person's status and
+  earnings by intercepts shifted per account until employment and earnings per
+  worker move as the model's do. `method="draws"` is BRR's conditional Gumbel
+  draws, with `seed` and `replications` and standard errors in the tables;
+  `method="expected"`, the default, is their limit in closed form
+  (`transition_probabilities`), which hits the targets exactly. `toy.persons()`
+  is a synthetic person survey. Checked: the logit matches closed forms (shares,
+  a saturated binary regressor) and, in `validation/logit_statsmodels.py`,
+  statsmodels' `MNLogit` to 1e-8; the transition probabilities add up to both
+  choices' logit probabilities to 1e-15 and agree with the draws; the micro labour
+  income of every account is the model's to 1e-10.
 - `welfare_decomposition` has a `factor_reallocation` term: what moving an
   imperfectly mobile factor between activities adds beyond its endowment. It is
   zero under a CET, by the envelope theorem, and the identity still closes.

@@ -285,6 +285,21 @@ microsimulation refuses rather than drop the income.
 
 ---
 
+## The expected draws, not only the draws
+
+BRR draw the choice residuals conditional on each person's observed status and
+let people move where the shifted utilities put them. Employment is then a step
+function of the intercepts: no Newton step hits a target exactly on a finite
+sample, and the answer depends on the seed. The expectation of those draws has a
+closed form, the transition probabilities of the logit under shifted
+intercepts, and it is smooth. The intercepts are solved on it, so the model's
+targets are met exactly and the result is reproducible without a seed. The
+draws stay available, from the same intercepts, with their Monte Carlo error
+reported, because the expectation of an inequality index is not the index of
+the expected incomes.
+
+---
+
 ## Negative value added is data
 
 An activity can report a negative operating surplus — a sector that collapsed in

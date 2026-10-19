@@ -69,3 +69,8 @@ def test_hosoe_tariff_abolition(roundtrip):
 def test_imperfect_factor_mobility(roundtrip):
     for case, r in roundtrip.casos_mobilidade().items():
         assert r["ok"], (case, r)
+
+
+def test_segmented_labour(roundtrip):
+    for case, r in roundtrip.casos_segmentos().items():
+        assert r["ok"], (case, r)

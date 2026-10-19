@@ -112,7 +112,7 @@ the goal is to cover the whole list by 1.0; each item's version is the one in
 | Government closures | 📄 IFPRI | **done**: fixed saving rate (Hosoe's), a saving target and fixed revenue (revenue-neutral replacement), met by the direct tax, the product tax or spending | 0.4 |
 | Bridge to `dsgelab` | — | **done**: a Ramsey CGE with investment set by an Euler equation; steady state, first order, perfect foresight and announced policy; the growth model in a one-good economy | 0.4 |
 | Imperfect factor mobility; proximity matrix | 📄 GTAP, ORANI | **done**: a CET (GTAP's sluggish endowments) or a logit across activities, pools of origin as a proximity matrix; exact against separate sector-specific factors at ω = 0 and against the JuMP replica | 0.6 |
-| Segmentation and informality | 📄 IFPRI | missing | 0.6 |
+| Segmentation and informality | 📄 IFPRI; Harris and Todaro | **done** for perfect mobility between segments: one labour market, a dual market and Harris–Todaro, with income that follows each household's workers; a transformation between segments is next | 0.6 |
 | Link to microsimulation; Gini and FGT | 📄 common practice | missing | 0.6 |
 | Dynamic calibration of the baseline; sectoral capital and vintages | 📄 MONASH, GDyn, LINKAGE | missing | 0.6 |
 | SAM construction and disaggregation | 📄 IFPRI, PEP | missing | 0.6 |

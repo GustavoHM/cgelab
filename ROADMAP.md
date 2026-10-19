@@ -156,8 +156,12 @@ across the activities that use a factor, and `calibrate(factor_pools=)`, pools o
 reach only the activities they supplied in the base year. That is the proximity matrix
 Lofgren and Cicowiez (2017) ask for, in which sectors hire from neighbouring occupations
 rather than from one national nest. Their food-export-price result is the replication still
-open. Labour closures on such a factor (unemployment by segment) come with segmentation and
-informality.
+open.
+
+**Segmentation and informality.** In progress in 0.6: `ModelSpec.labour_segments` and
+`Closure.labour_markets` (labour accounts that share one population; rigid segments, a dual
+market and Harris–Todaro; income that follows each household's workers). Next, a
+transformation between segments, with a queue for each rigid one.
 
 **Asymmetric Armington.** The substitution elasticity is one number per commodity. Cicowiez and
 Lofgren (2022) make it depend on the origin of the import. Their Mongolia 2015 workbook also

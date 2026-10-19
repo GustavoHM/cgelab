@@ -17,6 +17,8 @@ where a real SAM breaks a naive calibration:
   production, own-account work.
 * :func:`build_with_trade_taxes` -- part of the product tax moved onto a tariff
   account and an indirect tax on output, the TRF and IDT of Hosoe's ``stdcge``.
+* :func:`build_with_segmented_labour` -- labour split into a formal and an
+  informal account that share one population of workers.
 """
 
 from __future__ import annotations
@@ -29,6 +31,7 @@ from ..spec import ModelSpec
 
 __all__ = ["build", "build_with_margins", "build_with_own_production", "build_with_twin_accounts",
            "build_with_institutions", "build_with_specific_capital", "build_with_trade_taxes",
+           "build_with_segmented_labour",
            "build_one_good", "spec"]
 
 
@@ -220,6 +223,28 @@ def build_with_trade_taxes(model_spec: ModelSpec | None = None, **kwargs):
     sam = _frame(entries)
     econ = calibrate(sam, model_spec or spec(tariff_account="trf", indirect_tax_account="idt"),
                      **kwargs)
+    return sam, econ
+
+
+def build_with_segmented_labour(model_spec: ModelSpec | None = None, **kwargs):
+    """The plain economy with labour split into a formal and an informal account.
+
+    Industry pays its 70 of labour to ``f_for``, agriculture its 40 to
+    ``f_inf``, and the two form one group of segments, ``"labour"``: the same
+    people supply both. Formal labour is owned mostly by ``hh_1`` (60 of 70),
+    informal mostly by ``hh_2`` (30 of 40), so who loses a formal job matters
+    for the distribution. Capital is the numeraire.
+    """
+    drop = {("f_lab", "a_agr", 40.0), ("f_lab", "a_ind", 70.0),
+            ("hh_1", "f_lab", 70.0), ("hh_2", "f_lab", 40.0)}
+    entries = [e for e in _BASE if tuple(e) not in drop]
+    entries += [("f_inf", "a_agr", 40.0), ("f_for", "a_ind", 70.0),
+                ("hh_1", "f_inf", 10.0), ("hh_2", "f_inf", 30.0),
+                ("hh_1", "f_for", 60.0), ("hh_2", "f_for", 10.0)]
+    sam = _frame(entries)
+    econ = calibrate(sam, model_spec or spec(
+        factors=("f_cap", "f_for", "f_inf"), numeraire_factor="f_cap",
+        labour_segments={"labour": ["f_for", "f_inf"]}), **kwargs)
     return sam, econ
 
 

@@ -378,6 +378,24 @@ r_m.factor_pools["f_lab"]["price"]  # o que cada pool ganha: 0,993 o rural, 1,01
   quem ganha: o pool urbano trabalha sobretudo na indústria, que o choque expande. Com elasticidade
   zero, o modelo é o trabalho partido num fator por atividade, e
   <code>factor_mobility_form="logit"</code> preserva o número de pessoas em vez da fronteira CET.</p>
+
+  <h3>18. Um piso para o salário formal, e para onde vão os racionados</h3>
+<pre><code>_, econ_s = toy.build_with_segmented_labour()   # trabalho formal (indústria) e informal (lavoura)
+piso = cge.LabourMarket(rigid={"f_for": 1.1}, informal="f_inf")   # salário real formal 10% acima
+r_s = cge.solve_period(econ_s, cge.Closure(labour_markets={"labour": piso}))
+m = r_s.labour_markets["labour"]
+m["employment"]               # formal 66,2 e informal 43,8, eram 70 e 40
+m["wage"]                     # 1,097 o formal, 0,864 o informal
+m["household_employment"][0]  # hh_1: 56,8 formal, 13,2 informal, eram 60 e 10
+fila = cge.LabourMarket(rigid={"f_for": 1.1}, informal="f_inf",
+                        unemployment="harris_todaro", unemployment_rate=0.08)
+r_q = cge.solve_period(econ_s, cge.Closure(labour_markets={"labour": fila}))
+r_q.labour_markets["labour"]["unemployment_rate"]   # 0,196, era 0,08</code></pre>
+  <p>As duas contas de trabalho dividem uma população. No mercado dual, quem o setor formal deixa
+  de contratar trabalha no informal, e o salário informal cai; no Harris–Todaro, as pessoas
+  entram na fila do emprego formal até o salário informal igualar o formal esperado. Nos dois
+  casos, os empregos que o <code>hh_1</code> perde reaparecem como trabalho informal ou desemprego
+  dele mesmo, e não como renda dos domicílios que já eram informais.</p>
 </div></section>
 
 <section id="portarias"><div class="wrap">

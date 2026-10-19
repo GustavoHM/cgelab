@@ -35,6 +35,7 @@ import numpy as np
 from .calibrate import Economy
 from .closure import Closure
 from .mobility import period_endowments
+from .segments import period_groups
 from .scenario import Scenario, investment_shares
 from .solve import _marginal_budget_shares, _recycle_shares, _trade_curves
 
@@ -98,6 +99,16 @@ def to_jump(econ: Economy, closure: Closure | None = None, scenario: Scenario | 
     supply, endow = period_endowments(econ, sc)
     facshare = (econ.hh_facshare if sc.factor_ownership is None
                 else np.asarray(sc.factor_ownership, float))
+    grupos = period_groups(econ, closure, sc, supply, facshare)
+    if closure.labour != "full_employment" and any(lab in g.group.index for g in grupos):
+        raise ValueError(
+            f"closure.labour={closure.labour!r} on {closure.labour_factor!r}, which is a "
+            f"labour segment; make it rigid in Closure.labour_markets instead.")
+    # A renda de um grupo de segmentos segue os trabalhadores de cada domicílio, não a
+    # propriedade de cada segmento: as colunas do grupo saem da matriz de propriedade.
+    facshare_ef = np.array(facshare, dtype=float)
+    for g in grupos:
+        facshare_ef[:, g.group.index] = 0.0
     tfp = np.ones(na) if sc.productivity is None else np.asarray(sc.productivity, float)
     ptax_a = econ.ptax if sc.product_tax is None else np.asarray(sc.product_tax, float)
     ptax_f = ptax_a if sc.product_tax_firm is None else np.asarray(sc.product_tax_firm, float)
@@ -196,7 +207,7 @@ def to_jump(econ: Economy, closure: Closure | None = None, scenario: Scenario | 
         demand_coef=_l(coef), g_cap=_l(g_cap), g_gov=_l(g_gov),
         gamma_sum=_l(gamma_sum), gam_W=_l(gam_W), gam_Wg=_l(gam_Wg), Wt=_l(Wt),
         hh_committed=_l(econ.hh_committed), hh_savrate=_l(econ.hh_savrate),
-        facshare=_l(facshare), hh_direct=_l(econ.hh_direct), transfers=_l(transfers),
+        facshare=_l(facshare_ef), hh_direct=_l(econ.hh_direct), transfers=_l(transfers),
         les=bool(econ.spec.household_demand == "les"),
         # política
         wedge=_l(W), wedge_gov=_l(Wg),
@@ -280,6 +291,15 @@ def to_jump(econ: Economy, closure: Closure | None = None, scenario: Scenario | 
                        users=[bool(b) for b in m.users], delta=_l(m.delta),
                        endowment=_l(endow[i]))
                   for i, m in sorted(econ.mobility.items())],
+        # segmentos de trabalho: por grupo, os índices (base 1), os rígidos e seus alvos, os
+        # flexíveis, o informal, Harris–Todaro, λ, a fila e a força de trabalho de cada domicílio
+        segments=[dict(index=[int(i) + 1 for i in g.group.index],
+                       rigid=[int(i) + 1 for i in g.rigid], target=_l(g.target),
+                       flexible=[int(i) + 1 for i in g.flexible],
+                       informal=int(g.informal) + 1, harris_todaro=bool(g.harris_todaro),
+                       lam=float(g.lam), U0=float(g.U0), N=float(g.N),
+                       shares=_l(g.shares), workforce=_l(g.workforce), queue=_l(g.queue))
+                  for g in grupos],
     )
 
     path = Path(path)
@@ -469,8 +489,32 @@ end
 # Índice de Laspeyres dos preços ao comprador. No ano-base vale o numerário, e o salário real é
 # o salário nominal dividido por ele. Os pesos são as quantidades do ano-base.
 @expression(m, P, sum(pq[c] * q_lasp[c] for c in 1:nc) / sum(pq0_lasp[c] * q_lasp[c] for c in 1:nc))
+# Segmentos de trabalho. O emprego de um segmento rígido ou flexível é a demanda, uma variável
+# E igualada a ela adiante; o informal emprega o resto da força de trabalho, N − ΣE − U.
+const SEG = d.segments
+Eseg = Dict{Int,VariableRef}()
+Useg = Any[]
+pago_seg = Dict{Int,Any}()
+for (k, g) in enumerate(SEG)
+    for f in vcat(Int.(g.rigid), Int.(g.flexible))
+        Eseg[f] = @variable(m, lower_bound = 0.0, start = supply[f])
+    end
+    if Bool(g.harris_todaro)
+        push!(Useg, @variable(m, start = Float64(g.U0)))
+    else
+        push!(Useg, 0.0)
+    end
+    contratados = vcat(Int.(g.rigid), Int.(g.flexible))
+    for f in contratados
+        pago_seg[f] = Eseg[f]
+    end
+    pago_seg[Int(g.informal)] = @expression(m, Float64(g.N) - sum(Eseg[f] for f in contratados)
+                                               - Useg[k])
+end
 function paid_supply(f)
-    if labour_slack && f == LAB
+    if haskey(pago_seg, f)
+        return pago_seg[f]
+    elseif labour_slack && f == LAB
         return emp
     elseif LABOUR == "elastic_supply" && f == LAB
         return supply[f] * (w[f] / P) ^ eps_ls
@@ -673,9 +717,27 @@ renda_fator(f) = ismob[f] ? renda_mob[f] : w[f] * paid_supply(f)
 # A poupança forçada do fechamento de investimento real é distribuída PER CAPITA, e a receita
 # reciclada do gravame pela regra do cenário: são pesos distintos, e trocá-los inverteria o sinal
 # distributivo de um dos dois.
+# Renda do trabalho segmentado por domicílio: os empregos rígidos e flexíveis nas participações
+# do ano-base, a fila na proporção dos empregos rígidos do ano-base, e o resto no informal.
+function renda_seg(h)
+    tot = 0.0
+    for (k, g) in enumerate(SEG)
+        idx = Int.(g.index); sh = mat(g.shares); wf_ = vecf(g.workforce); fila = vecf(g.queue)
+        contratados = vcat(Int.(g.rigid), Int.(g.flexible))
+        emprego = 0.0
+        for (kk, f) in enumerate(idx)
+            f in contratados || continue
+            tot += w[f] * sh[h, kk] * Eseg[f] * (1 - gsh[f] - rsh[f])
+            emprego += sh[h, kk] * Eseg[f]
+        end
+        b = Int(g.informal)
+        tot += w[b] * (wf_[h] - emprego - fila[h] * Useg[k]) * (1 - gsh[b] - rsh[b])
+    end
+    return tot
+end
 @constraint(m, [h = 1:nh],
             hh_income[h] == sum(facshare[h, f] * renda_fator(f) * (1 - gsh[f] - rsh[f])
-                              for f in 1:nf)
+                              for f in 1:nf) + renda_seg(h)
                           + transfers[h] - levy * popsh[h] + uplift_rev * alpha[h]
                           + gov_tr[h] + remit[h])
 # O gasto sai da renda DISPONÍVEL: imposto direto primeiro, poupança depois.
@@ -815,6 +877,11 @@ for f in 1:nf
         end
         continue
     end
+    if haskey(pago_seg, f)
+        # o segmento emprega o que a demanda pede; o informal, o resto da força de trabalho
+        @constraint(m, facdem[f] == pago_seg[f])
+        continue
+    end
     if LABOUR == "fixed_real_wage" && f == LAB
         continue
     elseif LABOUR == "wage_curve" && f == LAB
@@ -827,6 +894,21 @@ for f in 1:nf
 end
 if LABOUR == "fixed_real_wage"
     @constraint(m, w[LAB] == real_wage_target * P)
+end
+for (k, g) in enumerate(SEG)
+    b = Int(g.informal)
+    for (f, alvo) in zip(Int.(g.rigid), vecf(g.target))
+        @constraint(m, w[f] == alvo * P)            # salário real fixo
+    end
+    for f in Int.(g.flexible)
+        @constraint(m, w[f] == w[b])                # o salário comum do informal
+    end
+    if Bool(g.harris_todaro)
+        # o salário informal é o salário rígido esperado por quem entra na fila
+        R = Int.(g.rigid)
+        @constraint(m, w[b] * (sum(Eseg[f] for f in R) + Useg[k])
+                       == Float64(g.lam) * sum(w[f] * Eseg[f] for f in R))
+    end
 end
 @expression(m, imports[c = 1:nc], mshm[c] * armsh[c] * Aabs[c] / (1 + tm0[c]))   # na fronteira
 @expression(m, exports[c = 1:nc], expfrac[c] * (1 + tauz0[c]) * Q[c])
@@ -873,6 +955,7 @@ out = Dict{String,Any}(
     "violacao_max" => viol, "walras" => walras,
     "w" => value.(w), "er" => value(er),
     "w_act" => [[value(wf(f, j)) for j in 1:na] for f in 1:nf],
+    "desemprego" => [value(u) for u in Useg],
     "pa" => value.(pa), "pd" => value.(pd),
     "pq" => [value(pq[c]) for c in 1:nc], "pqf" => [value(pqf[c]) for c in 1:nc],
     "pbase" => value.(pbase),

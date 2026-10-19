@@ -34,15 +34,8 @@ def split_labour(**spec):
 
 
 def unequal_ownership():
-    """Formal labour owned mostly by hh_1, informal mostly by hh_2."""
-    drop = {("f_lab", "a_agr", 40.0), ("f_lab", "a_ind", 70.0),
-            ("hh_1", "f_lab", 70.0), ("hh_2", "f_lab", 40.0)}
-    entries = [e for e in _BASE if tuple(e) not in drop]
-    entries += [("f_inf", "a_agr", 40.0), ("f_for", "a_ind", 70.0),
-                ("hh_1", "f_inf", 10.0), ("hh_2", "f_inf", 30.0),
-                ("hh_1", "f_for", 60.0), ("hh_2", "f_for", 10.0)]
-    return cge.calibrate(_frame(entries), toy.spec(
-        factors=("f_cap", "f_for", "f_inf"), numeraire_factor="f_cap", labour_segments=GROUP))
+    """Formal labour owned mostly by hh_1, informal mostly by hh_2 (the bundled toy)."""
+    return toy.build_with_segmented_labour()[1]
 
 
 def dual(real_wage=1.0):

@@ -20,6 +20,22 @@ before 1.0, a minor version may add to the API and a patch version only fixes.
   to 1e-10; the approach to perfect mobility goes as 1/ω. The JuMP replica
   carries the pools and the markets by activity, and six new round-trip cases
   match it to 1e-13.
+- Segmented labour. `ModelSpec.labour_segments = {group: [factor, ...]}` says that
+  several labour accounts (formal and informal, say) share one population, and
+  `Closure.labour_markets = {group: LabourMarket(...)}` how they clear. A rigid
+  segment pays a fixed real wage and hires what demand asks for; the informal
+  segment employs the rest of the labour force (a dual market), or workers queue
+  for rigid jobs until the informal wage equals the expected rigid wage
+  (Harris–Todaro, `λ = 1 / (1 − u0)` from the base-year unemployment rate). A
+  group with no rigid segment is one labour market. Each household keeps a fixed
+  workforce, so a lost formal job moves income to the informal segment within
+  the same household. `Scenario.labour_force`, `Growth(labour_factor=group)` and
+  `PeriodResult.labour_markets` (wages, employment, unemployment, employment by
+  household) go with it, and `toy.build_with_segmented_labour` is the example.
+  One labour market equals the toy with one mobile labour account exactly; a
+  rigid wage that does not bind rations nobody; Harris–Todaro approaches one
+  market as base-year unemployment vanishes, at a rate of u0. Four new JuMP
+  round-trip cases match to 1e-13.
 - `welfare_decomposition` has a `factor_reallocation` term: what moving an
   imperfectly mobile factor between activities adds beyond its endowment. It is
   zero under a CET, by the envelope theorem, and the identity still closes.
@@ -28,6 +44,9 @@ before 1.0, a minor version may add to the API and a patch version only fixes.
 
 - `real_gdp` values factor services by activity at base-year prices, which for a
   perfectly mobile factor is the same number as before.
+- The employment that is labour demand under a fixed real wage or a wage curve
+  is now found from a vector of probes, one per factor whose employment is
+  demand; with one such factor it is the two probes it was.
 
 ## 0.5.0 — 2026-10-18
 

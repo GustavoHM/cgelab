@@ -7,12 +7,13 @@ e uma inversão de Leontief. Cada uma é uma dedução do autor. Em JuMP nada di
 bloco é uma restrição e o Ipopt encontra o ponto fixo. Um erro na álgebra do Python não pode,
 portanto, ser reproduzido do outro lado por construção.
 
-Roda 40 casos sobre as economias de brinquedo do pacote: sem margens, com bloco de margens, com
+Roda 44 casos sobre as economias de brinquedo do pacote: sem margens, com bloco de margens, com
 atividade de conta própria, com CET, com curvas de demanda de exportação e de oferta de
 importação (país grande, como o `lrgcge`), com tarifa e imposto sobre o produto dentro dos preços
 (como o `stdcge`), com instituições (impostos diretos, transferências, remessas,
 capital do governo e do exterior, IED), com mobilidade imperfeita de fatores (CET ou logit, com e
-sem pools de origem), em cenário-base e com choques, em vários fechamentos.
+sem pools de origem), com trabalho segmentado (mercado único, dual e Harris–Todaro), em
+cenário-base e com choques, em vários fechamentos.
 
     cd validation && julia --project=. -e 'using Pkg; Pkg.instantiate()' && cd ..
     python validation/roundtrip_jump.py
@@ -34,18 +35,21 @@ from cgelab.examples import hosoe, toy
 
 AQUI = Path(__file__).resolve().parent
 OUT = AQUI / "out"
-CAMPOS = ("w", "w_act", "er", "pa", "pd", "pbase", "Q", "X", "hh_income", "hh_com_spend",
+CAMPOS = ("w", "w_act", "desemprego", "er", "pa", "pd", "pbase", "Q", "X", "hh_income", "hh_com_spend",
           "savings", "uplift_rev", "exports", "world_pe", "world_pm")
 
 
 def _rel(a, b, piso=1.0):
     a = np.atleast_1d(np.asarray(a, float))
     b = np.atleast_1d(np.asarray(b, float))
+    if a.size == 0 and b.size == 0:               # um campo que este caso não tem
+        return 0.0
     return float(np.max(np.abs(a - b) / np.maximum(np.abs(b), piso)))
 
 
 def _referencia(res) -> dict:
     return dict(w=list(res.factor_prices), w_act=res.factor_prices_by_activity.tolist(),
+                desemprego=[m["unemployment"] for m in (res.labour_markets or {}).values()],
                 er=res.exchange_rate, pa=list(res.pa),
                 pd=list(res.pd), pbase=list(res.pbase), Q=list(res.Q), X=list(res.X),
                 Aabs=list(res.absorption), hh_income=list(res.hh_income),
@@ -120,6 +124,41 @@ def casos_mobilidade() -> dict:
         "mobilidade_capital_energia", econ, cge.Closure(),
         cge.Scenario(name="ke", product_tax=econ.ptax * 1.5,
                      productivity=np.array([1.02, 1.0, 1.0])))
+    return casos
+
+
+def trabalho_segmentado():
+    """O trabalho do toy partido em formal (indústria) e informal (agricultura)."""
+    tira = {("f_lab", "a_agr", 40.0), ("f_lab", "a_ind", 70.0),
+            ("hh_1", "f_lab", 70.0), ("hh_2", "f_lab", 40.0)}
+    linhas = [e for e in toy._BASE if tuple(e) not in tira]
+    linhas += [("f_inf", "a_agr", 40.0), ("f_for", "a_ind", 70.0),
+               ("hh_1", "f_inf", 10.0), ("hh_2", "f_inf", 30.0),
+               ("hh_1", "f_for", 60.0), ("hh_2", "f_for", 10.0)]
+    return cge.calibrate(toy._frame(linhas), toy.spec(
+        factors=("f_cap", "f_for", "f_inf"), numeraire_factor="f_cap",
+        labour_segments={"trabalho": ["f_for", "f_inf"]}))
+
+
+def casos_segmentos() -> dict:
+    casos = {}
+    econ = trabalho_segmentado()
+    choque = cge.Scenario(name="segmentos", productivity=np.array([1.1, 1.0]),
+                          world_price=np.array([1.0, 1.2]))
+    dual = cge.LabourMarket(rigid={"f_for": 1.05}, informal="f_inf")
+    ht = cge.LabourMarket(rigid={"f_for": 1.1}, informal="f_inf", unemployment="harris_todaro",
+                          unemployment_rate=0.1)
+    casos["segmentos_mercado_unico"] = caso("segmentos_mercado_unico", econ, cge.Closure(), choque)
+    casos["segmentos_dual"] = caso(
+        "segmentos_dual", econ, cge.Closure(labour_markets={"trabalho": dual}), choque)
+    casos["segmentos_harris_todaro"] = caso(
+        "segmentos_harris_todaro", econ, cge.Closure(labour_markets={"trabalho": ht}), choque)
+    casos["segmentos_harris_todaro_fechamento_alternativo"] = caso(
+        "segmentos_harris_todaro_fechamento_alternativo", econ,
+        cge.Closure(labour_markets={"trabalho": ht}, investment="fixed_real",
+                    government="saving_rate"),
+        cge.Scenario(name="forca", labour_force={"trabalho": 125.0},
+                     product_tax=econ.ptax * 1.2))
     return casos
 
 
@@ -278,6 +317,9 @@ def main() -> int:
     # Mobilidade imperfeita do trabalho: CET ou logit entre as atividades, com e sem pools de
     # origem (a matriz de proximidade), e o capital CET dentro do composto capital-energia
     casos.update(casos_mobilidade())
+    # Trabalho segmentado: mercado único, dual e Harris–Todaro, com a renda seguindo os
+    # trabalhadores de cada domicílio
+    casos.update(casos_segmentos())
 
     _, econ = toy.build()
     casos["fechamento_alternativo"] = caso(

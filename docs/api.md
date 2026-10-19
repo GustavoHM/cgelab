@@ -57,6 +57,7 @@ Constructors: `SAM.from_long(df, row="row", col="col", value="value", name="sam"
 | `tariff_account` | `None` | account that collects the import tariff from commodities (Hosoe's TRF). The tariff goes inside the Armington import price |
 | `indirect_tax_account` | `None` | account that collects the indirect tax on all of output (Hosoe's IDT). The tax goes inside the gross output price the CET splits, so exports carry it |
 | `factor_mobility` | `None` | `{factor: ω}`, ω ≥ 0: the factor's endowment is transformed across the activities that use it, and each activity pays its own price. Zero holds the base-year allocation. A factor left out is perfectly mobile. Not the numeraire; not with `regions` |
+| `labour_segments` | `None` | `{group: [factor, ...]}`: labour accounts that share one population of workers; how they clear is `Closure.labour_markets`. Two or more factors each, not the numeraire, not in `factor_mobility` |
 | `factor_mobility_form` | `"cet"` | `"cet"` (a CET frontier, GTAP's sluggish endowments) or `"logit"` (shares of a fixed head count); one form, or a mapping by factor |
 
 Methods: `classify(sam) -> AccountLayout`, `prepare(sam)` (expands regional
@@ -131,7 +132,7 @@ Ordered name lists `acts`, `coms`, `hhs`, `factors`; counts `n_act`, `n_com`,
 
 ## Closure and scenario
 
-### `Closure(numeraire=1.0, investment="savings_driven", government="real_fixed", foreign="fixed_saving", foreign_saving_unit="numeraire", government_target=None, government_target_value=None, government_adjusts="direct_tax", exchange_rate=1.0, tolerance=1e-9, labour="full_employment", labour_factor="f_lab", real_wage=None, wage_curve_elasticity=0.1, natural_unemployment=0.0, labour_supply_elasticity=0.0)`
+### `Closure(numeraire=1.0, investment="savings_driven", government="real_fixed", foreign="fixed_saving", foreign_saving_unit="numeraire", government_target=None, government_target_value=None, government_adjusts="direct_tax", exchange_rate=1.0, tolerance=1e-9, labour="full_employment", labour_factor="f_lab", real_wage=None, wage_curve_elasticity=0.1, natural_unemployment=0.0, labour_supply_elasticity=0.0, labour_markets={})`
 
 `investment` ∈ `{"savings_driven", "fixed_real"}`;
 `government` ∈ `{"real_fixed", "nominal_fixed", "saving_rate"}`, the last saving
@@ -152,7 +153,21 @@ numeraire. `real_wage` pins the real wage (1 is the calibrated wage).
 `wage_curve_elasticity` and `natural_unemployment` are the Blanchflower–Oswald
 curve; the base year sits at the natural rate, because the SAM records
 employment. `labour_supply_elasticity` is ε in `L = L0 * (w/P) ** ε`.
+`labour_markets` maps each group of `ModelSpec.labour_segments` to a
+`LabourMarket`; a group left out is one labour market.
 Properties: `solves_exchange_rate`, `describe()`.
+
+### `LabourMarket(rigid={}, informal=None, unemployment="none", unemployment_rate=0.0)`
+
+How one group of labour segments clears. `rigid` maps a segment to its real
+wage (1 or `None` is the calibrated one); a rigid segment hires what demand asks
+for at that wage. `informal` is the segment that absorbs the rest of the labour
+force (default: the group's last); the segments that are neither share its wage.
+`unemployment="none"` is a dual market; `"harris_todaro"` puts the rationed in a
+queue until the informal wage equals the expected rigid wage, with
+`unemployment_rate` the base year's (strictly between 0 and 1) and
+`λ = 1 / (1 − rate)`. Each household keeps a fixed workforce: its base-year
+share of rigid jobs and of the queue, and the rest informal.
 
 ### `Scenario(...)`
 
@@ -160,6 +175,7 @@ Properties: `solves_exchange_rate`, `describe()`.
 |---|---|---|
 | `name` | str | carried into results and summaries |
 | `factor_supply` | `(nf,)` | absolute endowments |
+| `labour_force` | mapping | `{group: workers}` for each group of `ModelSpec.labour_segments`, the queue included; absent, the base year's scaled by the supply of the group's factors |
 | `pool_supply` | mapping | `{factor: endowment of each pool}` for an imperfectly mobile factor; absent, the pools scale with `factor_supply`, and when both are set they must agree on the total |
 | `factor_ownership` | `(nh, nf)` | ownership shares, columns sum to one |
 | `productivity` | `(na,)` | Hicks-neutral multiplier per activity |
@@ -213,6 +229,7 @@ of one price, with one market per activity.
 | `hh_quantity`, `hh_income`, `hh_commodity_spend`, `hh_direct_outlay`, `hh_wedge_paid` | the household block |
 | `gov_quantity`, `investment_quantity`, `savings`, `factor_demand` | the rest of final demand; for an imperfectly mobile factor, `factor_demand` is its endowment and `factor_prices` its income over that endowment |
 | `factor_demand_by_activity`, `factor_prices_by_activity` | `(nf, na)` factor use and the price each activity pays. Under a CET the use does not add up to the endowment off the base year |
+| `labour_markets` | `{group: {...}}` for each group of labour segments: `segments`, `informal`, `wage`, `real_wage`, `employment`, `labour_force`, `unemployment`, `unemployment_rate`, `harris_todaro`, `household_workforce`, `household_employment` `(nh, n_seg)`, `household_unemployed`; `None` without segments |
 | `factor_pools` | `{factor: {"pools", "price", "endowment", "supply"}}` for each imperfectly mobile factor, `supply` by pool and activity; `None` when every factor is mobile |
 | `wedge_revenue`, `government_cost` | recycled revenue; cost falling on the budget |
 | `input_coefficients`, `value_added_per_unit` | intermediate input and primary factor use (base-year value) per unit of output as solved; under an energy nest they answer to prices |
@@ -399,6 +416,9 @@ The `(2n, n)` standardised points of the rule.
 ---
 
 ## Dynamics
+
+`labour_factor` may name a group of `ModelSpec.labour_segments`, which then
+grows as a whole.
 
 ### `Growth(labour=0.0, tfp=0.0, depreciation=0.05, discount=0.05, labour_factor="f_lab", capital_factor="f_cap", allocation="proportional", productivity="hicks_neutral", investment_deflator="base_price")`
 

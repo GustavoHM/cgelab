@@ -378,6 +378,24 @@ r_m.factor_pools["f_lab"]["price"]  # what each pool earns: 0.993 rural, 1.010 u
   pool works mostly in industry, which the shock expands. At elasticity zero the model is labour
   split into one factor per activity, and <code>factor_mobility_form="logit"</code> keeps the head
   count instead of the CET frontier.</p>
+
+  <h3>18. A formal wage floor, and where the rationed go</h3>
+<pre><code>_, econ_s = toy.build_with_segmented_labour()   # formal (industry) and informal (farm) labour
+floor = cge.LabourMarket(rigid={"f_for": 1.1}, informal="f_inf")   # formal real wage 10% up
+r_s = cge.solve_period(econ_s, cge.Closure(labour_markets={"labour": floor}))
+m = r_s.labour_markets["labour"]
+m["employment"]               # formal 66.2 and informal 43.8, from 70 and 40
+m["wage"]                     # 1.097 formal, 0.864 informal
+m["household_employment"][0]  # hh_1: 56.8 formal, 13.2 informal, from 60 and 10
+queue = cge.LabourMarket(rigid={"f_for": 1.1}, informal="f_inf",
+                         unemployment="harris_todaro", unemployment_rate=0.08)
+r_q = cge.solve_period(econ_s, cge.Closure(labour_markets={"labour": queue}))
+r_q.labour_markets["labour"]["unemployment_rate"]   # 0.196, from 0.08</code></pre>
+  <p>The two labour accounts share one population. In a dual market everyone the formal sector
+  stops hiring works informally, and the informal wage falls; under Harris–Todaro they queue for
+  formal jobs until the informal wage equals the formal wage they expect. Either way the jobs
+  <code>hh_1</code> loses reappear as its own informal work or unemployment, not as income of the
+  households that were informal already.</p>
 </div></section>
 
 <section id="gates"><div class="wrap">

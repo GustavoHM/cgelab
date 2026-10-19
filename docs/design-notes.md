@@ -256,6 +256,19 @@ who moves toward a higher wage adds output. That is reported as
 `factor_reallocation`. Folding it into `endowment` would close the identity and
 hide where the gain came from.
 
+## A lost formal job stays in its household
+
+When labour is split into formal and informal accounts that share one
+population, the ownership of each account cannot stay fixed. A household that
+owned formal labour and lost formal jobs would lose that income, and the
+informal income those workers now earn would go, by the informal account's
+ownership, to the households that were already informal. The distribution would
+move because the accounts changed size: the failure "Composition is not
+welfare" describes, inside the factor block. So each household keeps a fixed
+workforce in the group. It holds its base-year share of rigid jobs and of the
+queue, and the rest of its workforce is informal. At the base year that is the
+SAM's ownership exactly; away from it, the informal income follows the people.
+
 ---
 
 ## Negative value added is data

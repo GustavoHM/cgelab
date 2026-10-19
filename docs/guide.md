@@ -407,8 +407,58 @@ For such a factor, `factor_prices` is its income over its endowment and
 `factor_demand_by_activity` holds the use by activity. The numeraire cannot be
 imperfectly mobile: its market is the Walras check, and with a price in every
 activity there is no single market to leave out. Labour closures other than
-full employment are refused on such a factor for now; segmentation and
-informality will bring them. Regional models refuse `factor_mobility`.
+full employment are refused on such a factor. Regional models refuse
+`factor_mobility`.
+
+### Formal and informal labour
+
+A SAM often pays labour through more than one account: formal and informal,
+covered and uncovered. Each is a factor the value-added nest demands on its
+own. `ModelSpec.labour_segments` says that the same people supply all of them,
+and `Closure.labour_markets` says how each segment's wage is set and where
+whoever a rigid segment does not hire goes.
+
+```python
+_, econ = toy.build_with_segmented_labour()      # f_for (industry), f_inf (farms)
+floor = cge.LabourMarket(rigid={"f_for": 1.1}, informal="f_inf")
+r = cge.solve_period(econ, cge.Closure(labour_markets={"labour": floor}))
+r.labour_markets["labour"]["employment"]          # formal 66.2 and informal 43.8, from 70 and 40
+```
+
+A rigid segment pays a fixed real wage (`1.1` is ten per cent above the
+calibrated one; `None` is the calibrated one) and hires what demand asks for at
+it. The segments that are not rigid share one wage, the informal segment's,
+and the informal segment employs the rest of the labour force:
+
+| `LabourMarket` | Where the rationed go | Equation |
+|---|---|---|
+| no rigid segment | nowhere: one labour market | `Σ D_g(w) = N` |
+| `unemployment="none"` | the informal segment (a dual market) | `E_inf = N − Σ E_g` |
+| `unemployment="harris_todaro"` | a queue for rigid jobs | `w_inf = λ Σ_R w_g E_g / (Σ_R E_g + U)` |
+
+Under Harris–Todaro, workers queue for rigid jobs until the informal wage equals
+the wage they expect from queueing. `unemployment_rate` is the base year's,
+`U / (E_R + U)`, and `λ = 1 / (1 − rate)` makes the base year reproduce the SAM.
+The informal wage can never rise above `λ` times the rigid one; a shock that
+asks for that is refused, because nobody would queue. Harris–Todaro does not
+tend to the dual market as the base rate goes to zero: it holds the informal
+wage at the expected rigid wage, and the dual market lets any gap stand.
+
+**Income follows the workers.** Each household has a fixed workforce in the
+group: its base-year jobs in every segment, plus its share of the queue. It
+holds its base-year share of each rigid segment's jobs and of the queue (the
+queue in proportion to its base-year rigid jobs), and the rest of its workforce
+works in the informal segment. A household that loses formal jobs gains
+informal ones, so the informal income goes to the people who lost formal work,
+not to the households that were already informal. At the base year this
+returns the SAM's ownership. `labour_markets[group]` reports, besides wages,
+employment and unemployment, `household_workforce`, `household_employment`
+(households by segments) and `household_unemployed`.
+
+`Scenario.labour_force` sets the population of a group, the queue included;
+absent, it is the base year's, scaled with the supply of the group's factors.
+`Growth(labour_factor="labour")` grows a group as a whole. A segment cannot
+also be the numeraire, sit in `factor_mobility`, or take `Closure.labour`.
 
 ---
 

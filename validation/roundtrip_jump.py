@@ -7,12 +7,13 @@ e uma inversão de Leontief. Cada uma é uma dedução do autor. Em JuMP nada di
 bloco é uma restrição e o Ipopt encontra o ponto fixo. Um erro na álgebra do Python não pode,
 portanto, ser reproduzido do outro lado por construção.
 
-Roda 44 casos sobre as economias de brinquedo do pacote: sem margens, com bloco de margens, com
+Roda 47 casos sobre as economias de brinquedo do pacote: sem margens, com bloco de margens, com
 atividade de conta própria, com CET, com curvas de demanda de exportação e de oferta de
 importação (país grande, como o `lrgcge`), com tarifa e imposto sobre o produto dentro dos preços
 (como o `stdcge`), com instituições (impostos diretos, transferências, remessas,
 capital do governo e do exterior, IED), com mobilidade imperfeita de fatores (CET ou logit, com e
-sem pools de origem), com trabalho segmentado (mercado único, dual e Harris–Todaro), em
+sem pools de origem), com trabalho segmentado (mercado único, dual, Harris–Todaro e transformação entre os
+segmentos), em
 cenário-base e com choques, em vários fechamentos.
 
     cd validation && julia --project=. -e 'using Pkg; Pkg.instantiate()' && cd ..
@@ -127,15 +128,18 @@ def casos_mobilidade() -> dict:
     return casos
 
 
-def trabalho_segmentado():
-    """O trabalho do toy partido em formal (indústria) e informal (agricultura)."""
+def _linhas_segmentadas():
     tira = {("f_lab", "a_agr", 40.0), ("f_lab", "a_ind", 70.0),
             ("hh_1", "f_lab", 70.0), ("hh_2", "f_lab", 40.0)}
     linhas = [e for e in toy._BASE if tuple(e) not in tira]
-    linhas += [("f_inf", "a_agr", 40.0), ("f_for", "a_ind", 70.0),
-               ("hh_1", "f_inf", 10.0), ("hh_2", "f_inf", 30.0),
-               ("hh_1", "f_for", 60.0), ("hh_2", "f_for", 10.0)]
-    return cge.calibrate(toy._frame(linhas), toy.spec(
+    return linhas + [("f_inf", "a_agr", 40.0), ("f_for", "a_ind", 70.0),
+                     ("hh_1", "f_inf", 10.0), ("hh_2", "f_inf", 30.0),
+                     ("hh_1", "f_for", 60.0), ("hh_2", "f_for", 10.0)]
+
+
+def trabalho_segmentado():
+    """O trabalho do toy partido em formal (indústria) e informal (agricultura)."""
+    return cge.calibrate(toy._frame(_linhas_segmentadas()), toy.spec(
         factors=("f_cap", "f_for", "f_inf"), numeraire_factor="f_cap",
         labour_segments={"trabalho": ["f_for", "f_inf"]}))
 
@@ -159,6 +163,17 @@ def casos_segmentos() -> dict:
                     government="saving_rate"),
         cge.Scenario(name="forca", labour_force={"trabalho": 125.0},
                      product_tax=econ.ptax * 1.2))
+    # Transformação entre os segmentos: CET e logit, com fila no segmento formal rígido
+    for forma in ("cet", "logit"):
+        econ = cge.calibrate(toy._frame(_linhas_segmentadas()), toy.spec(
+            factors=("f_cap", "f_for", "f_inf"), numeraire_factor="f_cap",
+            labour_segments={"trabalho": ["f_for", "f_inf"]},
+            segment_mobility={"trabalho": 2.0}, factor_mobility_form={"trabalho": forma}))
+        fila = cge.LabourMarket(rigid={"f_for": 1.1}, unemployment_rate=0.08)
+        nome = f"segmentos_transformacao_{forma}"
+        casos[nome] = caso(nome, econ, cge.Closure(labour_markets={"trabalho": fila}), choque)
+    casos["segmentos_transformacao_sem_rigido"] = caso(
+        "segmentos_transformacao_sem_rigido", econ, cge.Closure(investment="fixed_real"), choque)
     return casos
 
 

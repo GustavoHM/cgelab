@@ -58,6 +58,7 @@ Constructors: `SAM.from_long(df, row="row", col="col", value="value", name="sam"
 | `indirect_tax_account` | `None` | account that collects the indirect tax on all of output (Hosoe's IDT). The tax goes inside the gross output price the CET splits, so exports carry it |
 | `factor_mobility` | `None` | `{factor: ω}`, ω ≥ 0: the factor's endowment is transformed across the activities that use it, and each activity pays its own price. Zero holds the base-year allocation. A factor left out is perfectly mobile. Not the numeraire; not with `regions` |
 | `labour_segments` | `None` | `{group: [factor, ...]}`: labour accounts that share one population of workers; how they clear is `Closure.labour_markets`. Two or more factors each, not the numeraire, not in `factor_mobility` |
+| `segment_mobility` | `None` | `{group: ω}`: each household's workforce in a group of `labour_segments` split among its segments by a CET or a logit (`factor_mobility_form`, by group name); each flexible segment clears, each rigid one has a queue. A group left out has perfect mobility between its segments |
 | `factor_mobility_form` | `"cet"` | `"cet"` (a CET frontier, GTAP's sluggish endowments) or `"logit"` (shares of a fixed head count); one form, or a mapping by factor |
 
 Methods: `classify(sam) -> AccountLayout`, `prepare(sam)` (expands regional
@@ -161,13 +162,20 @@ Properties: `solves_exchange_rate`, `describe()`.
 
 How one group of labour segments clears. `rigid` maps a segment to its real
 wage (1 or `None` is the calibrated one); a rigid segment hires what demand asks
-for at that wage. `informal` is the segment that absorbs the rest of the labour
-force (default: the group's last); the segments that are neither share its wage.
-`unemployment="none"` is a dual market; `"harris_todaro"` puts the rationed in a
-queue until the informal wage equals the expected rigid wage, with
-`unemployment_rate` the base year's (strictly between 0 and 1) and
-`λ = 1 / (1 − rate)`. Each household keeps a fixed workforce: its base-year
-share of rigid jobs and of the queue, and the rest informal.
+for at that wage.
+
+Under perfect mobility between segments, `informal` is the segment that absorbs
+the rest of the labour force (default: the group's last), and the segments that
+are neither share its wage. `unemployment="none"` is a dual market;
+`"harris_todaro"` puts the rationed in a queue until the informal wage equals the
+expected rigid wage, with `unemployment_rate` the base year's (one rate,
+strictly between 0 and 1) and `λ = 1 / (1 − rate)`. Each household keeps a fixed
+workforce: its base-year share of rigid jobs and of the queue, and the rest
+informal.
+
+Under `ModelSpec.segment_mobility`, `informal` and Harris–Todaro are refused:
+every flexible segment clears, and `unemployment_rate` is each rigid segment's
+base-year queue as a share of its supply, one rate or `{factor: rate}`.
 
 ### `Scenario(...)`
 
@@ -229,7 +237,7 @@ of one price, with one market per activity.
 | `hh_quantity`, `hh_income`, `hh_commodity_spend`, `hh_direct_outlay`, `hh_wedge_paid` | the household block |
 | `gov_quantity`, `investment_quantity`, `savings`, `factor_demand` | the rest of final demand; for an imperfectly mobile factor, `factor_demand` is its endowment and `factor_prices` its income over that endowment |
 | `factor_demand_by_activity`, `factor_prices_by_activity` | `(nf, na)` factor use and the price each activity pays. Under a CET the use does not add up to the endowment off the base year |
-| `labour_markets` | `{group: {...}}` for each group of labour segments: `segments`, `informal`, `wage`, `real_wage`, `employment`, `labour_force`, `unemployment`, `unemployment_rate`, `harris_todaro`, `household_workforce`, `household_employment` `(nh, n_seg)`, `household_unemployed`; `None` without segments |
+| `labour_markets` | `{group: {...}}` for each group of labour segments: `segments`, `informal` (`None` under `segment_mobility`), `wage`, `real_wage`, `employment`, `supply`, `queue`, `labour_force`, `unemployment`, `unemployment_rate`, `harris_todaro`, `household_workforce`, `household_employment` `(nh, n_seg)`, `household_unemployed`; `None` without segments |
 | `factor_pools` | `{factor: {"pools", "price", "endowment", "supply"}}` for each imperfectly mobile factor, `supply` by pool and activity; `None` when every factor is mobile |
 | `wedge_revenue`, `government_cost` | recycled revenue; cost falling on the budget |
 | `input_coefficients`, `value_added_per_unit` | intermediate input and primary factor use (base-year value) per unit of output as solved; under an energy nest they answer to prices |

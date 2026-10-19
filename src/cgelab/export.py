@@ -298,7 +298,17 @@ def to_jump(econ: Economy, closure: Closure | None = None, scenario: Scenario | 
                        flexible=[int(i) + 1 for i in g.flexible],
                        informal=int(g.informal) + 1, harris_todaro=bool(g.harris_todaro),
                        lam=float(g.lam), U0=float(g.U0), N=float(g.N),
-                       shares=_l(g.shares), workforce=_l(g.workforce), queue=_l(g.queue))
+                       shares=_l(g.shares), workforce=_l(g.workforce), queue=_l(g.queue),
+                       # transformação entre segmentos: os domicílios com trabalho no grupo
+                       # são os pools, com as parcelas de oferta do ano-base
+                       transform=g.transform is not None,
+                       form=g.transform.form if g.transform is not None else "cet",
+                       omega=float(g.transform.omega) if g.transform is not None else 0.0,
+                       active=([bool(b) for b in g.active] if g.active is not None
+                               else [True] * econ.n_hh),
+                       delta=(_l(g.transform.delta) if g.transform is not None
+                              else _l(np.zeros((1, len(g.group.index))))),
+                       clearing=[int(i) + 1 for i in g.clearing])
                   for g in grupos],
     )
 
@@ -491,22 +501,62 @@ end
 @expression(m, P, sum(pq[c] * q_lasp[c] for c in 1:nc) / sum(pq0_lasp[c] * q_lasp[c] for c in 1:nc))
 # Segmentos de trabalho. O emprego de um segmento rígido ou flexível é a demanda, uma variável
 # E igualada a ela adiante; o informal emprega o resto da força de trabalho, N − ΣE − U.
+# Com transformação entre segmentos, cada domicílio é um pool da CET ou da logit: oferta S[h, k]
+# a cada segmento, aos salários dos segmentos; o flexível equilibra contra ela e o rígido deixa
+# na fila o que não contrata.
 const SEG = d.segments
 Eseg = Dict{Int,VariableRef}()
 Useg = Any[]
+SUP = Any[]
 pago_seg = Dict{Int,Any}()
 for (k, g) in enumerate(SEG)
     for f in vcat(Int.(g.rigid), Int.(g.flexible))
         Eseg[f] = @variable(m, lower_bound = 0.0, start = supply[f])
     end
+    contratados = vcat(Int.(g.rigid), Int.(g.flexible))
+    for f in contratados
+        pago_seg[f] = Eseg[f]
+    end
+    if Bool(g.transform)
+        idx = Int.(g.index); dl = mat(g.delta); ativos = findall(collect(Bool, g.active))
+        nw = vecf(g.workforce); om = Float64(g.omega); ns = length(idx)
+        S = Dict{Tuple{Int,Int},Any}()
+        if String(g.form) == "cet"
+            Wp = @variable(m, [a = 1:length(ativos)], lower_bound = 1e-8, start = 1.0)
+            for (a, h) in enumerate(ativos)
+                @constraint(m, Wp[a]^(1 + om) == sum(dl[a, kk] * w[idx[kk]]^(1 + om)
+                                                     for kk in 1:ns if dl[a, kk] > 0))
+                for kk in 1:ns
+                    dl[a, kk] > 0 || continue
+                    S[(h, kk)] = @expression(m, dl[a, kk] * nw[h] * (w[idx[kk]] / Wp[a])^om)
+                end
+            end
+        else
+            Zp = @variable(m, [a = 1:length(ativos)], lower_bound = 1e-12, start = 1.0)
+            for (a, h) in enumerate(ativos)
+                @constraint(m, Zp[a] == sum(dl[a, kk] * w[idx[kk]]^om for kk in 1:ns if dl[a, kk] > 0))
+                for kk in 1:ns
+                    dl[a, kk] > 0 || continue
+                    S[(h, kk)] = @expression(m, nw[h] * dl[a, kk] * w[idx[kk]]^om / Zp[a])
+                end
+            end
+        end
+        oferta_k = [@expression(m, sum(S[(h, kk)] for h in 1:nh if haskey(S, (h, kk))))
+                    for kk in 1:ns]
+        for f in Int.(g.clearing)
+            pago_seg[f] = oferta_k[findfirst(==(f), idx)]
+        end
+        R = [kk for kk in 1:ns if idx[kk] in Int.(g.rigid)]
+        push!(Useg, isempty(R) ? 0.0 :
+                    @expression(m, sum(oferta_k[kk] - Eseg[idx[kk]] for kk in R)))
+        push!(SUP, (S, oferta_k))
+        continue
+    end
+    push!(SUP, nothing)
     if Bool(g.harris_todaro)
         push!(Useg, @variable(m, start = Float64(g.U0)))
     else
         push!(Useg, 0.0)
-    end
-    contratados = vcat(Int.(g.rigid), Int.(g.flexible))
-    for f in contratados
-        pago_seg[f] = Eseg[f]
     end
     pago_seg[Int(g.informal)] = @expression(m, Float64(g.N) - sum(Eseg[f] for f in contratados)
                                                - Useg[k])
@@ -723,6 +773,16 @@ function renda_seg(h)
     tot = 0.0
     for (k, g) in enumerate(SEG)
         idx = Int.(g.index); sh = mat(g.shares); wf_ = vecf(g.workforce); fila = vecf(g.queue)
+        if Bool(g.transform)
+            # a oferta do domicílio; no rígido, contratada na proporção E / oferta total
+            S, oferta_k = SUP[k]
+            for (kk, f) in enumerate(idx)
+                haskey(S, (h, kk)) || continue
+                parte = f in Int.(g.rigid) ? S[(h, kk)] * Eseg[f] / oferta_k[kk] : S[(h, kk)]
+                tot += w[f] * parte * (1 - gsh[f] - rsh[f])
+            end
+            continue
+        end
         contratados = vcat(Int.(g.rigid), Int.(g.flexible))
         emprego = 0.0
         for (kk, f) in enumerate(idx)

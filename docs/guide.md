@@ -455,6 +455,34 @@ returns the SAM's ownership. `labour_markets[group]` reports, besides wages,
 employment and unemployment, `household_workforce`, `household_employment`
 (households by segments) and `household_unemployed`.
 
+**A transformation between segments.** `ModelSpec.segment_mobility =
+{"labour": ω}` replaces perfect mobility with the transformation of the
+previous section: each household's workforce is a pool, split among the
+segments by a CET or a logit (`factor_mobility_form`, which takes the group's
+name) at the segments' wages. Each flexible segment then has its own wage,
+which clears it against that supply. A rigid segment hires what demand asks for,
+and the rest of its supply queues in it; `unemployment_rate` is the base-year
+queue as a share of the segment's supply, one rate or `{factor: rate}`. There is
+no informal buffer and no Harris–Todaro rule here, and both are refused.
+
+```python
+spec = toy.spec(factors=("f_cap", "f_for", "f_inf"), numeraire_factor="f_cap",
+                labour_segments={"labour": ["f_for", "f_inf"]},
+                segment_mobility={"labour": 2.0})
+_, econ = toy.build_with_segmented_labour(model_spec=spec)
+queue = cge.LabourMarket(rigid={"f_for": 1.1}, unemployment_rate=0.08)
+r = cge.solve_period(econ, cge.Closure(labour_markets={"labour": queue}))
+r.labour_markets["labour"]["queue"]       # 18.6 queue for formal jobs, from 6.1
+```
+
+A rigid segment hires every household's supply in the same proportion, so the
+income still follows the workers. At ω = 0 with no base-year queue, a group with
+one rigid and one flexible segment is exactly the two factors kept apart under
+`Closure(labour="fixed_real_wage")`; as ω grows it approaches one labour market,
+at a rate of 1/ω. `labour_markets[group]` reports each segment's `supply` and
+`queue` in both modes; under perfect mobility the supply is the employment and
+the queue, if any, is the group's.
+
 `Scenario.labour_force` sets the population of a group, the queue included;
 absent, it is the base year's, scaled with the supply of the group's factors.
 `Growth(labour_factor="labour")` grows a group as a whole. A segment cannot

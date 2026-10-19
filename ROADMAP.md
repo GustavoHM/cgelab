@@ -158,10 +158,12 @@ Lofgren and Cicowiez (2017) ask for, in which sectors hire from neighbouring occ
 rather than from one national nest. Their food-export-price result is the replication still
 open.
 
-**Segmentation and informality.** In progress in 0.6: `ModelSpec.labour_segments` and
+**Segmentation and informality.** Done in 0.6: `ModelSpec.labour_segments` and
 `Closure.labour_markets` (labour accounts that share one population; rigid segments, a dual
-market and Harris–Todaro; income that follows each household's workers). Next, a
-transformation between segments, with a queue for each rigid one.
+market and Harris–Todaro, or `segment_mobility`, a CET or logit between segments with a queue
+in each rigid one; income that follows each household's workers). Still open: employment in
+persons rather than in base-year wage units, unemployment benefits, and a wage curve by
+segment.
 
 **Asymmetric Armington.** The substitution elasticity is one number per commodity. Cicowiez and
 Lofgren (2022) make it depend on the origin of the import. Their Mongolia 2015 workbook also

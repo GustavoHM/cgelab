@@ -406,6 +406,18 @@ r_b.labour_markets["labour"]["queue"]   # 18.6 queue for formal jobs, from 6.1</
   households that were informal already. With <code>segment_mobility</code> the workers are split
   between the segments by a CET instead, the informal wage clears on its own, and those the
   formal sector does not hire queue for it.</p>
+
+  <h3>19. Poverty and inequality, in a survey's households</h3>
+<pre><code>survey = toy.survey()                     # twelve synthetic households, written by hand
+ref_s = cge.solve_period(econ_s)
+alt_s = cge.solve_period(econ_s, cge.Closure(labour_markets={"labour": floor}))
+micro = cge.microsimulate(survey, ref_s, alt_s)
+micro.reconciliation                      # hh_1's formal wages scaled by 60/51 to the SAM
+cge.inequality(micro)                     # Gini 0.531 to 0.542, Theil T 0.527 to 0.547
+cge.poverty(micro, 3.0)                   # poverty gap 0.459 to 0.462; headcount unchanged</code></pre>
+  <p>Each survey household belongs to a SAM account: its income from each source moves as its
+  account's does, and its own budget sets its price index. The survey is first scaled to the
+  SAM, source by source, and the factors are reported rather than hidden.</p>
 </div></section>
 
 <section id="gates"><div class="wrap">

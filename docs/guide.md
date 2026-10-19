@@ -18,6 +18,7 @@
 16. [Emissions and a carbon price](#16-emissions-and-a-carbon-price)
 17. [Forward-looking investment, through dsgelab](#17-forward-looking-investment-through-dsgelab)
 18. [Physical units](#18-physical-units)
+19. [Microsimulation: poverty and inequality](#19-microsimulation-poverty-and-inequality)
 
 The examples assume `import cgelab as cge` (and `numpy as np` where it appears).
 They are fragments: `econ` is a calibrated economy and `...` marks where your own
@@ -1086,3 +1087,62 @@ constant under Leontief inputs and moves with fuel prices under an energy nest.
 coefficient stated in physical units (kilowatt-hours of electricity per kilogram
 of output, say) into the money entry per unit of output value, at purchaser prices.
 Capacity in physical units, as a constraint, needs complementarity and waits for 0.8.
+
+---
+
+## 19. Microsimulation: poverty and inequality
+
+The SAM has a few household accounts; poverty and inequality live in the
+households a survey records. `cgelab.micro` carries a solved counterfactual to
+them top-down. Each survey household belongs to an account, its income from
+each source moves as that account's income from the source moves in the model,
+and its cost of living moves with its own budget at the prices its account pays.
+The survey households have no behaviour of their own here.
+
+```python
+_, econ = toy.build_with_segmented_labour()
+floor = cge.LabourMarket(rigid={"f_for": 1.1}, informal="f_inf")
+ref = cge.solve_period(econ)
+alt = cge.solve_period(econ, cge.Closure(labour_markets={"labour": floor}))
+micro = cge.microsimulate(toy.survey(), ref, alt)
+cge.inequality(micro)          # Gini, Theil T and L, GE(2), Atkinson, in both periods
+cge.poverty(micro, 3.0)        # FGT 0, 1 and 2 at a line of 3 per person
+```
+
+**The survey.** `cge.Survey(frame, sources=..., budget=...)` takes one row per
+household, with its account (`group`), survey weight and size. `sources` maps
+each income column to what moves it: a factor (`"f_cap"`), a factor in one
+activity (`"f_lab:a_agr"`, which follows that activity's price under imperfect
+mobility), `"transfers"`, `"remittances"`, `"recycled"` (wedge revenue returned
+to households) or `"fixed"` (held in nominal terms). `budget` maps spending
+columns to commodities; without it, each household uses its account's budget.
+`toy.survey()` is a synthetic survey of twelve households, written by hand.
+
+**Reconciliation.** A survey never adds up to the SAM. By default each source of
+each account is scaled so that the weighted survey total is the account's, and
+`micro.reconciliation` lists the factors; on the toy survey, formal wages of
+`hh_1` are scaled by 60/51. A survey and a SAM that disagree on whether an
+account has a source at all are refused, by account and source, because no
+scaling reconciles them. `reconcile=False` keeps the survey's levels and applies
+only the relative changes, and the micro totals then no longer add up to the
+model. A source an account did not have in the reference and has in the
+alternative, a new transfer, is shared per person among its households.
+
+**Incomes and prices.** `account_sources(period)` is what each account earns,
+by source, in a solved period; the factor columns and the last three add up to
+`period.hh_income`. Disposable income takes the account's direct tax rate. The
+price index is geometric in the household's own budget shares, the exact index
+for Cobb–Douglas and the one the model uses for its accounts, so a survey with
+one household per account, holding the SAM's incomes, gives back the model's
+real incomes. `price_index="laspeyres"` is the alternative; it is never below
+the geometric one. Real income is at the reference period's prices, and so is
+the poverty line.
+
+**Measures.** `gini`, `fgt`, `generalized_entropy` (`theil` is GE(1),
+`mean_log_deviation` GE(0)) and `atkinson` take any vector and weights.
+`ge_decomposition` splits GE(α) into inequality within and between groups,
+exactly, and `fgt_decomposition` gives each group's contribution to FGT(α).
+`inequality` and `poverty` tabulate them per person, weighting by the survey
+weight times the household size; `equivalence=θ` divides by `size ** θ`
+instead (0.5 is the square-root scale). `poverty(..., by_group=True)` adds each
+account's contribution.

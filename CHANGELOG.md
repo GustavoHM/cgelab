@@ -45,6 +45,18 @@ before 1.0, a minor version may add to the API and a patch version only fixes.
   exactly two factors under `Closure(labour="fixed_real_wage")`, to 1e-10; as ω
   grows it approaches one labour market at a rate of 1/ω. Three new JuMP
   round-trip cases match to 1e-13.
+- Microsimulation (`cgelab.micro`). `microsimulate(survey, reference, alternative)`
+  carries a counterfactual top-down to the households of a `Survey`: income by
+  source moves as the household's SAM account's does, disposable income takes
+  the account's direct tax, and each household's own geometric (or Laspeyres)
+  price index deflates it. The survey is scaled to the SAM by account and source
+  first, and the factors are reported. `account_sources` gives each account's
+  income by source. The measures `gini`, `fgt`, `generalized_entropy` (`theil`,
+  `mean_log_deviation`) and `atkinson`, the exact decompositions of GE by
+  within and between groups and of FGT by group, and the tables `inequality` and
+  `poverty`. `toy.survey()` is a synthetic survey. A survey that is the SAM
+  gives back the model's incomes and real incomes to 1e-12; the measures match
+  closed forms and a brute-force Gini.
 - `welfare_decomposition` has a `factor_reallocation` term: what moving an
   imperfectly mobile factor between activities adds beyond its endowment. It is
   zero under a CET, by the envelope theorem, and the identity still closes.

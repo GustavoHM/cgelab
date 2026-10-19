@@ -271,6 +271,20 @@ SAM's ownership exactly; away from it, the informal income follows the people.
 
 ---
 
+## A survey is scaled to the SAM, and the scale is reported
+
+A survey and a SAM never agree: a survey understates capital income, a SAM is
+balanced by hand. Carrying the model's changes to unscaled survey incomes gives
+micro totals that move differently from the model's accounts, because each
+account's mix of sources is the survey's and not the SAM's. Scaling each source
+of each account to the SAM makes the micro totals the model's, source by source.
+The factors are the size of the disagreement, so they are returned, not
+discarded, as with the reluctant RAS. Where the survey and the SAM disagree on
+whether an account has a source at all, no factor reconciles them, and the
+microsimulation refuses rather than drop the income.
+
+---
+
 ## Negative value added is data
 
 An activity can report a negative operating surplus — a sector that collapsed in

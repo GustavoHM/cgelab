@@ -406,6 +406,18 @@ r_b.labour_markets["labour"]["queue"]   # 18,6 na fila do emprego formal, eram 6
   dele mesmo, e não como renda dos domicílios que já eram informais. Com
   <code>segment_mobility</code>, os trabalhadores se repartem entre os segmentos por uma CET, o
   salário informal se equilibra sozinho, e quem o setor formal não contrata fica na fila dele.</p>
+
+  <h3>19. Pobreza e desigualdade nos domicílios de uma pesquisa</h3>
+<pre><code>pesquisa = toy.survey()                   # doze domicílios sintéticos, escritos à mão
+ref_s = cge.solve_period(econ_s)
+alt_s = cge.solve_period(econ_s, cge.Closure(labour_markets={"labour": piso}))
+micro = cge.microsimulate(pesquisa, ref_s, alt_s)
+micro.reconciliation                      # salários formais do hh_1 escalados por 60/51 até a MCS
+cge.inequality(micro)                     # Gini de 0,531 para 0,542, Theil T de 0,527 para 0,547
+cge.poverty(micro, 3.0)                   # hiato de pobreza de 0,459 para 0,462; proporção igual</code></pre>
+  <p>Cada domicílio da pesquisa pertence a uma conta da MCS: sua renda de cada fonte varia como a
+  da conta, e o seu próprio orçamento define o seu índice de preços. Antes, a pesquisa é escalada
+  à MCS, fonte por fonte, e os fatores são reportados em vez de escondidos.</p>
 </div></section>
 
 <section id="portarias"><div class="wrap">

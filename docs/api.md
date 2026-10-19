@@ -569,6 +569,55 @@ GEMPACK header array files, the format of the GTAP database. Types `1C`, `2I`,
 
 ---
 
+## Microsimulation (`cgelab.micro`)
+
+### `Survey(frame, sources, group="group", weight="weight", size="size", budget=None, workers=None)`
+
+One row per household. `sources` maps an income column to a factor, a
+`"factor:activity"`, `"transfers"`, `"remittances"`, `"recycled"` or `"fixed"`;
+several columns may share a source, and a factor is mapped whole or by activity,
+not both. `budget` maps a spending column to a commodity. `workers` is read by
+the reweighting (next). Weights and sizes must be positive.
+
+### `microsimulate(survey, reference, alternative, *, reconcile=True, price_index="geometric") -> MicroResult`
+
+Moves each household's income from a source as its account's does between the
+two solved periods, applies the account's direct tax rate, and deflates by the
+household's own price index (`"geometric"` or `"laspeyres"`). With `reconcile`,
+the survey is first scaled to the reference's account incomes by account and
+source; a mismatch in which accounts have which sources is refused.
+
+### `MicroResult`
+
+`frame` (one row per household: `group`, `weight`, `size`, `gross_ref`,
+`gross_alt`, `disposable_ref`, `disposable_alt`, `price_index`, `real_ref`,
+`real_alt`), `income_ref` and `income_alt` (by household and source),
+`reconciliation` (`group`, `source`, `survey`, `sam`, `factor`), and
+`welfare(equivalence=1.0)` (real income per adult equivalent and person weights).
+
+### `account_sources(period) -> DataFrame`
+
+Each household account's gross income by source in a solved period: every
+factor, every `"factor:activity"`, `"transfers"`, `"remittances"`, `"recycled"`.
+
+### `inequality(result, *, equivalence=1.0, epsilons=(0.5, 1.0, 2.0)) -> DataFrame` / `poverty(result, lines, *, alphas=(0, 1, 2), by_group=False, equivalence=1.0) -> DataFrame`
+
+Gini, Theil T and L, GE(2) and Atkinson indices; FGT by line and α. Columns
+`ref`, `alt`, `change`; with `by_group`, `(period, account)` with a `total`.
+
+### `gini(x, weights=None)`, `fgt(x, line, alpha=0, weights=None)`, `generalized_entropy(x, alpha=1.0, weights=None)`, `theil`, `mean_log_deviation`, `atkinson(x, epsilon=1.0, weights=None)`
+
+The measures on any vector. The entropy indices and Atkinson with ε > 0 need
+positive incomes; the Gini needs a positive mean; the poor are strictly below
+the line.
+
+### `ge_decomposition(x, alpha, groups, weights=None)` / `fgt_decomposition(x, line, alpha, groups, weights=None)`
+
+GE(α) within and between groups (rows per group, `within`, `between`,
+`total`); FGT(α) by group, the contributions adding up to the total.
+
+---
+
 ## Diagnostics
 
 | Function | Answers |

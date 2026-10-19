@@ -413,11 +413,14 @@ ref_s = cge.solve_period(econ_s)
 alt_s = cge.solve_period(econ_s, cge.Closure(labour_markets={"labour": floor}))
 micro = cge.microsimulate(survey, ref_s, alt_s)
 micro.reconciliation                      # hh_1's formal wages scaled by 60/51 to the SAM
-cge.inequality(micro)                     # Gini 0.531 to 0.542, Theil T 0.527 to 0.547
-cge.poverty(micro, 3.0)                   # poverty gap 0.459 to 0.462; headcount unchanged</code></pre>
+micro.calibration                         # weights that move formal jobs as the model does
+cge.inequality(micro)                     # Gini 0.531 to 0.556, Theil T 0.527 to 0.577
+cge.poverty(micro, 3.0)                   # headcount 0.698 to 0.731, poverty gap 0.459 to 0.490</code></pre>
   <p>Each survey household belongs to a SAM account: its income from each source moves as its
   account's does, and its own budget sets its price index. The survey is first scaled to the
-  SAM, source by source, and the factors are reported rather than hidden.</p>
+  SAM, source by source, and the factors are reported rather than hidden. Who loses a formal job
+  enters through the weights: within each account they are recalibrated so that the survey's
+  formal and informal employment move as the model's, which is what moves the headcount.</p>
 </div></section>
 
 <section id="gates"><div class="wrap">

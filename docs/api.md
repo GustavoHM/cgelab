@@ -576,24 +576,33 @@ GEMPACK header array files, the format of the GTAP database. Types `1C`, `2I`,
 One row per household. `sources` maps an income column to a factor, a
 `"factor:activity"`, `"transfers"`, `"remittances"`, `"recycled"` or `"fixed"`;
 several columns may share a source, and a factor is mapped whole or by activity,
-not both. `budget` maps a spending column to a commodity. `workers` is read by
-the reweighting (next). Weights and sizes must be positive.
+not both. `budget` maps a spending column to a commodity. `workers` maps a
+head-count column to a segment or `"unemployed"`: the unemployed are a target of
+the reweighting, and every column is reported with both sets of weights. Weights and sizes must be positive.
 
-### `microsimulate(survey, reference, alternative, *, reconcile=True, price_index="geometric") -> MicroResult`
+### `microsimulate(survey, reference, alternative, *, reconcile=True, reweight=True, price_index="geometric") -> MicroResult`
 
 Moves each household's income from a source as its account's does between the
 two solved periods, applies the account's direct tax rate, and deflates by the
 household's own price index (`"geometric"` or `"laspeyres"`). With `reconcile`,
 the survey is first scaled to the reference's account incomes by account and
-source; a mismatch in which accounts have which sources is refused.
+source; a mismatch in which accounts have which sources is refused. With
+`reweight` and labour segments, the weights are calibrated by raking within each
+account: segment income at base wages moves as the account's employment in the
+segment, unemployed persons as its queue, households and every other source stay
+fixed; segment income per worker then moves with the wage. Targets no positive
+weights reach are refused by name.
 
 ### `MicroResult`
 
-`frame` (one row per household: `group`, `weight`, `size`, `gross_ref`,
-`gross_alt`, `disposable_ref`, `disposable_alt`, `price_index`, `real_ref`,
-`real_alt`), `income_ref` and `income_alt` (by household and source),
-`reconciliation` (`group`, `source`, `survey`, `sam`, `factor`), and
-`welfare(equivalence=1.0)` (real income per adult equivalent and person weights).
+`frame` (one row per household: `group`, `weight`, `weight_alt`, `size`,
+`gross_ref`, `gross_alt`, `disposable_ref`, `disposable_alt`, `price_index`,
+`real_ref`, `real_alt`), `income_ref` and `income_alt` (by household and
+source), `reconciliation` (`group`, `source`, `survey`, `sam`, `factor`),
+`calibration` (`group`, `constraint`, `base`, `target`, `reached`,
+`iterations`), `workers` (`group`, `column`, `workers`, `ref`, `alt`: persons
+with the old and the new weights), and `welfare(equivalence=1.0)` (real income
+per adult equivalent, and person weights `persons_ref` and `persons_alt`).
 
 ### `account_sources(period) -> DataFrame`
 

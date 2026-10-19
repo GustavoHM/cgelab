@@ -1138,11 +1138,30 @@ real incomes. `price_index="laspeyres"` is the alternative; it is never below
 the geometric one. Real income is at the reference period's prices, and so is
 the poverty line.
 
+**Reweighting.** Under labour segments, scaling every household's wages by its
+account's would spread a lost formal job thinly over everyone who had one. With
+`reweight=True`, the default, who works where changes through the survey weights
+instead. Within each account they are calibrated by raking (Deville and Särndal,
+1992), the weights staying positive: the survey's income in each segment, at
+base-year wages, moves as the account's employment in the segment does; its
+unemployed persons (a `Survey.workers` column mapped to `"unemployed"`) move as
+the account's queue does, when the model has one; the number of households and
+every other source stay where they were. Each segment's income per worker then
+moves with its wage, so the micro totals are still the model's.
+`micro.calibration` lists each constraint's base, target and the total reached;
+`micro.workers` the persons in each `workers` column with the old weights and
+the new; `frame["weight_alt"]` the weights; and every table uses each period's
+own weights. A survey whose households in an account cannot reach the targets
+with positive weights is refused, naming the constraint: Harris–Todaro
+unemployment moves a lot for a small change in the rigid wage, and a small
+survey spans only so much of it. One household per account cannot be reweighted
+at all; `reweight=False` keeps the weights.
+
 **Measures.** `gini`, `fgt`, `generalized_entropy` (`theil` is GE(1),
 `mean_log_deviation` GE(0)) and `atkinson` take any vector and weights.
 `ge_decomposition` splits GE(α) into inequality within and between groups,
 exactly, and `fgt_decomposition` gives each group's contribution to FGT(α).
-`inequality` and `poverty` tabulate them per person, weighting by the survey
-weight times the household size; `equivalence=θ` divides by `size ** θ`
+`inequality` and `poverty` tabulate them per person, weighting by each period's
+survey weight times the household size; `equivalence=θ` divides by `size ** θ`
 instead (0.5 is the square-root scale). `poverty(..., by_group=True)` adds each
 account's contribution.

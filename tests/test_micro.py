@@ -187,7 +187,8 @@ def test_a_survey_that_is_the_sam_gives_back_the_model(case):
     _, econ = build()
     ref = cge.solve_period(econ, closure)
     alt = cge.solve_period(econ, closure, scenario(econ))
-    res = micro.microsimulate(sam_as_survey(ref), ref, alt)
+    # One household per account cannot be reweighted: it is the account.
+    res = micro.microsimulate(sam_as_survey(ref), ref, alt, reweight=False)
     f = res.frame
     rate = lambda p: p.hh_direct_tax / p.hh_income
     np.testing.assert_allclose(f["disposable_ref"], ref.hh_income * (1 - rate(ref)), rtol=1e-12)
@@ -208,10 +209,11 @@ def test_a_reconciled_survey_adds_up_to_the_model(case):
     res = micro.microsimulate(toy.survey(), ref, alt)
     A_ref, A_alt = micro.account_sources(ref), micro.account_sources(alt)
     w = res.frame["weight"].to_numpy()
+    w_alt = res.frame["weight_alt"].to_numpy()
     for h, s in itertools.product(econ.hhs, ["f_cap", "f_for", "f_inf"]):
         m = (res.frame["group"] == h).to_numpy()
         assert w[m] @ res.income_ref.loc[m, s] == pytest.approx(A_ref.at[h, s], rel=1e-12)
-        assert w[m] @ res.income_alt.loc[m, s] == pytest.approx(A_alt.at[h, s], rel=1e-12)
+        assert w_alt[m] @ res.income_alt.loc[m, s] == pytest.approx(A_alt.at[h, s], rel=1e-12)
     r = res.reconciliation.set_index(["group", "source"])
     assert r.at[("hh_1", "f_for"), "factor"] == pytest.approx(60.0 / 51.0, rel=1e-14)
     assert r.at[("hh_2", "f_cap"), "factor"] == pytest.approx(15.0 / 8.75, rel=1e-14)
@@ -220,7 +222,7 @@ def test_a_reconciled_survey_adds_up_to_the_model(case):
 def test_without_reconciliation_only_relative_changes_apply():
     _, econ = toy.build_with_segmented_labour()
     ref, alt = cge.solve_period(econ, dual(1.0)), cge.solve_period(econ, dual(1.1))
-    res = micro.microsimulate(toy.survey(), ref, alt, reconcile=False)
+    res = micro.microsimulate(toy.survey(), ref, alt, reconcile=False, reweight=False)
     assert res.reconciliation.empty
     A_ref, A_alt = micro.account_sources(ref), micro.account_sources(alt)
     s = toy.survey().frame
@@ -239,8 +241,8 @@ def test_a_new_flow_is_shared_per_person_within_the_account():
     f = res.frame
     m = (f["group"] == "hh_2").to_numpy()
     new = res.income_alt.loc[m, "new_flows"].to_numpy()
-    persons = (f.loc[m, "weight"] * f.loc[m, "size"]).to_numpy()
-    assert float(f.loc[m, "weight"] @ new) == pytest.approx(6.0, rel=1e-12)
+    persons = (f.loc[m, "weight_alt"] * f.loc[m, "size"]).to_numpy()
+    assert float(f.loc[m, "weight_alt"] @ new) == pytest.approx(6.0, rel=1e-12)
     np.testing.assert_allclose(new / f.loc[m, "size"], 6.0 / persons.sum(), rtol=1e-12)
     assert np.all(res.income_alt.loc[~m, "new_flows"] == 0.0)
 
@@ -273,7 +275,7 @@ def test_tables():
     res = micro.microsimulate(toy.survey(), ref, alt)
     d = res.welfare()
     assert micro.poverty(res, 4.0).at[(4.0, 0), "alt"] == pytest.approx(
-        micro.fgt(d["alt"], 4.0, 0, d["persons"]), rel=1e-15)
+        micro.fgt(d["alt"], 4.0, 0, d["persons_alt"]), rel=1e-15)
     by = micro.poverty(res, 4.0, by_group=True)
     for col in ("ref", "alt"):
         assert by[(col, "hh_1")].iloc[0] + by[(col, "hh_2")].iloc[0] == pytest.approx(
@@ -312,3 +314,129 @@ def test_survey_misuse_is_refused():
         micro.microsimulate(micro.Survey(only_one, sources=sources), ref, ref)
     with pytest.raises(ValueError, match="price_index"):
         micro.microsimulate(toy.survey(), ref, ref, price_index="paasche")
+
+
+# -- reweighting ---------------------------------------------------------------
+
+def test_raking_on_cells_is_the_ratio_in_each_cell():
+    # Constraints that partition the sample: each cell's weights scale by
+    # target / total, a closed form.
+    w = np.array([1.0, 2.0, 3.0, 1.5, 0.5, 2.5])
+    cells = np.array([0, 0, 1, 1, 2, 2])
+    X = np.eye(3)[cells]
+    targets = np.array([4.0, 3.0, 9.0])
+    new, _ = micro._rake(w, X, targets)
+    totals = X.T @ w
+    np.testing.assert_allclose(new, w * (targets / totals)[cells], rtol=1e-12)
+
+
+def test_raking_without_a_change_keeps_the_weights():
+    w = RNG.uniform(0.5, 2.0, size=10)
+    X = np.column_stack([np.ones(10), RNG.uniform(size=10)])
+    new, iters = micro._rake(w, X, X.T @ w)
+    np.testing.assert_allclose(new, w, rtol=1e-14)
+    assert iters == 0
+
+
+def test_raking_refuses_a_target_out_of_reach():
+    w = np.ones(3)
+    X = np.column_stack([np.ones(3), np.array([1.0, 1.0, 1.0])])
+    with pytest.raises(ValueError, match="cannot be calibrated"):
+        micro._rake(w, X, np.array([3.0, 5.0]), names=["households", "f_for"], group="hh_1")
+
+
+def segmented_survey():
+    s = toy.survey()
+    frame = s.frame.copy()
+    # Head counts: who in each household works formally, informally, or not.
+    frame["n_formal"] = (frame["formal"] > 0).astype(float) + (frame["formal"] > 9)
+    frame["n_informal"] = (frame["informal"] > 0).astype(float)
+    frame["n_unemployed"] = [0.0, 1, 0, 1, 0, 0, 1, 0, 1, 0, 1, 1]
+    # A household in each account whose members are all out of work: without
+    # one, no reweighting can raise unemployment while employment falls in
+    # both segments, as Harris–Todaro asks.
+    idle = pd.DataFrame([("hh_1", 1.0, 2, 0.0, 0.0, 0.5, 1.0, 1.0, 0.0, 0.0, 2.0),
+                         ("hh_2", 1.5, 3, 0.0, 0.0, 0.2, 1.0, 0.5, 0.0, 0.0, 2.0)],
+                        columns=frame.columns)
+    frame = pd.concat([frame, idle], ignore_index=True)
+    return micro.Survey(frame, sources=s.sources, budget=s.budget,
+                        workers={"n_formal": "f_for", "n_informal": "f_inf",
+                                 "n_unemployed": "unemployed"})
+
+
+@pytest.mark.parametrize("market", ["dual", "harris_todaro"])
+def test_reweighting_moves_employment_as_the_model_does(market):
+    _, econ = toy.build_with_segmented_labour()
+    if market == "dual":
+        closure_ref, closure_alt = dual(1.0), dual(1.1)
+    else:
+        def mk(wage):
+            return cge.Closure(labour_markets={"labour": cge.LabourMarket(
+                rigid={"f_for": wage}, informal="f_inf", unemployment="harris_todaro",
+                unemployment_rate=0.1)})
+        # The queue answers strongly to the rigid wage (+25% for a wage 2% higher),
+        # and a survey of a few households spans only so much of it.
+        closure_ref, closure_alt = mk(1.0), mk(1.02)
+    ref, alt = cge.solve_period(econ, closure_ref), cge.solve_period(econ, closure_alt)
+    res = micro.microsimulate(segmented_survey(), ref, alt)
+    f = res.frame
+    w, w_alt = f["weight"].to_numpy(), f["weight_alt"].to_numpy()
+    mk_ref, mk_alt = ref.labour_markets["labour"], alt.labour_markets["labour"]
+    for hi, h in enumerate(econ.hhs):
+        m = (f["group"] == h).to_numpy()
+        # Households are as many as before.
+        assert w_alt[m].sum() == pytest.approx(w[m].sum(), rel=1e-12)
+        for k, src in enumerate(["f_for", "f_inf"]):
+            ratio = mk_alt["household_employment"][hi, k] / mk_ref["household_employment"][hi, k]
+            assert w_alt[m] @ res.income_ref.loc[m, src] == pytest.approx(
+                ratio * (w[m] @ res.income_ref.loc[m, src]), rel=1e-10)
+        # Capital stays with the households that had it.
+        assert w_alt[m] @ res.income_ref.loc[m, "f_cap"] == pytest.approx(
+            w[m] @ res.income_ref.loc[m, "f_cap"], rel=1e-10)
+        if market == "harris_todaro":
+            u_ratio = mk_alt["household_unemployed"][hi] / mk_ref["household_unemployed"][hi]
+            row = res.workers.set_index(["group", "column"]).loc[(h, "n_unemployed")]
+            assert row["alt"] == pytest.approx(u_ratio * row["ref"], rel=1e-10)
+    # Micro totals are still the model's, source by source.
+    A_alt = micro.account_sources(alt)
+    for h, src in itertools.product(econ.hhs, ["f_cap", "f_for", "f_inf"]):
+        m = (f["group"] == h).to_numpy()
+        assert w_alt[m] @ res.income_alt.loc[m, src] == pytest.approx(A_alt.at[h, src],
+                                                                      rel=1e-10)
+    cal = res.calibration
+    np.testing.assert_allclose(cal["reached"], cal["target"], rtol=1e-10)
+    # A higher formal wage hires fewer formal workers in the survey too.
+    formal = res.workers.set_index("column").loc["n_formal"]
+    assert formal["alt"].sum() < formal["ref"].sum()
+
+
+def test_reweighting_without_a_shock_changes_nothing():
+    _, econ = toy.build_with_segmented_labour()
+    ref = cge.solve_period(econ, dual(1.0))
+    res = micro.microsimulate(segmented_survey(), ref, ref)
+    np.testing.assert_allclose(res.frame["weight_alt"], res.frame["weight"], rtol=1e-14)
+    assert (res.calibration["iterations"] == 0).all()
+
+
+def test_the_tables_use_each_periods_weights():
+    _, econ = toy.build_with_segmented_labour()
+    ref, alt = cge.solve_period(econ, dual(1.0)), cge.solve_period(econ, dual(1.1))
+    res = micro.microsimulate(segmented_survey(), ref, alt)
+    d = res.welfare()
+    assert micro.inequality(res).at["gini", "alt"] == pytest.approx(
+        micro.gini(d["alt"], d["persons_alt"]), rel=1e-15)
+    assert micro.inequality(res).at["gini", "ref"] == pytest.approx(
+        micro.gini(d["ref"], d["persons_ref"]), rel=1e-15)
+    plain = micro.microsimulate(segmented_survey(), ref, alt, reweight=False)
+    np.testing.assert_allclose(plain.frame["weight_alt"], plain.frame["weight"])
+    assert plain.calibration.empty
+
+
+def test_a_segment_mapped_by_activity_is_refused_for_reweighting():
+    _, econ = toy.build_with_segmented_labour()
+    ref = cge.solve_period(econ)
+    s = toy.survey()
+    by_activity = micro.Survey(s.frame, sources={"formal": "f_for:a_ind", "informal": "f_inf",
+                                                 "capital": "f_cap"}, budget=s.budget)
+    with pytest.raises(ValueError, match="mapped by activity"):
+        micro.microsimulate(by_activity, ref, ref)

@@ -413,11 +413,14 @@ ref_s = cge.solve_period(econ_s)
 alt_s = cge.solve_period(econ_s, cge.Closure(labour_markets={"labour": piso}))
 micro = cge.microsimulate(pesquisa, ref_s, alt_s)
 micro.reconciliation                      # salários formais do hh_1 escalados por 60/51 até a MCS
-cge.inequality(micro)                     # Gini de 0,531 para 0,542, Theil T de 0,527 para 0,547
-cge.poverty(micro, 3.0)                   # hiato de pobreza de 0,459 para 0,462; proporção igual</code></pre>
+micro.calibration                         # pesos que movem o emprego formal como o modelo
+cge.inequality(micro)                     # Gini de 0,531 para 0,556, Theil T de 0,527 para 0,577
+cge.poverty(micro, 3.0)                   # proporção de pobres de 0,698 para 0,731, hiato de 0,459 para 0,490</code></pre>
   <p>Cada domicílio da pesquisa pertence a uma conta da MCS: sua renda de cada fonte varia como a
   da conta, e o seu próprio orçamento define o seu índice de preços. Antes, a pesquisa é escalada
-  à MCS, fonte por fonte, e os fatores são reportados em vez de escondidos.</p>
+  à MCS, fonte por fonte, e os fatores são reportados em vez de escondidos. Quem perde o emprego
+  formal entra pelos pesos: dentro de cada conta, eles são recalibrados para o emprego formal e
+  informal da pesquisa variar como o do modelo, e é isso que move a proporção de pobres.</p>
 </div></section>
 
 <section id="portarias"><div class="wrap">

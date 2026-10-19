@@ -359,20 +359,29 @@ class MicroResult:
     #: ``(group, source)``: the survey's weighted total, the SAM account's, and
     #: the factor that scaled the survey to it. Empty without reconciliation.
     reconciliation: pd.DataFrame = field(repr=False)
+    #: ``(group, constraint)``: the reweighting's base total, target and the
+    #: total the new weights reach, and its iterations. Empty when nothing was
+    #: reweighted.
+    calibration: pd.DataFrame = field(default_factory=pd.DataFrame, repr=False)
+    #: ``(group, column)``: persons in each ``Survey.workers`` column, with the
+    #: survey weights and with the new ones.
+    workers: pd.DataFrame = field(default_factory=pd.DataFrame, repr=False)
 
     def welfare(self, equivalence: float = 1.0) -> pd.DataFrame:
         """Real disposable income per adult equivalent, ``size ** equivalence``,
-        and person weights: the inputs of every measure."""
+        and person weights in each period: the inputs of every measure."""
         if not 0.0 <= float(equivalence) <= 1.0:
             raise ValueError(f"equivalence must lie in [0, 1], got {equivalence}")
         f = self.frame
         scale = f["size"] ** float(equivalence)
-        return pd.DataFrame({"group": f["group"], "persons": f["weight"] * f["size"],
+        return pd.DataFrame({"group": f["group"],
+                             "persons_ref": f["weight"] * f["size"],
+                             "persons_alt": f["weight_alt"] * f["size"],
                              "ref": f["real_ref"] / scale, "alt": f["real_alt"] / scale})
 
 
 def microsimulate(survey: Survey, reference, alternative, *, reconcile: bool = True,
-                  price_index: str = "geometric") -> MicroResult:
+                  reweight: bool = True, price_index: str = "geometric") -> MicroResult:
     """Carry the change from ``reference`` to ``alternative`` to the survey's households.
 
     Both are solved periods of the same economy. The survey is taken to
@@ -380,6 +389,15 @@ def microsimulate(survey: Survey, reference, alternative, *, reconcile: bool = T
     account's income from that source does; a source its account did not have
     in the reference and has in the alternative is shared per person among the
     account's households. Disposable income takes the account's direct tax rate.
+
+    With ``reweight`` and labour segments (``ModelSpec.labour_segments``), who
+    works where changes through the survey weights instead: within each account,
+    the weights are calibrated (raking, Deville and Särndal 1992) so that the
+    survey's employment in each segment moves as the account's does in the
+    model, its unemployed persons as the account's queue does, and every other
+    source, and the number of households, stays where it was. Each segment's
+    income per worker then moves with its wage, and the micro totals are still
+    the model's.
     """
     econ = reference.econ
     if alternative.econ.hhs != econ.hhs or alternative.econ.coms != econ.coms:
@@ -434,18 +452,82 @@ def microsimulate(survey: Survey, reference, alternative, *, reconcile: bool = T
                 f"reconcile=False to apply relative changes only.")
     recon = pd.DataFrame(recon_rows, columns=["group", "source", "survey", "sam", "factor"])
 
+    # Employment ratios of every segment, by account, from the model.
+    segments = {}
+    for mk_ref_name, mk_ref in (reference.labour_markets or {}).items():
+        mk_alt = alternative.labour_markets[mk_ref_name]
+        for k, fac in enumerate(mk_ref["segments"]):
+            segments[fac] = (mk_ref["household_employment"][:, k],
+                             mk_alt["household_employment"][:, k])
+    seg_sources = [s for s in sources if s in segments]
+    if reweight and any(":" in s and s.split(":")[0] in segments for s in sources):
+        raise ValueError("a labour segment is mapped by activity; the reweighting moves "
+                         "employment by segment, so map the segment whole")
+    w_alt = w.copy()
+    calib_rows = []
+    reweighted = reweight and bool(seg_sources)
+    if reweighted:
+        U_ref = sum((m_["household_unemployed"] for m_ in reference.labour_markets.values()),
+                    np.zeros(econ.n_hh))
+        U_alt = sum((m_["household_unemployed"] for m_ in alternative.labour_markets.values()),
+                    np.zeros(econ.n_hh))
+        unemployed_cols = [c for c, v in (survey.workers or {}).items() if v == "unemployed"]
+        for h in econ.hhs:
+            m = grp == h
+            if not m.any():
+                continue
+            hi = econ.hhs.index(h)
+            cols, targets, names = [np.ones(int(m.sum()))], [float(w[m].sum())], ["households"]
+            for s in sources:
+                x = Y.loc[m, s].to_numpy()
+                base = float(w[m] @ x)
+                if abs(base) <= 1e-12:
+                    continue
+                if s in segments:
+                    e0, e1 = segments[s][0][hi], segments[s][1][hi]
+                    ratio = e1 / e0 if abs(e0) > 1e-12 else 1.0
+                else:
+                    ratio = 1.0
+                cols.append(x)
+                targets.append(base * ratio)
+                names.append(s)
+            if unemployed_cols and U_ref[hi] > 1e-12:
+                x = f.loc[m, unemployed_cols].to_numpy(float).sum(axis=1)
+                base = float(w[m] @ x)
+                if base > 0:
+                    cols.append(x)
+                    targets.append(base * U_alt[hi] / U_ref[hi])
+                    names.append("unemployed")
+            X = np.column_stack(cols)
+            new, iters = _rake(w[m], X, np.array(targets), names=names, group=h)
+            w_alt[m] = new
+            reached = X.T @ new
+            base_tot = X.T @ w[m]
+            for nm, b0, t, r in zip(names, base_tot, targets, reached):
+                calib_rows.append(dict(group=h, constraint=nm, base=b0, target=t,
+                                       reached=r, iterations=iters))
+    calib = pd.DataFrame(calib_rows, columns=["group", "constraint", "base", "target",
+                                              "reached", "iterations"])
+
     Y_alt = Y.copy()
     for h in econ.hhs:
         m = grp == h
         if not m.any():
             continue
-        persons = float(w[m] @ size[m])
+        persons = float(w_alt[m] @ size[m])
+        hi = econ.hhs.index(h)
         for s in sources:
             if s == "fixed":
                 continue
             a0, a1 = float(A_ref.at[h, s]), float(A_alt.at[h, s])
             if abs(a0) > 1e-12:
-                Y_alt.loc[m, s] = Y.loc[m, s].to_numpy() * (a1 / a0)
+                ratio = a1 / a0
+                if reweighted and s in segments:
+                    # The weights moved the employment; what is left is the
+                    # change in income per worker.
+                    e0, e1 = segments[s][0][hi], segments[s][1][hi]
+                    ratio = ratio / (e1 / e0) if abs(e0) > 1e-12 and abs(e1) > 1e-12 else ratio
+                Y_alt.loc[m, s] = Y.loc[m, s].to_numpy() * ratio
             elif abs(a1) > 1e-12:
                 Y_alt.loc[m, s] = a1 * size[m] / persons
     # A source in neither the survey's mapping nor the reference, that the
@@ -455,7 +537,7 @@ def microsimulate(survey: Survey, reference, alternative, *, reconcile: bool = T
         m = grp == h
         if not m.any():
             continue
-        persons = float(w[m] @ size[m])
+        persons = float(w_alt[m] @ size[m])
         for s in ("transfers", "remittances", "recycled"):
             if s in sources:
                 continue
@@ -484,11 +566,71 @@ def microsimulate(survey: Survey, reference, alternative, *, reconcile: bool = T
         P = (shares * rel_i).sum(axis=1)
 
     frame = pd.DataFrame({
-        "group": grp, "weight": w, "size": size,
+        "group": grp, "weight": w, "weight_alt": w_alt, "size": size,
         "gross_ref": gross_ref, "gross_alt": gross_alt,
         "disposable_ref": disp_ref, "disposable_alt": disp_alt,
         "price_index": P, "real_ref": disp_ref, "real_alt": disp_alt / P}, index=f.index)
-    return MicroResult(frame=frame, income_ref=Y, income_alt=Y_alt, reconciliation=recon)
+    rows = []
+    for col, what in (survey.workers or {}).items():
+        x = f[col].to_numpy(float)
+        for h in econ.hhs:
+            m = grp == h
+            if m.any():
+                rows.append(dict(group=h, column=col, workers=what,
+                                 ref=float(w[m] @ x[m]), alt=float(w_alt[m] @ x[m])))
+    workers = pd.DataFrame(rows, columns=["group", "column", "workers", "ref", "alt"])
+    return MicroResult(frame=frame, income_ref=Y, income_alt=Y_alt, reconciliation=recon,
+                       calibration=calib, workers=workers)
+
+
+def _rake(w, X, targets, *, names=None, group=None, tol=1e-12, max_iter=200):
+    """Calibrated weights by raking: ``w' = w exp(X λ)`` with ``X' w' = targets``.
+
+    The raking distance keeps every weight positive and, when the constraints
+    are cells that partition the sample, gives each cell its ratio
+    ``target / total``. Newton on the multipliers, with the columns scaled by
+    their base totals and a step halved until the gap falls; redundant
+    constraints are handled by least squares. Returns the weights and the
+    iterations it took.
+    """
+    w = np.asarray(w, float)
+    X = np.asarray(X, float)
+    t = np.asarray(targets, float)
+    base = X.T @ w
+    scale = np.where(np.abs(base) > 0, np.abs(base), np.maximum(np.abs(t), 1.0))
+    Xs, ts = X / scale[None, :], t / scale
+    lam = np.zeros(X.shape[1])
+
+    def gap(lam_):
+        u_ = w * np.exp(np.clip(Xs @ lam_, -700, 700))
+        return u_, Xs.T @ u_ - ts
+
+    u, F = gap(lam)
+    for it in range(1, max_iter + 1):
+        if np.max(np.abs(F)) < tol:
+            return u, it - 1
+        J = Xs.T @ (u[:, None] * Xs)
+        step = np.linalg.lstsq(J, -F, rcond=None)[0]
+        size_ = 1.0
+        while size_ > 1e-10:
+            u_new, F_new = gap(lam + size_ * step)
+            if np.max(np.abs(F_new)) < np.max(np.abs(F)):
+                break
+            size_ /= 2.0
+        else:
+            break
+        lam = lam + size_ * step
+        u, F = u_new, F_new
+    if np.max(np.abs(F)) < tol:
+        return u, max_iter
+    worst = int(np.argmax(np.abs(F)))
+    label = names[worst] if names is not None else worst
+    where = f" in account {group!r}" if group is not None else ""
+    raise ValueError(
+        f"the survey weights cannot be calibrated{where}: no positive weights reach the "
+        f"target for {label!r} ({t[worst]:.6g}, base {base[worst]:.6g}) together with the "
+        f"others. The survey's households in the account do not span the change the model "
+        f"asks for; a larger survey, or reweight=False, is needed.")
 
 
 def _direct_rate(period) -> np.ndarray:
@@ -530,7 +672,7 @@ def inequality(result: MicroResult, *, equivalence: float = 1.0,
     d = result.welfare(equivalence)
     rows = {}
     for col in ("ref", "alt"):
-        x, p = d[col].to_numpy(), d["persons"].to_numpy()
+        x, p = d[col].to_numpy(), d[f"persons_{col}"].to_numpy()
         vals = {"gini": gini(x, p), "theil_t": theil(x, p), "theil_l": mean_log_deviation(x, p),
                 "ge_2": generalized_entropy(x, 2.0, p)}
         for e in epsilons:
@@ -556,12 +698,13 @@ def poverty(result: MicroResult, lines, *, alphas: Sequence[int] = (0, 1, 2),
         for a in alphas:
             row = dict(line=z, alpha=a)
             for col in ("ref", "alt"):
+                persons = d[f"persons_{col}"]
                 if by_group:
-                    dec = fgt_decomposition(d[col], z, a, d["group"], d["persons"])
+                    dec = fgt_decomposition(d[col], z, a, d["group"], persons)
                     for g in dec.index:
                         row[(col, g)] = float(dec.at[g, "contribution"])
                 else:
-                    row[col] = fgt(d[col], z, a, d["persons"])
+                    row[col] = fgt(d[col], z, a, persons)
             rows.append(row)
     out = pd.DataFrame(rows).set_index(["line", "alpha"])
     if by_group:

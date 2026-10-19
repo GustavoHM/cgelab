@@ -57,6 +57,15 @@ before 1.0, a minor version may add to the API and a patch version only fixes.
   `poverty`. `toy.survey()` is a synthetic survey. A survey that is the SAM
   gives back the model's incomes and real incomes to 1e-12; the measures match
   closed forms and a brute-force Gini.
+- Reweighting the survey for employment. Under labour segments,
+  `microsimulate(..., reweight=True)`, the default, calibrates the weights within
+  each account by raking: segment income at base wages moves as the account's
+  employment in the segment, unemployed persons (`Survey.workers`) as its queue,
+  households and other sources stay fixed, and segment income per worker moves
+  with the wage. `MicroResult.calibration`, `workers` and `frame["weight_alt"]`
+  report it, and the tables use each period's weights. Raking on cells that
+  partition the sample gives the closed-form ratio per cell; the micro totals
+  stay the model's to 1e-10 under a dual market and Harris–Todaro.
 - `welfare_decomposition` has a `factor_reallocation` term: what moving an
   imperfectly mobile factor between activities adds beyond its endowment. It is
   zero under a CET, by the envelope theorem, and the identity still closes.

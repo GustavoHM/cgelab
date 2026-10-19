@@ -32,6 +32,11 @@ class Scenario:
     #: the factor's total.
     pool_supply: Mapping[str, np.ndarray] | None = None
 
+    #: Labour force of each group of ``ModelSpec.labour_segments``,
+    #: ``{group: workers}``, the queue included. Absent, the base year's,
+    #: scaled by the supply of the group's factors.
+    labour_force: Mapping[str, float] | None = None
+
     #: Ownership of each factor, ``(n_hh, n_fac)``, columns summing to one.
     #: The hook for an extensive-margin story in which households MOVE between
     #: accounts -- adopters and non-adopters, formal and informal -- rather than

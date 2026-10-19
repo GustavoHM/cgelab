@@ -16,9 +16,12 @@ solver was instructed to satisfy.
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
+from typing import Mapping
 
-__all__ = ["Closure"]
+from .segments import LabourMarket
+
+__all__ = ["Closure", "LabourMarket"]
 
 
 @dataclass
@@ -104,6 +107,12 @@ class Closure:
     #: ε ≥ 0 of ``L = L0 * (real_wage / real_wage0) ** ε``. Zero is inelastic.
     labour_supply_elasticity: float = 0.0
 
+    #: How each group of ``ModelSpec.labour_segments`` clears,
+    #: ``{group: LabourMarket}``. A group left out has no rigid segment: its
+    #: segments share one wage, and its last segment absorbs the rest of each
+    #: household's workforce.
+    labour_markets: Mapping[str, LabourMarket] = field(default_factory=dict)
+
     def __post_init__(self):
         for name, allowed in (("investment", ("savings_driven", "fixed_real")),
                               ("government", ("real_fixed", "nominal_fixed", "saving_rate")),
@@ -144,6 +153,10 @@ class Closure:
             raise ValueError(
                 "closure.labour_supply_elasticity must be >= 0, "
                 f"got {self.labour_supply_elasticity}")
+        for name, mkt in dict(self.labour_markets or {}).items():
+            if not isinstance(mkt, LabourMarket):
+                raise TypeError(f"closure.labour_markets[{name!r}] must be a LabourMarket, "
+                                f"got {type(mkt).__name__}")
         if self.real_wage is not None and self.real_wage <= 0:
             raise ValueError(f"closure.real_wage must be positive, got {self.real_wage}")
 
@@ -160,4 +173,7 @@ class Closure:
             text += f" ({self.foreign_saving_unit})"
         if self.labour != "full_employment":
             text += f"; labour={self.labour}({self.labour_factor})"
+        for name, mkt in dict(self.labour_markets or {}).items():
+            kind = "harris_todaro" if mkt.unemployment == "harris_todaro" else "dual"
+            text += f"; {name}: {kind}, rigid {sorted(mkt.rigid)}"
         return text

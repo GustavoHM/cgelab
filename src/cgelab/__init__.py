@@ -26,7 +26,7 @@ the solver was told to satisfy.
 """
 
 from .calibrate import Economy, calibrate
-from .closure import Closure
+from .closure import Closure, LabourMarket
 from .decompose import path_decomposition, scenario_vector, subtotals, welfare_decomposition
 from .diagnostics import base_year_reproduction, homogeneity_test, report, walras_check
 from .emissions import Emissions, add_emissions, emissions
@@ -55,7 +55,7 @@ __all__ = [
     "SAM", "BalanceError",
     "ModelSpec", "AccountLayout",
     "calibrate", "Economy",
-    "Closure", "Scenario", "consumer_wedge",
+    "Closure", "LabourMarket", "Scenario", "consumer_wedge",
     "solve_period", "PeriodResult", "value_added_price", "factor_intensity",
     "run_path", "PathResult", "Growth",
     "FactorMobility",

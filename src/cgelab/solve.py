@@ -41,6 +41,7 @@ from .closure import Closure
 from .functions import (armington, ces_intensity, ces_price, cet, cet_domestic_price,
                         cobb_douglas_price)
 from .mobility import period_endowments
+from .segments import period_groups
 from .scenario import Scenario, investment_shares
 
 __all__ = ["PeriodResult", "solve_period", "value_added_price", "factor_intensity"]
@@ -188,6 +189,12 @@ class PeriodResult:
     #: "endowment", "supply"}}``, ``supply`` being ``(n_pool, n_act)``. None
     #: when every factor is perfectly mobile.
     factor_pools: dict | None = None
+    #: Each group of labour segments (``ModelSpec.labour_segments``):
+    #: ``{group: {"segments", "informal", "wage", "real_wage", "employment",
+    #: "labour_force", "unemployment", "unemployment_rate", "harris_todaro",
+    #: "household_workforce", "household_employment", "household_unemployed"}}``,
+    #: household employment being ``(n_hh, n_seg)``. None without segments.
+    labour_markets: dict | None = None
     #: Intermediate input per unit of activity output, ``(n_com, n_act)``, and
     #: primary factor use per unit (in base-year value), as solved: with an
     #: energy nest both answer to prices, and these are the coefficients the
@@ -264,20 +271,34 @@ def solve_period(econ: Economy, closure: Closure | None = None,
                 f"as the numeraire. That market is left to Walras' law, so pinning or "
                 f"linking its wage would turn the check into an identity or a leak. "
                 f"Set ModelSpec.numeraire_factor to another factor.")
-    # A fixed real wage is not an unknown: it is the price index times the target.
-    # Dropping it without dropping the market equation would overdetermine the model.
-    # An imperfectly mobile factor has no single price: its unknowns are its
-    # prices in each activity that uses it, appended after every other block.
-    others = [i for i in range(nf) if i != num and i not in mob
-              and not (closure.labour == "fixed_real_wage" and i == lab)]
-    i_ext = len(others)                       # external-closure unknown
-    i_inv = i_ext + 1                         # forced-saving unknown, when present
-    n_unknown = i_ext + 1 + (1 if closure.investment == "fixed_real" else 0)
-
     supply, endow = period_endowments(econ, sc)
     base_use = econ.aunit * econ.X0[None, :]
     facshare = (econ.hh_facshare if sc.factor_ownership is None
                 else np.asarray(sc.factor_ownership, float))
+    groups = period_groups(econ, closure, sc, supply, facshare)
+    if closure.labour != "full_employment" and any(
+            lab in g.group.index for g in groups):
+        raise ValueError(
+            f"closure.labour={closure.labour!r} on {closure.labour_factor!r}, which is a "
+            f"labour segment. Its wage is set by Closure.labour_markets; make it rigid there.")
+    # A segment that is rigid, or that shares the informal wage, has no price of
+    # its own to solve for. Its employment is what demand asks for.
+    tied = {i for g in groups for i in g.hired}
+    # A household's labour income from a group follows its workers, not a fixed
+    # share of each segment, so the group's columns leave the ownership matrix.
+    facshare_eff = np.array(facshare, dtype=float)
+    for g in groups:
+        facshare_eff[:, g.group.index] = 0.0
+
+    # A fixed real wage is not an unknown: it is the price index times the target.
+    # Dropping it without dropping the market equation would overdetermine the model.
+    # An imperfectly mobile factor has no single price: its unknowns are its
+    # prices in each activity that uses it, appended after every other block.
+    others = [i for i in range(nf) if i != num and i not in mob and i not in tied
+              and not (closure.labour == "fixed_real_wage" and i == lab)]
+    i_ext = len(others)                       # external-closure unknown
+    i_inv = i_ext + 1                         # forced-saving unknown, when present
+    n_unknown = i_ext + 1 + (1 if closure.investment == "fixed_real" else 0)
     tfp = np.ones(na) if sc.productivity is None else np.asarray(sc.productivity, float)
     ptax_a_set = econ.ptax if sc.product_tax is None else np.asarray(sc.product_tax, float)
     ptax_f_set = (ptax_a_set if sc.product_tax_firm is None
@@ -349,6 +370,23 @@ def solve_period(econ: Economy, closure: Closure | None = None,
     for i, m in mob.items():
         i_mob[i] = np.arange(n_unknown, n_unknown + int(m.users.sum()))
         n_unknown += int(m.users.sum())
+    # Harris–Todaro unemployment, as its departure from the base year's in units
+    # of the base year's rigid employment. Not in logs: with a small base rate
+    # the residual hardly moves with log U, and Newton's first step overflows.
+    i_ht = {}
+    for k, g in enumerate(groups):
+        if g.harris_todaro:
+            i_ht[k] = n_unknown
+            n_unknown += 1
+    # Every wage pinned to the price index: the labour closure's and each rigid
+    # segment's.
+    rigid_wages = ([(lab, 1.0 if closure.real_wage is None else float(closure.real_wage))]
+                   if closure.labour == "fixed_real_wage" else [])
+    for g in groups:
+        rigid_wages += list(zip(g.rigid, g.target))
+    # Employment that is labour demand, solved in closed form below.
+    slack_idx = (([lab] if closure.labour in ("fixed_real_wage", "wage_curve") else [])
+                 + [i for g in groups for i in g.hired])
     if target == "saving":
         target_value = (econ.gov_saving0 if closure.government_target_value is None
                         else float(closure.government_target_value)) * closure.numeraire
@@ -525,6 +563,10 @@ def solve_period(econ: Economy, closure: Closure | None = None,
         w = np.full(nf, nu)
         for k, i in enumerate(others):
             w[i] = nu * float(np.exp(z[k]))
+        for g in groups:
+            w[g.flexible] = w[g.informal]
+        U_now = [g.U0 + float(z[i_ht[k]]) * g.rigid_base if k in i_ht else 0.0
+                 for k, g in enumerate(groups)]
         Wm = np.tile(w[:, None], (1, na))
         for i, m in mob.items():
             Wm[i, m.users] = nu * np.exp(z[i_mob[i]])
@@ -564,7 +606,6 @@ def solve_period(econ: Economy, closure: Closure | None = None,
         # Jacobian would see a jump.
         pva = value_added_price(econ, Wm)
         pqf = 1.0 + ptax_f
-        real_wage_target = 1.0 if closure.real_wage is None else float(closure.real_wage)
         for _ in range(_PRICE_ITERS):
             pa, _, _ = production(pqf, Wm, quantities=False, pva=pva)
             pd_ = econ.msh.T @ pa
@@ -573,12 +614,13 @@ def solve_period(econ: Economy, closure: Closure | None = None,
             pbase = arm * econ.arm_share + pqf @ econ.mq
             new = pbase * (1 + ptax_f)
             wage_settled = True
-            if closure.labour == "fixed_real_wage":
+            if rigid_wages:
                 P_now = _laspeyres_purchaser(econ, pbase * (1.0 + ptax_a))
-                w_target = real_wage_target * P_now
-                wage_settled = abs(w_target - w[lab]) < 1e-14
-                w[lab] = w_target
-                Wm[lab, :] = w_target
+                for i, target_i in rigid_wages:
+                    w_target = target_i * P_now
+                    wage_settled = wage_settled and abs(w_target - w[i]) < 1e-14
+                    w[i] = w_target
+                    Wm[i, :] = w_target
                 pva = value_added_price(econ, Wm)
             if np.max(np.abs(new - pqf)) < 1e-14 and wage_settled:
                 pqf = new
@@ -618,7 +660,6 @@ def solve_period(econ: Economy, closure: Closure | None = None,
         # two probes give it in closed form. Iterating it instead leaves a residual
         # that the outer finite-difference Jacobian reads as a kink.
         P_level = _laspeyres_purchaser(econ, pq)
-        slack = closure.labour in ("fixed_real_wage", "wage_curve")
 
         def quantities(paid):
             # --- household budgets, with the wedge recycled in closed form
@@ -628,7 +669,16 @@ def solve_period(econ: Economy, closure: Closure | None = None,
                 fac_inc[i] = mob_income[i]
             gov_fac = float(fac_inc @ fac_gov_sh)
             row_fac = float(fac_inc @ fac_row_sh)
-            base_income = facshare @ (fac_inc * (1.0 - fac_gov_sh - fac_row_sh)) + transfers
+            base_income = (facshare_eff @ (fac_inc * (1.0 - fac_gov_sh - fac_row_sh))
+                           + transfers)
+            # Each household's workers in a segment group, and what they earn.
+            seg_households = []
+            for k, g in enumerate(groups):
+                e_h, u_h = g.households(paid, U_now[k])
+                idx = g.group.index
+                base_income = base_income + e_h @ (w[idx] * (1.0 - fac_gov_sh[idx]
+                                                             - fac_row_sh[idx]))
+                seg_households.append((e_h, u_h))
             direct = econ.hh_direct @ (pa * act_scale)
             eff_p = pq[None, :] * (1.0 + Wt)
             gamma = econ.hh_committed
@@ -828,6 +878,10 @@ def solve_period(econ: Economy, closure: Closure | None = None,
             reference = supply.copy()
             if closure.labour == "elastic_supply":
                 reference[lab] = paid[lab]
+            # A segment's market is against what it pays: its employment, and for
+            # the informal one the rest of the labour force.
+            for g in groups:
+                reference[g.group.index] = paid[g.group.index]
             gaps = (fac_dem - reference) / np.maximum(np.abs(reference), 1.0)
             # The numeraire market stays the Walras check against its SUPPLY. A labour
             # closure that changed this denominator would make the check an identity.
@@ -865,6 +919,28 @@ def solve_period(econ: Economy, closure: Closure | None = None,
                        else gov_account["revenue"])
                 out.append((hit - target_value) / sav_scale)
             out.extend(mob_out)
+            # Harris–Todaro: the informal wage is the expected wage of queueing
+            # for a rigid job.
+            for k in i_ht:
+                g = groups[k]
+                E_R = fac_dem[g.rigid]
+                expected = g.lam * float(w[g.rigid] @ E_R) / (float(E_R.sum()) + U_now[k])
+                out.append(float(np.log(w[g.informal]) - np.log(max(expected, 1e-300))))
+            markets = {}
+            for k, g in enumerate(groups):
+                idx = g.group.index
+                E_R = float(fac_dem[g.rigid].sum())
+                e_h, u_h = seg_households[k]
+                markets[g.group.name] = dict(
+                    segments=list(g.group.factors), informal=econ.factors[g.informal],
+                    wage=w[idx].copy(), real_wage=w[idx] / P_level,
+                    employment=fac_dem[idx].copy(), labour_force=g.N,
+                    unemployment=U_now[k],
+                    unemployment_rate=(U_now[k] / (E_R + U_now[k])
+                                       if E_R + U_now[k] > 0 else 0.0),
+                    harris_todaro=g.harris_todaro,
+                    household_workforce=g.workforce.copy(),
+                    household_employment=e_h.copy(), household_unemployed=u_h.copy())
 
             p_base_yard = 1.0 + econ.ptax          # constant-price yardstick, scenario independent
             gov_sav = savings - hh_sav - levy - foreign_sav
@@ -888,6 +964,7 @@ def solve_period(econ: Economy, closure: Closure | None = None,
                 Wm_report[i, ~m.users] = w_report[i]
             state.update(
                 w=w_report, w_by_act=Wm_report,
+                markets=markets or None,
                 pools={econ.factors[i]: dict(pools=list(m.pools), price=mob_price[i].copy(),
                                              endowment=endow[i].copy(),
                                              supply=mob_supply[i].copy())
@@ -915,31 +992,38 @@ def solve_period(econ: Economy, closure: Closure | None = None,
             employment=employment, unemployment=unemployment,
             real_wage=real_wage_now)
 
-            return (float(fac_dem[lab]) if lab is not None else 0.0), out
+            return fac_dem[slack_idx], out
 
-        if slack:
-            base_L = float(supply[lab])
-            step = max(abs(base_L), 1.0) * 1e-3
-
-            def paid_of(level):
-                paid = supply.copy()
-                paid[lab] = level
-                return paid
-
-            d0, _ = quantities(paid_of(base_L))
-            d1, _ = quantities(paid_of(base_L + step))
-            slope = (d1 - d0) / step
-            intercept = d0 - slope * base_L
-            if abs(1.0 - slope) < 1e-8:
-                raise RuntimeError(
-                    "labour demand responds one-for-one to the wage bill, so employment "
-                    "is not determined. That is a closure failure, not a solution.")
-            _, out = quantities(paid_of(intercept / (1.0 - slope)))
-        else:
+        def paid_of(x):
             paid = supply.copy()
             if closure.labour == "elastic_supply":
                 paid[lab] = supply[lab] * (w[lab] / P_level) ** closure.labour_supply_elasticity
-            _, out = quantities(paid)
+            paid[slack_idx] = x
+            # The informal segment employs the rest of the labour force.
+            for k, g in enumerate(groups):
+                paid[g.informal] = g.N - float(paid[g.hired].sum()) - U_now[k]
+            return paid
+
+        if slack_idx:
+            # Employment that is demand, D(x) = d0 + J (x - x0), is affine in the
+            # employment that pays the income; k + 1 probes give it and the fixed
+            # point x = D(x) is one linear solve.
+            x0 = supply[slack_idx].astype(float)
+            steps = np.maximum(np.abs(x0), 1.0) * 1e-3
+            d0, _ = quantities(paid_of(x0))
+            J = np.empty((len(slack_idx), len(slack_idx)))
+            for k in range(len(slack_idx)):
+                x = x0.copy()
+                x[k] += steps[k]
+                J[:, k] = (quantities(paid_of(x))[0] - d0) / steps[k]
+            A_fix = np.eye(len(slack_idx)) - J
+            if np.linalg.cond(A_fix) > 1e12:
+                raise RuntimeError(
+                    "labour demand responds one-for-one to the wage bill, so employment "
+                    "is not determined. That is a closure failure, not a solution.")
+            _, out = quantities(paid_of(np.linalg.solve(A_fix, d0 - J @ x0)))
+        else:
+            _, out = quantities(paid_of(np.zeros(0)))
         return out
 
     # Convergence is judged on the residual, never on the solver's success flag:
@@ -976,6 +1060,21 @@ def solve_period(econ: Economy, closure: Closure | None = None,
     res, x, label, message = best
     residuals(x)
     ok = res < closure.tolerance
+    for name, mk in (state["markets"] or {}).items():
+        if mk["unemployment"] < -1e-9 and ok:
+            raise ValueError(
+                f"labour group {name!r}: Harris–Todaro needs negative unemployment here, "
+                f"{mk['unemployment']:.6g}. The informal wage is above what queueing for a "
+                f"rigid job is expected to pay, so nobody would queue: the rigid wage is too "
+                f"low for this shock, or the market is dual.")
+        k_b = mk["segments"].index(mk["informal"])
+        short = np.where(mk["household_employment"][:, k_b] < -1e-9)[0]
+        if short.size and ok:
+            raise ValueError(
+                f"labour group {name!r}: households {[econ.hhs[h] for h in short]} would hold "
+                f"more rigid jobs and queue places than they have workers, so their informal "
+                f"employment is negative. The rigid wage or the shock is outside what the "
+                f"group's labour force can supply.")
     if not ok and raise_on_fail:
         raise RuntimeError(
             f"solve_period: residual {res:.3e} above tolerance {closure.tolerance:.1e} "
@@ -1004,6 +1103,7 @@ def solve_period(econ: Economy, closure: Closure | None = None,
         household_saving=state["hh_sav"], forced_saving=state["levy"],
         tax_scale=state["tax_scale"], input_coefficients=state["io_used"],
         factor_prices_by_activity=state["w_by_act"], factor_pools=state["pools"],
+        labour_markets=state["markets"],
         value_added_per_unit=state["va_per"])
 
 

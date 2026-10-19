@@ -41,6 +41,7 @@ class Growth:
     #: A rate, or a mapping from capital factor to rate when there are several.
     depreciation: float | Mapping[str, float] = 0.05
     discount: float = 0.05
+    #: The labour factor that grows, or a group of ``ModelSpec.labour_segments``.
     labour_factor: str = "f_lab"
     #: One capital factor, or several -- sector-specific capital, a vintage, a
     #: public stock. Each is accumulated separately from its own base-year service
@@ -225,14 +226,17 @@ def run_path(econ: Economy, closure: Closure | None = None, *, years: Sequence,
     years = list(years)
     caps = growth.capital_factors
     ki = np.array([econ.factor(k) for k in caps])
-    li = econ.factor(growth.labour_factor)
+    # A group of labour segments grows as a whole: every segment, and so its
+    # labour force, at the same rate.
+    li = (np.array(econ.segments[growth.labour_factor].index)
+          if growth.labour_factor in econ.segments else econ.factor(growth.labour_factor))
     dep = np.array([growth.depreciation_of(k) for k in caps])
     user_cost = growth.discount + dep
 
     stock = econ.fac_supply[ki] / user_cost
     row_share0 = econ.zeros_if_none("fac_row_share", econ.n_fac)
     foreign = stock * row_share0[ki]
-    labour0 = float(econ.fac_supply[li])
+    labour0 = np.array(econ.fac_supply[li], dtype=float)
 
     periods, stocks, foreigns = [], [], []
     warm = None

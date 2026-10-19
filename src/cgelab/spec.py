@@ -149,6 +149,13 @@ class ModelSpec:
     #: ``"logit"``: shares of a fixed head count, so the supplies add up to the
     #: endowment at any prices. One form for every factor, or a mapping by factor.
     factor_mobility_form: str | Mapping[str, str] = "cet"
+    #: Groups of labour accounts that share one population of workers,
+    #: ``{group: [factor, ...]}``: formal and informal labour, say. Each segment
+    #: is still a factor the value-added nest demands on its own; the group says
+    #: the same people supply all of them, and ``Closure.labour_markets`` says
+    #: how each segment's wage is set and where whoever a rigid segment does
+    #: not hire goes.
+    labour_segments: Mapping[str, Sequence[str]] | None = None
 
     def __post_init__(self):
         self.factors = list(self.factors)
@@ -194,6 +201,8 @@ class ModelSpec:
                     f"Omit it to keep the economy a price taker.")
         if self.factor_mobility is not None:
             self._check_mobility()
+        if self.labour_segments is not None:
+            self._check_segments()
         if self.export_demand is not None and self.export_rule != "cet":
             raise ValueError(
                 "export_demand needs export_rule='cet'. With fixed export shares the "
@@ -230,6 +239,38 @@ class ModelSpec:
             if form not in ("cet", "logit"):
                 raise ValueError(f"factor_mobility_form must be 'cet' or 'logit', "
                                  f"got {form!r} for {f!r}")
+
+    def _check_segments(self):
+        if not isinstance(self.labour_segments, Mapping):
+            raise TypeError("labour_segments must be a mapping {group: [factor, ...]}")
+        if self.regions:
+            raise ValueError("labour_segments is not available in a regional model yet")
+        seen = {}
+        for name, members in self.labour_segments.items():
+            members = list(members)
+            if len(members) < 2:
+                raise ValueError(f"labour_segments[{name!r}] needs two or more factors, "
+                                 f"got {members}")
+            if name in self.factors:
+                raise ValueError(f"the group name {name!r} is also a factor; name the group "
+                                 f"differently, so Growth.labour_factor is not ambiguous")
+            for f in members:
+                if f not in self.factors:
+                    raise ValueError(f"labour_segments[{name!r}] names {f!r}, which is not "
+                                     f"among the factors {self.factors}")
+                if f in seen:
+                    raise ValueError(f"factor {f!r} is in two segment groups, {seen[f]!r} "
+                                     f"and {name!r}")
+                seen[f] = name
+                if f == self.numeraire_factor:
+                    raise ValueError(
+                        f"the numeraire {f!r} cannot be a labour segment: its market is the "
+                        f"Walras check, and a segment's market is tied to the others'. "
+                        f"Choose another numeraire_factor.")
+                if self.factor_mobility and f in self.factor_mobility:
+                    raise ValueError(
+                        f"factor {f!r} is both a labour segment and in factor_mobility. "
+                        f"Mobility between segments is the group's, not the factor's.")
 
     def mobility_form_of(self, factor: str) -> str:
         """The transformation form of an imperfectly mobile factor."""

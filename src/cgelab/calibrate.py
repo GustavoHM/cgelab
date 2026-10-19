@@ -27,6 +27,7 @@ from typing import Mapping
 import numpy as np
 
 from .mobility import build_mobility
+from .segments import build_segments
 from .sam import SAM
 from .spec import AccountLayout, ModelSpec
 
@@ -160,6 +161,9 @@ class Economy:
     #: index: :class:`cgelab.mobility.FactorMobility`. Empty: every factor is
     #: perfectly mobile.
     mobility: dict = field(default_factory=dict, repr=False)
+    #: Groups of labour segments (``ModelSpec.labour_segments``), by name:
+    #: :class:`cgelab.segments.SegmentGroup`.
+    segments: dict = field(default_factory=dict, repr=False)
 
     def zeros_if_none(self, name: str, n: int) -> np.ndarray:
         v = getattr(self, name)
@@ -488,6 +492,7 @@ def calibrate(sam: SAM, spec: ModelSpec | None = None, *,
         tm0=tm0, tauz0=tauz0, gov_savrate=gov_savrate,
         energy_nest=energy_nest,
         mobility=build_mobility(spec, facs, acts, aunit * X0[None, :], factor_pools),
+        segments=build_segments(spec, facs, fac_supply),
         gov_saving0=gov_income0 - float(gov_dem.sum()),
         gov_revenue0=gov_income0 + float(gov_tr.sum()),
         diagnostics=dict(negative_value_added=negative,

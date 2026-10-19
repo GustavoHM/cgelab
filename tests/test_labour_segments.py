@@ -210,7 +210,10 @@ def test_misuse_is_refused():
     with pytest.raises(ValueError, match="strictly between"):
         cge.LabourMarket(rigid={"f_for": 1.0}, unemployment="harris_todaro")
     with pytest.raises(ValueError, match="read only under"):
-        cge.LabourMarket(rigid={"f_for": 1.0}, unemployment_rate=0.1)
+        cge.solve_period(unequal_ownership(), cge.Closure(labour_markets={
+            "labour": cge.LabourMarket(rigid={"f_for": 1.0}, unemployment_rate=0.1)}))
+    with pytest.raises(ValueError, match="only a rigid segment"):
+        cge.LabourMarket(rigid={"f_for": 1.0}, unemployment_rate={"f_inf": 0.1})
     with pytest.raises(ValueError, match="cannot also be rigid"):
         cge.LabourMarket(rigid={"f_inf": 1.0}, informal="f_inf")
     econ = unequal_ownership()
@@ -226,3 +229,127 @@ def test_misuse_is_refused():
     # A rigid wage so low that formal demand exceeds a household's workforce.
     with pytest.raises((ValueError, RuntimeError)):
         cge.solve_period(econ, dual(0.2))
+
+
+# -- a transformation between segments (ModelSpec.segment_mobility) -------------
+
+def transformed(omega=2.0, form="cet"):
+    return toy.build_with_segmented_labour(model_spec=toy.spec(
+        factors=("f_cap", "f_for", "f_inf"), numeraire_factor="f_cap", labour_segments=GROUP,
+        segment_mobility={"labour": omega}, factor_mobility_form={"labour": form}))[1]
+
+
+def queued(real_wage=1.0, rate=0.08):
+    return cge.Closure(labour_markets={"labour": cge.LabourMarket(
+        rigid={"f_for": real_wage}, unemployment_rate=rate)})
+
+
+@pytest.mark.parametrize("other", OTHER, ids=range(len(OTHER)))
+@pytest.mark.parametrize("form", ["cet", "logit"])
+@pytest.mark.parametrize("market", ["clears", "queue"])
+def test_transformation_base_year_homogeneity_and_walras(market, form, other):
+    import dataclasses
+    closure = dataclasses.replace(cge.Closure() if market == "clears" else queued(), **other)
+    econ = transformed(2.0, form)
+    rep = cge.base_year_reproduction(econ, closure)
+    assert rep["ok"], rep["checks"]
+    hom = cge.homogeneity_test(econ, closure)
+    assert hom["ok"], hom["checks"]
+    # Under the shock the calibrated rigid wage would hire more than its supply;
+    # a wage 10% higher leaves a queue.
+    if market == "queue":
+        closure = dataclasses.replace(queued(1.1), **other)
+    res = cge.solve_period(econ, closure, SHOCK)
+    assert abs(res.walras) < 1e-12
+    twice = cge.solve_period(econ, dataclasses.replace(
+        closure, numeraire=2.0, exchange_rate=2.0 * closure.exchange_rate), SHOCK)
+    np.testing.assert_allclose(twice.X, res.X, rtol=1e-9)
+    np.testing.assert_allclose(twice.factor_prices, 2.0 * res.factor_prices, rtol=1e-9)
+
+
+@pytest.mark.parametrize("form", ["cet", "logit"])
+def test_zero_elasticity_with_a_rigid_segment_is_a_fixed_real_wage(form):
+    # Another code path: two separate labour factors, the formal one under
+    # Closure(labour="fixed_real_wage"), its unemployment the supply it leaves idle.
+    plain = toy.build_with_segmented_labour(model_spec=toy.spec(
+        factors=("f_cap", "f_for", "f_inf"), numeraire_factor="f_cap"))[1]
+    ref = cge.solve_period(plain, cge.Closure(labour="fixed_real_wage", labour_factor="f_for",
+                                              real_wage=1.2), SHOCK)
+    res = cge.solve_period(transformed(0.0, form), queued(1.2, rate=0.0), SHOCK)
+    same_equilibrium(res, ref, tol=1e-10)
+    m = res.labour_markets["labour"]
+    assert ref.unemployment > 1.0
+    assert m["unemployment"] == pytest.approx(ref.unemployment, rel=1e-10)
+    assert m["queue"][0] == pytest.approx(ref.unemployment, rel=1e-10)
+
+
+@pytest.mark.parametrize("form", ["cet", "logit"])
+def test_large_elasticity_approaches_one_labour_market(form):
+    common = cge.solve_period(unequal_ownership(), scenario=SHOCK)
+    gaps = {}
+    for om in (1e3, 1e4):
+        res = cge.solve_period(transformed(om, form), scenario=SHOCK)
+        gaps[om] = np.max(np.abs(res.hh_income - common.hh_income))
+        assert np.ptp(res.factor_prices[1:]) < 10.0 / om
+    assert gaps[1e3] / gaps[1e4] == pytest.approx(10.0, rel=0.02)
+
+
+@pytest.mark.parametrize("form", ["cet", "logit"])
+def test_transformation_accounts(form):
+    econ = transformed(2.0, form)
+    base = cge.solve_period(econ, queued())
+    m0 = base.labour_markets["labour"]
+    assert m0["unemployment_rate"] == pytest.approx(0.08, rel=1e-12)
+    np.testing.assert_allclose(m0["household_workforce"], [60 / 0.92 + 10, 10 / 0.92 + 30],
+                               rtol=1e-12)
+    res = cge.solve_period(econ, queued(1.1), SHOCK)
+    m = res.labour_markets["labour"]
+    e, u = m["household_employment"], m["household_unemployed"]
+    np.testing.assert_allclose(e.sum(axis=0), m["employment"], rtol=1e-12)
+    np.testing.assert_allclose(u.sum(), m["unemployment"], rtol=1e-12)
+    np.testing.assert_allclose(m["supply"] - m["employment"], m["queue"], atol=1e-10)
+    assert m["queue"][1] == 0.0
+    # The rigid segment hires each household's supply in the same proportion.
+    supply_h = e + np.outer(u, [1.0, 0.0])
+    np.testing.assert_allclose(e[:, 0] / supply_h[:, 0], m["employment"][0] / m["supply"][0],
+                               rtol=1e-12)
+    if form == "logit":
+        # The head count: every household's supplies add up to its workforce.
+        np.testing.assert_allclose(supply_h.sum(axis=1), m["household_workforce"], rtol=1e-12)
+    # A higher rigid wage lengthens the queue.
+    assert m["unemployment_rate"] > 0.08
+
+
+def test_transformation_with_growth_and_welfare():
+    econ = transformed(2.0)
+    path = cge.run_path(econ, queued(), years=range(2026, 2030),
+                        growth=cge.Growth(labour=0.02, labour_factor="labour",
+                                          capital_factor="f_cap"))
+    for p in path.periods:
+        assert p.converged and abs(p.walras) < 1e-9
+    assert path.periods[-1].labour_markets["labour"]["labour_force"] == pytest.approx(
+        (70 / 0.92 + 40) * 1.02 ** 3, rel=1e-12)
+    alt = cge.Scenario(product_tax=econ.ptax * 0.5, productivity=np.array([1.05, 1.0]))
+    d = cge.welfare_decomposition(econ, cge.Scenario(), alt, closure=queued(1.05))
+    assert abs(d["residual"]) < 1e-8
+
+
+def test_transformation_misuse_is_refused():
+    with pytest.raises(ValueError, match="not a group"):
+        toy.spec(factors=("f_cap", "f_for", "f_inf"), numeraire_factor="f_cap",
+                 labour_segments=GROUP, segment_mobility={"work": 1.0})
+    with pytest.raises(ValueError, match=">= 0"):
+        toy.spec(factors=("f_cap", "f_for", "f_inf"), numeraire_factor="f_cap",
+                 labour_segments=GROUP, segment_mobility={"labour": -1.0})
+    with pytest.raises(ValueError, match="neither"):
+        toy.spec(factors=("f_cap", "f_for", "f_inf"), numeraire_factor="f_cap",
+                 labour_segments=GROUP, factor_mobility_form={"work": "cet"})
+    econ = transformed()
+    with pytest.raises(ValueError, match="Leave LabourMarket.informal out"):
+        cge.solve_period(econ, cge.Closure(labour_markets={"labour": cge.LabourMarket(
+            rigid={"f_for": 1.0}, informal="f_inf")}))
+    with pytest.raises(ValueError, match="perfect mobility"):
+        cge.solve_period(econ, cge.Closure(labour_markets={"labour": cge.LabourMarket(
+            rigid={"f_for": 1.0}, unemployment="harris_todaro", unemployment_rate=0.1)}))
+    with pytest.raises(ValueError, match="negative queue"):
+        cge.solve_period(econ, queued(0.9, rate=0.0), SHOCK)

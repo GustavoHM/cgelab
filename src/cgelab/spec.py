@@ -147,7 +147,8 @@ class ModelSpec:
     #: The transformation. ``"cet"``: a CET frontier, the sluggish endowments
     #: of GTAP; pool income is its price index times its endowment, exactly.
     #: ``"logit"``: shares of a fixed head count, so the supplies add up to the
-    #: endowment at any prices. One form for every factor, or a mapping by factor.
+    #: endowment at any prices. One form for every factor, or a mapping by factor
+    #: and by group of ``labour_segments``.
     factor_mobility_form: str | Mapping[str, str] = "cet"
     #: Groups of labour accounts that share one population of workers,
     #: ``{group: [factor, ...]}``: formal and informal labour, say. Each segment
@@ -156,6 +157,12 @@ class ModelSpec:
     #: how each segment's wage is set and where whoever a rigid segment does
     #: not hire goes.
     labour_segments: Mapping[str, Sequence[str]] | None = None
+    #: A transformation between the segments of a group, ``{group: ω}``: each
+    #: household's workforce is split among the segments by a CET or a logit
+    #: (``factor_mobility_form``) at the segments' wages, and each rigid segment
+    #: has its own queue. A group left out has perfect mobility between its
+    #: segments.
+    segment_mobility: Mapping[str, float] | None = None
 
     def __post_init__(self):
         self.factors = list(self.factors)
@@ -203,6 +210,18 @@ class ModelSpec:
             self._check_mobility()
         if self.labour_segments is not None:
             self._check_segments()
+        if self.segment_mobility is not None:
+            import math
+            groups = dict(self.labour_segments or {})
+            for name, om in dict(self.segment_mobility).items():
+                if name not in groups:
+                    raise ValueError(f"segment_mobility names {name!r}, which is not a group "
+                                     f"of labour_segments ({list(groups)})")
+                if not (math.isfinite(float(om)) and float(om) >= 0):
+                    raise ValueError(
+                        f"segment_mobility[{name!r}] must be a finite elasticity >= 0, got "
+                        f"{om!r}. Perfect mobility between segments is a group left out.")
+        self._check_forms()
         if self.export_demand is not None and self.export_rule != "cet":
             raise ValueError(
                 "export_demand needs export_rule='cet'. With fixed export shares the "
@@ -230,12 +249,15 @@ class ModelSpec:
                 f"the numeraire {self.numeraire_factor!r} cannot be imperfectly mobile: its "
                 f"market is left to Walras' law, and with a price in every activity there "
                 f"would be no single market to leave out. Choose another numeraire_factor.")
+
+    def _check_forms(self):
+        named = set(self.factor_mobility or {}) | set(self.segment_mobility or {})
         forms = (self.factor_mobility_form if isinstance(self.factor_mobility_form, Mapping)
-                 else {f: self.factor_mobility_form for f in self.factor_mobility})
+                 else {f: self.factor_mobility_form for f in named})
         for f, form in forms.items():
-            if f not in self.factor_mobility:
-                raise ValueError(f"factor_mobility_form names {f!r}, which factor_mobility "
-                                 f"does not list")
+            if f not in named:
+                raise ValueError(f"factor_mobility_form names {f!r}, which neither "
+                                 f"factor_mobility nor segment_mobility lists")
             if form not in ("cet", "logit"):
                 raise ValueError(f"factor_mobility_form must be 'cet' or 'logit', "
                                  f"got {form!r} for {f!r}")

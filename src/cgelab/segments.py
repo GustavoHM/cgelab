@@ -23,18 +23,27 @@ Under Harris–Todaro the informal wage equals the wage expected by queueing for
 rigid job, and λ makes the base year, with its unemployment rate u0, reproduce
 the SAM.
 
+Mode B, a transformation between segments
+-----------------------------------------
+With ``ModelSpec.segment_mobility = {group: ω}``, each household's workforce is
+a pool of :class:`cgelab.mobility.FactorMobility`, transformed across the
+segments by a CET or a logit at the segments' wages. A flexible segment's wage
+clears it, ``Σ_h S_hg = D_g``. A rigid segment hires what demand asks for, and
+those it does not hire queue in it: ``U_g = Σ_h S_hg − D_g``, with the base-year
+rate ``u_g0`` setting its base supply ``L_g0 / (1 − u_g0)``. There is no buffer.
+
 Who the worker is
 -----------------
 Losing a formal job moves a person to the informal segment or to the queue
-within the same household. Each household has a fixed workforce in the group,
-``n_h = Σ_g s_hg L_g0 + q_h U0``, with ``s_hg`` its share of segment ``g`` in
-the SAM and ``q_h`` its share of the base year's rigid jobs. It holds the share
-``s_hg`` of every rigid and flexible segment's jobs, the share ``q_h`` of the
-queue, and the rest of its workforce works in the informal segment. At the
-base year that returns the SAM's ownership; away from it the informal income
-follows the people who lost formal jobs, instead of going to the households
-that were already informal. That is the rule of "Composition is not welfare":
-a household account keeps its members.
+within the same household. In mode A each household has a fixed workforce in
+the group, ``n_h = Σ_g s_hg L_g0 + q_h U0``, with ``s_hg`` its share of segment
+``g`` in the SAM and ``q_h`` its share of the base year's rigid jobs. It holds the
+share ``s_hg`` of every rigid and flexible segment's jobs, the share ``q_h`` of
+the queue, and the rest of its workforce works in the informal segment. In mode
+B the household supplies ``S_hg`` and a rigid segment hires each household's
+supply in the same proportion, ``D_g / Σ_h S_hg``. At the base year both return
+the SAM's ownership; away from it the income follows the people, which is the
+rule of "Composition is not welfare": a household account keeps its members.
 """
 
 from __future__ import annotations
@@ -43,6 +52,8 @@ from dataclasses import dataclass, field
 from typing import Mapping
 
 import numpy as np
+
+from .mobility import FactorMobility
 
 __all__ = ["LabourMarket", "SegmentGroup"]
 
@@ -56,35 +67,44 @@ class LabourMarket:
     #: purchaser-price index, and employment is what demand asks for at it.
     rigid: Mapping[str, float | None] = field(default_factory=dict)
     #: The segment that absorbs whoever the others do not hire: the informal
-    #: one. Absent, the group's last segment.
+    #: one. Absent, the group's last segment. Perfect mobility (mode A) only.
     informal: str | None = None
     #: ``"none"``: a dual labour market, everyone not hired by a rigid segment
     #: works in the informal one. ``"harris_todaro"``: workers queue for rigid
-    #: jobs until the informal wage equals the expected rigid wage.
+    #: jobs until the informal wage equals the expected rigid wage. Mode A only.
     unemployment: str = "none"
-    #: Unemployment in the base year, as a share of those in or queueing for
-    #: rigid jobs. Harris–Todaro only, and then strictly between 0 and 1.
-    unemployment_rate: float = 0.0
+    #: Unemployment in the base year. Under Harris–Todaro, one rate: the share
+    #: of those in or queueing for rigid jobs, strictly between 0 and 1. Under
+    #: a transformation between segments (mode B), the queue in each rigid
+    #: segment as a share of its supply: one rate for every rigid segment, or
+    #: ``{factor: rate}``. A dual market has none.
+    unemployment_rate: float | Mapping[str, float] = 0.0
 
     def __post_init__(self):
         if self.unemployment not in ("none", "harris_todaro"):
             raise ValueError("LabourMarket.unemployment must be 'none' or 'harris_todaro', "
                              f"got {self.unemployment!r}")
-        rate = float(self.unemployment_rate)
+        rates = (dict(self.unemployment_rate) if isinstance(self.unemployment_rate, Mapping)
+                 else {None: self.unemployment_rate})
+        for f, rate in rates.items():
+            if not 0.0 <= float(rate) < 1.0:
+                raise ValueError(f"LabourMarket.unemployment_rate must lie in [0, 1), got "
+                                 f"{rate!r}" + (f" for {f!r}" if f else ""))
+            if f is not None and f not in self.rigid:
+                raise ValueError(f"LabourMarket.unemployment_rate names {f!r}, which is not "
+                                 f"rigid: only a rigid segment has a queue")
         if self.unemployment == "harris_todaro":
             if not self.rigid:
                 raise ValueError(
                     "a Harris–Todaro labour market needs a rigid segment: the queue is for "
                     "the jobs that pay the fixed wage")
-            if not 0.0 < rate < 1.0:
+            if isinstance(self.unemployment_rate, Mapping) or not float(
+                    self.unemployment_rate) > 0.0:
                 raise ValueError(
-                    "LabourMarket.unemployment_rate must lie strictly between 0 and 1 under "
-                    f"Harris–Todaro, got {rate}. The SAM records employment; the base year "
-                    "sits at this rate, and λ = 1 / (1 − rate) is calibrated from it.")
-        elif rate != 0.0:
-            raise ValueError(
-                "LabourMarket.unemployment_rate is read only under 'harris_todaro'. A dual "
-                "labour market has no unemployment: the informal segment absorbs everyone.")
+                    "LabourMarket.unemployment_rate must be one rate strictly between 0 and 1 "
+                    f"under Harris–Todaro, got {self.unemployment_rate!r}. The SAM records "
+                    "employment; the base year sits at this rate, and λ = 1 / (1 − rate) is "
+                    "calibrated from it.")
         for f, target in self.rigid.items():
             if target is not None and not float(target) > 0:
                 raise ValueError(f"LabourMarket.rigid[{f!r}] must be a positive real wage, "
@@ -92,6 +112,14 @@ class LabourMarket:
         if self.informal is not None and self.informal in self.rigid:
             raise ValueError(f"the informal segment {self.informal!r} cannot also be rigid: "
                              f"its wage is the one that clears")
+
+    def rate_of(self, factor: str) -> float:
+        """Base-year queue rate of a rigid segment, under a transformation between segments."""
+        if factor not in self.rigid:
+            return 0.0
+        if isinstance(self.unemployment_rate, Mapping):
+            return float(self.unemployment_rate.get(factor, 0.0))
+        return float(self.unemployment_rate)
 
 
 @dataclass
@@ -102,6 +130,10 @@ class SegmentGroup:
     factors: list
     index: list               # factor indices, in the group's order
     base: np.ndarray          # base-year employment of each segment
+    #: Transformation between segments (``ModelSpec.segment_mobility``): its
+    #: elasticity and form. None: perfect mobility (mode A).
+    omega: float | None = None
+    form: str = "cet"
 
 
 @dataclass
@@ -111,8 +143,8 @@ class GroupState:
     group: SegmentGroup
     rigid: list               # factor indices
     target: np.ndarray        # real wage target of each rigid segment
-    flexible: list            # factor indices sharing the informal wage, informal excluded
-    informal: int
+    flexible: list            # mode A: factor indices sharing the informal wage
+    informal: int             # mode A: the informal segment; -1 in mode B
     harris_todaro: bool
     lam: float
     U0: float
@@ -120,20 +152,39 @@ class GroupState:
     N: float                  # labour force: employment plus the queue
     shares: np.ndarray        # (n_hh, n_seg) household shares of each segment
     workforce: np.ndarray     # (n_hh,) n_h
-    queue: np.ndarray         # (n_hh,) q_h
+    queue: np.ndarray         # (n_hh,) q_h, mode A
+    #: Mode B: the transformation, with households that hold labour in the
+    #: group as its pools (``active``), and the segments whose wage clears them.
+    transform: FactorMobility | None = None
+    active: np.ndarray | None = None
+    clearing: list = field(default_factory=list)
 
     @property
     def hired(self) -> list:
         """Segments whose employment is what demand asks for."""
         return self.rigid + self.flexible
 
-    def households(self, paid: np.ndarray, U: float) -> tuple:
+    def supplies(self, w: np.ndarray) -> np.ndarray:
+        """Mode B: each household's supply to each segment, ``(n_hh, n_seg)``."""
+        out = np.zeros_like(self.shares)
+        S, _ = self.transform.supply(w[self.group.index], self.workforce[self.active])
+        out[self.active] = S
+        return out
+
+    def households(self, paid: np.ndarray, U: float, supply=None) -> tuple:
         """Employment by household and segment, ``(n_hh, n_seg)``, and the queue by household.
 
-        Affine in ``paid`` and ``U``, which is what lets the solver find
-        employment in closed form.
+        Affine in ``paid`` and ``U`` (mode A), or in ``paid`` at given supplies
+        (mode B), which is what lets the solver find employment in closed form.
         """
         idx = self.group.index
+        if self.transform is not None:
+            e = supply.copy()
+            for i in self.rigid:
+                k = idx.index(i)
+                total = float(supply[:, k].sum())
+                e[:, k] = supply[:, k] * (paid[i] / total if total > 0 else 0.0)
+            return e, (supply - e).sum(axis=1)
         e = np.zeros_like(self.shares)
         hired = set(self.hired)
         for k, i in enumerate(idx):
@@ -147,10 +198,14 @@ class GroupState:
 
 def build_segments(spec, facs, fac_supply) -> dict:
     out = {}
+    mobility = dict(spec.segment_mobility or {})
     for name, members in (spec.labour_segments or {}).items():
         idx = [facs.index(f) for f in members]
-        out[name] = SegmentGroup(name=name, factors=list(members), index=idx,
-                                 base=np.asarray(fac_supply, float)[idx].copy())
+        out[name] = SegmentGroup(
+            name=name, factors=list(members), index=idx,
+            base=np.asarray(fac_supply, float)[idx].copy(),
+            omega=None if name not in mobility else float(mobility[name]),
+            form=spec.mobility_form_of(name))
     return out
 
 
@@ -174,13 +229,38 @@ def period_groups(econ, closure, scenario, supply, facshare) -> list:
             raise ValueError(
                 f"Closure.labour_markets[{name!r}] names segments that are not in the group "
                 f"{grp.factors}: {unknown or [mkt.informal]}")
+        rigid = [econ.factor(f) for f in grp.factors if f in mkt.rigid]
+        target = np.array([1.0 if mkt.rigid[econ.factors[i]] is None
+                           else float(mkt.rigid[econ.factors[i]]) for i in rigid])
+        S = np.asarray(facshare, float)[:, grp.index]
+        L0 = grp.base
+        rigid_k = [grp.index.index(i) for i in rigid]
+        L_R0 = float(L0[rigid_k].sum())
+        if name in forces:
+            N_given = float(forces[name])
+            if not N_given > 0:
+                raise ValueError(f"Scenario.labour_force[{name!r}] must be positive, "
+                                 f"got {N_given}")
+        else:
+            N_given = None
+        scale = float(np.sum(supply[grp.index])) / float(L0.sum())
+
+        if grp.omega is not None:
+            states.append(_transformed(econ, name, grp, mkt, rigid, rigid_k, target, S, L0,
+                                       L_R0, N_given, scale))
+            continue
+
+        dual_with_rate = mkt.unemployment == "none" and (
+            isinstance(mkt.unemployment_rate, Mapping) or float(mkt.unemployment_rate) != 0.0)
+        if dual_with_rate:
+            raise ValueError(
+                f"group {name!r}: a dual labour market has no unemployment, so "
+                f"LabourMarket.unemployment_rate is read only under 'harris_todaro' or with "
+                f"ModelSpec.segment_mobility, where each rigid segment has a queue.")
         informal = mkt.informal if mkt.informal is not None else grp.factors[-1]
         if informal in mkt.rigid:
             raise ValueError(f"the informal segment {informal!r} of group {name!r} cannot be "
                              f"rigid; name another one with LabourMarket.informal")
-        rigid = [econ.factor(f) for f in grp.factors if f in mkt.rigid]
-        target = np.array([1.0 if mkt.rigid[econ.factors[i]] is None
-                           else float(mkt.rigid[econ.factors[i]]) for i in rigid])
         b = econ.factor(informal)
         flexible = [i for i in grp.index if i not in rigid and i != b]
         if mkt.unemployment == "harris_todaro" and flexible:
@@ -188,21 +268,12 @@ def period_groups(econ, closure, scenario, supply, facshare) -> list:
                 f"group {name!r}: under Harris–Todaro every segment is rigid or the informal "
                 f"one, so it is clear who queues; {[econ.factors[i] for i in flexible]} are "
                 f"neither. Make them rigid, or use unemployment='none'.")
-        L0 = grp.base
-        rigid_k = [grp.index.index(i) for i in rigid]
-        L_R0 = float(L0[rigid_k].sum())
         u0 = float(mkt.unemployment_rate)
         U0 = u0 / (1.0 - u0) * L_R0 if mkt.unemployment == "harris_todaro" else 0.0
         lam = 1.0 / (1.0 - u0)
-        S = np.asarray(facshare, float)[:, grp.index]
         queue = (S[:, rigid_k] @ L0[rigid_k] / L_R0) if L_R0 > 0 else np.zeros(S.shape[0])
         N0 = float(L0.sum()) + U0
-        if name in forces:
-            N = float(forces[name])
-            if not N > 0:
-                raise ValueError(f"Scenario.labour_force[{name!r}] must be positive, got {N}")
-        else:
-            N = N0 * float(np.sum(supply[grp.index])) / float(L0.sum())
+        N = N_given if N_given is not None else N0 * scale
         workforce = (S @ L0 + queue * U0) * (N / N0)
         states.append(GroupState(
             group=grp, rigid=rigid, target=target, flexible=flexible, informal=b,
@@ -210,3 +281,36 @@ def period_groups(econ, closure, scenario, supply, facshare) -> list:
             rigid_base=max(L_R0, 1.0), N=N,
             shares=S, workforce=workforce, queue=queue))
     return states
+
+
+def _transformed(econ, name, grp, mkt, rigid, rigid_k, target, S, L0, L_R0, N_given, scale):
+    """Mode B: each household's workforce a pool of a CET or logit across the segments."""
+    if mkt.informal is not None:
+        raise ValueError(
+            f"group {name!r} has a transformation between segments (segment_mobility), so "
+            f"nobody is absorbed by an informal segment: each flexible segment clears and "
+            f"each rigid one has its own queue. Leave LabourMarket.informal out.")
+    if mkt.unemployment == "harris_todaro":
+        raise ValueError(
+            f"group {name!r}: Harris–Todaro is a rule for perfect mobility between segments. "
+            f"With segment_mobility, each rigid segment's queue is the supply it does not "
+            f"hire; set its base-year rate with LabourMarket.unemployment_rate.")
+    rates = np.array([mkt.rate_of(f) for f in grp.factors])
+    S0 = L0 / (1.0 - rates)                       # base supply, the queue included
+    Sh0 = S * S0[None, :]
+    n0 = Sh0.sum(axis=1)
+    active = n0 > 0
+    N0 = float(S0.sum())
+    N = N_given if N_given is not None else N0 * scale
+    workforce = n0 * (N / N0)
+    transform = FactorMobility(
+        factor=name, index=-1, form=grp.form, omega=grp.omega,
+        users=np.ones(len(grp.index), dtype=bool),
+        pools=[econ.hhs[h] for h in np.where(active)[0]],
+        delta=Sh0[active] / n0[active, None], endowment0=n0[active])
+    clearing = [i for i in grp.index if i not in rigid]
+    return GroupState(
+        group=grp, rigid=rigid, target=target, flexible=[], informal=-1,
+        harris_todaro=False, lam=1.0, U0=float((S0 - L0).sum()),
+        rigid_base=max(L_R0, 1.0), N=N, shares=S, workforce=workforce,
+        queue=np.zeros(S.shape[0]), transform=transform, active=active, clearing=clearing)

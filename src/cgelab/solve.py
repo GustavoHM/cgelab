@@ -635,6 +635,10 @@ def solve_period(econ: Economy, closure: Closure | None = None,
             S_o, W_o = m.supply(Wm[i], endow[i])
             mob_supply[i], mob_price[i] = S_o, W_o
             mob_income[i] = float(W_o @ endow[i])
+        # Under a transformation between segments, each household's supply to
+        # each segment at this period's wages.
+        seg_supply = {k: g.supplies(w) for k, g in enumerate(groups)
+                      if g.transform is not None}
         pd_ = econ.msh.T @ pa
         p_dom = domestic_price(pd_ * out_wedge, pe)
         arm, dsh, msh_ = armington(econ.dom_share, p_dom, pm, econ.sigma_arm)
@@ -674,7 +678,7 @@ def solve_period(econ: Economy, closure: Closure | None = None,
             # Each household's workers in a segment group, and what they earn.
             seg_households = []
             for k, g in enumerate(groups):
-                e_h, u_h = g.households(paid, U_now[k])
+                e_h, u_h = g.households(paid, U_now[k], seg_supply.get(k))
                 idx = g.group.index
                 base_income = base_income + e_h @ (w[idx] * (1.0 - fac_gov_sh[idx]
                                                              - fac_row_sh[idx]))
@@ -929,15 +933,25 @@ def solve_period(econ: Economy, closure: Closure | None = None,
             markets = {}
             for k, g in enumerate(groups):
                 idx = g.group.index
-                E_R = float(fac_dem[g.rigid].sum())
                 e_h, u_h = seg_households[k]
+                if g.transform is None:
+                    seg_sup = fac_dem[idx].copy()
+                    queue = np.zeros(len(idx))
+                    U_k = U_now[k]
+                    E_R = float(fac_dem[g.rigid].sum())
+                    rate = U_k / (E_R + U_k) if E_R + U_k > 0 else 0.0
+                else:
+                    seg_sup = seg_supply[k].sum(axis=0)
+                    queue = np.where(np.isin(idx, g.rigid), seg_sup - fac_dem[idx], 0.0)
+                    U_k = float(queue.sum())
+                    S_R = float(seg_sup[np.isin(idx, g.rigid)].sum())
+                    rate = U_k / S_R if S_R > 0 else 0.0
                 markets[g.group.name] = dict(
-                    segments=list(g.group.factors), informal=econ.factors[g.informal],
+                    segments=list(g.group.factors),
+                    informal=econ.factors[g.informal] if g.informal >= 0 else None,
                     wage=w[idx].copy(), real_wage=w[idx] / P_level,
-                    employment=fac_dem[idx].copy(), labour_force=g.N,
-                    unemployment=U_now[k],
-                    unemployment_rate=(U_now[k] / (E_R + U_now[k])
-                                       if E_R + U_now[k] > 0 else 0.0),
+                    employment=fac_dem[idx].copy(), supply=seg_sup, queue=queue,
+                    labour_force=g.N, unemployment=U_k, unemployment_rate=rate,
                     harris_todaro=g.harris_todaro,
                     household_workforce=g.workforce.copy(),
                     household_employment=e_h.copy(), household_unemployed=u_h.copy())
@@ -1001,7 +1015,13 @@ def solve_period(econ: Economy, closure: Closure | None = None,
             paid[slack_idx] = x
             # The informal segment employs the rest of the labour force.
             for k, g in enumerate(groups):
-                paid[g.informal] = g.N - float(paid[g.hired].sum()) - U_now[k]
+                if g.transform is not None:
+                    # A flexible segment pays its whole supply; it clears against it.
+                    tot = seg_supply[k].sum(axis=0)
+                    for i in g.clearing:
+                        paid[i] = tot[g.group.index.index(i)]
+                else:
+                    paid[g.informal] = g.N - float(paid[g.hired].sum()) - U_now[k]
             return paid
 
         if slack_idx:
@@ -1061,6 +1081,14 @@ def solve_period(econ: Economy, closure: Closure | None = None,
     residuals(x)
     ok = res < closure.tolerance
     for name, mk in (state["markets"] or {}).items():
+        short = [f for f, q in zip(mk["segments"], mk["queue"]) if q < -1e-9]
+        if short and ok:
+            raise ValueError(
+                f"labour group {name!r}: rigid segments {short} would hire more than the "
+                f"workers who supply them at their wage, a negative queue. The rigid wage is "
+                f"too low for this shock, or the base-year queue rate too small.")
+        if mk["informal"] is None:
+            continue
         if mk["unemployment"] < -1e-9 and ok:
             raise ValueError(
                 f"labour group {name!r}: Harris–Todaro needs negative unemployment here, "

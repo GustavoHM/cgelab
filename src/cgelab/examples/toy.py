@@ -31,7 +31,7 @@ from ..spec import ModelSpec
 
 __all__ = ["build", "build_with_margins", "build_with_own_production", "build_with_twin_accounts",
            "build_with_institutions", "build_with_specific_capital", "build_with_trade_taxes",
-           "build_with_segmented_labour",
+           "build_with_segmented_labour", "survey",
            "build_one_good", "spec"]
 
 
@@ -246,6 +246,37 @@ def build_with_segmented_labour(model_spec: ModelSpec | None = None, **kwargs):
         factors=("f_cap", "f_for", "f_inf"), numeraire_factor="f_cap",
         labour_segments={"labour": ["f_for", "f_inf"]}), **kwargs)
     return sam, econ
+
+
+def survey():
+    """A synthetic household survey of :func:`build_with_segmented_labour`.
+
+    Twelve households, six in each SAM account, written by hand: survey weights,
+    sizes, formal and informal wages, capital income, and spending on food and
+    goods. It is not data. Its weighted totals deliberately differ from the
+    SAM's (formal wages 51 against 60 in ``hh_1``, capital 8.75 against 15 in
+    ``hh_2``), as a real survey's do, so that reconciliation has work to do.
+    """
+    from ..micro import Survey
+    rows = [
+        # group, weight, size, formal, informal, capital, food, goods
+        ("hh_1", 2.0, 4, 8.0, 0.0, 2.0, 3.0, 5.0),
+        ("hh_1", 1.5, 3, 10.0, 0.0, 4.0, 3.0, 6.0),
+        ("hh_1", 1.0, 2, 12.0, 0.0, 9.0, 3.0, 8.0),
+        ("hh_1", 1.0, 5, 0.0, 4.0, 1.0, 4.0, 2.0),
+        ("hh_1", 1.0, 1, 6.0, 1.0, 6.0, 2.0, 5.0),
+        ("hh_1", 0.5, 3, 4.0, 3.0, 12.0, 3.0, 9.0),
+        ("hh_2", 3.0, 5, 0.0, 3.0, 0.0, 2.0, 1.0),
+        ("hh_2", 2.5, 4, 2.0, 2.0, 0.5, 2.0, 1.0),
+        ("hh_2", 2.0, 6, 0.0, 4.0, 0.0, 3.0, 1.0),
+        ("hh_2", 1.5, 3, 3.0, 1.0, 1.0, 2.0, 2.0),
+        ("hh_2", 1.0, 2, 0.0, 2.0, 2.0, 1.0, 2.0),
+        ("hh_2", 1.0, 4, 1.0, 5.0, 4.0, 3.0, 3.0),
+    ]
+    frame = pd.DataFrame(rows, columns=["group", "weight", "size", "formal", "informal",
+                                        "capital", "food", "goods"])
+    return Survey(frame, sources={"formal": "f_for", "informal": "f_inf", "capital": "f_cap"},
+                  budget={"food": "c_agr", "goods": "c_ind"})
 
 
 def build_one_good():

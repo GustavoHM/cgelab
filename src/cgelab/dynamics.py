@@ -218,42 +218,70 @@ def run_path(econ: Economy, closure: Closure | None = None, *, years: Sequence,
     """
     closure = closure or Closure()
     growth = growth or Growth()
-    if econ.regional is not None and len(econ.regional.regions) > 1:
-        raise ValueError(
-            "run_path does not move factors between regions. The within-period "
-            "nest is solved by solve_period; a regional capital stock that "
-            "accumulates, and migration, are not in this slice.")
     years = list(years)
-    caps = growth.capital_factors
-    ki = np.array([econ.factor(k) for k in caps])
-    # A group of labour segments grows as a whole: every segment, and so its
-    # labour force, at the same rate.
-    li = (np.array(econ.segments[growth.labour_factor].index)
-          if growth.labour_factor in econ.segments else econ.factor(growth.labour_factor))
-    dep = np.array([growth.depreciation_of(k) for k in caps])
-    user_cost = growth.discount + dep
-
-    stock = econ.fac_supply[ki] / user_cost
-    row_share0 = econ.zeros_if_none("fac_row_share", econ.n_fac)
-    foreign = stock * row_share0[ki]
-    labour0 = np.array(econ.fac_supply[li], dtype=float)
-
-    periods, stocks, foreigns = [], [], []
-    warm = None
+    state = _PathState(econ, closure, growth, raise_on_fail=raise_on_fail)
     for t, year in enumerate(years):
+        e_t = state.economy_at(economy, year, t)
+        sc = scenario(year, t) if callable(scenario) else (scenario or Scenario())
+        res, sc_full = state.solve(e_t, sc, t)
+        state.advance(e_t, res, sc_full)
+    return state.result(years)
+
+
+class _PathState:
+    """What carries from one year of a path to the next, and the step between them.
+
+    ``solve`` builds the year's scenario from the growth block and the state and
+    solves the period, without changing the state, so that a calibration can try
+    several productivities for one year; ``advance`` then accumulates capital
+    from the solution that was kept.
+    """
+
+    def __init__(self, econ: Economy, closure: Closure, growth: Growth, *,
+                 raise_on_fail: bool = True):
+        if econ.regional is not None and len(econ.regional.regions) > 1:
+            raise ValueError(
+                "run_path does not move factors between regions. The within-period "
+                "nest is solved by solve_period; a regional capital stock that "
+                "accumulates, and migration, are not in this slice.")
+        self.econ, self.closure, self.growth = econ, closure, growth
+        self.raise_on_fail = raise_on_fail
+        self.caps = growth.capital_factors
+        self.ki = np.array([econ.factor(k) for k in self.caps])
+        # A group of labour segments grows as a whole: every segment, and so its
+        # labour force, at the same rate.
+        self.li = (np.array(econ.segments[growth.labour_factor].index)
+                   if growth.labour_factor in econ.segments
+                   else econ.factor(growth.labour_factor))
+        self.dep = np.array([growth.depreciation_of(k) for k in self.caps])
+        self.user_cost = growth.discount + self.dep
+        self.stock = econ.fac_supply[self.ki] / self.user_cost
+        self.row_share0 = econ.zeros_if_none("fac_row_share", econ.n_fac)
+        self.foreign = self.stock * self.row_share0[self.ki]
+        self.labour0 = np.array(econ.fac_supply[self.li], dtype=float)
+        self.periods, self.stocks, self.foreigns = [], [], []
+        self.warm = None
+
+    def economy_at(self, economy, year, t) -> Economy:
+        econ = self.econ
         e_t = economy(year, t) if economy is not None else econ
         if e_t.factors != econ.factors or e_t.coms != econ.coms or e_t.acts != econ.acts:
             raise ValueError(f"economy({year!r}, {t}) returned an Economy with different "
                              f"accounts; build it from the base with dataclasses.replace")
-        sc = scenario(year, t) if callable(scenario) else (scenario or Scenario())
-        unknown = [k for k in sc.fdi if k not in caps]
+        return e_t
+
+    def solve(self, e_t: Economy, sc: Scenario, t: int, *, warm=None,
+              raise_on_fail: bool | None = None):
+        """The period at index ``t`` under ``sc``; returns it and the scenario it solved."""
+        econ, growth = self.econ, self.growth
+        unknown = [k for k in sc.fdi if k not in self.caps]
         if unknown:
             raise ValueError(f"FDI into {unknown}, which Growth does not accumulate as capital "
-                             f"(capital factors: {caps})")
+                             f"(capital factors: {self.caps})")
         level = (1.0 + growth.tfp) ** t
         supply = e_t.fac_supply.copy()
-        supply[li] = labour0 * (1.0 + growth.labour) ** t
-        supply[ki] = stock * user_cost
+        supply[self.li] = self.labour0 * (1.0 + growth.labour) ** t
+        supply[self.ki] = self.stock * self.user_cost
         if growth.productivity == "factor_augmenting":
             supply = supply * level
             tfp = np.ones(econ.n_act)
@@ -264,17 +292,25 @@ def run_path(econ: Economy, closure: Closure | None = None, *, years: Sequence,
         if sc.productivity is not None:
             tfp = tfp * np.asarray(sc.productivity, dtype=float)
         changes = dict(factor_supply=supply, productivity=tfp)
-        if sc.foreign_factor_share is None and (foreign.any() or row_share0.any()):
+        if sc.foreign_factor_share is None and (self.foreign.any() or self.row_share0.any()):
             share = e_t.zeros_if_none("fac_row_share", econ.n_fac).copy()
-            share[ki] = np.where(stock > 0, foreign / np.maximum(stock, 1e-300), 0.0)
+            share[self.ki] = np.where(self.stock > 0,
+                                      self.foreign / np.maximum(self.stock, 1e-300), 0.0)
             changes["foreign_factor_share"] = share
-        sc = sc.with_(**changes)
+        sc_full = sc.with_(**changes)
+        res = solve_period(e_t, self.closure, sc_full,
+                           warm_start=self.warm if warm is None else warm,
+                           raise_on_fail=(self.raise_on_fail if raise_on_fail is None
+                                          else raise_on_fail))
+        return res, sc_full
 
-        res = solve_period(e_t, closure, sc, warm_start=warm, raise_on_fail=raise_on_fail)
-        periods.append(res)
-        stocks.append(stock.copy())
-        foreigns.append(foreign.copy())
-        warm = res
+    def advance(self, e_t: Economy, res: PeriodResult, sc: Scenario) -> None:
+        """Keep the year's solution and accumulate capital from its investment."""
+        growth, closure = self.growth, self.closure
+        self.periods.append(res)
+        self.stocks.append(self.stock.copy())
+        self.foreigns.append(self.foreign.copy())
+        self.warm = res
 
         # Real investment adds to the stock. The flow-onto-flow error this avoids
         # -- adding nominal saving to the capital SERVICE payment -- is the single
@@ -290,17 +326,18 @@ def run_path(econ: Economy, closure: Closure | None = None, *, years: Sequence,
         # shared by the allocation rule.
         real_per_nominal = inv_real / res.savings if abs(res.savings) > 1e-12 else 0.0
         fdi_real = np.array([float(sc.fdi.get(k, 0.0)) * closure.numeraire * real_per_nominal
-                             for k in caps])
+                             for k in self.caps])
         domestic = inv_real - float(fdi_real.sum())
-        weights = _allocation(growth.allocation, stock, res.factor_prices[ki])
-        stock = (1.0 - dep) * stock + domestic * weights + fdi_real
-        foreign = (1.0 - dep) * foreign + fdi_real
+        weights = _allocation(growth.allocation, self.stock, res.factor_prices[self.ki])
+        self.stock = (1.0 - self.dep) * self.stock + domestic * weights + fdi_real
+        self.foreign = (1.0 - self.dep) * self.foreign + fdi_real
 
-    single = len(caps) == 1
-    shape = (lambda a: np.array(a)[:, 0]) if single else np.array
-    return PathResult(years=years, periods=periods, econ=econ, growth=growth,
-                      capital_stock=shape(stocks), foreign_capital=shape(foreigns),
-                      capital_factors=caps)
+    def result(self, years) -> "PathResult":
+        single = len(self.caps) == 1
+        shape = (lambda a: np.array(a)[:, 0]) if single else np.array
+        return PathResult(years=list(years), periods=self.periods, econ=self.econ,
+                          growth=self.growth, capital_stock=shape(self.stocks),
+                          foreign_capital=shape(self.foreigns), capital_factors=self.caps)
 
 
 def _allocation(rule, stock: np.ndarray, rent: np.ndarray) -> np.ndarray:

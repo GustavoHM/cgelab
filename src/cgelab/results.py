@@ -14,8 +14,8 @@ import pandas as pd
 
 from .solve import PeriodResult
 
-__all__ = ["factor_demand_by_activity", "real_gdp", "sectoral_path", "national_accounts",
-           "price_indices", "government_account"]
+__all__ = ["factor_demand_by_activity", "real_gdp", "real_value_added", "sectoral_path",
+           "national_accounts", "price_indices", "government_account"]
 
 
 def factor_demand_by_activity(period: PeriodResult) -> pd.DataFrame:
@@ -82,6 +82,23 @@ def real_gdp(period: PeriodResult) -> dict:
         "own_account": own_account,
         "other": other,
     }
+
+
+def real_value_added(period: PeriodResult) -> pd.Series:
+    """Real value added by activity, by double deflation, at base-year prices.
+
+    Output at the base-year activity price of one, less the intermediate inputs
+    it used at base-year purchaser prices: how a statistical office measures
+    value added in volume. Productivity moves it. The ``value_added`` of
+    :func:`real_gdp` does not: it is factor use at base-year factor prices, and
+    Hicks-neutral productivity changes the output a factor makes, not the
+    factor. Activity taxes stay inside, as in gross value added at basic
+    prices, so at the base year the sum is ``value_added + activity_tax``.
+    """
+    econ = period.econ
+    coef = econ.io if period.input_coefficients is None else period.input_coefficients
+    unit = 1.0 - (1.0 + econ.ptax) @ coef
+    return pd.Series(unit * period.X, index=list(econ.acts), name="real_value_added")
 
 
 def sectoral_path(path) -> pd.DataFrame:

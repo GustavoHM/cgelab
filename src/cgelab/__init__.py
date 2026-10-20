@@ -34,6 +34,7 @@ from .physical import PhysicalUnits, add_physical_units, physical, physical_coef
 from .export import to_jump
 from .har import read_har, write_har
 from .dynamics import Growth, PathResult, run_path
+from .baseline import Baseline, calibrate_baseline
 from .functions import (armington, ces_intensity, ces_price, cet, cet_domestic_price,
                         cobb_douglas_price)
 from .behaviour import Behaviour, PersonSurvey, transition_probabilities
@@ -47,7 +48,7 @@ from .mobility import FactorMobility
 from .multipliers import (Multipliers, accounting_multipliers, fixed_price_multipliers,
                           leontief_multipliers, linkages, structural_paths)
 from .results import (factor_demand_by_activity, government_account, national_accounts,
-                      price_indices, real_gdp, sectoral_path)
+                      price_indices, real_gdp, real_value_added, sectoral_path)
 from .sam import SAM, BalanceError
 from .scenario import Scenario, consumer_wedge
 from .sensitivity import (Normal, SensitivityResult, Triangular, Uniform, sensitivity,
@@ -64,7 +65,7 @@ __all__ = [
     "calibrate", "Economy",
     "Closure", "LabourMarket", "Scenario", "consumer_wedge",
     "solve_period", "PeriodResult", "value_added_price", "factor_intensity",
-    "run_path", "PathResult", "Growth",
+    "run_path", "PathResult", "Growth", "calibrate_baseline", "Baseline",
     "FactorMobility",
     "Survey", "MicroResult", "microsimulate", "account_sources", "inequality", "poverty",
     "PersonSurvey", "Behaviour", "transition_probabilities",
@@ -78,7 +79,7 @@ __all__ = [
     "to_jump", "read_har", "write_har",
     "Emissions", "add_emissions", "emissions",
     "PhysicalUnits", "add_physical_units", "physical", "physical_coefficient",
-    "factor_demand_by_activity", "real_gdp", "sectoral_path",
+    "factor_demand_by_activity", "real_gdp", "real_value_added", "sectoral_path",
     "national_accounts", "price_indices", "government_account",
     "Multipliers", "accounting_multipliers", "fixed_price_multipliers", "leontief_multipliers",
     "linkages", "structural_paths",

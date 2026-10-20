@@ -134,11 +134,11 @@ Done, and no longer gaps:
 - **Investment:** `Scenario.investment_mix` for the commodity basket of investment.
   Investment by destination sector stays `Growth.allocation`.
 
-**Microsimulation.** In progress in 0.6: `cgelab.micro`, a top-down link from the household
+**Microsimulation.** Done in 0.6: `cgelab.micro`, a top-down link from the household
 accounts to the households of a survey, reconciled with the SAM, with Gini, FGT, generalised
 entropy and Atkinson indices, the survey reweighted to the model's employment by segment and
 unemployment, and a behavioural microsimulation in the manner of Bourguignon, Robilliard and
-Robinson (2005). Next: readers for the IBGE's PNAD Contínua and POF.
+Robinson (2005), and readers for the IBGE's PNAD Contínua and POF (`cgelab.ibge`).
 
 ## Then: model structure
 

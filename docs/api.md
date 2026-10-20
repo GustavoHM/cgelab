@@ -654,6 +654,28 @@ the line.
 GE(α) within and between groups (rows per group, `within`, `between`,
 `total`); FGT(α) by group, the contributions adding up to the total.
 
+### `read_sas_program(path, encoding="latin-1") -> dict[str, SasLayout]` / `read_ibge(data, program, *, record=None, variables=None, encoding="latin-1", chunksize=None) -> DataFrame`
+
+An IBGE SAS reading program's records by data-step name, each with its
+`infile` and `fields` (`name`, `start`, `width`, `char`, `decimals`); and the
+fixed-width data it describes. `record` picks a data step (by default the one
+whose `INFILE` names the data file).
+
+### `pnadc(data, program, *, segments, group, frame=None, missing_cnpj="refuse", chunksize=200000) -> (Survey, PersonSurvey)`
+
+A quarter of the PNAD Contínua. `segments` maps `"formal"` and `"informal"` to
+the model's segments; statuses follow VD4001, VD4002, VD4009 and V4019 (the
+IBGE's informality proxy); earnings are VD4019. `group` is a column of the
+household frame or a function of it. `missing_cnpj` is `"refuse"`, `"formal"` or
+`"informal"` for employers and own-account workers without V4019.
+
+### `pof(directory, program, *, commodities, group, income=None, exclude_conditions=(18, 19), records=None) -> Survey`
+
+The POF 2017–2018 by consumption unit: monthly spending by SAM commodity
+(`commodities`, item-code prefixes), `unmapped_spending`, `labour` and other
+income columns (`income`, prefixes; the rest `other_income`), size and
+PESO_FINAL. Its income sources are `"fixed"` until mapped.
+
 ---
 
 ## Diagnostics

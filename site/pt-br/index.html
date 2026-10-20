@@ -434,6 +434,17 @@ cge.inequality(sorteado).loc["gini"]      # de 0,526 para 0,544, erro-padrão 0,
   rendimento por trabalhador variarem como o modelo diz, como em Bourguignon, Robilliard e
   Robinson (2005). O padrão usa a expectativa exata dos sorteios condicionais; os próprios
   sorteios dão uma média de Monte Carlo e o seu erro.</p>
+
+  <h3>21. As pesquisas do IBGE</h3>
+<pre><code class="plain">pesquisa, pessoas = cge.pnadc("PNADC_032023.txt", "input_PNADC_trimestral.txt",
+                              segments={"formal": "f_for", "informal": "f_inf"},
+                              group=minhas_contas)
+domicilios = cge.pof("Dados_POF/", "Leitura dos Microdados - SAS.txt",
+                     commodities=correspondencia, group=minhas_contas)</code></pre>
+  <p>A PNAD Contínua e a POF são lidas com os próprios programas de leitura SAS do IBGE, então
+  nenhuma posição de coluna é digitada à mão. Os trabalhadores são formais ou informais pela proxy
+  do IBGE, e a despesa da POF é anualizada e deflacionada como fazem os programas de tabulação do
+  IBGE. Os microdados são baixados do IBGE e nunca entram no repositório.</p>
 </div></section>
 
 <section id="portarias"><div class="wrap">

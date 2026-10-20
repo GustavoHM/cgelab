@@ -434,6 +434,17 @@ cge.inequality(drawn).loc["gini"]         # 0.526 to 0.544, standard error 0.000
   employment and earnings per worker change as the model says, as in Bourguignon, Robilliard and
   Robinson (2005). The default uses the exact expectation of their conditional draws; the draws
   themselves give a Monte Carlo mean and its error.</p>
+
+  <h3>21. The IBGE's surveys</h3>
+<pre><code class="plain">survey, persons = cge.pnadc("PNADC_032023.txt", "input_PNADC_trimestral.txt",
+                            segments={"formal": "f_for", "informal": "f_inf"},
+                            group=my_accounts)
+households = cge.pof("Dados_POF/", "Leitura dos Microdados - SAS.txt",
+                     commodities=correspondence, group=my_accounts)</code></pre>
+  <p>The PNAD Contínua and the POF are read with the IBGE's own SAS reading programs, so no
+  column position is typed by hand. Workers are formal or informal by the IBGE's proxy, and the
+  POF's spending is annualised and deflated as the IBGE's tabulation programs do. The microdata
+  are downloaded from the IBGE and never enter the repository.</p>
 </div></section>
 
 <section id="gates"><div class="wrap">

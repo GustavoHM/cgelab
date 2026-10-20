@@ -37,6 +37,7 @@ from .dynamics import Growth, PathResult, run_path
 from .functions import (armington, ces_intensity, ces_price, cet, cet_domestic_price,
                         cobb_douglas_price)
 from .behaviour import Behaviour, PersonSurvey, transition_probabilities
+from .ibge import pnadc, pof, read_ibge, read_sas_program
 from .micro import (MicroResult, Survey, account_sources, atkinson, fgt, fgt_decomposition,
                     ge_decomposition, generalized_entropy, gini, inequality,
                     mean_log_deviation, microsimulate, poverty, theil)
@@ -65,6 +66,7 @@ __all__ = [
     "FactorMobility",
     "Survey", "MicroResult", "microsimulate", "account_sources", "inequality", "poverty",
     "PersonSurvey", "Behaviour", "transition_probabilities",
+    "read_ibge", "read_sas_program", "pnadc", "pof",
     "gini", "fgt", "generalized_entropy", "theil", "mean_log_deviation", "atkinson",
     "ge_decomposition", "fgt_decomposition",
     "equivalent_variation", "ev_by_group", "compensating_variation",

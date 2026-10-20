@@ -1198,6 +1198,50 @@ staying and a piecewise analytic integral for moving. It is deterministic and
 smooth in `δ`, which is what lets the intercepts hit the model's targets
 exactly; draws hit them only up to the granularity of a finite sample.
 
+### Survey data from the IBGE
+
+The IBGE publishes its microdata as fixed-width text with a SAS reading program
+that gives each field's position, width and type. `read_ibge(data, program)`
+reads the data with that program, so no position is written by hand and a new
+layout needs no new code; `read_sas_program` returns the layouts, one per data
+step (the POF has sixteen). Text fields stay text, blanks are missing, a `w.d`
+informat places the decimal point as SAS does, and `variables=` and
+`chunksize=` keep a quarter of the PNAD Contínua within memory.
+
+```python
+survey, persons = cge.pnadc("PNADC_032023.txt", "input_PNADC_trimestral.txt",
+                            segments={"formal": "f_for", "informal": "f_inf"},
+                            group=my_accounts)          # a column, or a function of the households
+households = cge.pof("Dados_POF/", "Leitura dos Microdados - SAS.txt",
+                     commodities=correspondence, group=my_accounts)
+```
+
+`pnadc` gives a household survey and a person survey for the behavioural
+microsimulation. A person under 14 or out of the labour force (VD4001 = 2) is
+inactive, an unoccupied one (VD4002 = 2) unemployed, and an occupied one
+informal by the IBGE's proxy: VD4009 02 (private employee without a signed
+card), 04 (domestic worker without one) or 10 (unpaid family worker), or 08 and
+09 (employer, own-account) without CNPJ (V4019 = 2); formal otherwise. Earnings
+are VD4019, usual monthly earnings from all jobs. V4019 exists from the fourth
+quarter of 2015; for earlier quarters `missing_cnpj` must say how employers and
+own-account workers are classified. The household is UPA + V1008 + V1014 and its
+weight V1028.
+
+`pof` gives a survey of consumption units. Spending comes from the four records
+of the IBGE's general spending table, each value `V8000_DEFLA ×
+FATOR_ANUALIZACAO / 12`, times `V9011` for the quadros the IBGE treats as monthly
+(estimated rent; collective quadros 10 and 19; individual quadros 44, 47 to 50):
+monthly, at January 2018 prices. `commodities` maps a prefix of the five-digit
+item code to a SAM commodity, the longest prefix winning; what it does not map
+stays in `unmapped_spending`, outside the budget. Work income and other income
+(by `income`, a prefix map to columns) come out monthly the same way; their
+sources are `"fixed"` until mapped to the model's. The size leaves out domestic
+employees and their relatives (V0306 18 and 19). The definitions were checked
+against the IBGE's dictionaries, reading programs and calculation memo, and
+`validation/ibge_layouts.py` compares the layouts with the IBGE's R programs.
+The microdata never enter the repository; a check on them runs when
+`CGELAB_IBGE_DIR` points at them.
+
 **Measures.** `gini`, `fgt`, `generalized_entropy` (`theil` is GE(1),
 `mean_log_deviation` GE(0)) and `atkinson` take any vector and weights.
 `ge_decomposition` splits GE(α) into inequality within and between groups,

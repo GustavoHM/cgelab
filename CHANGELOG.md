@@ -80,6 +80,17 @@ before 1.0, a minor version may add to the API and a patch version only fixes.
   statsmodels' `MNLogit` to 1e-8; the transition probabilities add up to both
   choices' logit probabilities to 1e-15 and agree with the draws; the micro labour
   income of every account is the model's to 1e-10.
+- Readers for the IBGE's surveys (`cgelab.ibge`). `read_ibge` reads fixed-width
+  microdata with the layout of the IBGE's SAS reading program (`read_sas_program`),
+  several data steps, `w.d` informats and Latin-1 included. `pnadc` turns a
+  quarter of the PNAD Contínua into a household `Survey` and a `PersonSurvey`,
+  formal or informal by the IBGE's proxy (VD4009 with V4019). `pof` turns the
+  POF 2017–2018 into a survey of consumption units, its spending annualised and
+  deflated as the IBGE's tabulation programs do and mapped to SAM commodities by
+  item-code prefix. Tests use fixtures written by hand in the IBGE's formats; a
+  check on the real microdata runs when `CGELAB_IBGE_DIR` points at them, and
+  `validation/ibge_layouts.py` matches the layouts against the IBGE's R
+  programs (all sixteen POF records) and a readr reading of the fixture.
 - `welfare_decomposition` has a `factor_reallocation` term: what moving an
   imperfectly mobile factor between activities adds beyond its endowment. It is
   zero under a CET, by the envelope theorem, and the identity still closes.

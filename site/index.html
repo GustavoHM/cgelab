@@ -473,6 +473,18 @@ cge.solve_period(two).residual                     # the base year, at machine p
   accounts become a group of segments. With one wage for both, the split model has exactly the
   single factor's equilibrium; a rigid formal wage then makes the difference.
   <code>split_households</code> does the same for a household account and a survey's groups.</p>
+
+  <h3>24. A baseline that hits a GDP path</h3>
+<pre><code>gdp = pd.Series([0.046, 0.029, 0.032, 0.025], index=range(2022, 2026))   # real growth
+base = cge.calibrate_baseline(econ, years=range(2021, 2026), gdp=gdp,
+                              growth=cge.Growth(labour=0.01))
+base.factor                                        # the productivity that hits each year
+policy = base.run(cge.Scenario(product_tax=econ.ptax * 1.2))
+cge.real_gdp(policy[2025])["expenditure"] / base.achieved[2025] - 1</code></pre>
+  <p>Real GDP is given, observed or projected, and productivity is the unknown, solved year by
+  year because each year's capital comes from the investment before it: one number a year, or one
+  per activity on sectoral value added. A policy then runs at the calibrated productivity, and
+  GDP moves away from the path; with no policy, the baseline comes back exactly.</p>
 </div></section>
 
 <section id="gates"><div class="wrap">

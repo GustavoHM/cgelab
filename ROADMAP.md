@@ -171,6 +171,12 @@ in each rigid one; income that follows each household's workers). Still open: em
 persons rather than in base-year wage units, unemployment benefits, and a wage curve by
 segment.
 
+**A baseline calibrated to GDP.** Done in 0.6: `calibrate_baseline`, the productivity path
+that makes a recursive baseline hit real GDP, by year or by activity, and `Baseline`, which
+runs a policy at it. Still open: other targets with other unknowns (employment through the
+labour supply, the investment rate through saving, exports through world prices), the rest
+of a MONASH historical closure.
+
 **Asymmetric Armington.** The substitution elasticity is one number per commodity. Cicowiez and
 Lofgren (2022) make it depend on the origin of the import. Their Mongolia 2015 workbook also
 holds the symmetric tariff experiments; the published result is the asymmetric one.

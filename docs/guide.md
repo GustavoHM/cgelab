@@ -638,6 +638,46 @@ leave through the current account. Counting FDI only as foreign saving would han
 residents a capital stock they did not pay for, and every gain it produced would
 be credited to them.
 
+### A baseline calibrated to GDP
+
+A baseline built from assumed rates makes GDP whatever the rates give. The
+applied practice turns this round, as in the historical simulations of MONASH
+and the baselines of LINKAGE: real GDP in each year, observed or projected, is
+given, and productivity is the unknown. A policy run then holds productivity at
+the calibrated values and lets GDP move.
+
+```python
+gdp = pd.Series([0.046, 0.029, 0.032, 0.025], index=range(2022, 2026))   # real growth
+base = cge.calibrate_baseline(econ, years=range(2021, 2026), gdp=gdp,
+                              growth=cge.Growth(labour=0.01))
+base.factor            # Λ_t, the productivity that hits each year
+base.achieved          # the GDP the path reached, against base.target
+policy = base.run(cge.Scenario(product_tax=new_rates))   # productivity held, GDP moves
+```
+
+The years are calibrated in sequence, since each year's capital comes from the
+investment of the years before: one scalar root a year, multiplying the
+Hicks-neutral productivity of every activity on top of what `growth` and
+`scenario` already set. `gdp` is a series of growth rates (`kind="growth"`), an
+index (`"index"`) or levels in the SAM's units at base-year prices (`"level"`);
+with the first two the first year is solved as `run_path` solves it, and with
+levels it is calibrated too. `pattern={"a_agr": 2.0, "a_ind": 1.0}` makes
+farming's productivity grow twice as fast as industry's, the path deciding how
+fast in all. With `sectors=`, a frame of real value added by year and activity,
+each activity has its own unknown and the roots are solved together.
+
+GDP is measured on the expenditure side of `real_gdp` (`measure="expenditure"`)
+or as the sum of `real_value_added` (`"production"`), value added by double
+deflation: output at base-year prices less the inputs it used at base-year
+prices, the volume measure statistical offices publish. The `value_added` of
+`real_gdp` cannot be the target. It is factor use at base-year factor prices,
+and productivity changes what a factor makes, not the factor.
+
+`base.scenario(policy)` is the `f(year, t)` that `run_path` takes. A policy is
+the whole scenario for the year, built from the baseline's as any policy is
+built from its reference; a productivity it sets multiplies the calibrated one.
+With no policy, running it reproduces the baseline exactly.
+
 ### Reading a path
 
 ```python

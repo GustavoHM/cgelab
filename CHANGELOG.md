@@ -119,6 +119,19 @@ before 1.0, a minor version may add to the API and a patch version only fixes.
   exactly and give the GDP the IBGE publishes for 2021, R$ 9,012,142 million; the
   suite reads a hand-written table in that layout. A new extra, `ibge`, installs
   `xlrd` for the `.xls` files.
+- `calibrate_baseline` calibrates a recursive baseline to a path of real GDP, in
+  the manner of MONASH's historical simulations and LINKAGE's baselines: year by
+  year, in sequence, the Hicks-neutral productivity that hits a GDP given as
+  growth rates, an index or levels, one scalar a year (spread across activities
+  by an optional `pattern`) or one per activity on sectoral value added.
+  `Baseline` keeps the calibrated productivity, the path and the target, and
+  `scenario(policy)` and `run(policy)` give a policy run at that productivity;
+  with no policy it reproduces the baseline exactly. Calibrating on a path
+  solved with a known productivity gives it back to 1e-10, by scalar, pattern and
+  sector, and a one-good economy matches the Solow recursion worked on paper.
+  `real_value_added` measures value added by activity by double deflation, which
+  productivity moves and the factor bill of `real_gdp` does not. `run_path`'s
+  year step is now an internal stepper the two share; its results are unchanged.
 - `welfare_decomposition` has a `factor_reallocation` term: what moving an
   imperfectly mobile factor between activities adds beyond its endowment. It is
   zero under a CET, by the envelope theorem, and the identity still closes.

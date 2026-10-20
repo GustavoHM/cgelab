@@ -473,6 +473,18 @@ cge.solve_period(dois).residual                    # o ano-base, à precisão de
   duas contas viram um grupo de segmentos. Com um só salário, o modelo partido tem exatamente o
   equilíbrio do fator único; um salário formal rígido é que faz a diferença.
   <code>split_households</code> faz o mesmo com uma conta de famílias e os grupos de uma pesquisa.</p>
+
+  <h3>24. Uma linha de base que atinge uma trajetória do PIB</h3>
+<pre><code>pib = pd.Series([0.046, 0.029, 0.032, 0.025], index=range(2022, 2026))   # crescimento real
+base = cge.calibrate_baseline(econ, years=range(2021, 2026), gdp=pib,
+                              growth=cge.Growth(labour=0.01))
+base.factor                                        # a produtividade que atinge cada ano
+politica = base.run(cge.Scenario(product_tax=econ.ptax * 1.2))
+cge.real_gdp(politica[2025])["expenditure"] / base.achieved[2025] - 1</code></pre>
+  <p>O PIB real é dado, observado ou projetado, e a produtividade é a incógnita, resolvida ano a
+  ano porque o capital de cada ano vem do investimento dos anteriores: um número por ano, ou um por
+  atividade com o valor adicionado setorial. Uma política roda então com a produtividade calibrada,
+  e o PIB se afasta da trajetória; sem política, a linha de base volta exatamente.</p>
 </div></section>
 
 <section id="portarias"><div class="wrap">

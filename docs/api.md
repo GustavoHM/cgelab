@@ -286,6 +286,14 @@ At the base year the gap is `product_tax` plus `activity_tax`. `own_account` is
 included in expenditure; without it the gap is short by that activity. `other`
 is what remains once quantities leave the base year.
 
+### `real_value_added(period) -> Series`
+
+Real value added by activity, by double deflation: output at the base-year
+activity price less intermediate inputs at base-year purchaser prices.
+Productivity moves it, unlike the `value_added` of `real_gdp`, which is factor
+use; activity taxes stay inside, so at the base year it sums to
+`value_added + activity_tax`.
+
 ### `national_accounts(period) -> dict`
 
 GDP at current market prices: `consumption`, `government`, `investment`,
@@ -450,6 +458,31 @@ set inside a per-year scenario override the accumulated ones. `economy` is
 `f(year, index) -> Economy`, for changes that are not scenario fields (input
 coefficients, foreign saving, transfer rules); it must keep the accounts of
 `econ`, e.g. `dataclasses.replace(econ, io=...)`.
+
+### `calibrate_baseline(econ, closure=None, *, years, gdp=None, kind="growth", growth=None, scenario=None, economy=None, pattern=None, sectors=None, measure="expenditure", tol=1e-12) -> Baseline`
+
+The productivity path that makes `run_path` hit a path of real GDP, year by year.
+`gdp` is a `Series` by year of growth rates (`kind="growth"`, the first year
+uncalibrated and its rate unread), an index (`"index"`, normalised by its first
+year, also uncalibrated) or levels at base-year prices (`"level"`, every year
+calibrated). The year's unknown `Λ_t` multiplies the Hicks-neutral productivity
+of activity `a` by `Λ_t ** pattern[a]` (all ones by default; a mapping leaves
+the activities it omits at 0). `sectors`, a `DataFrame` of real value added by
+year and activity read with `kind`, gives each listed activity its own unknown
+instead; not with `gdp` nor `pattern`. `measure` is `"expenditure"`
+(`real_gdp`) or `"production"` (the sum of `real_value_added`). A target that
+no productivity reaches is refused, naming the year.
+
+### `Baseline`
+
+`years`, `productivity` (`DataFrame` year × activity: the multiplier passed as
+`Scenario.productivity`, the baseline scenario's own times the calibrated one;
+`Growth.tfp` comes on top), `factor` (`Λ_t` as a `Series`, or with `sectors` a
+`DataFrame` by activity), `multiplier` (the calibrated part alone), `path` (the
+calibrated `PathResult`), `target`, `achieved`, `measure`; `scenario(policy=None)`
+gives `f(year, t) -> Scenario` for `run_path`, with the policy (a `Scenario` or
+`f(year, t)`, the whole scenario for the year) at the calibrated productivity,
+and `run(policy=None)` runs it.
 
 ### `PathResult`
 

@@ -440,7 +440,8 @@ cge.inequality(sorteado).loc["gini"]      # de 0,526 para 0,544, erro-padrão 0,
                               segments={"formal": "f_for", "informal": "f_inf"},
                               group=minhas_contas)
 domicilios = cge.pof("Dados_POF/", "Leitura dos Microdados - SAS.txt",
-                     commodities=correspondencia, group=minhas_contas)</code></pre>
+                     commodities=correspondencia, group=minhas_contas)
+tru = cge.read_tru("68_tab1_2021.xls", "68_tab2_2021.xls")   # PIB 2021: R$ 9.012.142 milhões</code></pre>
   <p>A PNAD Contínua e a POF são lidas com os próprios programas de leitura SAS do IBGE, então
   nenhuma posição de coluna é digitada à mão. Os trabalhadores são formais ou informais pela proxy
   do IBGE, e a despesa da POF é anualizada e deflacionada como fazem os programas de tabulação do

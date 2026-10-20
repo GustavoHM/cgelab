@@ -110,6 +110,15 @@ before 1.0, a minor version may add to the API and a patch version only fixes.
   identity; households split with identical proportions keep the aggregate
   equilibrium, and labour split into segments with one wage keeps the single
   factor's.
+- `read_tru` reads the IBGE's supply and use tables (tables 1 and 2 of the
+  Sistema de Contas Nacionais, any level) into a `SupplyUse`: labour, capital and
+  mixed income apart by default, taxes on products and on production net of
+  subsidies, the trade and transport margins shared among their providers in
+  proportion (recorded as assumed), NPISH with households or government. The
+  layout was read off the IBGE's 2021 tables at 68 activities, which close
+  exactly and give the GDP the IBGE publishes for 2021, R$ 9,012,142 million; the
+  suite reads a hand-written table in that layout. A new extra, `ibge`, installs
+  `xlrd` for the `.xls` files.
 - `welfare_decomposition` has a `factor_reallocation` term: what moving an
   imperfectly mobile factor between activities adds beyond its endowment. It is
   zero under a CET, by the envelope theorem, and the identity still closes.

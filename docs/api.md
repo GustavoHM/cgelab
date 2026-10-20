@@ -690,7 +690,8 @@ activities × commodities at basic prices, `use` commodities × activities and
 `margins` margin commodity × commodity (each row adding up to zero), tariffs
 and output taxes kept apart, `direct_sales` activities × households.
 `final_roles` maps a column to `"households"`, `"government"`, `"investment"` or
-`"exports"`. Methods: `supply()`, `demand()`, `output()`, `costs()`, `gdp()`
+`"exports"`; `labels` and `notes` (descriptions, and choices to record in the
+provenance) are optional. Methods: `supply()`, `demand()`, `output()`, `costs()`, `gdp()`
 (`production`, `expenditure`, `income`), `check(tol)`.
 
 ### `Institutions(factor_income=None, direct_taxes=None, transfers=None, from_abroad=None, to_abroad=None, flows=[], source="integrated economic accounts")`
@@ -722,6 +723,15 @@ their shares; households' savings are recomputed when `owners` is given.
 
 Weighted earnings of each segment by activity and by group, from a survey and
 its persons; persons per group.
+
+### `read_tru(supply_path, use_path, *, activity_prefix="a_", commodity_prefix="c_", households="hh", npish="households", mixed_income="separate", tariffs=False, factors=None) -> SupplyUse`
+
+The IBGE's tables 1 (`oferta`, `producao`, `importacao`) and 2 (`CI`,
+`demanda`, `VA`), as files (needs `xlrd`) or `{sheet: DataFrame}`. `mixed_income`
+is `"separate"`, `"labour"` or `"capital"`; `npish` `"households"` or
+`"government"`; `factors` renames `labour`, `capital`, `mixed`. Margins are
+shared among their providers in proportion; `sut.labels` and `sut.notes` carry
+the descriptions and the reader's choices into the provenance.
 
 ---
 

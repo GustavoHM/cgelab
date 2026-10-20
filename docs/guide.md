@@ -1338,3 +1338,30 @@ split with identical proportions have the aggregate's equilibrium under
 Cobb–Douglas demand, and labour split into segments that share one wage (a
 group of `labour_segments` with no rigid segment) has the single factor's,
 because a CES with two inputs at the same price is the CES with their sum.
+
+### The IBGE's supply and use tables
+
+`read_tru(table1, table2)` reads the IBGE's supply and use tables (Sistema de
+Contas Nacionais, tables 1 and 2 at current prices, any level: 12, 20, 51 or 68
+activities) into a `SupplyUse`, in R$ million, accounts named by the IBGE's
+codes (`a_0191`, `c_01911`) with their descriptions in `sut.labels`. Reading
+the `.xls` files needs `xlrd` (`pip install "cgelab[ibge]"`).
+
+```python
+sut = cge.read_tru("68_tab1_2021.xls", "68_tab2_2021.xls")
+sut.gdp()                  # 9,012,142 by all three sides: the IBGE's published 2021 GDP
+sam = cge.sut_to_sam(sut, institutions)
+```
+
+Labour is *Remunerações*; capital *Excedente operacional bruto*. Mixed income
+is a factor of its own by default (`mixed_income="separate"`, `f_mix`), or joins
+labour or capital, explicitly, because which it is moves the distribution.
+Taxes on products are the import tax, IPI, ICMS and other taxes net of
+subsidies (`tariffs=True` sets the import tax apart); other taxes on
+production, net of subsidies, are taxes on production. The trade and transport
+margin columns are positive on the goods and negative on the products that
+provide them, and each good's margin is shared among its providers in
+proportion to what each provides: an allocation the provenance records as
+assumed. The NPISH join households, or government with `npish=`. The published
+2021 table at 68 activities closes exactly and gives the GDP the IBGE publishes
+for that year.

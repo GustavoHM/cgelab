@@ -32,7 +32,7 @@ import pandas as pd
 from .sam import SAM
 
 __all__ = ["SupplyUse", "Institutions", "sut_to_sam", "split_households", "split_factor",
-           "segment_shares", "group_population"]
+           "segment_shares", "group_population", "read_tru"]
 
 _ROLES = ("households", "government", "investment", "exports")
 
@@ -93,6 +93,11 @@ class SupplyUse:
     output_taxes: pd.Series | None = None
     direct_sales: pd.DataFrame | None = None
     final_roles: Mapping[str, str] | None = None
+    #: Descriptions of the accounts, ``{account: label}``, when a reader knows them.
+    labels: Mapping[str, str] | None = None
+    #: How the tables were put together, recorded in the SAM's provenance:
+    #: ``{note: source}`` (an allocation the reader assumed, say).
+    notes: Mapping[str, str] | None = None
 
     def __post_init__(self):
         self.make = _frame(self.make, "make")
@@ -421,6 +426,10 @@ def sut_to_sam(sut: SupplyUse, institutions: Institutions | None = None, *,
               .agg(rows=("row", lambda x: sorted(set(x))), cols=("col", lambda x: sorted(set(x))),
                    total=("value", "sum"), cells=("value", "size"))
               .reset_index())
+    if sut.notes:
+        extra = pd.DataFrame([dict(source=src, note=note, rows=[], cols=[], total=np.nan,
+                                   cells=0) for note, src in sut.notes.items()])
+        blocks = pd.concat([blocks, extra], ignore_index=True)
     sam.provenance = blocks
     return sam
 
@@ -656,3 +665,192 @@ def split_factor(sam: SAM, factor: str, by_activity: pd.DataFrame, *,
     out.provenance = pd.DataFrame(prov, columns=["source", "note", "rows", "cols", "total",
                                                  "cells"])
     return out
+
+
+# ---------------------------------------------------------------------------
+# The IBGE's supply and use tables
+# ---------------------------------------------------------------------------
+
+def _excel(path, sheet):
+    """One sheet of an IBGE workbook, or of a ``{sheet: DataFrame}`` already read."""
+    if isinstance(path, Mapping):
+        if sheet not in path:
+            raise KeyError(f"no sheet {sheet!r} among {sorted(path)}")
+        return path[sheet].astype(str).replace({"nan": ""})
+    try:
+        return pd.read_excel(path, sheet_name=sheet, header=None, dtype=str)
+    except ImportError as err:                         # pragma: no cover - depends on the install
+        raise ImportError(
+            f"reading {path} needs an Excel engine for pandas: pip install xlrd (for .xls) "
+            f"or openpyxl (.xlsx), or odfpy (.ods)") from err
+
+
+def _numbers(block) -> pd.DataFrame:
+    return block.apply(lambda c: pd.to_numeric(c.astype(str).str.strip().replace({"": "0",
+                                                                               "nan": "0"}),
+                                               errors="coerce")).fillna(0.0).astype(float)
+
+
+def _ibge_block(sheet, first_col=2, last_col=None):
+    """The product rows of an IBGE table: codes in column 0, values from ``first_col``."""
+    codes = sheet.iloc[:, 0].fillna("").astype(str).str.strip()
+    rows = [i for i, c in enumerate(codes) if c.isdigit()]
+    if not rows:
+        raise ValueError("no product rows (numeric codes in the first column) in the sheet")
+    end = sheet.shape[1] if last_col is None else last_col
+    values = _numbers(sheet.iloc[rows, first_col:end])
+    values.index = codes.iloc[rows].tolist()
+    return values, sheet.iloc[rows, 1].fillna("").astype(str).str.strip().tolist()
+
+
+def _activity_header(sheet, n):
+    """Activity codes and names from the header cells ``'0191\\nAgricultura...'``."""
+    out = []
+    for cell in sheet.iloc[3, 2:2 + n].tolist():
+        text = " ".join(str(cell).split())
+        code, _, label = text.partition(" ")
+        if not code.isdigit():
+            raise ValueError(f"an activity header does not start with its code: {text!r}")
+        out.append((code, label))
+    return out
+
+
+def read_tru(supply_path, use_path, *, activity_prefix: str = "a_", commodity_prefix: str = "c_",
+             households: str = "hh", npish: str = "households", mixed_income: str = "separate",
+             tariffs: bool = False, factors: Mapping[str, str] | None = None) -> SupplyUse:
+    """The IBGE's supply and use tables (Sistema de Contas Nacionais) as a ``SupplyUse``.
+
+    ``supply_path`` is table 1 (*Recursos de bens e serviços*: sheets
+    ``oferta``, ``producao``, ``importacao``) and ``use_path`` table 2 (*Usos
+    de bens e serviços*: ``CI``, ``demanda``, ``VA``), at current prices, of any
+    level (12, 20, 51 or 68 activities); values are in R$ million. Either may be
+    a ``{sheet: DataFrame}`` already read, with no header row, as
+    ``pd.read_excel(..., header=None)`` gives it; reading the ``.xls`` files
+    needs ``xlrd``. Accounts are the IBGE's codes with ``activity_prefix`` and
+    ``commodity_prefix``.
+
+    * Labour is *Remunerações*; capital is *Excedente operacional bruto*. Mixed
+      income (*Rendimento misto bruto*) is a factor of its own with
+      ``mixed_income="separate"`` (``factors["mixed"]``, ``"f_mix"``), or joins
+      ``"labour"`` or ``"capital"``: a choice with distributional weight, made
+      explicitly.
+    * Taxes on products are II, IPI, ICMS and other taxes net of subsidies; with
+      ``tariffs=True`` the import tax goes to a tariff account. Other taxes on
+      production, net of subsidies, are taxes on production.
+    * The trade and transport margin columns are positive on the goods that bear
+      them and negative on the products that provide them; each good's margin is
+      shared among the providers in proportion to what each provides, a
+      proportional allocation the provenance records.
+    * Final demand: households, government, investment (*FBCF* and *variação de
+      estoque*) and exports; the NPISH (*ISFLSF*) join ``npish``,
+      ``"households"`` or ``"government"``.
+
+    Supply at purchaser prices must equal total demand for every product, which
+    ``sut_to_sam`` checks; the published tables are integers, so pass it a
+    tolerance that covers their rounding.
+    """
+    if mixed_income not in ("separate", "labour", "capital"):
+        raise ValueError("mixed_income must be 'separate', 'labour' or 'capital'")
+    if npish not in ("households", "government"):
+        raise ValueError("npish must be 'households' or 'government'")
+    fac = {"labour": "f_lab", "capital": "f_cap", "mixed": "f_mix", **(factors or {})}
+
+    oferta = _excel(supply_path, "oferta")
+    producao = _excel(supply_path, "producao")
+    importacao = _excel(supply_path, "importacao")
+    ci = _excel(use_path, "CI")
+    demanda = _excel(use_path, "demanda")
+    va = _excel(use_path, "VA")
+
+    offer, names = _ibge_block(oferta)
+    coms = [commodity_prefix + c for c in offer.index]
+    labels = dict(zip(coms, names))
+    head = [" ".join(str(c).split()) for c in oferta.iloc[3].tolist()]
+
+    def offer_col(title):
+        hits = [i for i, h in enumerate(head) if h.lower().startswith(title.lower())]
+        if len(hits) != 1:
+            raise ValueError(f"the 'oferta' sheet has no single column {title!r}: {head}")
+        return offer.iloc[:, hits[0] - 2].to_numpy()
+
+    n_act = sum(1 for c in producao.iloc[3, 2:].tolist()
+                if " ".join(str(c).split())[:4].isdigit())
+    acts_raw = _activity_header(producao, n_act)
+    acts = [activity_prefix + c for c, _ in acts_raw]
+    labels.update({activity_prefix + c: label for c, label in acts_raw})
+    if [c for c, _ in _activity_header(ci, n_act)] != [c for c, _ in acts_raw]:
+        raise ValueError("the activities of 'CI' and 'producao' differ")
+
+    prod, _ = _ibge_block(producao, 2, 2 + n_act)
+    make = pd.DataFrame(prod.to_numpy().T, index=acts, columns=coms)
+    inter, _ = _ibge_block(ci, 2, 2 + n_act)
+    use = pd.DataFrame(inter.to_numpy(), index=coms, columns=acts)
+    imp, _ = _ibge_block(importacao, 2, 3)
+    imports = pd.Series(imp.iloc[:, 0].to_numpy(), index=coms)
+
+    dem, _ = _ibge_block(demanda, 2)
+    dhead = [" ".join(str(c).split()).lower() for c in demanda.iloc[3].tolist()]
+
+    def dem_col(title):
+        hits = [i for i, h in enumerate(dhead) if h.startswith(title)]
+        if len(hits) != 1:
+            raise ValueError(f"the 'demanda' sheet has no single column {title!r}")
+        return dem.iloc[:, hits[0] - 2].to_numpy()
+
+    final = pd.DataFrame({households: dem_col("consumo das famílias"),
+                          "gov": dem_col("consumo do governo"),
+                          "s_i": dem_col("formação bruta de capital fixo")
+                          + dem_col("variação de estoque"),
+                          "row": dem_col("exportação")}, index=coms)
+    final[households if npish == "households" else "gov"] += dem_col("consumo das isflsf")
+
+    labels_va = [" ".join(str(c).split()).lower() for c in va.iloc[:, 0].tolist()]
+
+    def va_row(title):
+        hits = [i for i, h in enumerate(labels_va) if h.startswith(title)]
+        if len(hits) != 1:
+            raise ValueError(f"the 'VA' sheet has no single row {title!r}")
+        return _numbers(va.iloc[[hits[0]], 1:1 + n_act]).to_numpy().ravel()
+
+    if [" ".join(str(c).split())[:4] for c in va.iloc[3, 1:1 + n_act].tolist()] != \
+            [c for c, _ in acts_raw]:
+        raise ValueError("the activities of 'VA' and 'producao' differ")
+    labour = va_row("remunerações")
+    surplus = va_row("excedente operacional bruto (eob)")
+    mixed = va_row("rendimento misto bruto")
+    rows = {fac["labour"]: labour, fac["capital"]: surplus}
+    if mixed_income == "separate":
+        rows[fac["mixed"]] = mixed
+    else:
+        rows[fac[mixed_income]] = rows[fac[mixed_income]] + mixed
+    value_added = pd.DataFrame(rows, index=acts).T
+    production_taxes = pd.Series(va_row("outros impostos sobre a produção")
+                                 + va_row("outros subsídios à produção"), index=acts)
+
+    ii = offer_col("imposto de importação")
+    taxes = offer_col("ipi") + offer_col("icms") + offer_col("outros impostos")
+    product_taxes = pd.Series(taxes + (0.0 if tariffs else ii), index=coms)
+    tariff = pd.Series(ii, index=coms) if tariffs else None
+
+    margins = pd.DataFrame(0.0, index=coms, columns=coms)
+    for title in ("margem de comércio", "margem de transporte"):
+        m = offer_col(title)
+        providers = np.where(m < 0)[0]
+        if not len(providers):
+            continue
+        provided = m[providers]
+        share = provided / provided.sum()
+        bearers = np.where(m > 0)[0]
+        for k, j in enumerate(providers):
+            margins.iloc[j, bearers] += m[bearers] * share[k]
+            margins.iloc[j, j] += m[j]
+    margins = margins.loc[(margins != 0).any(axis=1)]
+
+    return SupplyUse(
+        make=make, use=use, final=final, imports=imports, value_added=value_added,
+        product_taxes=product_taxes, production_taxes=production_taxes, margins=margins,
+        tariffs=tariff, labels=labels,
+        notes={"margins shared among their providers in proportion to what each provides":
+               "assumed by read_tru",
+               f"mixed income: {mixed_income}": "read_tru",
+               f"NPISH consumption joins {npish}": "read_tru"})

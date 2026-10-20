@@ -37,8 +37,8 @@ from .dynamics import Growth, PathResult, run_path
 from .functions import (armington, ces_intensity, ces_price, cet, cet_domestic_price,
                         cobb_douglas_price)
 from .behaviour import Behaviour, PersonSurvey, transition_probabilities
-from .build import (Institutions, SupplyUse, group_population, segment_shares, split_factor,
-                    split_households, sut_to_sam)
+from .build import (Institutions, SupplyUse, group_population, read_tru, segment_shares,
+                    split_factor, split_households, sut_to_sam)
 from .ibge import pnadc, pof, read_ibge, read_sas_program
 from .micro import (MicroResult, Survey, account_sources, atkinson, fgt, fgt_decomposition,
                     ge_decomposition, generalized_entropy, gini, inequality,
@@ -70,7 +70,7 @@ __all__ = [
     "PersonSurvey", "Behaviour", "transition_probabilities",
     "read_ibge", "read_sas_program", "pnadc", "pof",
     "SupplyUse", "Institutions", "sut_to_sam", "split_households", "split_factor",
-    "segment_shares", "group_population",
+    "segment_shares", "group_population", "read_tru",
     "gini", "fgt", "generalized_entropy", "theil", "mean_log_deviation", "atkinson",
     "ge_decomposition", "fgt_decomposition",
     "equivalent_variation", "ev_by_group", "compensating_variation",

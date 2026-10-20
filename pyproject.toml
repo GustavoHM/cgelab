@@ -42,6 +42,8 @@ Changelog = "https://github.com/GustavoHM/cgelab/blob/main/CHANGELOG.md"
 [project.optional-dependencies]
 parquet = ["pyarrow>=14"]
 dsge = ["dsgelab>=0.5"]
+# The IBGE publishes its supply and use tables as .xls; read_tru reads them through pandas.
+ibge = ["xlrd>=2"]
 test = ["pytest>=7"]
 
 [project.scripts]

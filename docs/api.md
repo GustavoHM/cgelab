@@ -676,6 +676,33 @@ The POF 2017–2018 by consumption unit: monthly spending by SAM commodity
 income columns (`income`, prefixes; the rest `other_income`), size and
 PESO_FINAL. Its income sources are `"fixed"` until mapped.
 
+## Building a SAM (`cgelab.build`)
+
+### `SupplyUse(make, use, final, imports, value_added, product_taxes=None, production_taxes=None, margins=None, tariffs=None, output_taxes=None, direct_sales=None, final_roles=None)`
+
+Supply and use tables as labelled frames (the labels become accounts): `make`
+activities × commodities at basic prices, `use` commodities × activities and
+`final` commodities × columns at purchaser prices, `imports` by commodity,
+`value_added` factors × activities, taxes on products and on production,
+`margins` margin commodity × commodity (each row adding up to zero), tariffs
+and output taxes kept apart, `direct_sales` activities × households.
+`final_roles` maps a column to `"households"`, `"government"`, `"investment"` or
+`"exports"`. Methods: `supply()`, `demand()`, `output()`, `costs()`, `gdp()`
+(`production`, `expenditure`, `income`), `check(tol)`.
+
+### `Institutions(factor_income=None, direct_taxes=None, transfers=None, from_abroad=None, to_abroad=None, flows=[], source="integrated economic accounts")`
+
+Recipients × factors of factor income (households, government, abroad);
+by household, direct taxes, government transfers, transfers from and to
+abroad; other flows as `(receiver, payer, amount, source)`.
+
+### `sut_to_sam(sut, institutions=None, *, names=None, source="supply and use tables", name="sam", tol=1e-9) -> SAM`
+
+The SAM in the layout `calibrate` reads, savings as residuals.
+`names` overrides `government`, `investment`, `rest_of_world`, `tariff` and
+`output_tax`. `SAM.provenance` lists each block: `source`, `note`, `rows`,
+`cols`, `total`, `cells`. Tables that do not add up are refused by name.
+
 ---
 
 ## Diagnostics

@@ -91,6 +91,16 @@ before 1.0, a minor version may add to the API and a patch version only fixes.
   check on the real microdata runs when `CGELAB_IBGE_DIR` points at them, and
   `validation/ibge_layouts.py` matches the layouts against the IBGE's R
   programs (all sixteen POF records) and a readr reading of the fixture.
+- Building a SAM from supply and use tables (`cgelab.build`). `SupplyUse` holds the
+  make, use, final-demand, import, value-added, tax and margin tables, labelled
+  by the accounts they become; `Institutions` holds factor income by recipient,
+  direct taxes, transfers and other flows; `sut_to_sam` assembles the SAM in the
+  layout `calibrate` reads, with household, government and foreign saving as
+  declared residuals, and records each block's source in `SAM.provenance`.
+  Tables that do not add up (a commodity, an activity, a margin row, factor
+  income against value added, a flow that unbalances an account) are refused
+  by name. Every toy SAM, written by hand, rebuilds from its own tables cell by
+  cell, and the three GDPs agree.
 - `welfare_decomposition` has a `factor_reallocation` term: what moving an
   imperfectly mobile factor between activities adds beyond its endowment. It is
   zero under a CET, by the envelope theorem, and the identity still closes.

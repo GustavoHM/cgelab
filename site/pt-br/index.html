@@ -445,6 +445,20 @@ domicilios = cge.pof("Dados_POF/", "Leitura dos Microdados - SAS.txt",
   nenhuma posição de coluna é digitada à mão. Os trabalhadores são formais ou informais pela proxy
   do IBGE, e a despesa da POF é anualizada e deflacionada como fazem os programas de tabulação do
   IBGE. Os microdados são baixados do IBGE e nunca entram no repositório.</p>
+
+  <h3>22. Uma MCS a partir das tabelas de recursos e usos</h3>
+<pre><code>make = pd.DataFrame({"c_x": [100.0]}, index=["a_x"])
+use = pd.DataFrame({"a_x": [0.0]}, index=["c_x"])
+final = pd.DataFrame({"hh": [80.0], "s_i": [20.0]}, index=["c_x"])
+va = pd.DataFrame({"a_x": [60.0, 40.0]}, index=["f_lab", "f_cap"])
+sut = cge.SupplyUse(make=make, use=use, final=final, imports=pd.Series({"c_x": 0.0}),
+                    value_added=va)
+montada = cge.sut_to_sam(sut, source="tabelas escritas à mão")
+montada.provenance[["source", "note", "total"]]   # poupança das famílias: resíduo, 20
+cge.base_year_reproduction(cge.calibrate(montada, cge.ModelSpec(households=["hh"])))["ok"]</code></pre>
+  <p>As tabelas de recursos e usos viram o bloco de produção e a demanda final; quem recebe a
+  renda vem da Conta Econômica Integrada, aqui suposta, e a procedência diz isso. As poupanças são
+  resíduos declarados, e tabelas que não fecham são recusadas onde falham.</p>
 </div></section>
 
 <section id="portarias"><div class="wrap">

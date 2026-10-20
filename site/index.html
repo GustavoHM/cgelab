@@ -445,6 +445,20 @@ households = cge.pof("Dados_POF/", "Leitura dos Microdados - SAS.txt",
   column position is typed by hand. Workers are formal or informal by the IBGE's proxy, and the
   POF's spending is annualised and deflated as the IBGE's tabulation programs do. The microdata
   are downloaded from the IBGE and never enter the repository.</p>
+
+  <h3>22. A SAM from supply and use tables</h3>
+<pre><code>make = pd.DataFrame({"c_x": [100.0]}, index=["a_x"])
+use = pd.DataFrame({"a_x": [0.0]}, index=["c_x"])
+final = pd.DataFrame({"hh": [80.0], "s_i": [20.0]}, index=["c_x"])
+va = pd.DataFrame({"a_x": [60.0, 40.0]}, index=["f_lab", "f_cap"])
+sut = cge.SupplyUse(make=make, use=use, final=final, imports=pd.Series({"c_x": 0.0}),
+                    value_added=va)
+built = cge.sut_to_sam(sut, source="hand-written tables")
+built.provenance[["source", "note", "total"]]   # household saving: residual, 20
+cge.base_year_reproduction(cge.calibrate(built, cge.ModelSpec(households=["hh"])))["ok"]</code></pre>
+  <p>The supply and use tables become the production block and final demand; who receives the
+  income comes from the integrated economic accounts, here assumed, and the provenance says so.
+  Savings are declared residuals, and tables that do not add up are refused where they fail.</p>
 </div></section>
 
 <section id="gates"><div class="wrap">

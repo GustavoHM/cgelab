@@ -264,10 +264,11 @@ representation for a SAM, and calling it does not close those gaps.
 before `calibrate`. A regional SAM is usually built by hand from a supply-use table, an
 input–output matrix and regional accounts. Useful helpers:
 
-- read a supply-use table into a SAM;
+- read a supply-use table into a SAM (in 0.6: `sut_to_sam`, with the provenance of every
+  block);
 - regionalise national coefficients (location quotients, FLQ);
 - balance by cross-entropy as well as RAS;
-- report where each block came from.
+- report where each block came from (in 0.6: `SAM.provenance`).
 
 **Speed on large SAMs.** The solver uses finite-difference Jacobians on few unknowns, which is
 fine up to a few hundred accounts. A multi-region model would need analytic derivatives and

@@ -19,6 +19,7 @@
 17. [Forward-looking investment, through dsgelab](#17-forward-looking-investment-through-dsgelab)
 18. [Physical units](#18-physical-units)
 19. [Microsimulation: poverty and inequality](#19-microsimulation-poverty-and-inequality)
+20. [Building a SAM from supply and use tables](#20-building-a-sam-from-supply-and-use-tables)
 
 The examples assume `import cgelab as cge` (and `numpy as np` where it appears).
 They are fragments: `econ` is a calibrated economy and `...` marks where your own
@@ -1250,3 +1251,56 @@ exactly, and `fgt_decomposition` gives each group's contribution to FGT(α).
 survey weight times the household size; `equivalence=θ` divides by `size ** θ`
 instead (0.5 is the square-root scale). `poverty(..., by_group=True)` adds each
 account's contribution.
+
+---
+
+## 20. Building a SAM from supply and use tables
+
+Most of the work in an applied model happens before `calibrate`. The supply and
+use tables give the production block and final demand; who receives the income
+comes from the integrated economic accounts, or is assumed. `sut_to_sam`
+assembles both in the layout `calibrate` reads and records where each block
+came from.
+
+```python
+make = pd.DataFrame({"c_x": [100.0]}, index=["a_x"])            # activities by commodities
+use = pd.DataFrame({"a_x": [0.0]}, index=["c_x"])               # commodities by activities
+final = pd.DataFrame({"hh": [80.0], "s_i": [20.0]}, index=["c_x"])
+va = pd.DataFrame({"a_x": [60.0, 40.0]}, index=["f_lab", "f_cap"])
+sut = cge.SupplyUse(make=make, use=use, final=final, imports=pd.Series({"c_x": 0.0}),
+                    value_added=va)
+sam = cge.sut_to_sam(sut, source="hand-written tables")
+sam.provenance            # every block: its source, what it is, its total
+```
+
+**The tables.** `SupplyUse` holds labelled frames, and the labels become the
+accounts:
+- `make` is output at basic prices; `use` is intermediate use at purchaser
+  prices; `final` is final demand at purchaser prices;
+- `imports` are at border prices; `value_added` is factors by activities;
+- `product_taxes` and `production_taxes` are net of subsidies;
+- `margins` holds a margin commodity's services in every commodity's supply,
+  with minus its total on its own column, so each row adds up to zero;
+- `tariffs` and `output_taxes` go to accounts of their own when the model reads
+  them so;
+- `direct_sales` is own-account production sold straight to households.
+
+`final_roles` says what each final-demand column is: households (each becomes a
+household account), government, investment (summed into one account) or
+exports. A column named like the government, investment or rest-of-world
+account needs no role.
+
+**The institutions.** `Institutions` holds what the tables do not: each factor's
+income by recipient (households, government, abroad), direct taxes, government
+transfers, transfers from and to abroad, and any other flow as
+`(receiver, payer, amount, source)`. Without it, all factor income goes to the
+one household account, and the provenance says that this was assumed.
+
+**What is refused, and what is residual.** Commodities whose supply and use
+disagree, activities whose output and costs disagree, margin rows that do not
+add up to zero, factor income paid out that differs from value added, and an
+institutional flow that leaves an activity, a commodity or a factor unbalanced
+are all refused by name. The savings of each household, of government and of
+the rest of the world are residuals, recorded as such. `SupplyUse.gdp()` gives
+GDP from production, expenditure and income, which agree when the tables do.
+Every SAM of the toy rebuilds from its own tables, cell by cell.

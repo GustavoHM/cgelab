@@ -39,6 +39,11 @@ class SAM:
     frame: pd.DataFrame
     name: str = "sam"
     _accounts: list | None = field(default=None, repr=False)
+    #: Where each block came from, when the SAM was assembled from its sources
+    #: (:func:`cgelab.build.sut_to_sam`): one row per block, with its source,
+    #: what it is, its rows and columns, total and number of cells. Operations
+    #: that return a new SAM do not carry it over.
+    provenance: pd.DataFrame | None = field(default=None, repr=False)
 
     # -- construction ----------------------------------------------------
     @classmethod

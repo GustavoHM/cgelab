@@ -42,7 +42,8 @@ def test_the_sas_program_of_one_record():
     assert f.loc["Ano"].tolist() == [1, 4, True, 0]
     assert f.loc["V1028"].tolist() == [19, 15, False, 0]
     assert f.loc["V9999"].tolist() == [55, 4, False, 2]
-    assert len(f) == 16
+    assert f.loc["V4013"].tolist() == [59, 5, True, 0]
+    assert len(f) == 17
 
 
 def test_the_sas_program_of_several_records():
@@ -104,6 +105,19 @@ def test_the_pnad_continua():
     assert h.loc["2900000270305", ["formal", "informal", "size"]].tolist() == [5000, 900, 4]
     assert h["group"].tolist() == ["hh_1", "hh_2"]
     assert survey.sources == {"formal": "f_for", "informal": "f_inf"}
+    # The activity of the main job, for the occupied only.
+    assert p["activity_code"].tolist() == ["25001", "01101", "", "", "97000", "", "47001",
+                                           "01102"]
+
+
+def test_the_activity_of_each_worker():
+    acts = {"01": "a_agr", "2": "a_ind", "4": "a_ind", "97": "a_ind"}
+    _, persons = ibge.pnadc(*PNADC, segments=SEGMENTS, group=two_accounts, activities=acts)
+    assert persons.frame["activity"].fillna("").tolist() == ["a_ind", "a_agr", "", "", "a_ind",
+                                                             "", "a_ind", "a_agr"]
+    with pytest.raises(ValueError, match="97000"):
+        ibge.pnadc(*PNADC, segments=SEGMENTS, group=two_accounts,
+                   activities={"01": "a_agr", "2": "a_ind", "4": "a_ind"})
 
 
 def test_the_cnpj_before_2015():

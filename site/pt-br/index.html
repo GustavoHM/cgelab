@@ -459,6 +459,19 @@ cge.base_year_reproduction(cge.calibrate(montada, cge.ModelSpec(households=["hh"
   <p>As tabelas de recursos e usos viram o bloco de produção e a demanda final; quem recebe a
   renda vem da Conta Econômica Integrada, aqui suposta, e a procedência diz isso. As poupanças são
   resíduos declarados, e tabelas que não fecham são recusadas onde falham.</p>
+
+  <h3>23. Trabalho formal e informal, partido por atividade</h3>
+<pre><code>parcelas = pd.DataFrame([[0.3, 0.8], [0.7, 0.2]], index=["f_for", "f_inf"],
+                        columns=["a_agr", "a_ind"])     # de uma pesquisa: segment_shares(...)
+partida = cge.split_factor(sam_toy, "f_lab", parcelas)
+dois = cge.calibrate(partida, toy.spec(factors=("f_cap", "f_for", "f_inf"),
+                                       numeraire_factor="f_cap",
+                                       labour_segments={"labour": ["f_for", "f_inf"]}))
+cge.solve_period(dois).residual                    # o ano-base, à precisão de máquina</code></pre>
+  <p>O trabalho é partido em formal e informal em cada atividade por parcelas de uma pesquisa, e as
+  duas contas viram um grupo de segmentos. Com um só salário, o modelo partido tem exatamente o
+  equilíbrio do fator único; um salário formal rígido é que faz a diferença.
+  <code>split_households</code> faz o mesmo com uma conta de famílias e os grupos de uma pesquisa.</p>
 </div></section>
 
 <section id="portarias"><div class="wrap">

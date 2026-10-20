@@ -19,5 +19,6 @@ input
 @0045 VD4009   $2.   /* VD4009 */
 @0047 VD4019   8.   /* VD4019 */
 @0055 V9999   4.2   /* Campo com decimais implícitos */
+@0059 V4013   $5.   /* Atividade no trab. principal */
 ;
 run;

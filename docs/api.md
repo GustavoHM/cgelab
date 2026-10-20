@@ -661,13 +661,16 @@ An IBGE SAS reading program's records by data-step name, each with its
 fixed-width data it describes. `record` picks a data step (by default the one
 whose `INFILE` names the data file).
 
-### `pnadc(data, program, *, segments, group, frame=None, missing_cnpj="refuse", chunksize=200000) -> (Survey, PersonSurvey)`
+### `pnadc(data, program, *, segments, group, frame=None, activities=None, missing_cnpj="refuse", chunksize=200000) -> (Survey, PersonSurvey)`
 
 A quarter of the PNAD Contínua. `segments` maps `"formal"` and `"informal"` to
 the model's segments; statuses follow VD4001, VD4002, VD4009 and V4019 (the
 IBGE's informality proxy); earnings are VD4019. `group` is a column of the
 household frame or a function of it. `missing_cnpj` is `"refuse"`, `"formal"` or
-`"informal"` for employers and own-account workers without V4019.
+`"informal"` for employers and own-account workers without V4019. Persons
+carry `activity_code` (V4013, CNAE-Domiciliar) and, with `activities` (code
+prefixes to SAM activities), `activity`; an occupied person no prefix maps is
+refused.
 
 ### `pof(directory, program, *, commodities, group, income=None, exclude_conditions=(18, 19), records=None) -> Survey`
 
@@ -702,6 +705,23 @@ The SAM in the layout `calibrate` reads, savings as residuals.
 `names` overrides `government`, `investment`, `rest_of_world`, `tariff` and
 `output_tax`. `SAM.provenance` lists each block: `source`, `note`, `rows`,
 `cols`, `total`, `cells`. Tables that do not add up are refused by name.
+
+### `split_households(sam, survey, *, account, incomes=None, outlays=None, fallback=None, names=None, source="household survey") -> SAM`
+
+One household account split into the survey's groups, cell by cell, by each
+group's share of the weighted survey total; savings residual; `provenance` lists
+how each cell was shared.
+
+### `split_factor(sam, factor, by_activity, *, owners=None, names=None, source="household survey") -> SAM`
+
+A factor split by activity (`by_activity`, new factors × activities) and, for
+households, by `owners` (recipients × new factors); government and abroad keep
+their shares; households' savings are recomputed when `owners` is given.
+
+### `segment_shares(survey, persons, *, segments, activity="activity") -> (by_activity, owners)` / `group_population(survey) -> dict`
+
+Weighted earnings of each segment by activity and by group, from a survey and
+its persons; persons per group.
 
 ---
 

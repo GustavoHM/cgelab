@@ -31,7 +31,8 @@ import pandas as pd
 
 from .sam import SAM
 
-__all__ = ["SupplyUse", "Institutions", "sut_to_sam"]
+__all__ = ["SupplyUse", "Institutions", "sut_to_sam", "split_households", "split_factor",
+           "segment_shares", "group_population"]
 
 _ROLES = ("households", "government", "investment", "exports")
 
@@ -422,3 +423,236 @@ def sut_to_sam(sut: SupplyUse, institutions: Institutions | None = None, *,
               .reset_index())
     sam.provenance = blocks
     return sam
+
+
+# ---------------------------------------------------------------------------
+# Disaggregation by household surveys
+# ---------------------------------------------------------------------------
+
+def _shares(frame, weight, group, columns, order):
+    """Each group's share of the weighted total of ``columns``; None when it is zero."""
+    x = frame[list(columns)].to_numpy(float).sum(axis=1) * frame[weight].to_numpy(float)
+    totals = pd.Series(x).groupby(frame[group].to_numpy()).sum().reindex(order, fill_value=0.0)
+    total = float(totals.sum())
+    return None if abs(total) <= 1e-12 else totals / total
+
+
+def group_population(survey) -> dict:
+    """Persons in each group of a survey, its weights times household sizes:
+    the ``population`` that ``calibrate`` takes for a split SAM."""
+    f = survey.frame
+    return (f[survey.weight] * f[survey.size]).groupby(f[survey.group]).sum().to_dict()
+
+
+def split_households(sam: SAM, survey, *, account: str, incomes: Mapping | None = None,
+                     outlays: Mapping | None = None, fallback: Mapping | None = None,
+                     names: Mapping[str, str] | None = None,
+                     source: str = "household survey") -> SAM:
+    """Split one household account into the groups of a survey.
+
+    Every cell of the account is shared among the survey's groups (its
+    ``group`` column) by each group's share of the weighted survey total for
+    that cell: the income from a factor by the columns the survey maps to it
+    (``Survey.sources``; ``"transfers"`` stands for government and
+    ``"remittances"`` for the rest of the world), the spending on a commodity by
+    its budget columns. ``incomes`` and ``outlays`` name the columns for any
+    other payer or receiver, a direct tax, say: ``{account: column or list}``.
+    ``fallback`` says how to share a cell the survey has nothing on:
+    ``"population"`` (weights times sizes) or ``"households"`` (weights). A cell
+    with neither is refused, by name.
+
+    Each group's saving is what is left, and a negative one is data, kept. The
+    SAM's totals are unchanged: summing the groups gives back the account.
+    """
+    names = {**_NAMES, **(names or {})}
+    gov, inv, row = names["government"], names["investment"], names["rest_of_world"]
+    M = sam.matrix()
+    if account not in M.index:
+        raise KeyError(f"{account!r} is not an account of the SAM")
+    f = survey.frame
+    order = list(pd.unique(f[survey.group]))
+    clash = [g for g in order if g in M.index and g != account]
+    if clash:
+        raise ValueError(f"survey groups {clash} are already accounts of the SAM")
+    if M.at[account, account] != 0:
+        raise ValueError(f"{account!r} pays itself; that cell has no survey counterpart")
+    special = {"transfers": gov, "remittances": row}
+
+    def payer_of(src):
+        return special.get(src, src.split(":")[0])
+
+    def columns_for(cell, is_income):
+        given = (incomes if is_income else outlays) or {}
+        if cell in given:
+            cols = given[cell]
+            return [cols] if isinstance(cols, str) else list(cols)
+        if is_income:
+            return [c for c, s in survey.sources.items() if payer_of(s) == cell]
+        return [c for c, com in (survey.budget or {}).items() if com == cell]
+
+    missing, plan = [], []
+    for is_income, cells in ((True, [p for p in M.columns if M.at[account, p] != 0]),
+                             (False, [r for r in M.index if M.at[r, account] != 0 and r != inv])):
+        for cell in cells:
+            cols = columns_for(cell, is_income)
+            shares = _shares(f, survey.weight, survey.group, cols, order) if cols else None
+            how = f"{'income from' if is_income else 'spending on'} {cell}: {', '.join(cols)}"
+            if shares is None:
+                rule = (fallback or {}).get(cell)
+                if rule in ("population", "households"):
+                    unit = (f[survey.size].astype(float) if rule == "population"
+                            else pd.Series(1.0, index=f.index))
+                    shares = _shares(f.assign(_unit=unit), survey.weight, survey.group,
+                                     ["_unit"], order)
+                    how = f"{'income from' if is_income else 'spending on'} {cell}: by {rule}"
+                else:
+                    missing.append(cell)
+                    continue
+            plan.append((is_income, cell, shares, how))
+    if missing:
+        raise ValueError(
+            f"the survey has nothing to share {account!r}'s cells with {missing}: map a column "
+            f"to them (Survey.sources or budget, or incomes= / outlays=), or give a fallback")
+
+    N = M.drop(index=account, columns=account)
+    for g in order:
+        N.loc[g] = 0.0
+        N[g] = 0.0
+    prov = []
+    for is_income, cell, shares, how in plan:
+        v = float(M.at[account, cell] if is_income else M.at[cell, account])
+        for g in order:
+            if is_income:
+                N.at[g, cell] = v * float(shares[g])
+            else:
+                N.at[cell, g] = v * float(shares[g])
+        prov.append((source, how, order if is_income else [cell],
+                     [cell] if is_income else order, v, len(order)))
+    for g in order:
+        saving = float(N.loc[g].sum() - N[g].drop(index=inv, errors="ignore").sum())
+        N.at[inv, g] = saving
+        prov.append(("residual", f"saving of {g}" + (" (negative)" if saving < 0 else ""),
+                     [inv], [g], saving, 1))
+    out = SAM.from_square(N.fillna(0.0), name=sam.name)
+    out.provenance = pd.DataFrame(prov, columns=["source", "note", "rows", "cols", "total",
+                                                 "cells"])
+    return out
+
+
+def segment_shares(survey, persons, *, segments: Sequence[str],
+                   activity: str = "activity") -> tuple:
+    """Earnings of each labour segment by activity, and by survey group.
+
+    From a household survey and its persons (``cgelab.ibge.pnadc``): the
+    weighted earnings of the persons in each segment, by the SAM activity of
+    their main job and by the group of their household. They are what
+    :func:`split_factor` takes, ``(by_activity, owners)``.
+    """
+    pf = persons.frame
+    f = survey.frame
+    if activity not in pf.columns:
+        raise KeyError(f"the persons have no {activity!r} column: read the PNAD Contínua with "
+                       f"activities=")
+    at = f.index.get_indexer(pf[persons.household])
+    if np.any(at < 0):
+        raise ValueError("persons belong to households not in the survey")
+    w = f[survey.weight].to_numpy(float)[at]
+    groups = f[survey.group].to_numpy()[at]
+    status = pf[persons.status].astype(str).to_numpy()
+    y = pf[persons.earnings].to_numpy(float) * w
+    work = pd.DataFrame({"segment": status, "activity": pf[activity].to_numpy(),
+                         "group": groups, "y": y})
+    work = work[work["segment"].isin(list(segments))]
+    by_activity = (work.pivot_table(index="segment", columns="activity", values="y",
+                                    aggfunc="sum", fill_value=0.0)
+                   .reindex(list(segments), fill_value=0.0))
+    owners = (work.pivot_table(index="group", columns="segment", values="y", aggfunc="sum",
+                               fill_value=0.0)
+              .reindex(columns=list(segments), fill_value=0.0))
+    return by_activity, owners
+
+
+def split_factor(sam: SAM, factor: str, by_activity: pd.DataFrame, *,
+                 owners: pd.DataFrame | None = None, names: Mapping[str, str] | None = None,
+                 source: str = "household survey") -> SAM:
+    """Split a factor into several (formal and informal labour, say).
+
+    ``by_activity`` is new factors by activities: in each activity the factor's
+    payment is shared in proportion to its column. The new factors' income goes
+    to the factor's recipients: government and the rest of the world keep their
+    shares of each, and the households' part follows ``owners``, recipients by
+    new factors, in proportion to each column; without ``owners`` every
+    recipient keeps its share of each new factor. When ``owners`` moves income
+    between households, their savings are recomputed, as residuals.
+
+    Summing the new factors gives back the factor's row and column.
+    """
+    names = {**_NAMES, **(names or {})}
+    inv = names["investment"]
+    M = sam.matrix()
+    if factor not in M.index:
+        raise KeyError(f"{factor!r} is not an account of the SAM")
+    if not isinstance(by_activity, pd.DataFrame):
+        raise TypeError("by_activity must be a DataFrame, new factors by activities")
+    new = list(by_activity.index)
+    clash = [k for k in new if k in M.index]
+    if clash:
+        raise ValueError(f"new factors {clash} are already accounts of the SAM")
+    payers = [a for a in M.columns if M.at[factor, a] != 0]
+    lacking = [a for a in payers if a not in by_activity.columns
+               or float(by_activity[a].sum()) <= 0]
+    if lacking:
+        raise ValueError(f"by_activity has no positive shares for {lacking}, which pay "
+                         f"{factor!r}")
+    shares = by_activity[payers].astype(float)
+    shares = shares / shares.sum(axis=0)
+    recipients = [r for r in M.index if M.at[r, factor] != 0]
+    income = float(M[factor].sum())
+    s = {r: float(M.at[r, factor]) / income for r in recipients}
+
+    N = M.drop(index=factor, columns=factor)
+    for k in new:
+        N.loc[k] = 0.0
+        N[k] = 0.0
+    prov = []
+    for k in new:
+        for a in payers:
+            N.at[k, a] = float(M.at[factor, a]) * float(shares.at[k, a])
+    prov.append((source, f"{factor} split by activity", new, payers,
+                 float(M.loc[factor, payers].sum()), len(new) * len(payers)))
+    inc = {k: float(N.loc[k, payers].sum()) for k in new}
+    touched = []
+    if owners is None:
+        for k in new:
+            for r in recipients:
+                N.at[r, k] = s[r] * inc[k]
+        prov.append(("SAM", f"{factor} income, shares of the original recipients", recipients,
+                     new, income, len(recipients) * len(new)))
+    else:
+        owners = owners.astype(float).reindex(columns=new, fill_value=0.0)
+        stray = [r for r in owners.index if r not in recipients]
+        if stray:
+            raise ValueError(f"owners {stray} receive no {factor!r} income in the SAM")
+        empty = [k for k in new if float(owners[k].sum()) <= 0]
+        if empty:
+            raise ValueError(f"owners has no positive entries for {empty}")
+        others = [r for r in recipients if r not in owners.index]
+        pool = 1.0 - sum(s[r] for r in others)
+        cols = owners / owners.sum(axis=0)
+        for k in new:
+            for r in others:
+                N.at[r, k] = s[r] * inc[k]
+            for r in owners.index:
+                N.at[r, k] = pool * inc[k] * float(cols.at[r, k])
+        prov.append((source, f"{factor} income of households, by owners", list(owners.index),
+                     new, pool * income, len(owners.index) * len(new)))
+        touched = list(owners.index)
+    for h in touched:
+        N.at[inv, h] = 0.0
+        saving = float(N.loc[h].sum() - N[h].sum())
+        N.at[inv, h] = saving
+        prov.append(("residual", f"saving of {h}, recomputed", [inv], [h], saving, 1))
+    out = SAM.from_square(N.fillna(0.0), name=sam.name)
+    out.provenance = pd.DataFrame(prov, columns=["source", "note", "rows", "cols", "total",
+                                                 "cells"])
+    return out

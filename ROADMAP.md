@@ -268,7 +268,9 @@ input–output matrix and regional accounts. Useful helpers:
   block);
 - regionalise national coefficients (location quotients, FLQ);
 - balance by cross-entropy as well as RAS;
-- report where each block came from (in 0.6: `SAM.provenance`).
+- report where each block came from (in 0.6: `SAM.provenance`);
+- disaggregate households and labour with household surveys (in 0.6: `split_households`,
+  `split_factor`, `segment_shares`).
 
 **Speed on large SAMs.** The solver uses finite-difference Jacobians on few unknowns, which is
 fine up to a few hundred accounts. A multi-region model would need analytic derivatives and

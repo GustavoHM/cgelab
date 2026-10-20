@@ -101,6 +101,15 @@ before 1.0, a minor version may add to the API and a patch version only fixes.
   income against value added, a flow that unbalances an account) are refused
   by name. Every toy SAM, written by hand, rebuilds from its own tables cell by
   cell, and the three GDPs agree.
+- Disaggregating a SAM with household surveys. `split_households` splits a
+  household account into a survey's groups, cell by cell, by each group's share
+  of the weighted survey total, savings residual; `split_factor` splits a factor
+  (labour into formal and informal) by activity and by owner; `segment_shares`
+  computes both from the PNAD Contínua, which `pnadc` now reads with each
+  worker's activity (V4013, `activities=`). Splitting and summing back is the
+  identity; households split with identical proportions keep the aggregate
+  equilibrium, and labour split into segments with one wage keeps the single
+  factor's.
 - `welfare_decomposition` has a `factor_reallocation` term: what moving an
   imperfectly mobile factor between activities adds beyond its endowment. It is
   zero under a CET, by the envelope theorem, and the identity still closes.

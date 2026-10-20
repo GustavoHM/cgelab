@@ -1304,3 +1304,37 @@ are all refused by name. The savings of each household, of government and of
 the rest of the world are residuals, recorded as such. `SupplyUse.gdp()` gives
 GDP from production, expenditure and income, which agree when the tables do.
 Every SAM of the toy rebuilds from its own tables, cell by cell.
+
+### Disaggregating with household surveys
+
+`split_households(sam, survey, account="hh")` splits one household account into
+the groups of a `Survey` (its `group` column: deciles, formal and informal
+households, regions). Every cell of the account is shared by each group's share
+of the weighted survey total for that cell: income from a factor by the columns
+`Survey.sources` maps to it (`"transfers"` stands for government and
+`"remittances"` for the rest of the world), spending on a commodity by its budget
+columns. `incomes=` and `outlays=` name the columns for other cells, a direct
+tax say, and `fallback=` shares a cell the survey has nothing on by
+`"population"` or `"households"`; a cell with neither is refused by name. Each
+group's saving is the residual, and a negative one is kept: it is data.
+`group_population(survey)` gives the persons in each group, which `calibrate`
+takes as `population`.
+
+`split_factor(sam, "f_lab", by_activity, owners=...)` splits a factor: in each
+activity its payment is shared in proportion to a column of `by_activity` (new
+factors by activities), and its income goes to its recipients, government and
+abroad keeping their shares and households following `owners` (their savings
+recomputed). `segment_shares(survey, persons, segments=[...])` gives both from
+the PNAD Contínua read with `activities=` (V4013, the activity of the main job):
+
+```python
+by_activity, owners = cge.segment_shares(survey, persons, segments=["f_for", "f_inf"])
+split = cge.split_factor(sam, "f_lab", by_activity, owners=owners, source="PNADC 2023q3")
+```
+
+Summing the groups or the new factors gives back the original exactly. Two
+equivalences check that the split changes nothing it should not: households
+split with identical proportions have the aggregate's equilibrium under
+Cobb–Douglas demand, and labour split into segments that share one wage (a
+group of `labour_segments` with no rigid segment) has the single factor's,
+because a CES with two inputs at the same price is the CES with their sum.

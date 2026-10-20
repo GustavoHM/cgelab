@@ -153,11 +153,12 @@ INFORMAL_VD4009 = ("02", "04", "10")
 _CNPJ_VD4009 = ("08", "09")
 
 _PNADC_VARS = ["Ano", "Trimestre", "UPA", "V1008", "V1014", "V1028", "V2005", "V2007",
-               "V2009", "V4019", "VD3005", "VD4001", "VD4002", "VD4009", "VD4019"]
+               "V2009", "V4013", "V4019", "VD3005", "VD4001", "VD4002", "VD4009", "VD4019"]
 
 
 def pnadc(data, program, *, segments: Mapping[str, str], group, frame: pd.DataFrame | None = None,
-          missing_cnpj: str = "refuse", chunksize: int | None = 200_000) -> tuple:
+          activities: Mapping[str, str] | None = None, missing_cnpj: str = "refuse",
+          chunksize: int | None = 200_000) -> tuple:
     """A quarter of the PNAD Contínua as a household ``Survey`` and a ``PersonSurvey``.
 
     ``segments`` maps ``"formal"`` and ``"informal"`` to the model's labour
@@ -174,6 +175,12 @@ def pnadc(data, program, *, segments: Mapping[str, str], group, frame: pd.DataFr
     ``size``, ``formal``, ``informal``). Characteristics of the persons are
     ``education`` (VD3005, years), ``female`` and ``age``. ``frame`` passes the
     person rows already read, instead of ``data`` and ``program``.
+
+    Each occupied person's activity is V4013, the CNAE-Domiciliar code of the
+    main job, kept in ``activity_code``. ``activities`` maps a prefix of that
+    code to a SAM activity (the longest prefix wins) into ``activity``; an
+    occupied person whose code no prefix maps is refused, with the codes, since
+    their earnings would otherwise be split among activities by nobody's rule.
     """
     from .behaviour import PersonSurvey
     from .micro import Survey
@@ -218,12 +225,24 @@ def pnadc(data, program, *, segments: Mapping[str, str], group, frame: pd.DataFr
                                                           segments["formal"]),
                                                  "inactive"))))
     earnings = p["VD4019"].astype(float).fillna(0.0).where(occupied, 0.0)
+    activity_code = np.where(occupied, code("V4013", 5), "")
     persons = pd.DataFrame({
         "household": p["household"].to_numpy(), "status": status,
+        "activity_code": activity_code,
         "earnings": earnings.to_numpy(),
         "education": pd.to_numeric(p["VD3005"], errors="coerce").fillna(0).to_numpy(),
         "female": (code("V2007") == "2").astype(float),
         "age": age.to_numpy()})
+    if activities is not None:
+        codes = pd.Series(activity_code)
+        mapped = _by_prefix(codes, dict(activities)).where(pd.Series(occupied), None)
+        lost = codes[pd.Series(occupied) & mapped.isna()]
+        if len(lost):
+            raise ValueError(
+                f"{len(lost)} occupied persons have activity codes no prefix of `activities` "
+                f"maps, such as {sorted(set(lost))[:5]}; map them, or the split of their "
+                f"earnings among activities would have no rule")
+        persons["activity"] = mapped.to_numpy()
 
     weight = p.assign(ref=code("V2005", 2) == "01")
     weight = weight.sort_values("ref", ascending=False).groupby("household")["V1028"].first()

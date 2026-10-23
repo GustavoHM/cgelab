@@ -7,13 +7,13 @@ e uma inversão de Leontief. Cada uma é uma dedução do autor. Em JuMP nada di
 bloco é uma restrição e o Ipopt encontra o ponto fixo. Um erro na álgebra do Python não pode,
 portanto, ser reproduzido do outro lado por construção.
 
-Roda 47 casos sobre as economias de brinquedo do pacote: sem margens, com bloco de margens, com
+Roda 50 casos sobre as economias de brinquedo do pacote: sem margens, com bloco de margens, com
 atividade de conta própria, com CET, com curvas de demanda de exportação e de oferta de
 importação (país grande, como o `lrgcge`), com tarifa e imposto sobre o produto dentro dos preços
 (como o `stdcge`), com instituições (impostos diretos, transferências, remessas,
 capital do governo e do exterior, IED), com mobilidade imperfeita de fatores (CET ou logit, com e
 sem pools de origem), com trabalho segmentado (mercado único, dual, Harris–Todaro e transformação entre os
-segmentos), em
+segmentos), com capital em safras (putty-clay), em
 cenário-base e com choques, em vários fechamentos.
 
     cd validation && julia --project=. -e 'using Pkg; Pkg.instantiate()' && cd ..
@@ -177,6 +177,29 @@ def casos_segmentos() -> dict:
     return casos
 
 
+def casos_safras() -> dict:
+    """Capital em duas safras: o velho específico do setor, o novo móvel."""
+    casos = {}
+    mcs = cge.split_vintages(toy._frame(toy._BASE), 0.1)
+    choque = cge.Scenario(name="safras", productivity=np.array([1.1, 1.0]),
+                          world_price=np.array([0.8, 1.2]))
+    fatores = ("f_lab", "f_cap", "f_cap_new")
+    econ = cge.calibrate(mcs, toy.spec(factors=fatores, vintages={"f_cap": "f_cap_new"}))
+    casos["safras_leontief_ex_post"] = caso("safras_leontief_ex_post", econ, cge.Closure(), choque)
+    econ = cge.calibrate(mcs, toy.spec(factors=fatores, vintages={"f_cap": "f_cap_new"},
+                                       vintage_sigma=0.3, vintage_substitution=5.0))
+    casos["safras_ces_fechamento_alternativo"] = caso(
+        "safras_ces_fechamento_alternativo", econ,
+        cge.Closure(investment="fixed_real", foreign="fixed_rate"), choque)
+    # Depois de alguns anos, a safra velha carrega as técnicas com que foi instalada.
+    trajetoria = cge.run_path(econ, years=range(2021, 2026),
+                              growth=cge.Growth(labour=0.01, tfp=0.01))
+    ano = trajetoria.periods[-1]
+    casos["safras_tecnicas_instaladas"] = caso("safras_tecnicas_instaladas", ano.econ,
+                                               cge.Closure(), ano.scenario)
+    return casos
+
+
 def main() -> int:
     print("=" * 78)
     print("IDA E VOLTA — o cgelab escreve o modelo JuMP, o Ipopt resolve, comparamos de volta")
@@ -335,6 +358,7 @@ def main() -> int:
     # Trabalho segmentado: mercado único, dual e Harris–Todaro, com a renda seguindo os
     # trabalhadores de cada domicílio
     casos.update(casos_segmentos())
+    casos.update(casos_safras())
 
     _, econ = toy.build()
     casos["fechamento_alternativo"] = caso(

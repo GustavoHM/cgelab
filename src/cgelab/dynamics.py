@@ -277,6 +277,21 @@ class _PathState:
         self.labour0 = np.array(econ.fac_supply[self.li], dtype=float)
         self.periods, self.stocks, self.foreigns, self.unit_stocks = [], [], [], []
         self.warm = None
+        # Putty-clay: the old vintage is the capital factor, a stock per
+        # activity; the new vintage is last year's investment, one stock.
+        self.vintage = econ.vintage
+        self.new_stock, self.new_stocks = 0.0, []
+        if self.vintage is not None:
+            v = self.vintage
+            if self.caps != [v.old]:
+                raise ValueError(
+                    f"with vintages, Growth.capital_factor must be the old vintage, "
+                    f"{v.old!r}, alone: the new one, {v.new!r}, is each year's investment, "
+                    f"and a second stock would need a share of it. Got {self.caps}.")
+            if self.row_share0[[v.i_old, v.i_new]].any():
+                raise ValueError("vintages with foreign-owned capital are not available yet: "
+                                 "the SAM pays capital income abroad")
+            self.new_stock = float(econ.fac_supply[v.i_new]) / float(self.user_cost[0])
 
     @property
     def stock(self) -> np.ndarray:
@@ -289,6 +304,10 @@ class _PathState:
         if e_t.factors != econ.factors or e_t.coms != econ.coms or e_t.acts != econ.acts:
             raise ValueError(f"economy({year!r}, {t}) returned an Economy with different "
                              f"accounts; build it from the base with dataclasses.replace")
+        if self.vintage is not None and e_t.vintage is not self.vintage:
+            # The old vintage carries the techniques it was installed with.
+            import dataclasses
+            e_t = dataclasses.replace(e_t, vintage=self.vintage)
         return e_t
 
     def solve(self, e_t: Economy, sc: Scenario, t: int, *, warm=None,
@@ -303,6 +322,10 @@ class _PathState:
         supply = e_t.fac_supply.copy()
         supply[self.li] = self.labour0 * (1.0 + growth.labour) ** t
         supply[self.ki] = self.stock * self.user_cost
+        if self.vintage is not None:
+            if sc.fdi:
+                raise ValueError("vintages with FDI are not available yet")
+            supply[self.vintage.i_new] = self.new_stock * self.user_cost[0]
         if growth.productivity == "factor_augmenting":
             supply = supply * level
             tfp = np.ones(econ.n_act)
@@ -342,9 +365,10 @@ class _PathState:
         """Keep the year's solution and accumulate capital from its investment."""
         growth, closure = self.growth, self.closure
         self.periods.append(res)
-        self.stocks.append(self.stock.copy())
+        self.stocks.append(self.stock + self.new_stock)
         self.foreigns.append(self.foreign.copy())
         self.unit_stocks.append(self.units.copy())
+        self.new_stocks.append(self.new_stock)
         self.warm = res
 
         # Real investment adds to the stock. The flow-onto-flow error this avoids
@@ -356,6 +380,20 @@ class _PathState:
             inv_real = res.savings / max(p_inv, 1e-12)
         else:
             inv_real = float(res.real["inv_real"])
+        if self.vintage is not None:
+            # The new capital each activity used this year is installed there:
+            # next year it is old capital of that activity, and this year's
+            # investment is next year's new capital.
+            v = self.vintage
+            use = res.factor_demand_by_activity[v.i_new]
+            total = float(use.sum())
+            installed = self.new_stock * use / total if total > 0 else np.zeros_like(use)
+            members = self.pooled[0]
+            where = [self.econ.activity(a) for a in self.econ.mobility[v.i_old].pools]
+            self.units[members] = (1.0 - self.dep[0]) * (self.units[members] + installed[where])
+            self.new_stock = inv_real
+            self.vintage = v.installed(res.factor_prices_by_activity, res.vintage_value_added)
+            return
         # FDI is part of this year's saving; the capital it buys is foreign-owned
         # and goes to the factor it was aimed at. The rest is domestic and is
         # shared by the allocation rule.
@@ -387,6 +425,9 @@ class _PathState:
                        units[:, members], index=list(years),
                        columns=list(self.econ.mobility[int(self.ki[c])].pools))
                    for c, members in self.pooled.items()}
+        if self.vintage is not None:
+            new = self.vintage.new
+            by_pool[new] = pd.DataFrame({new: self.new_stocks}, index=list(years))
         return PathResult(years=list(years), periods=self.periods, econ=self.econ,
                           growth=self.growth, capital_stock=shape(self.stocks),
                           foreign_capital=shape(self.foreigns), capital_factors=self.caps,

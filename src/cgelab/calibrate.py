@@ -27,6 +27,7 @@ from typing import Mapping
 import numpy as np
 
 from .mobility import build_mobility
+from .vintages import VintageNest, build_vintages
 from .segments import build_segments
 from .sam import SAM
 from .spec import AccountLayout, ModelSpec
@@ -164,6 +165,9 @@ class Economy:
     #: Groups of labour segments (``ModelSpec.labour_segments``), by name:
     #: :class:`cgelab.segments.SegmentGroup`.
     segments: dict = field(default_factory=dict, repr=False)
+    #: Putty-clay capital (``ModelSpec.vintages``): the two-bundle value added.
+    #: None without vintages.
+    vintage: VintageNest | None = field(default=None, repr=False)
 
     def zeros_if_none(self, name: str, n: int) -> np.ndarray:
         v = getattr(self, name)
@@ -474,6 +478,18 @@ def calibrate(sam: SAM, spec: ModelSpec | None = None, *,
     # Government income as the solver books it: every tax, its factor income,
     # net of its transfers to households. What it does not spend it saves.
     energy_nest = _energy_nest(spec, coms, acts, io, ptax, vunit, leontief, aunit, facs)
+    vintage = build_vintages(spec, facs, acts, theta, leontief, spec.sigma_va_vector(acts))
+    if vintage is not None:
+        if vintage.old in (factor_pools or {}):
+            raise ValueError(f"factor_pools names {vintage.old!r}, old capital, which "
+                             f"vintages make sector-specific: a pool per activity")
+        # Old capital is sector-specific: a pool per activity, which holds at
+        # any elasticity. The economy records the spec with it, so every code
+        # path that reads factor_mobility sees what was solved.
+        import dataclasses
+        spec = dataclasses.replace(
+            spec, factor_mobility={**(spec.factor_mobility or {}), vintage.old: 0.0})
+        factor_pools = {**dict(factor_pools or {}), vintage.old: "activities"}
     gov_income0 = (float(tax_all_c.sum()) + float(tax_a.sum()) + float(hh_tax.sum())
                    + float(fac_gov.sum()) - float(gov_tr.sum()))
     gov_savrate = (1.0 - float(gov_dem.sum()) / gov_income0) if gov_income0 > 0 else 0.0
@@ -493,7 +509,7 @@ def calibrate(sam: SAM, spec: ModelSpec | None = None, *,
         fac_gov_share=fac_gov_share, fac_row_share=fac_row_share,
         hh_spend0=hh_com.sum(axis=1), hh_gross0=gross0,
         tm0=tm0, tauz0=tauz0, gov_savrate=gov_savrate,
-        energy_nest=energy_nest,
+        energy_nest=energy_nest, vintage=vintage,
         mobility=build_mobility(spec, facs, acts, aunit * X0[None, :], factor_pools),
         segments=build_segments(spec, facs, fac_supply),
         gov_saving0=gov_income0 - float(gov_dem.sum()),

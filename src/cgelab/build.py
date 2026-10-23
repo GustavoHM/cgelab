@@ -32,7 +32,7 @@ import pandas as pd
 from .sam import SAM
 
 __all__ = ["SupplyUse", "Institutions", "sut_to_sam", "split_households", "split_factor",
-           "segment_shares", "group_population", "read_tru"]
+           "split_vintages", "segment_shares", "group_population", "read_tru"]
 
 _ROLES = ("households", "government", "investment", "exports")
 
@@ -542,7 +542,7 @@ def split_households(sam: SAM, survey, *, account: str, incomes: Mapping | None 
         N.at[inv, g] = saving
         prov.append(("residual", f"saving of {g}" + (" (negative)" if saving < 0 else ""),
                      [inv], [g], saving, 1))
-    out = SAM.from_square(N.fillna(0.0), name=sam.name)
+    out = _square(N.fillna(0.0), sam.name)
     out.provenance = pd.DataFrame(prov, columns=["source", "note", "rows", "cols", "total",
                                                  "cells"])
     return out
@@ -661,10 +661,76 @@ def split_factor(sam: SAM, factor: str, by_activity: pd.DataFrame, *,
         saving = float(N.loc[h].sum() - N[h].sum())
         N.at[inv, h] = saving
         prov.append(("residual", f"saving of {h}, recomputed", [inv], [h], saving, 1))
-    out = SAM.from_square(N.fillna(0.0), name=sam.name)
+    out = _square(N.fillna(0.0), sam.name)
     out.provenance = pd.DataFrame(prov, columns=["source", "note", "rows", "cols", "total",
                                                  "cells"])
     return out
+
+
+def _square(N: pd.DataFrame, name: str) -> SAM:
+    """A SAM from a square frame that keeps every account, an all-zero one too.
+
+    A government or a rest of the world with no flows is still an account the
+    model's layout names.
+    """
+    long = N.stack().reset_index()
+    long.columns = ["row", "col", "value"]
+    nonzero = long[long.value != 0.0]
+    seen = set(nonzero.row) | set(nonzero.col)
+    empty = [a for a in N.index if a not in seen]
+    keep = pd.DataFrame({"row": empty, "col": empty, "value": [0.0] * len(empty)})
+    return SAM.from_long(pd.concat([nonzero, keep], ignore_index=True), name=name)
+
+
+def split_vintages(sam: SAM, share, *, capital: str = "f_cap", new: str = "f_cap_new",
+                   source: str = "assumed") -> SAM:
+    """Split a capital account into installed capital and capital bought this year.
+
+    ``share`` is the new vintage's part of each activity's capital payment: one
+    number, or a mapping by activity (``"__default__"`` for the rest). The
+    capital account keeps the old vintage's part and ``new`` gets the rest;
+    every recipient of capital income keeps its share of both. For
+    ``ModelSpec(vintages={capital: new})``.
+
+    In ``run_path`` the new vintage is a year's investment, so a base year on its
+    steady path has, as a stock, new capital equal to investment: ``share`` is
+    the investment over the capital stock, ``(depreciation + growth)`` on a
+    balanced path, or ``user_cost * investment / capital payments`` read off the
+    SAM.
+    """
+    M = sam.matrix()
+    if capital not in M.index:
+        raise KeyError(f"{capital!r} is not an account of the SAM")
+    if new in M.index:
+        raise ValueError(f"{new!r} is already an account of the SAM")
+    payers = [a for a in M.columns if M.at[capital, a] != 0]
+    if isinstance(share, Mapping):
+        default = share.get("__default__")
+        missing = [a for a in payers if a not in share and default is None]
+        if missing:
+            raise ValueError(f"share has no value for {missing}, which pay {capital!r}; "
+                             f"give one or a \"__default__\"")
+        values = [float(share.get(a, default)) for a in payers]
+    else:
+        values = [float(share)] * len(payers)
+    bad = [a for a, v in zip(payers, values) if not 0.0 <= v <= 1.0]
+    if bad:
+        raise ValueError(f"the new vintage's share must be between 0 and 1, not in {bad}")
+    old = f"{capital} (old)"
+    by = pd.DataFrame([[1.0 - v for v in values], values], index=[old, new], columns=payers)
+    # split_factor needs a share for each vintage in each activity; an activity
+    # with all of its capital in one vintage gets a zero on the other.
+    out = split_factor(sam, capital, by, source=source)
+    rename = {old: capital}
+    out_m = out.matrix().rename(index=rename, columns=rename)
+    prov = out.provenance.copy()
+    prov["note"] = prov["note"].str.replace(old, capital, regex=False)
+    for col in ("rows", "cols"):
+        prov[col] = prov[col].apply(lambda xs: [rename.get(x, x) for x in xs])
+    prov.loc[0, "note"] = f"{capital} split into vintages: {new} the new one"
+    result = _square(out_m, sam.name)
+    result.provenance = prov
+    return result
 
 
 # ---------------------------------------------------------------------------

@@ -72,6 +72,8 @@ def value_added_price(econ: Economy, w: np.ndarray) -> np.ndarray:
     different price in each activity (``ModelSpec.factor_mobility``).
     """
     w = _factor_price_matrix(econ, w)
+    if econ.vintage is not None:
+        return econ.vintage.prices(w)[2]
     if econ.spec.value_added == "cobb_douglas":
         nest = cobb_douglas_price(econ.theta, w)
     else:
@@ -93,6 +95,8 @@ def factor_intensity(econ: Economy, w: np.ndarray, *, vunit=None, aunit=None) ->
     vunit = econ.vunit if vunit is None else vunit
     aunit = econ.aunit if aunit is None else aunit
     w = _factor_price_matrix(econ, w)
+    if econ.vintage is not None:
+        return econ.vintage.intensity(w)
     pva = value_added_price(econ, w)
     if econ.spec.value_added == "cobb_douglas":
         with np.errstate(divide="ignore", invalid="ignore"):
@@ -201,6 +205,11 @@ class PeriodResult:
     #: equilibrium used.
     input_coefficients: np.ndarray | None = None
     value_added_per_unit: np.ndarray | None = None
+    #: Each capital vintage's bundle (``ModelSpec.vintages``), ``(2, n_act)``:
+    #: the old, then the new, in the base-year value of the factors it uses, as
+    #: the ``value_added`` of ``real_gdp`` is; productivity is not in it. None
+    #: without vintages.
+    vintage_value_added: np.ndarray | None = None
 
     def price(self, commodity: str) -> float:
         return float(self.pq[self.econ.commodity(commodity)])
@@ -995,6 +1004,8 @@ def solve_period(econ: Economy, closure: Closure | None = None,
                 hh_dtax_paid=hh_dtax_paid, row_fac=row_fac, gov_fac=gov_fac,
                 gov_account=gov_account, hh_sav=hh_sav, tax_scale=tax_scale,
                 io_used=coef, va_per=fac_per.sum(axis=0),
+                vintage_va=(None if econ.vintage is None else
+                            econ.vintage.bundles(Wm) * (vunit_eff * X)[None, :]),
                 real=dict(hh_real=float(p_base_yard @ hh_q.sum(axis=0)),
                           gov_real=float(p_base_yard @ gov_q),
                           inv_real=float(p_base_yard @ inv_q),
@@ -1132,7 +1143,7 @@ def solve_period(econ: Economy, closure: Closure | None = None,
         tax_scale=state["tax_scale"], input_coefficients=state["io_used"],
         factor_prices_by_activity=state["w_by_act"], factor_pools=state["pools"],
         labour_markets=state["markets"],
-        value_added_per_unit=state["va_per"])
+        value_added_per_unit=state["va_per"], vintage_value_added=state["vintage_va"])
 
 
 # ---------------------------------------------------------------------------

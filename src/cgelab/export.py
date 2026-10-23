@@ -285,6 +285,21 @@ def to_jump(econ: Economy, closure: Closure | None = None, scenario: Scenario | 
                     else np.zeros(na)),
         sigma_top=_l(ninho.sigma_top if ninho is not None and ninho.sigma_top is not None
                      else np.zeros(na)),
+        # safras de capital (putty-clay): o valor adicionado é uma CES de dois feixes, o velho
+        # (sem o capital novo) e o novo (sem o capital velho)
+        vintage=econ.vintage is not None,
+        vintage_share_old=_l(econ.vintage.share_old if econ.vintage is not None
+                             else np.zeros(na)),
+        vintage_theta_old=_l(econ.vintage.theta_old if econ.vintage is not None
+                             else np.zeros((nf, na))),
+        vintage_theta_new=_l(econ.vintage.theta_new if econ.vintage is not None
+                             else np.zeros((nf, na))),
+        vintage_sigma_old=_l(econ.vintage.sigma_old if econ.vintage is not None
+                             else np.zeros(na)),
+        vintage_sigma_new=_l(econ.vintage.sigma_new if econ.vintage is not None
+                             else np.zeros(na)),
+        vintage_sigma_top=_l(econ.vintage.sigma_top if econ.vintage is not None
+                             else np.zeros(na)),
         # mobilidade imperfeita: por fator, a forma, a elasticidade, as atividades usuárias, as
         # parcelas de cada pool no ano-base e a dotação de cada pool neste cenário
         mobility=[dict(factor=int(i) + 1, form=m.form, omega=float(m.omega),
@@ -606,7 +621,38 @@ end
 @expression(m, pqf[c = 1:nc], pbase[c] * (1 + tf(c)))    # preço à FIRMA (parcela não creditável)
 
 # ---- 1. preço do valor adicionado: CES sobre fatores, Leontief onde o excedente é negativo
+const VINT = Bool(d.vintage)
+# Preço de uma CES de vários insumos com parcelas `sh` (que somam um): linear com elasticidade
+# zero, Cobb-Douglas com um.
+function cesprice!(pout, sh, prices, sg)
+    k = [i for i in eachindex(sh) if sh[i] > 0]
+    if sg == 0
+        @constraint(m, pout == sum(sh[i] * prices[i] for i in k))
+    elseif abs(sg - 1) < 1e-9
+        @constraint(m, log(pout) == sum(sh[i] * log(prices[i]) for i in k))
+    else
+        @constraint(m, pout^(1 - sg) == sum(sh[i] * prices[i]^(1 - sg) for i in k))
+    end
+end
+vpow(x, y, sg) = sg == 0 ? 1.0 : (x / y)^sg
+if VINT
+    # Duas safras: o feixe velho, CES de σ_velho sobre os fatores menos o capital novo; o novo,
+    # CES de σ_va sobre os fatores menos o capital velho; e uma CES de σ_safra entre os dois.
+    vso = vecf(d.vintage_share_old); vth_o = mat(d.vintage_theta_old)
+    vth_n = mat(d.vintage_theta_new); vs_o = vecf(d.vintage_sigma_old)
+    vs_n = vecf(d.vintage_sigma_new); vs_t = vecf(d.vintage_sigma_top)
+    @variable(m, pOld[j = 1:na] >= 1e-8, start = 1.0)
+    @variable(m, pNew[j = 1:na] >= 1e-8, start = 1.0)
+    for j in 1:na
+        cesprice!(pOld[j], vth_o[:, j], [wf(f, j) for f in 1:nf], vs_o[j])
+        cesprice!(pNew[j], vth_n[:, j], [wf(f, j) for f in 1:nf], vs_n[j])
+        cesprice!(pva[j], [vso[j], 1 - vso[j]], [pOld[j], pNew[j]], vs_t[j])
+    end
+    @expression(m, bOld[j = 1:na], vso[j] * vpow(pva[j], pOld[j], vs_t[j]))
+    @expression(m, bNew[j = 1:na], (1 - vso[j]) * vpow(pva[j], pNew[j], vs_t[j]))
+end
 for j in 1:na
+    VINT && break
     if leo[j]
         @constraint(m, pva[j] * vunit[j] == sum(aunit[f, j] * wf(f, j) for f in 1:nf))
     elseif sum(theta[:, j]) <= 0
@@ -918,7 +964,9 @@ end
 
 # ---- 10. demanda de fatores
 @expression(m, facint[f = 1:nf, j = 1:na],
-            leo[j] ? (vunit[j] != 0 ? aunit[f, j] / vunit[j] : 0.0)
+            VINT ? ((vth_o[f, j] > 0 ? vth_o[f, j] * vpow(pOld[j], wf(f, j), vs_o[j]) * bOld[j] : 0.0)
+                    + (vth_n[f, j] > 0 ? vth_n[f, j] * vpow(pNew[j], wf(f, j), vs_n[j]) * bNew[j] : 0.0))
+                 : leo[j] ? (vunit[j] != 0 ? aunit[f, j] / vunit[j] : 0.0)
                    : (theta[f, j] > 0 ? theta[f, j] * (pva[j] / wf(f, j))^sva[j] : 0.0))
 @expression(m, facdem_j[f = 1:nf, j = 1:na],
             (NEST ? facper[f, j] : facint[f, j] * vunit[j]) * X[j])

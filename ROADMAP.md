@@ -171,6 +171,14 @@ in each rigid one; income that follows each household's workers). Still open: em
 persons rather than in base-year wage units, unemployment benefits, and a wage curve by
 segment.
 
+**Capital by sector and vintages.** Done in 0.6: a capital stock per activity
+(`calibrate(factor_pools={"f_cap": "activities"})`) with investment shared by rents, and
+putty-clay vintages (`ModelSpec.vintages`): installed capital sector-specific and with the
+technique it was installed with, new capital mobile. Still open: perfect substitution between
+the vintages, which needs a regime switch for idle capital, and the sale of old capital by
+declining sectors, as in LINKAGE; vintages with an energy nest, with foreign-owned capital
+and in several regions.
+
 **A baseline calibrated to GDP.** Done in 0.6: `calibrate_baseline`, the productivity path
 that makes a recursive baseline hit real GDP, by year or by activity, and `Baseline`, which
 runs a policy at it. Still open: other targets with other unknowns (employment through the

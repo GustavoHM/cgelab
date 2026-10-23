@@ -300,6 +300,22 @@ the expected incomes.
 
 ---
 
+## Clay keeps the technique it was installed with
+
+Vintage models usually give the old bundle the base year's factor proportions
+for good. In a recursive path that runs for decades, capital installed in 2040
+then works with the labour of the base year, and an economy whose capital grows
+faster than its labour accumulates old capital that cannot be manned: its rent
+falls to zero and the period stops solving. Each year here, the new capital an
+activity used joins that activity's old capital, and the old bundle's inputs per
+unit become the average of its own and the new bundle's, weighted by the two
+bundles' quantities, at the prices of the year it was installed. Its CES is
+recalibrated to use those inputs at those prices. With one elasticity in both
+bundles and one price for both capitals, the new technique is the old one and
+nothing moves.
+
+---
+
 ## Negative value added is data
 
 An activity can report a negative operating surplus — a sector that collapsed in

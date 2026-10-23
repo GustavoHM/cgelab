@@ -119,6 +119,27 @@ before 1.0, a minor version may add to the API and a patch version only fixes.
   exactly and give the GDP the IBGE publishes for 2021, R$ 9,012,142 million; the
   suite reads a hand-written table in that layout. A new extra, `ibge`, installs
   `xlrd` for the `.xls` files.
+- Capital by sector. `calibrate(factor_pools={factor: "activities"})` gives each
+  activity that uses a factor a pool of its own, so the factor is sector-specific.
+  `run_path` accumulates a stock per pool of a capital factor, shares investment
+  and FDI among all the stocks by `Growth.allocation` with each pool's price as
+  its rent, and reports them in `PathResult.capital_by_pool`. A pool per activity
+  gives the path of capital written out by hand as one factor per activity, to
+  1e-10.
+- Putty-clay vintages. `ModelSpec.vintages = {old: new}` with `split_vintages`
+  splits capital into an installed vintage, sector-specific, and a new one, mobile.
+  Value added is a CES (`vintage_substitution`, 20 by default) of an old bundle (a
+  CES of `vintage_sigma`, fixed proportions by default) and a new bundle (the CES
+  of `sigma_va`). In `run_path` the new vintage is each year's investment, and the
+  new capital an activity used is installed there at the end of the year, the old
+  bundle taking on the technique it was installed with. With one elasticity in
+  both bundles and between them the nest is the flat CES of the model without
+  vintages, to 1e-10; under fixed proportions the old bundle is its capital over
+  the capital share at any prices; a one-good economy on its steady path stays
+  there to 1e-12; and as `vintage_substitution` grows the path approaches the one
+  with a single capital stock, at a rate of one over it.
+  `PeriodResult.vintage_value_added` reports the two bundles. The JuMP replica
+  carries the nest, and three new round-trip cases match it to 1e-13.
 - `calibrate_baseline` calibrates a recursive baseline to a path of real GDP, in
   the manner of MONASH's historical simulations and LINKAGE's baselines: year by
   year, in sequence, the Hicks-neutral productivity that hits a GDP given as

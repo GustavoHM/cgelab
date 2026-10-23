@@ -59,6 +59,9 @@ Constructors: `SAM.from_long(df, row="row", col="col", value="value", name="sam"
 | `factor_mobility` | `None` | `{factor: ω}`, ω ≥ 0: the factor's endowment is transformed across the activities that use it, and each activity pays its own price. Zero holds the base-year allocation. A factor left out is perfectly mobile. Not the numeraire; not with `regions` |
 | `labour_segments` | `None` | `{group: [factor, ...]}`: labour accounts that share one population of workers; how they clear is `Closure.labour_markets`. Two or more factors each, not the numeraire, not in `factor_mobility` |
 | `segment_mobility` | `None` | `{group: ω}`: each household's workforce in a group of `labour_segments` split among its segments by a CET or a logit (`factor_mobility_form`, by group name); each flexible segment clears, each rigid one has a queue. A group left out has perfect mobility between its segments |
+| `vintages` | `None` | `{old: new}`, one pair of capital accounts (`split_vintages`): putty-clay capital. Value added is a CES (`vintage_substitution`) of an old bundle, a CES of `vintage_sigma` without new capital, and a new one, the CES of `sigma_va` without old capital. Old capital gets a pool per activity; new capital is mobile. Needs `value_added="ces"`; not with `energy`, `regions`, or either vintage in `factor_mobility` (old) or `labour_segments` |
+| `vintage_sigma` | `0.0` | substitution ex post, in the old bundle; a number or a mapping by activity |
+| `vintage_substitution` | `20.0` | substitution between the two bundles; perfect substitution is the limit |
 | `factor_mobility_form` | `"cet"` | `"cet"` (a CET frontier, GTAP's sluggish endowments) or `"logit"` (shares of a fixed head count); one form, or a mapping by factor |
 
 Methods: `classify(sam) -> AccountLayout`, `prepare(sam)` (expands regional
@@ -92,7 +95,9 @@ is unchanged.
 `factor_pools` maps a factor in `ModelSpec.factor_mobility` to a DataFrame of
 base-year use, pools of origin by activities: a proximity matrix. Each column must
 add up to what the SAM pays the factor in that activity. Absent, the endowment is
-one pool. The calibrated transformations are `econ.mobility`, by factor index.
+one pool; `"activities"` gives each activity that uses the factor a pool of its
+own, so the factor is sector-specific. The calibrated transformations are
+`econ.mobility`, by factor index; the vintage nest is `econ.vintage`.
 
 ### `Economy`
 
@@ -240,6 +245,7 @@ of one price, with one market per activity.
 | `labour_markets` | `{group: {...}}` for each group of labour segments: `segments`, `informal` (`None` under `segment_mobility`), `wage`, `real_wage`, `employment`, `supply`, `queue`, `labour_force`, `unemployment`, `unemployment_rate`, `harris_todaro`, `household_workforce`, `household_employment` `(nh, n_seg)`, `household_unemployed`; `None` without segments |
 | `factor_pools` | `{factor: {"pools", "price", "endowment", "supply"}}` for each imperfectly mobile factor, `supply` by pool and activity; `None` when every factor is mobile |
 | `wedge_revenue`, `government_cost` | recycled revenue; cost falling on the budget |
+| `vintage_value_added` | `(2, na)`: the old and the new capital vintage's bundle, in the base-year value of the factors each uses; `None` without vintages |
 | `input_coefficients`, `value_added_per_unit` | intermediate input and primary factor use (base-year value) per unit of output as solved; under an energy nest they answer to prices |
 | `government`, `household_saving`, `forced_saving` | the government account at the solution; voluntary household saving; the levy that finances fixed real investment |
 | `real` | `hh_real`, `gov_real`, `inv_real`, `hh_sav_real`, `gov_sav_real`, `for_sav_real`, `hh_price_index`, `hh_real_income`, `hh_committed_value` |
@@ -441,7 +447,11 @@ grows as a whole.
 `capital_factor` is one factor or a sequence of them, each accumulated from its
 own service flow; `depreciation` is a rate or a mapping by capital factor.
 `allocation` shares domestic investment among them: `"proportional"` to the
-stocks, or a number `e` making shares proportional to `K_k (r_k / r_mean)^e`.
+stocks, or a number `e` making shares proportional to `K_k (r_k / r_mean)^e`. A
+capital factor with pools (`calibrate(factor_pools=)`) has a stock per pool,
+and the pools take part in the allocation with their prices as rents. With
+`ModelSpec.vintages`, `capital_factor` is the old vintage alone: the new one is
+each year's investment, installed at the end of the year where it was used.
 `user_cost` is `discount + depreciation`, the rate that converts the SAM's
 capital service flow into a stock. `productivity` says how `tfp` enters:
 `"hicks_neutral"` scales every activity's input requirements, `"factor_augmenting"`
@@ -487,7 +497,9 @@ and `run(policy=None)` runs it.
 ### `PathResult`
 
 `years`, `periods`, `capital_stock` (`(T,)`, or `(T, k)` with several capital
-factors), `foreign_capital` (same shape), `capital_factors`, `converged`, `worst_walras`;
+factors; with vintages, old and new together), `foreign_capital` (same shape),
+`capital_factors`, `capital_by_pool` (`{factor: DataFrame}`, years by pools, for
+each capital factor with pools, and for the new vintage), `converged`, `worst_walras`;
 `path[year]` gives the `PeriodResult`;
 `aggregates()`, `households()`, `commodity(name)` return tidy frames.
 
@@ -751,6 +763,13 @@ how each cell was shared.
 A factor split by activity (`by_activity`, new factors × activities) and, for
 households, by `owners` (recipients × new factors); government and abroad keep
 their shares; households' savings are recomputed when `owners` is given.
+
+### `split_vintages(sam, share, *, capital="f_cap", new="f_cap_new", source="assumed") -> SAM`
+
+The capital account split into the installed vintage (keeping the name) and
+`new`, the part `share` of each activity's payment (a number, or a mapping by
+activity with `"__default__"`); every recipient keeps its share of both. On a
+steady path `share` is investment over the capital stock.
 
 ### `segment_shares(survey, persons, *, segments, activity="activity") -> (by_activity, owners)` / `group_population(survey) -> dict`
 

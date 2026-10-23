@@ -485,6 +485,19 @@ cge.real_gdp(policy[2025])["expenditure"] / base.achieved[2025] - 1</code></pre>
   year because each year's capital comes from the investment before it: one number a year, or one
   per activity on sectoral value added. A policy then runs at the calibrated productivity, and
   GDP moves away from the path; with no policy, the baseline comes back exactly.</p>
+
+  <h3>25. Putty-clay capital</h3>
+<pre><code>vint = cge.split_vintages(sam_toy, 0.08)           # 8% of each activity's capital is new
+clay = cge.calibrate(vint, toy.spec(factors=("f_lab", "f_cap", "f_cap_new"),
+                                    vintages={"f_cap": "f_cap_new"}))
+path = cge.run_path(clay, years=range(2021, 2031),
+                    scenario=cge.Scenario(world_price=np.array([1.0, 1.15])))
+path.capital_by_pool["f_cap"].iloc[[0, -1]]          # installed capital, by activity
+path[2021].vintage_value_added                       # old and new bundles</code></pre>
+  <p>Installed capital stays in its sector and keeps the technique it was built with; new capital
+  goes where it earns most. When industry's price rises, only the new vintage follows at first,
+  so output answers less than with mobile capital, and catches up as industry installs more of
+  each year's investment.</p>
 </div></section>
 
 <section id="gates"><div class="wrap">

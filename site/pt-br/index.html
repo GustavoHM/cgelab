@@ -485,6 +485,19 @@ cge.real_gdp(politica[2025])["expenditure"] / base.achieved[2025] - 1</code></pr
   ano porque o capital de cada ano vem do investimento dos anteriores: um número por ano, ou um por
   atividade com o valor adicionado setorial. Uma política roda então com a produtividade calibrada,
   e o PIB se afasta da trajetória; sem política, a linha de base volta exatamente.</p>
+
+  <h3>25. Capital putty-clay</h3>
+<pre><code>safras = cge.split_vintages(sam_toy, 0.08)         # 8% do capital de cada atividade é novo
+argila = cge.calibrate(safras, toy.spec(factors=("f_lab", "f_cap", "f_cap_new"),
+                                        vintages={"f_cap": "f_cap_new"}))
+trajetoria = cge.run_path(argila, years=range(2021, 2031),
+                          scenario=cge.Scenario(world_price=np.array([1.0, 1.15])))
+trajetoria.capital_by_pool["f_cap"].iloc[[0, -1]]   # capital instalado, por atividade
+trajetoria[2021].vintage_value_added                 # os feixes velho e novo</code></pre>
+  <p>O capital instalado fica no seu setor e mantém a técnica com que foi construído; o capital
+  novo vai para onde rende mais. Quando o preço da indústria sobe, só a safra nova acompanha no
+  começo, então o produto responde menos que com capital móvel, e alcança à medida que a
+  indústria instala mais do investimento de cada ano.</p>
 </div></section>
 
 <section id="portarias"><div class="wrap">

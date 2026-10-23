@@ -638,6 +638,62 @@ leave through the current account. Counting FDI only as foreign saving would han
 residents a capital stock they did not pay for, and every gain it produced would
 be credited to them.
 
+### Capital by sector
+
+```python
+spec = cge.ModelSpec(..., factor_mobility={"f_cap": 0.0})
+econ = cge.calibrate(sam, spec, factor_pools={"f_cap": "activities"})
+path = cge.run_path(econ, years=years, growth=cge.Growth(allocation=2.0))
+path.capital_by_pool["f_cap"]            # the stock of each activity, by year
+```
+
+A pool per activity makes capital sector-specific: each activity has the
+capital it accumulated and pays its own rent for it. `run_path` keeps a stock
+per pool and shares each year's investment among them by `Growth.allocation`,
+as among several capital factors: `"proportional"` keeps the composition, a
+number `e` sends investment toward the activities whose capital earns more, in
+proportion to `K (r / r̄)^e`. Year by year, this is the path of capital written
+out by hand as one factor per activity. Other pools (owners, regions, with
+`ω > 0`) accumulate the same way.
+
+### Putty-clay vintages
+
+```python
+sam = cge.split_vintages(sam, 0.08)       # 8% of each activity's capital is new
+spec = cge.ModelSpec(..., factors=("f_lab", "f_cap", "f_cap_new"),
+                     vintages={"f_cap": "f_cap_new"},
+                     vintage_sigma=0.0,          # no substitution ex post
+                     sigma_va=0.8)               # substitution ex ante
+path = cge.run_path(cge.calibrate(sam, spec), years=years, growth=growth)
+path[2030].vintage_value_added           # old and new bundles, by activity
+```
+
+Installed capital is clay: it stays in the activity that bought it and works
+with the labour its technique was built for. Capital not yet installed is
+putty: it goes where it earns most, with the labour intensity the prices of the
+year make cheapest. Each activity's value added is then a CES
+(`vintage_substitution`) of two bundles. The old bundle is a CES of
+`vintage_sigma` (zero by default: fixed proportions) over every factor but new
+capital; the new bundle is the usual CES of `sigma_va` over every factor but old
+capital. Old capital is sector-specific, a pool per activity; new capital is
+mobile.
+
+In `run_path` the new vintage is each year's investment. At the end of the
+year, the new capital each activity used is installed there: it joins that
+activity's old capital, and the old bundle takes on the technique it was
+installed with, averaged with its own by quantity. Without that, capital
+installed in 2040 would work with the base year's labour, and an economy whose
+capital grows faster than its labour would have old capital no one can man.
+`split_vintages`'s `share` is the new vintage's part of each activity's
+capital: on a steady path, investment over the capital stock.
+
+LINKAGE has the two bundles as perfect substitutes. That case switches regime
+when an activity shrinks faster than its old capital wears out, leaving old
+capital idle, and a smooth solver does not switch regimes. Here they are a CES,
+20 by default, and the distance to one capital stock, with the same elasticity
+in both bundles, falls as one over it. Vintages are not available yet with an
+energy nest, with foreign-owned capital or FDI, or in several regions.
+
 ### A baseline calibrated to GDP
 
 A baseline built from assumed rates makes GDP whatever the rates give. The

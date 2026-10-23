@@ -129,8 +129,14 @@ def build_mobility(spec, facs, acts, base_use, factor_pools) -> dict:
             raise ValueError(f"factor {f!r} is used by no activity in the base year")
         if f in pools_in:
             table = pools_in[f]
+            if isinstance(table, str) and table == "activities":
+                # A pool for each activity that uses the factor, holding what it
+                # uses: sector-specific capital, or labour tied to its sector.
+                keep = [a for a, u in zip(acts, users) if u]
+                table = pd.DataFrame(np.diag(use[users]), index=keep, columns=keep)
             if not isinstance(table, pd.DataFrame):
-                raise TypeError(f"factor_pools[{f!r}] must be a DataFrame, pools by activities")
+                raise TypeError(f"factor_pools[{f!r}] must be a DataFrame, pools by "
+                                f"activities, or \"activities\" for a pool per activity")
             unknown = [c for c in table.columns if c not in acts]
             if unknown:
                 raise KeyError(f"factor_pools[{f!r}] has columns that are not activities: "

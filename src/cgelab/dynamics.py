@@ -125,6 +125,10 @@ class PathResult:
     #: Foreign-owned part of each capital stock, same shape as `capital_stock`.
     foreign_capital: np.ndarray = field(repr=False, default=None)
     capital_factors: list = field(repr=False, default=None)
+    #: The stock of each pool of a capital factor that has pools
+    #: (``calibrate(factor_pools=)``): ``{factor: DataFrame}``, years by pools.
+    #: Sector-specific capital is a pool per activity. Empty without pools.
+    capital_by_pool: dict = field(repr=False, default_factory=dict)
 
     def __getitem__(self, year) -> PeriodResult:
         return self.periods[self.years.index(year)]
@@ -255,12 +259,29 @@ class _PathState:
                    else econ.factor(growth.labour_factor))
         self.dep = np.array([growth.depreciation_of(k) for k in self.caps])
         self.user_cost = growth.discount + self.dep
-        self.stock = econ.fac_supply[self.ki] / self.user_cost
+        # The stocks that accumulate: one per capital factor, or one per pool
+        # of a capital factor that has pools -- sector-specific capital is a
+        # pool per activity. `owner` says which capital factor each belongs to.
+        owner, base = [], []
+        for c, i in enumerate(self.ki):
+            mob = econ.mobility.get(int(i))
+            flows = [econ.fac_supply[i]] if mob is None else list(mob.endowment0)
+            owner += [c] * len(flows)
+            base += flows
+        self.owner = np.array(owner, dtype=int)
+        self.units = np.array(base, dtype=float) / self.user_cost[self.owner]
+        self.pooled = {c: np.where(self.owner == c)[0] for c, i in enumerate(self.ki)
+                       if int(i) in econ.mobility}
         self.row_share0 = econ.zeros_if_none("fac_row_share", econ.n_fac)
         self.foreign = self.stock * self.row_share0[self.ki]
         self.labour0 = np.array(econ.fac_supply[self.li], dtype=float)
-        self.periods, self.stocks, self.foreigns = [], [], []
+        self.periods, self.stocks, self.foreigns, self.unit_stocks = [], [], [], []
         self.warm = None
+
+    @property
+    def stock(self) -> np.ndarray:
+        """The stock of each capital factor, its pools summed."""
+        return np.bincount(self.owner, weights=self.units, minlength=len(self.caps))
 
     def economy_at(self, economy, year, t) -> Economy:
         econ = self.econ
@@ -287,11 +308,24 @@ class _PathState:
             tfp = np.ones(econ.n_act)
         else:
             tfp = np.full(econ.n_act, level)
+        changes = {}
         if sc.factor_supply is not None:
             supply = np.asarray(sc.factor_supply, dtype=float)
+        elif self.pooled:
+            # Each pool's services come from its own stock. A scenario that sets
+            # a factor's supply, or its pools, overrides them, as it overrides
+            # any accumulated supply.
+            scale = level if growth.productivity == "factor_augmenting" else 1.0
+            pools = dict(sc.pool_supply or {})
+            for c, members in self.pooled.items():
+                if self.caps[c] in pools:
+                    supply[self.ki[c]] = float(np.sum(pools[self.caps[c]]))
+                else:
+                    pools[self.caps[c]] = self.units[members] * self.user_cost[c] * scale
+            changes["pool_supply"] = pools
         if sc.productivity is not None:
             tfp = tfp * np.asarray(sc.productivity, dtype=float)
-        changes = dict(factor_supply=supply, productivity=tfp)
+        changes.update(factor_supply=supply, productivity=tfp)
         if sc.foreign_factor_share is None and (self.foreign.any() or self.row_share0.any()):
             share = e_t.zeros_if_none("fac_row_share", econ.n_fac).copy()
             share[self.ki] = np.where(self.stock > 0,
@@ -310,6 +344,7 @@ class _PathState:
         self.periods.append(res)
         self.stocks.append(self.stock.copy())
         self.foreigns.append(self.foreign.copy())
+        self.unit_stocks.append(self.units.copy())
         self.warm = res
 
         # Real investment adds to the stock. The flow-onto-flow error this avoids
@@ -328,16 +363,34 @@ class _PathState:
         fdi_real = np.array([float(sc.fdi.get(k, 0.0)) * closure.numeraire * real_per_nominal
                              for k in self.caps])
         domestic = inv_real - float(fdi_real.sum())
-        weights = _allocation(growth.allocation, self.stock, res.factor_prices[self.ki])
-        self.stock = (1.0 - self.dep) * self.stock + domestic * weights + fdi_real
+        # A pool's rent is its price: at one pool per activity, the price the
+        # activity pays for the factor.
+        rent = res.factor_prices[self.ki][self.owner].astype(float)
+        for c, members in self.pooled.items():
+            rent[members] = res.factor_pools[self.caps[c]]["price"]
+        weights = _allocation(growth.allocation, self.units, rent)
+        # FDI aimed at a factor with pools is shared among them as domestic
+        # investment is.
+        within = np.bincount(self.owner, weights=weights, minlength=len(self.caps))
+        fdi_units = fdi_real[self.owner] * np.where(
+            within[self.owner] > 0, weights / np.maximum(within[self.owner], 1e-300),
+            0.0)
+        self.units = ((1.0 - self.dep[self.owner]) * self.units + domestic * weights
+                      + fdi_units)
         self.foreign = (1.0 - self.dep) * self.foreign + fdi_real
 
     def result(self, years) -> "PathResult":
         single = len(self.caps) == 1
         shape = (lambda a: np.array(a)[:, 0]) if single else np.array
+        units = np.array(self.unit_stocks).reshape(len(self.unit_stocks), -1)
+        by_pool = {self.caps[c]: pd.DataFrame(
+                       units[:, members], index=list(years),
+                       columns=list(self.econ.mobility[int(self.ki[c])].pools))
+                   for c, members in self.pooled.items()}
         return PathResult(years=list(years), periods=self.periods, econ=self.econ,
                           growth=self.growth, capital_stock=shape(self.stocks),
-                          foreign_capital=shape(self.foreigns), capital_factors=self.caps)
+                          foreign_capital=shape(self.foreigns), capital_factors=self.caps,
+                          capital_by_pool=by_pool)
 
 
 def _allocation(rule, stock: np.ndarray, rent: np.ndarray) -> np.ndarray:

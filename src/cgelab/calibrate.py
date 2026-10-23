@@ -308,7 +308,10 @@ def calibrate(sam: SAM, spec: ModelSpec | None = None, *,
         Factor -> DataFrame of base-year use, pools of origin by activities:
         the proximity matrix of a factor in ``ModelSpec.factor_mobility``. Each
         column must add up to what the SAM pays the factor in that activity.
-        Absent, the factor's whole endowment is one pool.
+        Absent, the factor's whole endowment is one pool. ``"activities"``
+        gives each activity that uses the factor a pool of its own, named
+        after it: at any elasticity the factor is then sector-specific, and
+        ``run_path`` accumulates a stock per activity.
     """
     spec = spec or ModelSpec()
     if check_balance:

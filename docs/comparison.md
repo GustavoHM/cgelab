@@ -3,7 +3,7 @@
 *Versão em português: [`comparison.pt-br.md`](comparison.pt-br.md).*
 
 The survey of the other packages was made on 9 September 2026. The `cgelab` column was revised
-on 13 October 2026, for version 0.5. Rows that changed since 0.1 are marked †. The other
+on 22 October 2026, for version 0.6. Rows that changed since 0.1 are marked †. The other
 packages' columns were **not** redone.
 
 The question behind the survey was whether a CGE package in Python already existed. The short
@@ -24,12 +24,12 @@ read. A **📄** cell may be wrong.
 
 ## The table
 
-| Capability | cgelab 0.5 | pycge | PSLmodels/CGE | python-cge | GAMS / GEMPACK (ref.) |
+| Capability | cgelab 0.6 | pycge | PSLmodels/CGE | python-cge | GAMS / GEMPACK (ref.) |
 |---|---|---|---|---|---|
 | **Origin** | written for an applied SAM | ✅ port of `splcge.gams` from the GAMS library | ✅ "the simplest CGE model of Hosoe, Gawana [sic] and Hashimoto (2010)" | ✅ direct transcription of Hosoe's book, p. 72 | general-purpose platforms |
 | **Demonstrated scale** | ✅ the applied SAM it was written for, not public yet; in public, teaching examples | ✅ 3 teaching examples and a regional one | ✅ a **16×18** SAM: 4 sectors, 3 factors | ✅ **2 goods** (`BRD`, `MLK`) | thousands of accounts (GTAP) |
 | Backend | ✅ `scipy.optimize.root` on a few unknowns | ✅ Pyomo + IPOPT | ✅ `scipy` `root` | ✅ its own | dedicated solvers |
-| Lines of Python | ~7,100 † | ✅ 3,267 | ✅ 2,660 | ✅ 533 | n/a |
+| Lines of Python | ~11,800 † | ✅ 3,267 | ✅ 2,660 | ✅ 533 | n/a |
 | **SAM: reading, balance check, balancing** | ✅ long or square form, a hard gate, sign-preserving RAS | ? | ✅ reads `SAM.xlsx` | ✅ has `balance.py` | ✅ |
 | SAM flows the model does not read | ✅ listed at calibration † | ? | ? | ? | the modeller's convention |
 | Configurable value-added nest (CES / CD / Leontief) | ✅ | ? | ✅ CES and Leontief | — | ✅ |
@@ -42,14 +42,18 @@ read. A **📄** cell may be wrong.
 | Creditable / non-creditable split of the product tax | ✅ | — | — | — | ✅ |
 | **Direct taxes, transfers and remittances** | ✅ † | ? | ? | ? | ✅ |
 | **Foreign-owned capital and FDI** | ✅ † profit remittances in the current account | ? | ? | ? | ✅ |
+| **Imperfect factor mobility** | ✅ † CET or logit, pools of origin | ? | ? | ? | ✅ GTAP's sluggish endowments |
+| **Segmented labour and informality** | ✅ † dual market, Harris–Todaro, a transformation between segments | ? | ? | ? | the modeller's convention |
+| **Microsimulation, poverty and inequality** | ✅ † top-down and behavioural (BRR) | ? | ? | ? | separate tools |
+| **A SAM built from supply and use tables** | ✅ † with the provenance of every block; the IBGE's tables | ? | ? | ? | separate tools |
 | **Alternative closures** | ✅ 5 combinations, each with its own adjusting variable | ? | — | — | ✅ |
 | **Walras as a check, not an equation** | ✅ the numeraire market is left out of the system | ? | — | — | the modeller's convention |
 | **Base-year reproduction test** | ✅ automatic | 📄 "compares base and simulation" | — | — | the modeller's convention |
 | **Zero-degree homogeneity test** | ✅ automatic | — | — | — | the modeller's convention |
-| **Recursive dynamics** | ✅ several capital stocks, allocation by return, a per-year economy † | — | ✅ a time-iteration loop | — | ✅ |
+| **Recursive dynamics** | ✅ several capital stocks, capital by sector, putty-clay vintages, allocation by return, a per-year economy, a baseline calibrated to GDP † | — | ✅ a time-iteration loop | — | ✅ |
 | **Welfare: EV and CV** | ✅ | — | — | — | the modeller's convention |
 | Group aggregation immune to composition | ✅ | — | — | — | — |
-| **Independent replica for validation** | ✅ † JuMP/Ipopt, 34 cases | ? | ? | ? | n/a |
+| **Independent replica for validation** | ✅ † JuMP/Ipopt, 50 cases | ? | ? | ? | n/a |
 | Licence | MIT | ? | CC0-1.0 | ? | proprietary / commercial |
 | State declared by the authors | — | — | ✅ "very preliminary… please do not cite" | textbook | mature |
 
@@ -71,7 +75,7 @@ without a commercial licence and with the accounting checks built in, no alterna
 
 `cgelab` was validated in four ways:
 
-- against an independent JuMP/Ipopt replica of the same equilibrium, in 34 cases;
+- against an independent JuMP/Ipopt replica of the same equilibrium, in 50 cases;
 - against a line-by-line JuMP transcription of the GAMS library programs `stdcge` and `lrgcge`
   (Hosoe, Gasawa and Hashimoto, 2004): the tariff abolition agrees in all 49 displayed variables,
   to 2.4e-12;

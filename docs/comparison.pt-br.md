@@ -3,7 +3,7 @@
 *English version: [`comparison.md`](comparison.md).*
 
 O levantamento dos outros pacotes foi feito em 9 de setembro de 2026. As colunas do `cgelab`
-foram revistas em 13 de outubro de 2026, para a versão 0.5. As linhas que mudaram desde a 0.1
+foram revistas em 22 de outubro de 2026, para a versão 0.6. As linhas que mudaram desde a 0.1
 estão marcadas com †. As colunas dos outros pacotes **não** foram refeitas.
 
 A pergunta que originou este levantamento foi se já existia um pacote de EGC em Python. A resposta
@@ -24,12 +24,12 @@ célula **📄** pode estar errada.
 
 ## A tabela
 
-| Capacidade | cgelab 0.5 | pycge | PSLmodels/CGE | python-cge | GAMS / GEMPACK (ref.) |
+| Capacidade | cgelab 0.6 | pycge | PSLmodels/CGE | python-cge | GAMS / GEMPACK (ref.) |
 |---|---|---|---|---|---|
 | **Origem** | escrito para uma MCS aplicada | ✅ porte do `splcge.gams` da biblioteca do GAMS | ✅ "o modelo CGE mais simples de Hosoe, Gawana [sic] e Hashimoto (2010)" | ✅ transcrição direta do livro de Hosoe, p. 72 | plataformas de propósito geral |
 | **Escala demonstrada** | ✅ a MCS aplicada para a qual foi escrito, ainda não pública; em público, exemplos didáticos | ✅ 3 exemplos didáticos e um regional | ✅ MCS de **16×18**: 4 setores, 3 fatores | ✅ **2 bens** (`BRD`, `MLK`) | milhares de contas (GTAP) |
 | Backend | ✅ `scipy.optimize.root` sobre poucas incógnitas | ✅ Pyomo + IPOPT | ✅ `scipy` `root` | ✅ próprio | resolvedores dedicados |
-| Linhas de Python | ~7.100 † | ✅ 3.267 | ✅ 2.660 | ✅ 533 | n/a |
+| Linhas de Python | ~11.800 † | ✅ 3.267 | ✅ 2.660 | ✅ 533 | n/a |
 | **MCS: leitura, verificação de balanço, balanceamento** | ✅ formato longo ou quadrado, porta dura, RAS que preserva sinais | ? | ✅ lê `SAM.xlsx` | ✅ tem `balance.py` | ✅ |
 | Fluxos da MCS que o modelo não lê | ✅ listados na calibração † | ? | ? | ? | convenção do modelador |
 | Ninho de valor adicionado configurável (CES / CD / Leontief) | ✅ | ? | ✅ CES e Leontief | — | ✅ |
@@ -42,14 +42,18 @@ célula **📄** pode estar errada.
 | Split creditável/não creditável do tributo | ✅ | — | — | — | ✅ |
 | **Impostos diretos, transferências e remessas** | ✅ † | ? | ? | ? | ✅ |
 | **Capital de propriedade estrangeira e IED** | ✅ † remessa de lucros na conta corrente | ? | ? | ? | ✅ |
+| **Mobilidade imperfeita de fatores** | ✅ † CET ou logit, pools de origem | ? | ? | ? | ✅ os fatores "sluggish" do GTAP |
+| **Trabalho segmentado e informalidade** | ✅ † mercado dual, Harris–Todaro, transformação entre os segmentos | ? | ? | ? | convenção do modelador |
+| **Microssimulação, pobreza e desigualdade** | ✅ † de cima para baixo e comportamental (BRR) | ? | ? | ? | ferramentas à parte |
+| **MCS montada de tabelas de recursos e usos** | ✅ † com a procedência de cada bloco; as tabelas do IBGE | ? | ? | ? | ferramentas à parte |
 | **Fechamentos alternativos** | ✅ 5 combinações, cada uma com a sua variável de ajuste | ? | — | — | ✅ |
 | **Walras como verificação e não como equação** | ✅ mercado do numerário fora do sistema | ? | — | — | convenção do modelador |
 | **Teste de reprodução do ano-base** | ✅ automático | 📄 "compara base e simulação" | — | — | convenção do modelador |
 | **Teste de homogeneidade de grau zero** | ✅ automático | — | — | — | convenção do modelador |
-| **Dinâmica recursiva** | ✅ vários estoques de capital, alocação pelo retorno, economia por ano † | — | ✅ laço de iteração temporal | — | ✅ |
+| **Dinâmica recursiva** | ✅ vários estoques de capital, capital por setor, safras putty-clay, alocação pelo retorno, economia por ano, linha de base calibrada ao PIB † | — | ✅ laço de iteração temporal | — | ✅ |
 | **Bem-estar: VE e VC** | ✅ | — | — | — | convenção do modelador |
 | Agregação por grupo imune à composição | ✅ | — | — | — | — |
-| **Réplica independente para validação** | ✅ † JuMP/Ipopt, 34 casos | ? | ? | ? | n/a |
+| **Réplica independente para validação** | ✅ † JuMP/Ipopt, 50 casos | ? | ? | ? | n/a |
 | Licença | MIT | ? | CC0-1.0 | ? | proprietária/comercial |
 | Estado declarado pelos autores | — | — | ✅ "muito preliminar… por favor não cite" | livro-texto | maduro |
 
@@ -71,7 +75,7 @@ licença comercial e com as verificações contábeis embutidas, não se achou a
 
 O `cgelab` foi validado de quatro formas:
 
-- contra uma réplica independente em JuMP/Ipopt do mesmo equilíbrio, em 34 casos;
+- contra uma réplica independente em JuMP/Ipopt do mesmo equilíbrio, em 50 casos;
 - contra uma transcrição linha a linha, em JuMP, dos programas `stdcge` e `lrgcge` da
   biblioteca do GAMS (Hosoe, Gasawa e Hashimoto, 2004): a abolição das tarifas coincide nas 49
   variáveis exibidas, a 2,4e-12;

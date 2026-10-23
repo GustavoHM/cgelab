@@ -88,11 +88,25 @@ several regions, the result helpers, and the JuMP export replicating all of it. 
 - [x] **Release**: 0.5.0 on PyPI on 18 October 2026, archived on Zenodo
   ([10.5281/zenodo.23458852](https://doi.org/10.5281/zenodo.23458852)), the repository public and the site on Pages.
 
-**0.6 — the distributional side and the labour market.** Imperfect factor mobility and the
-proximity matrix; segmentation and informality; a link to microsimulation with Gini and FGT
-indices; dynamic calibration of the baseline to an observed or projected GDP path; sectoral
-capital and vintages (putty-clay); building and disaggregating a SAM from supply-use tables
-and household surveys (see *Tools around the model*).
+**0.6 — the distributional side and the labour market: done, to be released.**
+
+- [x] **Imperfect factor mobility and the proximity matrix**: a CET or a logit across the
+  activities that use a factor, pools of origin (`ModelSpec.factor_mobility`,
+  `calibrate(factor_pools=)`).
+- [x] **Segmentation and informality**: labour accounts that share one population, rigid
+  segments, a dual market, Harris–Todaro, a transformation between segments
+  (`ModelSpec.labour_segments`, `Closure.labour_markets`, `segment_mobility`).
+- [x] **Microsimulation, Gini and FGT**: a top-down link reconciled with the SAM, inequality
+  and poverty measures with their decompositions, reweighting, a behavioural microsimulation,
+  readers for the PNAD Contínua and the POF (`cgelab.micro`, `cgelab.behaviour`,
+  `cgelab.ibge`).
+- [x] **Building and disaggregating a SAM** from supply and use tables and household surveys
+  (`sut_to_sam`, `split_households`, `split_factor`, `read_tru`; see *Tools around the model*).
+- [x] **A baseline calibrated to a path of real GDP** (`calibrate_baseline`, `Baseline`).
+- [x] **Capital by sector and putty-clay vintages** (`factor_pools={"f_cap": "activities"}`,
+  `ModelSpec.vintages`, `split_vintages`).
+- [ ] **Release**: the version, the dates and the citations set to 0.6.0, the `validation`
+  workflow, a tag, PyPI and Zenodo.
 
 **0.7 — several regions, completed.** Factor migration, regional investment and government
 closures, margins and CET inside the origin nest, a capital stock per region in `run_path`;
@@ -114,7 +128,7 @@ land use allocated by CET; export to GAMS/MPSGE and GEMPACK.
 
 ## Next: gaps an applied model hit
 
-Nothing from 0.2 to 0.5 is open; 0.5.0 is released. Next is 0.6.
+Nothing from 0.2 to 0.6 is open; 0.5.0 is released, and 0.6 waits only on its release.
 
 Done, and no longer gaps:
 

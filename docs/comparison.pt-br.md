@@ -4,7 +4,9 @@
 
 O levantamento dos outros pacotes foi feito em 9 de setembro de 2026. As colunas do `cgelab`
 foram revistas em 22 de outubro de 2026, para a versão 0.6. As linhas que mudaram desde a 0.1
-estão marcadas com †. As colunas dos outros pacotes **não** foram refeitas.
+estão marcadas com †. As colunas dos outros pacotes **não** foram refeitas,
+exceto a célula de dinâmica recursiva do `PSLmodels/CGE`, corrigida em 22 de outubro de 2026
+depois de uma nova leitura do código.
 
 A pergunta que originou este levantamento foi se já existia um pacote de EGC em Python. A resposta
 curta é que há alguns, todos em escala de livro-texto, e que o EGC aplicado se faz em GAMS ou
@@ -50,7 +52,7 @@ célula **📄** pode estar errada.
 | **Walras como verificação e não como equação** | ✅ mercado do numerário fora do sistema | ? | — | — | convenção do modelador |
 | **Teste de reprodução do ano-base** | ✅ automático | 📄 "compara base e simulação" | — | — | convenção do modelador |
 | **Teste de homogeneidade de grau zero** | ✅ automático | — | — | — | convenção do modelador |
-| **Dinâmica recursiva** | ✅ vários estoques de capital, capital por setor, safras putty-clay, alocação pelo retorno, economia por ano, linha de base calibrada ao PIB † | — | ✅ laço de iteração temporal | — | ✅ |
+| **Dinâmica recursiva** | ✅ vários estoques de capital, capital por setor, safras putty-clay, alocação pelo retorno, economia por ano, linha de base calibrada ao PIB † | — | — o laço em `execute.py` é um ponto fixo amortecido dentro de um período, sem índice de tempo | — | ✅ |
 | **Bem-estar: VE e VC** | ✅ | — | — | — | convenção do modelador |
 | Agregação por grupo imune à composição | ✅ | — | — | — | — |
 | **Réplica independente para validação** | ✅ † JuMP/Ipopt, 50 casos | ? | ? | ? | n/a |

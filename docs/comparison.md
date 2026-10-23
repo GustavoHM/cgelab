@@ -4,7 +4,8 @@
 
 The survey of the other packages was made on 9 September 2026. The `cgelab` column was revised
 on 22 October 2026, for version 0.6. Rows that changed since 0.1 are marked †. The other
-packages' columns were **not** redone.
+packages' columns were **not** redone, except the recursive-dynamics cell of `PSLmodels/CGE`,
+corrected on 22 October 2026 after its code was read again.
 
 The question behind the survey was whether a CGE package in Python already existed. The short
 answer is that there are a few, all at textbook scale, and that applied CGE is done in GAMS or
@@ -50,7 +51,7 @@ read. A **📄** cell may be wrong.
 | **Walras as a check, not an equation** | ✅ the numeraire market is left out of the system | ? | — | — | the modeller's convention |
 | **Base-year reproduction test** | ✅ automatic | 📄 "compares base and simulation" | — | — | the modeller's convention |
 | **Zero-degree homogeneity test** | ✅ automatic | — | — | — | the modeller's convention |
-| **Recursive dynamics** | ✅ several capital stocks, capital by sector, putty-clay vintages, allocation by return, a per-year economy, a baseline calibrated to GDP † | — | ✅ a time-iteration loop | — | ✅ |
+| **Recursive dynamics** | ✅ several capital stocks, capital by sector, putty-clay vintages, allocation by return, a per-year economy, a baseline calibrated to GDP † | — | — the loop in `execute.py` is a damped fixed point within one period, with no time index | — | ✅ |
 | **Welfare: EV and CV** | ✅ | — | — | — | the modeller's convention |
 | Group aggregation immune to composition | ✅ | — | — | — | — |
 | **Independent replica for validation** | ✅ † JuMP/Ipopt, 50 cases | ? | ? | ? | n/a |

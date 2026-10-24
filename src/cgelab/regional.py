@@ -251,7 +251,9 @@ def solve_regions(econ, closure, scenario, *, warm_start=None, raise_on_fail: bo
     num = econ.numeraire_index
     others = [i for i in range(nf) if i != num]
     i_er = len(others)
-    n_unknown = i_er + 1
+    i_inv = i_er + 1
+    fixed_investment = closure.investment == "fixed_real"
+    n_unknown = i_er + 1 + int(fixed_investment)
     nu = closure.numeraire
     supply = (econ.fac_supply if scenario.factor_supply is None
               else np.asarray(scenario.factor_supply, float))
@@ -279,6 +281,10 @@ def solve_regions(econ, closure, scenario, *, warm_start=None, raise_on_fail: bo
     gov_tr = econ.zeros_if_none("hh_gov_transfer", econ.n_hh) * nu
     remit = econ.zeros_if_none("hh_remit_net", econ.n_hh) * nu
     foreign_target = econ.foreign_sav * nu
+    investment_level = (reg.inv_dem.sum() if scenario.investment_level is None
+                        else float(scenario.investment_level))
+    if not np.isfinite(investment_level) or investment_level < 0:
+        raise ValueError("investment_level must be finite and nonnegative")
     state: dict = {}
 
     def residuals(z):
@@ -287,16 +293,23 @@ def solve_regions(econ, closure, scenario, *, warm_start=None, raise_on_fail: bo
         for k, i in enumerate(others):
             w[i] = nu * float(np.exp(z[k]))
         er = float(np.exp(z[i_er]))
+        levy = float(z[i_inv]) if fixed_investment else 0.0
         prices = _prices(econ, reg, w, er, world, tfp, nu)
         qty = _quantities(econ, reg, w, supply, facshare, fac_gov, fac_row, dtax,
-                          transfers, gov_tr, remit, foreign_target, tfp, prices, nu)
+                          transfers - levy * econ.pop_share, gov_tr, remit,
+                          foreign_target, tfp, prices, nu,
+                          investment_level=investment_level, levy=levy,
+                          fixed_investment=fixed_investment)
         gaps = (qty["fac_dem"] - supply) / np.maximum(np.abs(supply), 1.0)
         out = [float(gaps[i]) for i in others]
         scale = max(abs(foreign_target), 1.0)
         out.append((qty["current"] - foreign_target) / scale)
+        if fixed_investment:
+            out.append((qty["available"] - qty["savings"]) / scale)
         state.update(prices)
         state.update(qty)
-        state.update(w=w, er=er, gaps=gaps, walras=float(gaps[num]))
+        state.update(w=w, er=er, gaps=gaps, walras=float(gaps[num]),
+                     levy=levy, foreign_sav=foreign_target)
         return np.asarray(out, dtype=float)
 
     z_hat, residual, label, message = _solve(residuals, n_unknown, closure.tolerance,
@@ -312,10 +325,10 @@ def _refuse_unsupported(econ, closure, scenario, reg: Regional):
             "regional factors clear where they are supplied. "
             f"closure.labour={closure.labour!r} would move a wage without a "
             "migration equation, and the two are different closures.")
-    if closure.investment != "savings_driven" or closure.government != "real_fixed":
+    if closure.investment not in ("savings_driven", "fixed_real") or closure.government != "real_fixed":
         raise ValueError(
-            "the regional slice solves savings-driven investment and government "
-            f"quantities fixed. Got investment={closure.investment!r}, "
+            "the regional slice solves savings-driven or fixed-real investment and "
+            f"government quantities fixed. Got investment={closure.investment!r}, "
             f"government={closure.government!r}.")
     if closure.foreign != "fixed_saving":
         raise ValueError(
@@ -382,7 +395,8 @@ def _prices(econ, reg: Regional, w, er, world, tfp, nu):
 
 
 def _quantities(econ, reg, w, supply, facshare, fac_gov, fac_row, dtax, transfers,
-                gov_tr, remit, foreign_target, tfp, prices, nu):
+                gov_tr, remit, foreign_target, tfp, prices, nu, *,
+                investment_level, levy, fixed_investment):
     """National absorption, then each origin's sales. Tax revenue is affine in absorption."""
     C = reg.n_local
     pq = prices["pq"]
@@ -402,9 +416,11 @@ def _quantities(econ, reg, w, supply, facshare, fac_gov, fac_row, dtax, transfer
     gov_spend = float(pq @ gov_q)
     gov_fixed = float((fac_inc * fac_gov).sum()) + float((hh_income * dtax).sum()) - gov_spend \
         - float(gov_tr.sum())
-    S0 = float(hh_sav.sum()) + gov_fixed + foreign_target
+    available0 = float(hh_sav.sum()) + gov_fixed + foreign_target + levy
     v = inv_share / np.maximum(pq, 1e-12)          # inv quantity per unit of nominal saving
-    F0 = hh_final + gov_q + v * S0
+    inv_q = (inv_share * investment_level / np.maximum(1.0 + reg.ptax, 1e-12)
+             if fixed_investment else v * available0)
+    F0 = hh_final + gov_q + inv_q
 
     scale = phi / np.maximum(1.0 - reg.exp_share, 1e-12)   # Q per unit of national domestic sales
     link = scale * dsh[None, :]                             # (R, C): Q per unit of A
@@ -433,8 +449,8 @@ def _quantities(econ, reg, w, supply, facshare, fac_gov, fac_row, dtax, transfer
         raise RuntimeError(
             "product-tax revenue feeds investment which feeds the tax base, and "
             "that loop does not have a finite sum.") from exc
-    savings = S0 + float(tax_per @ A)
-    inv_q = v * savings
+    available = available0 + float(tax_per @ A)
+    savings = float(pq @ inv_q) if fixed_investment else available
     ND = dsh * A
     Q_rc = link * A[None, :]
     D_rc = phi * ND[None, :]
@@ -488,8 +504,9 @@ def _quantities(econ, reg, w, supply, facshare, fac_gov, fac_row, dtax, transfer
     return dict(
         A=A, Q=Q, X=X, D=D_rc, exports=exports, imports=imports, hh_q=hh_origin,
         hh_income=hh_income, spend=spend, gov_q=gov_origin, inv_q=inv_origin,
-        fac_dem=fac_dem, fac_by=fac_by, savings=savings, current=current,
-        bilateral=bilateral, hh_nat=hh_q, gov_nat=gov_q, inv_nat=inv_q, ND=ND)
+        fac_dem=fac_dem, fac_by=fac_by, savings=savings, available=available, current=current,
+        bilateral=bilateral, hh_nat=hh_q, gov_nat=gov_q, inv_nat=inv_q, ND=ND,
+        hh_sav=hh_sav)
 
 
 def _solve(residuals, n_unknown, tolerance, warm_start, raise_on_fail):
@@ -551,6 +568,8 @@ def _pack(econ, reg, closure, scenario, state, z, residual, label, message, tole
         gov_quantity=state["gov_q"], investment_quantity=state["inv_q"],
         factor_demand=state["fac_dem"], factor_demand_by_activity=state["fac_by"],
         savings=state["savings"], wedge_revenue=0.0, government_cost=0.0,
+        household_saving=float(np.sum(state["hh_sav"])), forced_saving=state["levy"],
+        foreign_saving=state["foreign_sav"],
         real=dict(
             hh_real=float(yard @ state["hh_nat"].sum(axis=0)),
             gov_real=float(yard @ state["gov_nat"]),

@@ -758,6 +758,21 @@ gdp          -0.2042             -0.2835</code></pre>
   pacote recusa e por quê, e dá a amplitude. <code>in_money</code> põe a variação em níveis, a
   preços correntes e do ano-base, na unidade da MCS vezes <code>unit</code>: uma MCS em milhões e
   <code>unit=1e-3</code> dão bilhões.</p>
+
+  <h3>27. De onde vem a variância</h3>
+<pre><code>res = cge.sobol(run, params, n=256, bootstrap=100)     # o run e os parâmetros do exemplo 12
+res.indices()</code></pre>
+<pre class="output" data-label="Saída"><code><span class="out-expr">res.indices()</span>
+                              S1  S1_conf    ST   ST_conf
+output  parameter                                        
+gdp_pct sigma_va        0.001761 0.009473 0.003 0.0007993
+        sigma_armington    1.013   0.1872 1.012    0.1222</code></pre>
+  <p>Os índices de Sobol repartem a variância de um resultado entre os parâmetros: <code>S1</code>
+  é a parcela que um parâmetro explica sozinho, <code>ST</code> soma as suas interações. O desenho é
+  o de Saltelli, com <code>n (k + 2)</code> soluções, e o SALib dá os mesmos índices no mesmo
+  desenho. Aqui a elasticidade de Armington carrega quase toda a variância do PIB real. Uma
+  estimativa pode passar de um por erro de amostragem; as semiamplitudes dizem de quanto, e mais
+  pontos de base as reduzem.</p>
 </div></section>
 
 <section id="portarias"><div class="wrap">

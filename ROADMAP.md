@@ -110,8 +110,8 @@ released in 0.5.5, ahead of 0.6.0, which also waits for the robustness items (se
 - [ ] **A robustness report**: one call that runs quadrature and Monte Carlo over every
   elasticity, one-at-a-time ranges for a tornado chart, a grid of closures and the
   uncertainty of the SAM itself, and returns tables and figures (`robustness_report`).
-- [ ] **Global sensitivity indices** (first-order and total Sobol indices, Saltelli design),
-  validated against SALib.
+- [x] **Global sensitivity indices** (first-order and total Sobol indices, Saltelli design),
+  validated against SALib (`sobol`).
 - [ ] **Uncertainty in the SAM**: perturbing blocks of the matrix, rebalancing with
   `SAM.balance`, recalibrating and propagating the draws to the results.
 - [x] **Closure robustness**: the same scenario under a list of closures (`closure_sweep`,

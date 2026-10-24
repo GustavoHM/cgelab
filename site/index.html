@@ -758,6 +758,20 @@ gdp          -0.2042             -0.2835</code></pre>
   and why, and gives the spread. <code>in_money</code> puts the change in levels, at current and
   at base-year prices, in the unit the SAM is in times <code>unit</code>: a SAM in millions and
   <code>unit=1e-3</code> give billions.</p>
+
+  <h3>27. Where the variance comes from</h3>
+<pre><code>res = cge.sobol(run, params, n=256, bootstrap=100)     # the run and parameters of example 12
+res.indices()</code></pre>
+<pre class="output" data-label="Output"><code><span class="out-expr">res.indices()</span>
+                              S1  S1_conf    ST   ST_conf
+output  parameter                                        
+gdp_pct sigma_va        0.001761 0.009473 0.003 0.0007993
+        sigma_armington    1.013   0.1872 1.012    0.1222</code></pre>
+  <p>Sobol indices split the variance of a result among the parameters: <code>S1</code> is the
+  share a parameter explains alone, <code>ST</code> adds its interactions. The design is
+  Saltelli's, at <code>n (k + 2)</code> solves, and SALib gives the same indices on the same design.
+  Here the Armington elasticity carries nearly all of real GDP's variance. An estimate can pass one
+  by sampling error; the half-widths say by how much, and more base points shrink them.</p>
 </div></section>
 
 <section id="gates"><div class="wrap">

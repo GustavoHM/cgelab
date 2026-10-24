@@ -891,6 +891,30 @@ Armington elasticity near one under fixed export shares (see *Closures*). There,
 a sweep of `sigma_armington` over `Uniform(1, 3)` on the toy economy had a
 median of −0.009% and one draw at −5.8%.
 
+### Where the variance comes from: Sobol indices
+
+The quadrature gives a mean and a standard deviation, and does not say which
+parameter the variance comes from when parameters interact. Sobol indices do:
+
+```python
+res = cge.sobol(run, params, n=1024)        # n (k + 2) solves
+res.indices()            # S1, ST and their half-widths, by output and parameter
+res.summary()            # mean, sd and quantiles over the independent draws
+```
+
+`S1` is the share of the variance a parameter explains alone; `ST` adds every
+interaction it takes part in, so `ST - S1` is how much of its effect depends on
+the others. The design is Saltelli's: two matrices `A` and `B` from a scrambled
+Sobol sequence, carried to each distribution by its quantile function, and for
+each parameter `A` with that column taken from `B`. First-order indices use the
+estimator of Saltelli et al. (2010), total ones Jansen's (1999), on outputs
+centred on their mean, with bootstrap intervals; given the same seed, SALib
+draws the same design and its analyser gives the same indices
+(`validation/sobol_salib.py`, to 1e-15). `n` must be a power of two. With twenty
+elasticities and `n = 1024` that is 22,528 solves, against forty for the
+quadrature: the indices are for when the quadrature has shown a spread worth
+explaining.
+
 ### Under other closures
 
 A closure is a model of who bears an adjustment, and two defensible ones can give

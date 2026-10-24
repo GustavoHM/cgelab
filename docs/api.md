@@ -415,7 +415,8 @@ absent, it follows `product_tax`.
 
 `run` maps `{parameter: value}` to a number, a mapping or a Series. `parameters`
 maps names to `Uniform(low, high)`, `Normal(mean, sd)` or
-`Triangular(low, mode, high)`, independent. `"quadrature"` is Stroud's degree-3
+`Triangular(low, mode, high)`, independent; each has `mean`, `sd`, `draw(rng, n)`
+and `ppf(u)`. `"quadrature"` is Stroud's degree-3
 rule at `2n` points (symmetric distributions only); `"monte_carlo"` draws with
 the seed.
 
@@ -434,6 +435,21 @@ for one entry), recalibrates, solves base and scenario, and returns
 ### `stroud_points(n) -> ndarray`
 
 The `(2n, n)` standardised points of the rule.
+
+### `sobol(run, parameters, *, n=1024, seed=20260724, bootstrap=200, conf_level=0.95) -> SobolResult`
+
+First-order and total Sobol indices on Saltelli's design, at `n (k + 2)` solves;
+`n` a power of two. `run` and `parameters` as in `sensitivity`; each
+distribution needs `ppf(u)`, its quantile function, which `Uniform`, `Normal`
+and `Triangular` have. `bootstrap=0` gives no intervals.
+
+### `SobolResult`
+
+`points` (one row per solve: `matrix` `"A"`, `"B"` or `"AB_<parameter>"`, `row`,
+the parameters, `weight`, the outputs; the `A` and `B` rows weighted `1/(2n)` as
+independent draws), `parameters`, `outputs`, `n`; `indices()`: `S1`, `S1_conf`,
+`ST`, `ST_conf` by output and parameter; `summary(quantiles=...)` over the `A`
+and `B` rows.
 
 ### `closure_sweep(econ, closures, *, measure, scenario=None, reference=None, years=None, growth=None, economy=None) -> ClosureSweep`
 

@@ -7,6 +7,15 @@ before 1.0, a minor version may add to the API and a patch version only fixes.
 
 ### Added
 
+- `sobol` computes first-order and total Sobol indices on Saltelli's design, from a scrambled
+  Sobol sequence carried to each distribution by its quantile function (`ppf`, new on
+  `Uniform`, `Normal` and `Triangular`), at `n (k + 2)` solves; `SobolResult.indices()` gives
+  them with bootstrap intervals, and its points keep the format of `SensitivityResult.points`.
+  The indices match Ishigami's closed form, a linear, an additive and a purely interactive
+  model; given the same seed, SALib draws the same design and gives the same indices, to
+  8.9e-16, on Ishigami and on the toy economy (`validation/sobol_salib.py`, now in the
+  `validation` workflow).
+
 - `closure_sweep` solves the reference and a scenario under each closure of a list, in a
   period or along a path, and measures the change with the signature of `spec_sweep`.
   `closure_grid` gives every combination of `Closure` fields, labelled by what differs from

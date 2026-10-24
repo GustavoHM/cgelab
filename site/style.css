@@ -98,8 +98,12 @@ td.num { font-family: var(--mono); font-size: .85rem; white-space: nowrap; }
 footer { padding: 3rem 0 4rem; color: var(--muted); font-size: .88rem; }
 footer a { color: var(--muted); }
 
-/* Tabelas largas rolam dentro do seu contêiner; o corpo da página nunca rola na horizontal. */
+/* Tabelas largas rolam dentro do seu contêiner; o corpo da página nunca rola na horizontal.
+   O texto das células quebra linha: com white-space: nowrap, uma célula longa (a coluna do
+   pacote, na comparação) alargava a tabela muito além da página. Só os números não quebram. */
 .scroll { overflow-x: auto; margin: 1rem 0; -webkit-overflow-scrolling: touch; }
 .scroll table { margin: 0; min-width: 34rem; }
-.scroll td, .scroll th { white-space: nowrap; }
-.scroll td:first-child, .scroll th:first-child { white-space: normal; min-width: 12rem; }
+.scroll td, .scroll th { white-space: normal; vertical-align: top; overflow-wrap: break-word; }
+.scroll td.num { white-space: nowrap; }
+.scroll td:first-child, .scroll th:first-child { min-width: 10rem; }
+.scroll td code { white-space: nowrap; }

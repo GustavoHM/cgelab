@@ -124,6 +124,33 @@ def _match(run, targets, parameters, *, covariance=None, options=None):
         raise RuntimeError(f"the initial parameter midpoint failed: {evaluations[-1]['error']}")
     opt = minimize(evaluate, midpoint, method="L-BFGS-B", bounds=bounds, options=options)
     best = min(evaluations, key=lambda row: row["distance"])
+    bounds_array = np.asarray(bounds, dtype=float)
+    for _ in range(3):
+        x = np.array([best[name] for name in names])
+        residual = np.array([best[f"achieved[{name}]"] for name in target_names]) - target
+        if not residual.size or np.max(np.abs(residual)) < 1e-10:
+            break
+        J = np.zeros((len(target_names), len(names)))
+        for j in range(len(names)):
+            step = 1e-6 * max(1.0, abs(x[j]))
+            xp, xm = x.copy(), x.copy()
+            xp[j] = np.clip(x[j] + step, *bounds_array[j])
+            xm[j] = np.clip(x[j] - step, *bounds_array[j])
+            if xp[j] == xm[j]:
+                continue
+            evaluate(xp)
+            evaluate(xm)
+            plus, minus = evaluations[-2], evaluations[-1]
+            J[:, j] = ([plus[f"achieved[{name}]"] - minus[f"achieved[{name}]"]
+                        for name in target_names]) / (xp[j] - xm[j])
+        if not np.any(J):
+            break
+        dx = np.linalg.lstsq(J, -residual, rcond=None)[0]
+        evaluate(np.clip(x + dx, bounds_array[:, 0], bounds_array[:, 1]))
+        improved = min(evaluations, key=lambda row: row["distance"])
+        if improved["distance"] >= best["distance"]:
+            break
+        best = improved
     opt.success = bool(opt.success or best["distance"] <= options["ftol"])
     achieved = {name: best[f"achieved[{name}]"] for name in target_names}
     residuals = {name: achieved[name] - float(targets[name]) for name in target_names}

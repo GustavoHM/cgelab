@@ -818,6 +818,38 @@ pib_pct sigma_va        -0.145  -0.1454 -0.1455
   ponto inferior de Armington é NaN porque vale exatamente um, que este fechamento recusa;
   <code>oat_failed</code> registra o motivo. Figuras de tornado e distribuição estão disponíveis
   com o extra opcional <code>plot</code>.</p>
+  <h3>30. Um fechamento histórico limitado</h3>
+<pre><code>import dataclasses
+orcamento = simples.hh_budget.copy()
+pesos = orcamento[0] * np.array([1.2, 1.0])
+orcamento[0] = pesos / pesos.sum()
+economia_observada = dataclasses.replace(simples, hh_budget=orcamento)
+observado = cge.solve_period(economia_observada,
+    scenario=cge.Scenario(productivity=np.full(simples.n_act, 1.05)))
+hist = cge.calibrate_historical(simples, years=[2021],
+    targets={"pib": (pd.Series({2021: cge.real_gdp(observado)["expenditure"]}),
+                     lambda r: cge.real_gdp(r)["expenditure"]),
+             "alimento": (pd.Series({2021: observado.hh_quantity[0, 0]}),
+                          lambda r: r.hh_quantity[0, 0])},
+    shifters={"pib": ("productivity",),
+              "alimento": ("preference", "hh_1", "c_agr")},
+    preference_reference={"hh_1": "c_ind"})
+hist.achieved
+hist.multiplier
+hist.preferences["hh_1"]</code></pre>
+<pre class="output" data-label="Saída"><code><span class="out-expr">hist.achieved</span>
+       pib  alimento
+2021 210.8     34.42
+<span class="out-expr">hist.multiplier</span>
+      a_agr  a_ind
+2021   1.05   1.05
+<span class="out-expr">hist.preferences["hh_1"]</span>
+      c_agr  c_ind
+2021    1.2      1</code></pre>
+  <p>O PIB e a demanda alimentar observados são os alvos; a produtividade e a preferência relativa
+  por alimento são as incógnitas, resolvidas em conjunto em log. A outra mercadoria fixa a escala
+  das preferências. Depois, <code>hist.run(policy)</code> mantém esses deslocadores e deixa os
+  alvos se moverem. <code>calibrate_baseline</code> usa as mesmas rotinas de raiz.</p>
 </div></section>
 
 <section id="portarias"><div class="wrap">

@@ -138,7 +138,7 @@ period.
 | Factor mobility (CET or logit, pools of origin); labour segments, dual markets and Harris–Todaro | `ModelSpec.factor_mobility`, `ModelSpec.labour_segments`, `LabourMarket` |
 | Counterfactuals: taxes, wedges, endowments, ownership, productivity, own-account levels, world prices, FDI, the investment basket | `Scenario` |
 | Recursive dynamics: several capital stocks, capital by sector, putty-clay vintages, investment allocation, foreign-owned capital, a per-year economy | `run_path`, `Growth`, `ModelSpec.vintages` |
-| A baseline calibrated to a path of real GDP, and policy runs at its productivity | `calibrate_baseline`, `Baseline` |
+| Baselines calibrated to real GDP and limited historical closures with technology and relative-preference shifters | `calibrate_baseline`, `calibrate_historical`, `Baseline`, `Historical` |
 | Microsimulation: survey households reconciled with the SAM; Gini, FGT, generalised entropy, Atkinson and their decompositions; reweighting; a behavioural model (BRR) | `microsimulate`, `inequality`, `poverty`, `Behaviour` |
 | Building a SAM from supply and use tables, with the provenance of every block; splitting households and labour by surveys; readers for the IBGE's tables, PNAD Contínua and POF | `sut_to_sam`, `split_households`, `split_factor`, `read_tru`, `pnadc`, `pof` |
 | Forward-looking investment (a Ramsey CGE solved by dsgelab) | `cgelab.bridge` |

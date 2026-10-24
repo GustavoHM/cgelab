@@ -120,10 +120,10 @@ released in 0.5.5, ahead of 0.6.0, which also waits for the robustness items (se
   `closure_grid`).
 - [x] **Results in money**: changes expressed as levels at base-year and at current prices,
   in a unit the user picks (`in_money`).
-- [ ] **A historical closure**: a limited, early version of the 0.9 closure swap, in which
+- [x] **A historical closure**: a limited, early version of the 0.9 closure swap, in which
   observed variables are exogenous and the technology and preference shifters that reproduce
-  them are endogenous. The dynamic calibration of the baseline to a GDP path is a special case
-  and uses the same mechanism.
+  them are endogenous (`calibrate_historical`, `Historical`). The dynamic calibration of the
+  baseline to a GDP path is a special case and uses the same root routines.
 - [ ] **Release**: the version, the dates and the citations set to 0.6.0, the `validation`
   workflow, a tag, PyPI and Zenodo.
 
@@ -213,11 +213,12 @@ the vintages, which needs a regime switch for idle capital, and the sale of old 
 declining sectors, as in LINKAGE; vintages with an energy nest, with foreign-owned capital
 and in several regions.
 
-**A baseline calibrated to GDP.** Done in 0.6: `calibrate_baseline`, the productivity path
-that makes a recursive baseline hit real GDP, by year or by activity, and `Baseline`, which
-runs a policy at it. Still open: other targets with other unknowns (employment through the
-labour supply, the investment rate through saving, exports through world prices), the rest
-of a MONASH historical closure.
+**Baseline and historical calibration.** Done in 0.6: `calibrate_baseline`, the productivity
+path that makes a recursive baseline hit real GDP, by year or by activity, and `Baseline`, which
+runs a policy at it. `calibrate_historical` generalises the same root routines to observed scalar
+targets with technology and relative-preference shifters, and `Historical` replays a policy at
+them. Still open: other unknowns (employment through labour supply, the investment rate through
+saving, exports through world prices) and the generic closure swap of 0.9.
 
 **Asymmetric Armington.** The substitution elasticity is one number per commodity. Cicowiez and
 Lofgren (2022) make it depend on the origin of the import. Their Mongolia 2015 workbook also

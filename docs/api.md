@@ -595,6 +595,26 @@ gives `f(year, t) -> Scenario` for `run_path`, with the policy (a `Scenario` or
 `f(year, t)`, the whole scenario for the year) at the calibrated productivity,
 and `run(policy=None)` runs it.
 
+### `calibrate_historical(econ, closure=None, *, years, targets, shifters, kind="level", growth=None, scenario=None, economy=None, pattern=None, preference_reference=None, tol=1e-12) -> Historical`
+
+A limited historical closure: observed variables are targets, and technology or
+preference multipliers are solved endogenously. Each `targets[name]` is
+`(observed Series, measure(result))`; `shifters[name]` is `("productivity",)`,
+`("productivity", activity)` or `("preference", household, commodity)`. One log
+multiplier per target is solved jointly per year, sequentially for a path.
+`kind` is `"level"`, `"index"` or `"growth"`; `pattern` gives the activity
+exponents of an aggregate productivity shifter.
+
+Preferences are normalised by household, with the multiplier of the commodity
+in `preference_reference` fixed at one. Targets must be positive; targets and
+shifters must correspond one-to-one, and reference commodities cannot move.
+
+`Historical` has `years`, `path`, `target`, `achieved`, `productivity` (the
+scenario multiplier), `multiplier` (the calibrated productivity alone),
+`preferences` (year × commodity frames by household), `scenario(policy=None)`
+and `run(policy=None)`. A policy holds the calibrated shifters. The baseline
+uses the same scalar and joint root routines.
+
 ### `PathResult`
 
 `years`, `periods`, `capital_stock` (`(T,)`, or `(T, k)` with several capital

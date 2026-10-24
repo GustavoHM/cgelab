@@ -268,6 +268,12 @@ e o feixe velho passa a ter, por unidade, a média dos seus insumos e dos do fei
 
 `calibrate_baseline` inverte a ordem da trajetória. O PIB real de cada ano, \(Y_t^*\), é dado, e a incógnita do ano é um escalar \(\Lambda_t\) que multiplica a produtividade de Hicks neutra de cada atividade \(a\) por \(\Lambda_t^{\pi_a}\), com \(\pi\) o padrão (um por padrão). Os anos são resolvidos em sequência, porque o capital de cada ano vem do investimento dos anteriores: uma raiz de Brent por ano em \(\log Y_t(\Lambda_t) = \log Y_t^*\). Com o valor adicionado setorial como alvo, cada atividade tem a sua incógnita e as raízes são resolvidas juntas. O valor adicionado é medido por dupla deflação, produção a preços do ano-base menos os insumos a preços do ano-base. O `value_added` de `real_gdp` não serve: é o uso de fatores a preços do ano-base, e a produtividade muda o que um fator produz, não o fator. Uma simulação de política mantém a produtividade calibrada e deixa o PIB se mover.
 
+### Fechamento histórico limitado
+
+`calibrate_historical` estende a mesma inversão a alvos escalares arbitrários. Se \(y_{kt}^{*}\) é o valor observado do alvo \(k\) e \(y_{kt}(\lambda_t)\) o resultado do período, os multiplicadores são resolvidos em conjunto por \(\log y_{kt}(\lambda_t)-\log y_{kt}^{*}=0\). Cada incógnita é um multiplicador positivo de produtividade, comum ou próprio de uma atividade, ou de preferência de um domicílio por uma mercadoria. Os anos permanecem sequenciais quando o capital é recursivo, e `calibrate_baseline` chama as mesmas rotinas de raiz escalar e vetorial.
+
+Para o domicílio \(h\), os pesos de orçamento são recalculados por \(b_{hc}'=b_{hc}m_{hc}/\sum_j b_{hj}m_{hj}\). O multiplicador de uma mercadoria de referência é fixado em um, porque a Cobb–Douglas e a LES só identificam preferências relativas; sem essa normalização e esse *gauge*, o sistema teria uma direção a mais sem identificação. Uma política posterior mantém produtividade e preferências calibradas e deixa os alvos se moverem. É uma versão limitada da troca de fechamento, não o mecanismo genérico previsto para a 0.9.
+
 ### Trajetórias de política
 
 Uma trajetória de política é uma função do ano que devolve um cenário. O que não é preço, imposto ou dotação, como um coeficiente técnico que muda ao longo do tempo, entra por uma função que devolve a economia daquele ano, com as mesmas contas.

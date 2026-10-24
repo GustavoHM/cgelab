@@ -734,6 +734,44 @@ the whole scenario for the year, built from the baseline's as any policy is
 built from its reference; a productivity it sets multiplies the calibrated one.
 With no policy, running it reproduces the baseline exactly.
 
+### A limited historical closure
+
+`calibrate_historical` generalises the same target-and-shifter mechanism beyond
+GDP. Observed variables become roots; technology and relative preferences are
+the unknowns. The period equations do not change:
+
+```python
+hist = cge.calibrate_historical(
+    econ, years=range(2021, 2025),
+    targets={
+        "gdp": (gdp_observed, lambda r: cge.real_gdp(r)["expenditure"]),
+        "food": (food_observed, lambda r: r.hh_quantity[0, 0]),
+    },
+    shifters={
+        "gdp": ("productivity",),
+        "food": ("preference", "hh_1", "c_agr"),
+    },
+    preference_reference={"hh_1": "c_ind"},
+    kind="level", scenario=observed_shocks, growth=growth)
+hist.target, hist.achieved
+hist.run(policy)             # calibrated technology and preferences held
+```
+
+Each target is `(observed Series, measure(result))`; each has a distinct
+`("productivity",)`, `("productivity", activity)` or `("preference", household,
+commodity)` shifter. One positive log multiplier per target is solved jointly
+per year, sequentially along a recursive path. `kind` is `"level"`, `"index"`
+or `"growth"`, with the baseline's treatment of the first year. `pattern`
+exponentiates an aggregate productivity shifter by activity.
+
+Preference multipliers are normalised within each household. The multiplier of
+the commodity named in `preference_reference` is fixed at one, which sets the
+scale: only relative preferences are identified. Moving that reference
+commodity, omitting the reference or reusing a shifter is refused. Every target
+must be positive because the root is in logs. This is the limited historical
+closure, not the generic closure swap of 0.9. `calibrate_baseline` uses the same
+scalar and joint root routines, with its existing API and results.
+
 ### Reading a path
 
 ```python

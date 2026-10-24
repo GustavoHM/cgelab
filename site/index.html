@@ -816,6 +816,38 @@ gdp_pct sigma_va        -0.145  -0.1454 -0.1455
   and money tables. The full results remain in <code>parts</code>. Here the lower Armington point
   is NaN because it is exactly one, which this closure refuses; <code>oat_failed</code> records
   the reason. Tornado and distribution figures are available with the optional <code>plot</code> extra.</p>
+  <h3>30. A limited historical closure</h3>
+<pre><code>import dataclasses
+budget = plain.hh_budget.copy()
+weights = budget[0] * np.array([1.2, 1.0])
+budget[0] = weights / weights.sum()
+observed_econ = dataclasses.replace(plain, hh_budget=budget)
+observed = cge.solve_period(observed_econ,
+    scenario=cge.Scenario(productivity=np.full(plain.n_act, 1.05)))
+hist = cge.calibrate_historical(plain, years=[2021],
+    targets={"gdp": (pd.Series({2021: cge.real_gdp(observed)["expenditure"]}),
+                     lambda r: cge.real_gdp(r)["expenditure"]),
+             "food": (pd.Series({2021: observed.hh_quantity[0, 0]}),
+                      lambda r: r.hh_quantity[0, 0])},
+    shifters={"gdp": ("productivity",),
+              "food": ("preference", "hh_1", "c_agr")},
+    preference_reference={"hh_1": "c_ind"})
+hist.achieved
+hist.multiplier
+hist.preferences["hh_1"]</code></pre>
+<pre class="output" data-label="Output"><code><span class="out-expr">hist.achieved</span>
+       gdp  food
+2021 210.8 34.42
+<span class="out-expr">hist.multiplier</span>
+      a_agr  a_ind
+2021   1.05   1.05
+<span class="out-expr">hist.preferences["hh_1"]</span>
+      c_agr  c_ind
+2021    1.2      1</code></pre>
+  <p>The observed GDP and household food demand are the targets; productivity and the relative
+  preference for food are the unknowns, solved jointly in logs. The other commodity fixes the
+  preference scale. A later <code>hist.run(policy)</code> holds these calibrated shifters and lets
+  the targets move. <code>calibrate_baseline</code> uses the same root routines.</p>
 </div></section>
 
 <section id="gates"><div class="wrap">

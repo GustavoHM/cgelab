@@ -7,6 +7,14 @@ before 1.0, a minor version may add to the API and a patch version only fixes.
 
 ### Added
 
+- `calibrate_historical` is a limited historical closure: observed scalar
+  targets become exogenous constraints and technology or relative-preference
+  multipliers are solved jointly, in one period or along a recursive path.
+  `Historical` replays a policy at the calibrated shifters. Preference weights
+  are normalised by household with a declared reference commodity, so only
+  relative preferences are identified. `calibrate_baseline` now uses the same
+  scalar and joint root routines, with all 15 baseline tests unchanged; new
+  validation recovers known simulated histories and hand-written log roots.
 - `robustness_report` runs sourced one-at-a-time ranges, quadrature, Monte
   Carlo, closure grids, balanced SAM draws with joint elasticity draws and money
   tables in one call, with optional Sobol indices. `RobustnessReport` keeps both

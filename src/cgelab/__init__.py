@@ -51,6 +51,7 @@ from .results import (factor_demand_by_activity, government_account, national_ac
                       price_indices, real_gdp, real_value_added, sectoral_path)
 from .sam import SAM, BalanceError
 from .scenario import Scenario, consumer_wedge
+from .robustness import ClosureSweep, closure_grid, closure_sweep, in_money
 from .sensitivity import (Normal, SensitivityResult, Triangular, Uniform, sensitivity,
                           spec_sweep, stroud_points)
 from .solve import PeriodResult, factor_intensity, solve_period, value_added_price
@@ -85,6 +86,7 @@ __all__ = [
     "linkages", "structural_paths",
     "subtotals", "path_decomposition", "scenario_vector", "welfare_decomposition",
     "sensitivity", "spec_sweep", "stroud_points", "SensitivityResult",
+    "closure_sweep", "closure_grid", "ClosureSweep", "in_money",
     "Uniform", "Normal", "Triangular",
     "ces_price", "ces_intensity", "cobb_douglas_price", "armington", "cet", "cet_domestic_price",
     "__version__",

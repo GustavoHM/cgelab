@@ -1146,6 +1146,27 @@ standard error. The reader supplies the research design and the estimator. The
 tests cover a no-op, a shock only in the treated region, a common shock that
 cancels, custom measures and bilateral outflows.
 
+### Fixed-real investment in a regional model
+
+`Closure(investment="fixed_real")` also works in the regional solver:
+
+```python
+fixed = cge.solve_period(econ, cge.Closure(investment="fixed_real"),
+                         cge.Scenario(investment_level=80.0))
+fixed.real["inv_real"]       # 80, at base-year purchaser prices
+fixed.savings                # nominal saving at the solved prices
+fixed.household_saving       # voluntary saving
+fixed.forced_saving          # the per-capita levy that closes the account
+```
+
+The investment quantity is held, not scaled by current prices. The forced levy
+is deducted from households in proportion to population, exactly as in the
+one-region model, and `available` equals nominal savings at the solution. With
+no scenario level, the calibrated investment is used. `savings_driven` remains
+the default. The other regional restrictions (migration, alternative government
+closures, margins and bilateral transport) stay explicit rather than being
+silently relaxed.
+
 ---
 
 ## 13. Subtotals: which shock did what

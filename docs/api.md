@@ -235,6 +235,12 @@ that finances the fixed investment. Under `ModelSpec.export_demand` or
 in `ModelSpec.factor_mobility`, its price in each activity that uses it instead
 of one price, with one market per activity.
 
+With a regional economy, `investment="fixed_real"` holds investment quantities
+at base-year purchaser prices and solves a per-capita forced-saving levy, which
+is deducted from households. `savings_driven` remains the default.
+`investment_level` defaults to the calibrated level. `household_saving`,
+`forced_saving` and `foreign_saving` are populated on the regional result.
+
 ### `PeriodResult`
 
 | Member | Meaning |

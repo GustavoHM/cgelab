@@ -7,6 +7,11 @@ before 1.0, a minor version may add to the API and a patch version only fixes.
 
 ### Added
 
+- The regional solver accepts `investment="fixed_real"`, holding quantities at
+  base-year purchaser prices and financing them with a per-capita forced-saving
+  levy, as in the one-region model. `household_saving`, `forced_saving` and
+  `foreign_saving` are populated. Tests check the base year, an alternative
+  level, nominal saving and a zero Walras residual.
 - `treated_vs_control` computes a treated region's change minus the weighted
   control change between two solved regional periods. Built-in outcomes are
   output, real household income, factor demand and bilateral outflows; custom

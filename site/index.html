@@ -886,6 +886,21 @@ output               20      -1.421e-14      20</code></pre>
   weighted, and measures cover output, real household income, factor demand, bilateral outflows
   or a custom function. This is an auditable contrast of equilibria; the research design stays
   with the reader.</p>
+  <h3>33. Fixed-real regional investment</h3>
+<pre><code>fixed = cge.solve_period(reg_econ, cge.Closure(investment="fixed_real"),
+                         cge.Scenario(investment_level=80.0))
+fixed.real["inv_real"]
+fixed.savings
+fixed.forced_saving</code></pre>
+<pre class="output" data-label="Output"><code><span class="out-expr">fixed.real["inv_real"]</span>
+80
+<span class="out-expr">fixed.savings</span>
+80
+<span class="out-expr">fixed.forced_saving</span>
+51.43</code></pre>
+  <p>The quantity of investment stays at 80 in base-year prices. Nominal saving moves with prices,
+  and a per-capita levy closes the account. <code>household_saving</code> separates voluntary from
+  forced saving, and Walras remains an independent check.</p>
 </div></section>
 
 <section id="gates"><div class="wrap">

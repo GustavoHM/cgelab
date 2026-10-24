@@ -894,6 +894,21 @@ output               20      -1.421e-14      20</code></pre>
   Os controles podem ter pesos, e as medidas incluem produto, renda real, demanda de fatores,
   fluxos bilaterais ou uma função própria. É um contraste auditável de equilíbrios; o desenho da
   pesquisa fica com o leitor.</p>
+  <h3>33. Investimento regional real fixo</h3>
+<pre><code>fixo = cge.solve_period(economia_regional, cge.Closure(investment="fixed_real"),
+                         cge.Scenario(investment_level=80.0))
+fixo.real["inv_real"]
+fixo.savings
+fixo.forced_saving</code></pre>
+<pre class="output" data-label="Saída"><code><span class="out-expr">fixo.real["inv_real"]</span>
+80
+<span class="out-expr">fixo.savings</span>
+80
+<span class="out-expr">fixo.forced_saving</span>
+51.43</code></pre>
+  <p>A quantidade de investimento fica em 80 a preços do ano-base. A poupança nominal muda com os
+  preços, e um tributo per capita fecha a conta. <code>household_saving</code> separa a poupança
+  voluntária da forçada, e Walras continua sendo uma verificação independente.</p>
 </div></section>
 
 <section id="verificacoes"><div class="wrap">

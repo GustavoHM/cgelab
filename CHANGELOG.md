@@ -3,6 +3,24 @@
 All notable changes to `cgelab`. Versions follow [semantic versioning](https://semver.org/);
 before 1.0, a minor version may add to the API and a patch version only fixes.
 
+## Unreleased
+
+### Added
+
+- `closure_sweep` solves the reference and a scenario under each closure of a list, in a
+  period or along a path, and measures the change with the signature of `spec_sweep`.
+  `closure_grid` gives every combination of `Closure` fields, labelled by what differs from
+  the default; a combination `Closure` refuses, or one that does not solve, is reported with
+  its reason and the sweep goes on. `ClosureSweep.range` gives each output's spread over the
+  closures, the closures at its ends, and whether they all agree on its sign.
+- `in_money` puts a counterfactual in levels, at current and at base-year prices, with the
+  change in each and the change in volume, in a unit the user picks: final demand, factor
+  income, the income households can spend and the government account. Its levels are those
+  of `national_accounts`, `real_gdp` and the Laspeyres volume of `price_indices`; a
+  household's change at base-year prices is its equivalent variation at base-year prices; a
+  doubled numeraire doubles the current-price columns and leaves the others, as the tests
+  check.
+
 ## 0.5.5 — 2026-10-23
 
 The six items of the roadmap's milestone 0.6 that are done: imperfect factor mobility,

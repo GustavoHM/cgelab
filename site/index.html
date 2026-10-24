@@ -721,6 +721,43 @@ path[2021].vintage_value_added                       # old and new bundles</code
   goes where it earns most. When industry's price rises, only the new vintage follows at first,
   so output answers less than with mobile capital, and catches up as industry installs more of
   each year's investment.</p>
+
+  <h3>26. The same shock under four closures, and in money</h3>
+<pre><code>_, plain = toy.build()
+shock = cge.Scenario(world_price=np.array([1.0, 1.2]))
+gdp_pct = lambda base, alt: {"gdp_pct": 100 * (cge.real_gdp(alt)["expenditure"]
+                                               / cge.real_gdp(base)["expenditure"] - 1)}
+grid = cge.closure_grid(investment=["savings_driven", "fixed_real"],
+                        foreign=["fixed_saving", "fixed_rate"])
+sweep = cge.closure_sweep(plain, grid, scenario=shock, measure=gdp_pct)
+sweep.table
+sweep.range()[["min", "max", "same_sign"]]
+base, alt = cge.solve_period(plain), cge.solve_period(plain, scenario=shock)
+cge.in_money(base, alt).loc["final_demand", ["change", "change_base_prices"]]</code></pre>
+<pre class="output" data-label="Output"><code><span class="out-expr">sweep.table</span>
+                                           gdp_pct
+closure                                           
+default                                    -0.1454
+foreign=fixed_rate                         -0.4845
+investment=fixed_real                      -0.1458
+investment=fixed_real, foreign=fixed_rate  -0.4978
+<span class="out-expr">sweep.range()[["min", "max", "same_sign"]]</span>
+            min     max  same_sign
+gdp_pct -0.4978 -0.1454       True
+<span class="out-expr">cge.in_money(base, alt).loc["final_demand", ["change", "change_base_prices"]]</span>
+              change  change_base_prices
+item                                    
+consumption  -0.1189              0.3996
+government  -0.00778                   0
+investment  -0.07754             -0.2573
+exports     -0.01755             0.05611
+imports     -0.01755              0.4819
+gdp          -0.2042             -0.2835</code></pre>
+  <p>Which closure a result assumes is a choice, and two defensible ones can disagree. The sweep
+  solves the reference and the scenario under each, says which combinations the package refuses
+  and why, and gives the spread. <code>in_money</code> puts the change in levels, at current and
+  at base-year prices, in the unit the SAM is in times <code>unit</code>: a SAM in millions and
+  <code>unit=1e-3</code> give billions.</p>
 </div></section>
 
 <section id="gates"><div class="wrap">

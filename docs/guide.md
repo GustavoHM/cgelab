@@ -891,6 +891,56 @@ Armington elasticity near one under fixed export shares (see *Closures*). There,
 a sweep of `sigma_armington` over `Uniform(1, 3)` on the toy economy had a
 median of −0.009% and one draw at −5.8%.
 
+### Under other closures
+
+A closure is a model of who bears an adjustment, and two defensible ones can give
+results of opposite sign. `closure_sweep` solves the reference and the scenario
+under each closure of a list and measures the change, with the signature of
+`spec_sweep`:
+
+```python
+grid = cge.closure_grid(investment=["savings_driven", "fixed_real"],
+                        foreign=["fixed_saving", "fixed_rate"],
+                        labour=["full_employment", "wage_curve"],
+                        natural_unemployment=0.08)
+sweep = cge.closure_sweep(econ, grid, scenario=policy, measure=gdp_pct)
+sweep.table             # one row per closure
+sweep.failed            # {label: reason} for the combinations refused or unsolved
+sweep.range()           # min, max, spread, the closures at the ends, same sign or not
+```
+
+`closure_grid` gives every combination of the `Closure` fields it is given,
+labelled by the fields that differ from the default. A combination `Closure`
+refuses, or one under which the model does not solve, gets a row of NaN and its
+reason in `failed`, and the sweep goes on: which combinations are impossible is
+part of the answer. With `years` (and `growth`, `economy`) both are paths of
+`run_path`, and `measure` receives the two `PathResult` objects.
+
+### Results in money
+
+A percent change says nothing of size. `in_money` puts a counterfactual in levels:
+
+```python
+cge.in_money(base, alt, unit=1e-3, label="R$ billion")   # a SAM in R$ million
+```
+
+One row per item, by block: `final_demand` (consumption, government,
+investment, exports, imports and GDP), `factor_income`, `households` (the income
+a household can spend: net of direct tax and of payments straight to an
+activity) and `government` (revenue, consumption, transfers, saving). Columns:
+the reference and the alternative at current prices and their change, the same
+at base-year prices and their change, and the change in volume in percent.
+
+At base-year prices, final demand is the Laspeyres volume of `price_indices`
+and GDP the expenditure side of `real_gdp`; a factor's income becomes its
+services, at the base-year price of one; a household's income is deflated by its
+own cost-of-living index against the base year's, so its change is the
+equivalent variation valued at base-year prices; the government's flows are
+deflated by the GDP deflator. Current prices are in units of the numeraire, and
+`unit` multiplies every level and change; the package does not know the SAM's
+currency, and `label` only names it. Two paths give the table for every year
+they share.
+
 ---
 
 ## 13. Subtotals: which shock did what

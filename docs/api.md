@@ -435,6 +435,37 @@ for one entry), recalibrates, solves base and scenario, and returns
 
 The `(2n, n)` standardised points of the rule.
 
+### `closure_sweep(econ, closures, *, measure, scenario=None, reference=None, years=None, growth=None, economy=None) -> ClosureSweep`
+
+The reference and the scenario solved under each closure, and
+`measure(reference, alternative)`. `closures` is `{label: closure}` or a list
+(labelled by the fields that differ from `Closure()`); each closure is a
+`Closure` or its keyword arguments. With `years`, both are paths of `run_path`
+and `measure` receives two `PathResult`. A closure refused or unsolved gets a
+row of NaN and its reason in `failed`.
+
+### `closure_grid(**options) -> dict`
+
+`{label: keyword arguments}` for every combination of the `Closure` fields
+given; a field given one value applies to all. Unknown fields raise `TypeError`.
+
+### `ClosureSweep`
+
+`table` (closures by outputs), `walras` and `converged` by closure, `failed`
+(`{label: reason}`), `closures`; `range()`: `min`, `max`, `spread`, `argmin`,
+`argmax` and `same_sign` for each output.
+
+### `in_money(reference, alternative, *, unit=1.0, label=None, years=None) -> DataFrame`
+
+Two periods, or two paths (every shared year, or `years`). Index
+`(block, item)`, with `year` first for paths; blocks `final_demand`,
+`factor_income`, `households`, `government`. Columns `reference`,
+`alternative`, `change` (current prices), `reference_base_prices`,
+`alternative_base_prices`, `change_base_prices`, `pct_base_prices`. Households
+are deflated by their own index against the base year's, the government by the
+GDP deflator. `unit` scales levels and changes; `label` is kept in
+`attrs["unit"]`.
+
 ---
 
 ## Dynamics

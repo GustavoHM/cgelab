@@ -721,6 +721,43 @@ trajetoria[2021].vintage_value_added                 # os feixes velho e novo</c
   novo vai para onde rende mais. Quando o preço da indústria sobe, só a safra nova acompanha no
   começo, então o produto responde menos que com capital móvel, e alcança à medida que a
   indústria instala mais do investimento de cada ano.</p>
+
+  <h3>26. O mesmo choque sob quatro fechamentos, e em moeda</h3>
+<pre><code>_, simples = toy.build()
+choque = cge.Scenario(world_price=np.array([1.0, 1.2]))
+pib_pct = lambda base, alt: {"pib_pct": 100 * (cge.real_gdp(alt)["expenditure"]
+                                               / cge.real_gdp(base)["expenditure"] - 1)}
+grade = cge.closure_grid(investment=["savings_driven", "fixed_real"],
+                         foreign=["fixed_saving", "fixed_rate"])
+varredura = cge.closure_sweep(simples, grade, scenario=choque, measure=pib_pct)
+varredura.table
+varredura.range()[["min", "max", "same_sign"]]
+base, alt = cge.solve_period(simples), cge.solve_period(simples, scenario=choque)
+cge.in_money(base, alt).loc["final_demand", ["change", "change_base_prices"]]</code></pre>
+<pre class="output" data-label="Saída"><code><span class="out-expr">varredura.table</span>
+                                           pib_pct
+closure                                           
+default                                    -0.1454
+foreign=fixed_rate                         -0.4845
+investment=fixed_real                      -0.1458
+investment=fixed_real, foreign=fixed_rate  -0.4978
+<span class="out-expr">varredura.range()[["min", "max", "same_sign"]]</span>
+            min     max  same_sign
+pib_pct -0.4978 -0.1454       True
+<span class="out-expr">cge.in_money(base, alt).loc["final_demand", ["change", "change_base_prices"]]</span>
+              change  change_base_prices
+item                                    
+consumption  -0.1189              0.3996
+government  -0.00778                   0
+investment  -0.07754             -0.2573
+exports     -0.01755             0.05611
+imports     -0.01755              0.4819
+gdp          -0.2042             -0.2835</code></pre>
+  <p>O fechamento que um resultado supõe é uma escolha, e dois fechamentos defensáveis podem
+  discordar. A varredura resolve a referência e o cenário sob cada um, diz quais combinações o
+  pacote recusa e por quê, e dá a amplitude. <code>in_money</code> põe a variação em níveis, a
+  preços correntes e do ano-base, na unidade da MCS vezes <code>unit</code>: uma MCS em milhões e
+  <code>unit=1e-3</code> dão bilhões.</p>
 </div></section>
 
 <section id="portarias"><div class="wrap">

@@ -96,6 +96,27 @@ print(base.summary())
 base.pq                          # preços ao consumidor
 base.X                           # nível de cada atividade
 base.walras                      # o mercado que o solucionador NÃO resolveu</code></pre>
+<pre class="output" data-label="Saída"><code>cgelab diagnostics -- Economy(2 activities, 2 commodities, 2 households, 2 factors)
+  base-year reproduction : PASS (worst 3.55e-16)
+      imports                3.55e-16
+      exports                1.78e-16
+      activity_output        1.42e-16
+      commodity_output       1.42e-16
+  Walras residual        : 0.00e+00 [f_lab]
+  price homogeneity      : PASS (worst 4.44e-16)
+equilibrium (baseline): numeraire=1; investment=savings_driven; government=real_fixed; foreign=fixed_saving
+  residual        : 3.553e-16 (converged, cold)
+  Walras residual : 0.000e+00  [f_lab, not solved for]
+  price f_lab       : 1.000000
+  price f_cap       : 1.000000
+  exchange rate   : 1.000000
+  savings         : 50.0
+<span class="out-expr">base.pq</span>
+[1.048 1.049]
+<span class="out-expr">base.X</span>
+[100 200]
+<span class="out-expr">base.walras</span>
+0</code></pre>
 
   <h3>2. Um contrafactual</h3>
 <pre><code>choque = cge.Scenario(name="tributo +50%", product_tax=econ.ptax * 1.5)
@@ -104,6 +125,12 @@ alt = cge.solve_period(econ, scenario=choque)
 alt.pq / base.pq - 1                 # variação de preço, mercadoria a mercadoria
 alt.real["hh_real_income"]           # renda real por domicílio
 abs(alt.walras) &lt; 1e-9               # a contabilidade continua fechando</code></pre>
+<pre class="output" data-label="Saída"><code><span class="out-expr">alt.pq / base.pq - 1</span>
+[0.03488 0.04116]
+<span class="out-expr">alt.real["hh_real_income"]</span>
+[78.01 45.91]
+<span class="out-expr">abs(alt.walras) &lt; 1e-9</span>
+True</code></pre>
 
   <h3>3. Um gravame ao consumidor, e a quem volta a receita</h3>
 <pre><code>W = cge.consumer_wedge(econ, {"c_ind": 0.08})      # 8% sobre uma mercadoria
@@ -116,7 +143,11 @@ meio    = cge.solve_period(econ, scenario=cge.Scenario(
     consumer_wedge=W, wedge_revenue_to=0.5))         # combinação convexa
 
 capital.hh_income[0] &gt; percap.hh_income[0]           # o domicílio rico em capital ganha
-sum(capital.hh_wedge_paid) == capital.wedge_revenue  # a identidade vale exatamente</code></pre>
+abs(sum(capital.hh_wedge_paid) - capital.wedge_revenue) &lt; 1e-12  # a identidade vale, a menos de arredondamento</code></pre>
+<pre class="output" data-label="Saída"><code><span class="out-expr">capital.hh_income[0] &gt; percap.hh_income[0]</span>
+True
+<span class="out-expr">abs(sum(capital.hh_wedge_paid) - capital.wedge_revenue) &lt; 1e-12</span>
+True</code></pre>
   <div class="note"><p><strong>Isso não é detalhe de implementação.</strong> A propriedade do
   capital é concentrada no topo: sob <code>"capital"</code> os pobres pagam o gravame nas suas
   compras e os ricos o recebem como renda, e parte de qualquer regressividade medida é fabricada por
@@ -140,15 +171,49 @@ alt = cge.run_path(econ, years=range(2021, 2046), growth=crescimento, scenario=p
 ref.aggregates()          # preços, absorção real, poupança, Walras — uma linha por ano
 ref.worst_walras          # o número a olhar primeiro
 ref.capital_stock         # estoque, recuperado do custo de uso e não da MCS</code></pre>
+<pre class="output" data-label="Saída"><code><span class="out-expr">ref.aggregates()</span>
+      exchange_rate  savings     walras  residual  ...  inv_real  hh_sav_real  gov_sav_real  for_sav_real
+year                                               ...                                                   
+2021              1       50          0 3.553e-16  ...        50           35             5            10
+2022          0.972    50.83 -2.442e-15 2.292e-16  ...     52.28        36.08          5.92         10.29
+2023         0.9446    51.66 -1.151e-15 7.105e-16  ...     54.67         37.2         6.888         10.58
+2024         0.9179    52.49   -1.4e-15 2.141e-16  ...     57.14        38.35         7.907         10.89
+2025         0.8917    53.31  -1.52e-15 2.066e-16  ...     59.72        39.54         8.978          11.2
+2026         0.8663    54.13 -1.008e-15 1.993e-16  ...     62.41        40.78          10.1         11.53
+...             ...      ...        ...       ...  ...       ...          ...           ...           ...
+2040          0.582    65.26  -1.88e-15 7.105e-16  ...     111.8        62.16         32.49         17.13
+2041         0.5665    66.05  -1.52e-15 3.553e-16  ...     116.2        63.99         34.65          17.6
+2042         0.5516    66.84 -2.676e-15 7.105e-16  ...     120.8        65.86         36.89         18.08
+2043         0.5371    67.63 -2.778e-15 3.553e-16  ...     125.5        67.77         39.21         18.56
+2044         0.5232    68.42 -1.843e-15         0  ...     130.4        69.72         41.63         19.06
+2045         0.5098    69.21 -1.834e-15 7.105e-16  ...     135.4         71.7         44.14         19.56
+<span class="out-expr">ref.worst_walras</span>
+3.237e-15
+<span class="out-expr">ref.capital_stock</span>
+[600 620 641.3 663.9 687.8 713.2 739.9 768.1 797.8 829 861.7 896.1 932 969.7 1009 1050
+ 1093 1137 1184 1232 1282 1334 1388 1445 1503]</code></pre>
   <p>Um resíduo de Walras que <em>cresce</em> ao longo da trajetória é a assinatura de um coeficiente
   que o bloco de preços viu e o de quantidades não. É invisível num período isolado e inconfundível
   num horizonte de vinte e cinco anos.</p>
 
   <h3>5. Bem-estar, sem confundir composição com bem-estar</h3>
 <pre><code>ev = cge.equivalent_variation(ref, alt)
-ev.ev              # valorado aos preços do cenário de referência
-ev.ev_base         # valorado aos preços do ano-base
-ev.ev_pct_account  # por CONTA — leia a nota abaixo antes de usar</code></pre>
+ultimo = ev[ev.year == 2045].set_index("account")
+ultimo.ev              # valorado aos preços do cenário de referência
+ultimo.ev_base         # valorado aos preços do ano-base
+ultimo.ev_pct_account  # por CONTA — leia a nota abaixo antes de usar</code></pre>
+<pre class="output" data-label="Saída"><code><span class="out-expr">ultimo.ev</span>
+account
+hh_1   -0.1148
+hh_2   -0.5904
+<span class="out-expr">ultimo.ev_base</span>
+account
+hh_1   -0.2125
+hh_2    -1.091
+<span class="out-expr">ultimo.ev_pct_account</span>
+account
+hh_1   -0.09563
+hh_2     -1.004</code></pre>
   <p>Quando domicílios migram entre contas, a medida por conta reporta a migração como bem-estar. A
   economia de brinquedo tem uma variante com duas contas gêmeas — mesmas preferências, mesma taxa de
   poupança — justamente para mostrar isso:</p>
@@ -169,6 +234,10 @@ ev2.ev_pct_account.abs().max()               # &gt; 5% — composição, reporta
 
 grupos = {"hh_1": "g1", "hh_2a": "g2", "hh_2b": "g2"}
 cge.ev_by_group(ev2, grupos).ev_pct.abs().max()  # ~0 — o zero que de fato está lá</code></pre>
+<pre class="output" data-label="Saída"><code><span class="out-expr">ev2.ev_pct_account.abs().max()</span>
+20
+<span class="out-expr">cge.ev_by_group(ev2, grupos).ev_pct.abs().max()</span>
+2.22e-14</code></pre>
   <p><code>ev_by_group</code> soma rendas reais <em>dentro</em> do grupo antes de dividir, de modo
   que o conjunto de domicílios somado é o mesmo nos dois cenários e a razão não depende de quantos
   migraram. Toda conta precisa estar no mapeamento: descartar uma em silêncio subestimaria o grupo, e
@@ -188,6 +257,12 @@ depois = cge.solve_period(econ_cet, scenario=cge.Scenario(export_price=pe))
 depois.exports[j] / depois.Q[j]    # 0,119: a parcela exportada sobe de 0,100
 depois.pe[j] / depois.pd[j]        # 1,09: exportar agora rende mais que vender em casa
 depois.exchange_rate               # 0,89: o câmbio se valoriza e absorve parte do choque</code></pre>
+<pre class="output" data-label="Saída"><code><span class="out-expr">depois.exports[j] / depois.Q[j]</span>
+0.1185
+<span class="out-expr">depois.pe[j] / depois.pd[j]</span>
+1.089
+<span class="out-expr">depois.exchange_rate</span>
+0.895</code></pre>
   <p>Sob <code>export_rule="cet"</code> o produto se reparte entre mercado interno e exportação ao
   longo de uma fronteira de transformação, e o preço doméstico é o que faz a receita dessa fronteira
   igualar o custo unitário. Com participações fixas, o padrão, <code>export_price</code> é recusado
@@ -199,6 +274,10 @@ big = cge.solve_period(econ_big, scenario=cge.Scenario(export_price=pe))
 
 big.world_export_price[j]        # 1.12: vender mais desce pela curva de demanda do comprador
 big.exports[j] / econ_big.exp0[j]    # 1.14: as exportações sobem 14%, contra 22% do tomador de preço</code></pre>
+<pre class="output" data-label="Saída"><code><span class="out-expr">big.world_export_price[j]</span>
+1.124
+<span class="out-expr">big.exports[j] / econ_big.exp0[j]</span>
+1.14</code></pre>
   <p>Uma região que vende boa parte de um produto não é tomadora de preço.
   <code>ModelSpec.export_demand</code> põe as suas exportações numa curva de demanda,
   <code>E / E0 = (pWe / export_price)^(-η)</code>, a forma do <code>lrgcge</code> de Hosoe;
@@ -223,6 +302,16 @@ doado = cge.run_path(econ_i, years=anos, growth=cresc,
 
 ied[2030].factor_income_abroad &gt; doado[2030].factor_income_abroad   # os lucros saem
 ied[2030].hh_income.sum() &lt; doado[2030].hh_income.sum()             # e a renda local é menor</code></pre>
+<pre class="output" data-label="Saída"><code><span class="out-expr">econ_i.hh_dtax</span>
+[0.1154 0.03226]
+<span class="out-expr">econ_i.fac_row_share</span>
+[0 0.1667]
+<span class="out-expr">econ_i.foreign_sav</span>
+18
+<span class="out-expr">ied[2030].factor_income_abroad &gt; doado[2030].factor_income_abroad</span>
+True
+<span class="out-expr">ied[2030].hh_income.sum() &lt; doado[2030].hh_income.sum()</span>
+True</code></pre>
   <p>O mesmo fluxo de capital, duas leituras. Como <code>fdi</code>, ele financia investimento e
   vira capital de propriedade estrangeira, cujo retorno sai pela conta corrente. Como mera poupança
   externa, o capital fica com os residentes e todo o ganho que produz é creditado a eles. É a
@@ -243,6 +332,10 @@ def economia(ano, t):                             # a indústria poupa 2% de ins
 traj = cge.run_path(econ_k, years=range(2021, 2036), growth=g, economy=economia)
 traj.capital_stock[-1]     # um estoque por fator de capital
 traj.worst_walras          # continua à precisão de máquina</code></pre>
+<pre class="output" data-label="Saída"><code><span class="out-expr">traj.capital_stock[-1]</span>
+[359.1 379.2]
+<span class="out-expr">traj.worst_walras</span>
+3.359e-15</code></pre>
   <p>Uma mudança que não é preço, tributo nem dotação (a adoção de uma tecnologia, um plano de
   financiamento) entra pelo argumento <code>economy</code>, que devolve a economia de cada ano. É o
   que um cenário de transição energética precisa: os coeficientes técnicos mudam, e os blocos de
@@ -282,6 +375,12 @@ paths = cge.structural_paths(m, "c_agr", "hh_2", threshold=1e-3)
 paths[["path", "total", "share"]].head(2)
 # (c_agr, a_agr, f_lab, hh_2)  0.323  0.59    pelos salários, com a realimentação de fora do caminho
 # (c_agr, a_agr, f_cap, hh_2)  0.131  0.24</code></pre>
+<pre class="output" data-label="Saída"><code><span class="out-expr">m.M.loc["hh_2", "c_agr"]</span>
+0.5463
+<span class="out-expr">paths[["path", "total", "share"]].head(2)</span>
+                          path  total  share
+0  (c_agr, a_agr, f_lab, hh_2) 0.3227 0.5907
+1  (c_agr, a_agr, f_cap, hh_2) 0.1312 0.2401</code></pre>
   <p>A mesma MCS lida como modelo a preço fixo: as quantidades respondem a uma injeção nas
   proporções do ano-base. <code>leontief_multipliers</code> deixa endógena só a produção,
   <code>fixed_price_multipliers</code> põe as famílias em propensões marginais, e
@@ -294,6 +393,13 @@ na["gdp_expenditure"], na["gdp_income"]   # 202.78 e 202.78: o PIB pelos dois la
 pi = cge.price_indices(taxed)
 pi.loc["gdp", ["fisher", "quantity_fisher"]]  # 1.040, 0.9999: preços 4% acima, volume parado
 cge.government_account(taxed)["saving"]   # 12.04, contra 5 no ano-base</code></pre>
+<pre class="output" data-label="Saída"><code><span class="out-expr">na["gdp_expenditure"], na["gdp_income"]</span>
+(202.8, 202.8)
+<span class="out-expr">pi.loc["gdp", ["fisher", "quantity_fisher"]]</span>
+fisher              1.04
+quantity_fisher   0.9999
+<span class="out-expr">cge.government_account(taxed)["saving"]</span>
+12.04</code></pre>
   <p>O PIB a preços correntes pelos lados da despesa e da renda, índices de Laspeyres, Paasche e
   Fisher para cada componente da demanda final, para o PIB e para os termos de troca, e a conta do
   governo por instrumento. A conta do governo é registrada pelo solver na solução, então a poupança
@@ -305,6 +411,12 @@ cge.government_account(taxed)["saving"]   # 12.04, contra 5 no ano-base</code></
 params = {"sigma_va": cge.Uniform(0.3, 1.3), "sigma_armington": cge.Uniform(1.5, 3.5)}
 cge.sensitivity(run, params).summary()       # quadratura de Stroud: 4 pontos para 2 parâmetros
 cge.sensitivity(run, params, method="monte_carlo", draws=40).summary()</code></pre>
+<pre class="output" data-label="Saída"><code><span class="out-expr">cge.sensitivity(run, params).summary()</span>
+             mean       sd
+gdp_pct -0.008932 0.001384
+<span class="out-expr">cge.sensitivity(run, params, method="monte_carlo", draws=40).summary()</span>
+             mean      sd    q0.05      q0.5     q0.95    min       max
+gdp_pct -0.008932 0.00138 -0.01149 -0.008389 -0.007568 -0.012 -0.007453</code></pre>
   <p>Cada ponto recalibra e resolve o ano-base e o cenário. A regra de Stroud dá uma média exata
   até o grau três nos parâmetros com <code>2n</code> soluções; o Monte Carlo acrescenta quantis. A
   elasticidade de Armington perto de 1 fica de fora de propósito: com parcelas de exportação fixas
@@ -318,6 +430,9 @@ parts = cge.subtotals(econ_tt, cge.Scenario(), reform,
                       measure=lambda p: {"gdp": cge.real_gdp(p)["expenditure"]})
 parts[["tariff", "world", "tax", "change", "residual"]]
 # gdp  -0.723  -0.125  -0.007   -0.855   ~1e-10      as partes somam a variação resolvida</code></pre>
+<pre class="output" data-label="Saída"><code><span class="out-expr">parts[["tariff", "world", "tax", "change", "residual"]]</span>
+     tariff   world       tax  change   residual
+gdp -0.7235 -0.1245 -0.006899 -0.8549 -2.806e-10</code></pre>
   <p>A decomposição que o GEMPACK chama de <em>subtotals</em>. Todos os choques andam juntos pela
   reta da referência à alternativa, e o termo de cada grupo é integrado à parte, então as partes
   somam o total sem depender de ordem alguma.</p>
@@ -330,6 +445,12 @@ w = cge.welfare_decomposition(lrg, cge.Scenario(), cge.Scenario(tariff=np.zeros(
 w["allocative_tariff"], w["terms_of_trade"]   # +0.054, -0.831: o ganho com a tarifa, e o que um país grande paga por ele lá fora
 w["absorption_households"]                    # +0.506: a VE de Hosoe para o mesmo experimento é +0,508
 w["residual"]                                 # ~1e-10: os termos somam a variação da absorção</code></pre>
+<pre class="output" data-label="Saída"><code><span class="out-expr">w["allocative_tariff"], w["terms_of_trade"]</span>
+(0.05421, -0.8315)
+<span class="out-expr">w["absorption_households"]</span>
+0.506
+<span class="out-expr">w["residual"]</span>
+-3.304e-10</code></pre>
   <p>A decomposição de Huff e Hertel, escrita para os instrumentos deste modelo: dotações,
   tecnologia, um termo alocativo por distorção, termos de troca e conta externa, integrados ao longo
   da trajetória. A medida é a absorção real, com governo e investimento. A parte das famílias é a
@@ -347,6 +468,10 @@ r = cge.solve_period(green, neutral, cge.Scenario(carbon_price=0.5))
 
 cge.emissions(r)["total"]         # 21.79, eram 22 no ano-base
 r.tax_scale                       # 0.26: a receita do carbono paga um corte de 74% nas alíquotas sobre produtos</code></pre>
+<pre class="output" data-label="Saída"><code><span class="out-expr">cge.emissions(r)["total"]</span>
+21.79
+<span class="out-expr">r.tax_scale</span>
+0.2648</code></pre>
   <p>As emissões são uma conta satélite calibrada a partir dos totais do ano-base, por fonte. O
   preço do carbono é um imposto por unidade de produto, pela intensidade de emissão, nas atividades,
   e um imposto específico no combustível das famílias. Com meta de receita, outro imposto se move
@@ -358,6 +483,10 @@ nested = cge.add_emissions(nested, intermediate=fuel, household={"c_ind": 5.0},
 r2 = cge.solve_period(nested, neutral, cge.Scenario(carbon_price=0.5))
 cge.emissions(r2)["total"]         # 20.85, contra 21,79 com coeficientes fixos
 r2.input_coefficients[1]           # combustível por unidade de produto: 0,089 e 0,276, eram 0,095 e 0,286</code></pre>
+<pre class="output" data-label="Saída"><code><span class="out-expr">cge.emissions(r2)["total"]</span>
+20.85
+<span class="out-expr">r2.input_coefficients[1]</span>
+[0.08882 0.2762]</code></pre>
   <p>Com <code>ModelSpec.energy</code>, cada atividade compra um agregado de energia que substitui
   valor adicionado. O carbono de um combustível entra no preço que aquela atividade paga por ele,
   então o mesmo preço de carbono muda como se produz, não só quanto. Com as duas elasticidades em
@@ -372,6 +501,10 @@ caro = cge.Scenario(world_price=np.array([1.0, 1.3]))   # manufaturas importadas
 r_m = cge.solve_period(econ_m, scenario=caro)
 r_m.factor_prices_by_activity[0]    # o salário na agricultura e na indústria: 0,985 e 1,015
 r_m.factor_pools["f_lab"]["price"]  # o que cada pool ganha: 0,993 o rural, 1,010 o urbano</code></pre>
+<pre class="output" data-label="Saída"><code><span class="out-expr">r_m.factor_prices_by_activity[0]</span>
+[0.9853 1.015]
+<span class="out-expr">r_m.factor_pools["f_lab"]["price"]</span>
+[0.9928 1.01]</code></pre>
   <p>Com <code>factor_mobility</code>, o trabalho se reparte entre as atividades por uma CET
   de elasticidade 2, e cada atividade paga o seu salário. Com todos os fatores móveis, o mesmo
   choque eleva o salário único para 1,004. Os pools de origem, uma matriz de proximidade, mostram
@@ -399,6 +532,16 @@ _, econ_b = toy.build_with_segmented_labour(model_spec=spec_b)
 fila_propria = cge.LabourMarket(rigid={"f_for": 1.1}, unemployment_rate=0.08)
 r_b = cge.solve_period(econ_b, cge.Closure(labour_markets={"labour": fila_propria}))
 r_b.labour_markets["labour"]["queue"]   # 18,6 na fila do emprego formal, eram 6,1</code></pre>
+<pre class="output" data-label="Saída"><code><span class="out-expr">m["employment"]</span>
+[66.21 43.79]
+<span class="out-expr">m["wage"]</span>
+[1.097 0.8637]
+<span class="out-expr">m["household_employment"][0]</span>
+[56.75 13.25]
+<span class="out-expr">r_q.labour_markets["labour"]["unemployment_rate"]</span>
+0.1962
+<span class="out-expr">r_b.labour_markets["labour"]["queue"]</span>
+[18.59 0]</code></pre>
   <p>As duas contas de trabalho dividem uma população. No mercado dual, quem o setor formal deixa
   de contratar trabalha no informal, e o salário informal cai; no Harris–Todaro, as pessoas
   entram na fila do emprego formal até o salário informal igualar o formal esperado. Nos dois
@@ -416,6 +559,39 @@ micro.reconciliation                      # salários formais do hh_1 escalados 
 micro.calibration                         # pesos que movem o emprego formal como o modelo
 cge.inequality(micro)                     # Gini de 0,531 para 0,556, Theil T de 0,527 para 0,577
 cge.poverty(micro, 3.0)                   # proporção de pobres de 0,698 para 0,731, hiato de 0,459 para 0,490</code></pre>
+<pre class="output" data-label="Saída"><code><span class="out-expr">micro.reconciliation</span>
+  group source  survey  sam  factor
+0  hh_1  f_cap      32   45   1.406
+1  hh_1  f_for      51   60   1.176
+2  hh_1  f_inf     6.5   10   1.538
+3  hh_2  f_cap    8.75   15   1.714
+4  hh_2  f_for    10.5   10  0.9524
+5  hh_2  f_inf    30.5   30  0.9836
+<span class="out-expr">micro.calibration</span>
+  group  constraint  base  target  reached  iterations
+0  hh_1  households     7       7        7           5
+1  hh_1       f_cap    45      45       45           5
+2  hh_1       f_for    60   56.75    56.75           5
+3  hh_1       f_inf    10   13.25    13.25           5
+4  hh_2  households    11      11       11           4
+5  hh_2       f_cap    15      15       15           4
+6  hh_2       f_for    10   9.459    9.459           4
+7  hh_2       f_inf    30   30.54    30.54           4
+<span class="out-expr">cge.inequality(micro)</span>
+                ref    alt  change
+gini         0.5307 0.5558 0.02518
+theil_t      0.5269 0.5765 0.04967
+theil_l      0.4877 0.5436 0.05598
+ge_2         0.8169 0.8888 0.07193
+atkinson_0.5  0.228 0.2496 0.02156
+atkinson_1   0.3859 0.4194 0.03343
+atkinson_2   0.5538  0.591 0.03719
+<span class="out-expr">cge.poverty(micro, 3.0)</span>
+              ref    alt  change
+line alpha                      
+3.0  0     0.6978 0.7309 0.03307
+     1     0.4588 0.4899 0.03111
+     2      0.325 0.3529 0.02792</code></pre>
   <p>Cada domicílio da pesquisa pertence a uma conta da MCS: sua renda de cada fonte varia como a
   da conta, e o seu próprio orçamento define o seu índice de preços. Antes, a pesquisa é escalada
   à MCS, fonte por fonte, e os fatores são reportados em vez de escondidos. Quem perde o emprego
@@ -429,6 +605,25 @@ cge.inequality(pessoas).loc["gini"]       # de 0,526 para 0,542
 sorteado = cge.microsimulate(pesquisa, ref_s, alt_s, persons=toy.persons(), method="draws",
                              replications=200, seed=1)
 cge.inequality(sorteado).loc["gini"]      # de 0,526 para 0,544, erro-padrão 0,0008</code></pre>
+<pre class="output" data-label="Saída"><code><span class="out-expr">pessoas.workers</span>
+  group      column     workers  ref   alt
+0  hh_1       f_for       f_for  7.5 7.094
+1  hh_1       f_inf       f_inf  2.5 3.311
+2  hh_1    inactive    inactive  9.5 9.095
+3  hh_1  unemployed  unemployed  2.5 2.499
+4  hh_2       f_for       f_for    5  4.73
+5  hh_2       f_inf       f_inf   19 19.34
+6  hh_2    inactive    inactive 16.5 16.39
+7  hh_2  unemployed  unemployed    7 7.035
+<span class="out-expr">cge.inequality(pessoas).loc["gini"]</span>
+ref       0.5263
+alt       0.5421
+change   0.01584
+<span class="out-expr">cge.inequality(sorteado).loc["gini"]</span>
+ref         0.5263
+alt         0.5437
+alt_se   0.0007506
+change     0.01743</code></pre>
   <p>Uma escolha ocupacional (logit multinomial) e equações de rendimento são estimadas nas
   pessoas, e o modelo chega a elas por interceptos deslocados, conta por conta, até o emprego e o
   rendimento por trabalhador variarem como o modelo diz, como em Bourguignon, Robilliard e
@@ -457,6 +652,17 @@ sut = cge.SupplyUse(make=make, use=use, final=final, imports=pd.Series({"c_x": 0
 montada = cge.sut_to_sam(sut, source="tabelas escritas à mão")
 montada.provenance[["source", "note", "total"]]   # poupança das famílias: resíduo, 20
 cge.base_year_reproduction(cge.calibrate(montada, cge.ModelSpec(households=["hh"])))["ok"]</code></pre>
+<pre class="output" data-label="Saída"><code><span class="out-expr">montada.provenance[["source", "note", "total"]]</span>
+                                     source                  note  total
+0                    tabelas escritas à mão           value added    100
+1                    tabelas escritas à mão  output, basic prices    100
+2                    tabelas escritas à mão      final demand: hh     80
+3                    tabelas escritas à mão     final demand: s_i     20
+4  assumed: all factor income to households         factor income    100
+5                                  residual      household saving     20
+6                                 structure         empty account      0
+<span class="out-expr">cge.base_year_reproduction(cge.calibrate(montada, cge.ModelSpec(households=["hh"])))["ok"]</span>
+True</code></pre>
   <p>As tabelas de recursos e usos viram o bloco de produção e a demanda final; quem recebe a
   renda vem da Conta Econômica Integrada, aqui suposta, e a procedência diz isso. As poupanças são
   resíduos declarados, e tabelas que não fecham são recusadas onde falham.</p>
@@ -469,6 +675,8 @@ dois = cge.calibrate(partida, toy.spec(factors=("f_cap", "f_for", "f_inf"),
                                        numeraire_factor="f_cap",
                                        labour_segments={"labour": ["f_for", "f_inf"]}))
 cge.solve_period(dois).residual                    # o ano-base, à precisão de máquina</code></pre>
+<pre class="output" data-label="Saída"><code><span class="out-expr">cge.solve_period(dois).residual</span>
+3.384e-16</code></pre>
   <p>O trabalho é partido em formal e informal em cada atividade por parcelas de uma pesquisa, e as
   duas contas viram um grupo de segmentos. Com um só salário, o modelo partido tem exatamente o
   equilíbrio do fator único; um salário formal rígido é que faz a diferença.
@@ -481,6 +689,14 @@ base = cge.calibrate_baseline(econ, years=range(2021, 2026), gdp=pib,
 base.factor                                        # a produtividade que atinge cada ano
 politica = base.run(cge.Scenario(product_tax=econ.ptax * 1.2))
 cge.real_gdp(politica[2025])["expenditure"] / base.achieved[2025] - 1</code></pre>
+<pre class="output" data-label="Saída"><code><span class="out-expr">base.factor</span>
+2021       1
+2022   1.017
+2023   1.023
+2024   1.031
+2025   1.035
+<span class="out-expr">cge.real_gdp(politica[2025])["expenditure"] / base.achieved[2025] - 1</span>
+0.004055</code></pre>
   <p>O PIB real é dado, observado ou projetado, e a produtividade é a incógnita, resolvida ano a
   ano porque o capital de cada ano vem do investimento dos anteriores: um número por ano, ou um por
   atividade com o valor adicionado setorial. Uma política roda então com a produtividade calibrada,
@@ -494,6 +710,13 @@ trajetoria = cge.run_path(argila, years=range(2021, 2031),
                           scenario=cge.Scenario(world_price=np.array([1.0, 1.15])))
 trajetoria.capital_by_pool["f_cap"].iloc[[0, -1]]   # capital instalado, por atividade
 trajetoria[2021].vintage_value_added                 # os feixes velho e novo</code></pre>
+<pre class="output" data-label="Saída"><code><span class="out-expr">trajetoria.capital_by_pool["f_cap"].iloc[[0, -1]]</span>
+      a_agr  a_ind
+2021    230    322
+2030  300.2  444.9
+<span class="out-expr">trajetoria[2021].vintage_value_added</span>
+[[59.8 96.6]
+ [4.306 9.294]]</code></pre>
   <p>O capital instalado fica no seu setor e mantém a técnica com que foi construído; o capital
   novo vai para onde rende mais. Quando o preço da indústria sobe, só a safra nova acompanha no
   começo, então o produto responde menos que com capital móvel, e alcança à medida que a

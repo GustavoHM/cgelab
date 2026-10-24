@@ -19,7 +19,8 @@
             .replace(/\b(\d+\.?\d*(?:e-?\d+)?)\b/g, '<span class="tok-num">$1</span>');
   }
   document.querySelectorAll("pre > code").forEach(function (el) {
-    if (el.classList.contains("plain")) return;
+    // A saída de um bloco não é Python: já vem marcada do verificador e fica como está.
+    if (el.classList.contains("plain") || el.parentElement.classList.contains("output")) return;
     el.innerHTML = py(el.textContent);
   });
 })();

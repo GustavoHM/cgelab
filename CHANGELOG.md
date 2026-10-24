@@ -159,6 +159,10 @@ before 1.0, a minor version may add to the API and a patch version only fixes.
 
 ### Changed
 
+- The site shows, under every example, what it prints and the value of each
+  expression on a line of its own, as dsgelab's site does. The outputs are
+  written by `tools/check_site_examples.py --write`, and the check, which runs in
+  the suite, fails when an output on the page is not what the code prints.
 - `real_gdp` values factor services by activity at base-year prices, which for a
   perfectly mobile factor is the same number as before.
 - The employment that is labour demand under a fixed real wage or a wage curve

@@ -41,8 +41,14 @@ Todo bloco de código executável da página é extraído e executado por
 compartilhado dentro de cada página. Os exemplos formam uma narrativa em que um bloco usa o que o
 anterior definiu.
 
+Embaixo de cada bloco, um `<pre class="output">` mostra o que ele produz: o que imprime e o
+valor de cada expressão que fica sozinha numa linha, como numa sessão interativa. Essa saída não
+é digitada à mão. `--write` roda os blocos e a escreve, e a verificação falha quando a saída na
+página não é a que o código imprime (os números são comparados com tolerância).
+
 ```bash
-python tools/check_site_examples.py
+python tools/check_site_examples.py            # roda e compara as saídas
+python tools/check_site_examples.py --write    # roda e escreve as saídas
 ```
 
 O mesmo verificador roda na suíte de testes (`tests/test_site_examples.py`), então um exemplo

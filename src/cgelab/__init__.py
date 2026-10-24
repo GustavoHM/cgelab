@@ -35,6 +35,7 @@ from .export import to_jump
 from .har import read_har, write_har
 from .dynamics import Growth, PathResult, run_path
 from .baseline import Baseline, calibrate_baseline
+from .historical import Historical, calibrate_historical
 from .functions import (armington, ces_intensity, ces_price, cet, cet_domestic_price,
                         cobb_douglas_price)
 from .behaviour import Behaviour, PersonSurvey, transition_probabilities
@@ -69,6 +70,7 @@ __all__ = [
     "Closure", "LabourMarket", "Scenario", "consumer_wedge",
     "solve_period", "PeriodResult", "value_added_price", "factor_intensity",
     "run_path", "PathResult", "Growth", "calibrate_baseline", "Baseline",
+    "calibrate_historical", "Historical",
     "FactorMobility",
     "Survey", "MicroResult", "microsimulate", "account_sources", "inequality", "poverty",
     "PersonSurvey", "Behaviour", "transition_probabilities",

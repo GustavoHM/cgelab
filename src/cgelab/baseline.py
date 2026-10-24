@@ -22,11 +22,11 @@ from typing import Callable, Mapping, Sequence
 
 import numpy as np
 import pandas as pd
-from scipy.optimize import brentq, root
 
 from .calibrate import Economy
 from .closure import Closure
 from .dynamics import Growth, PathResult, _PathState, run_path
+from .historical import _scalar_root, _vector_root
 from .results import real_gdp, real_value_added
 from .scenario import Scenario
 from .solve import PeriodResult
@@ -310,60 +310,3 @@ def _pattern(econ: Economy, pattern) -> np.ndarray:
         raise ValueError("pattern must be finite and not all zero: it is how the year's "
                          "unknown reaches the activities")
     return out
-
-
-def _scalar_root(solve, measured, target, x0, year, tol):
-    """``log Λ`` that makes the measure hit the target, bracketed outward from ``x0``."""
-    log_target = np.log(target)
-
-    def gap(x):
-        res, _ = solve(x, raise_on_fail=False)
-        if not res.converged:
-            return np.nan
-        value = measured(res)
-        return np.log(value) - log_target if value > 0 else -np.inf
-
-    g0 = gap(x0)
-    if not np.isfinite(g0):
-        raise RuntimeError(f"{year!r}: the period does not solve at last year's productivity")
-    if abs(g0) <= tol:
-        return x0
-    # GDP rises with productivity: look up when below the target, down when above.
-    step = -0.25 if g0 > 0 else 0.25
-    a, ga = x0, g0
-    for _ in range(12):
-        b = a + step
-        gb = gap(b)
-        if not np.isfinite(gb):
-            break
-        if np.sign(gb) != np.sign(g0) or gb == 0.0:
-            x = brentq(gap, min(a, b), max(a, b), xtol=1e-15, rtol=4 * np.finfo(float).eps,
-                       maxiter=200)
-            return x
-        a, ga = b, gb
-        step *= 2.0
-    raise ValueError(
-        f"{year!r}: no productivity reaches the target {target:.6g}; the closest was "
-        f"{target * np.exp(ga):.6g}, at a multiplier of {np.exp(a):.4g}. The target is "
-        f"outside what the economy can produce with this capital and labour, or the "
-        f"period stops solving before it gets there.")
-
-
-def _vector_root(solve, measured, target, x0, year, tol, cols):
-    """One ``log λ_a`` per calibrated activity, solved together."""
-    log_target = np.log(target)
-
-    def gap(x):
-        res, _ = solve(x, raise_on_fail=False)
-        value = measured(res)
-        if not res.converged or (value <= 0).any():
-            return np.full(len(cols), 1e3)
-        return np.log(value) - log_target
-
-    sol = root(gap, np.asarray(x0, dtype=float), method="hybr", tol=1e-14)
-    worst = float(np.max(np.abs(gap(sol.x))))
-    if worst > max(tol, 1e-10):
-        miss = dict(zip(cols, np.round(gap(sol.x), 6)))
-        raise ValueError(f"{year!r}: no sectoral productivities reach the value-added "
-                         f"targets; log gaps left: {miss}. {sol.message}")
-    return sol.x

@@ -436,6 +436,8 @@ def calibrate(sam: SAM, spec: ModelSpec | None = None, *,
     # a chosen list of columns instead silently drops whatever was not listed.
     hh_income0 = np.array([float(receipts.get(h, 0.0)) for h in hhs])
     hh_sav = sam.block([inv], hhs).ravel()
+    for account in (spec.regional_investment or {}).values():
+        hh_sav = hh_sav + sam.block([account], hhs).ravel()
     hh_tax = sam.block([gov], hhs).ravel()              # direct taxes
     gov_tr = sam.block(hhs, [gov]).ravel()              # transfers from government
     remit_in = sam.block(hhs, [row]).ravel()

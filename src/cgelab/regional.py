@@ -15,13 +15,13 @@ Bilateral cells of the SAM are not a prediction of the model. The origin mix is
 national, common to every buyer. The base year reproduces each region's output
 and the national absorption. A destination's purchases from an origin are that
 common mix times the destination's own absorption (its households and its
-activities). Government and investment buy the composite and are not given a
-region.
+activities). Government and investment buy the composite, with optional
+additional accounts mapped by region.
 """
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 import numpy as np
 from scipy.optimize import root
@@ -56,6 +56,11 @@ class Regional:
     exp_share: np.ndarray             # (n_reg, n_local)
     activity_region: np.ndarray       # (n_act,) int
     household_region: np.ndarray      # (n_hh,) int
+    government_accounts: dict = field(default_factory=dict)
+    investment_accounts: dict = field(default_factory=dict)
+    gov_dem_regional: np.ndarray | None = None  # (n_reg, n_local), zero absent
+    inv_dem_regional: np.ndarray | None = None
+    fac_gov_regional: np.ndarray | None = None  # (n_reg, n_fac), zero absent
 
     @property
     def n_reg(self) -> int:
@@ -73,6 +78,25 @@ def _split(name: str, regions: tuple) -> tuple[str, str]:
             f"account {name!r} is in a regional model but is not 'region:name' "
             f"with region one of {list(regions)}")
     return reg, local
+
+
+def _institution_demand(econ, sam, mapping, regions, origin_index, label):
+    """Regional institution demand, with no arbitrary split of national totals."""
+    accounts = dict(mapping or {})
+    unknown_regions = sorted(set(accounts) - set(regions))
+    if unknown_regions:
+        raise ValueError(f"{label} names regions not in the model: {unknown_regions}")
+    if len(set(accounts.values())) != len(accounts):
+        raise ValueError(f"{label} uses one account for more than one region")
+    missing_accounts = sorted(set(accounts.values()) - set(sam.accounts))
+    if missing_accounts:
+        raise KeyError(f"{label} names accounts not in the SAM: {missing_accounts}")
+    demand = np.zeros(origin_index.shape)
+    for i, region in enumerate(regions):
+        if region in accounts:
+            account = accounts[region]
+            demand[i] = sam.block(list(econ.coms), [account]).ravel()[origin_index[i]]
+    return accounts, demand
 
 
 def build_regional(econ, sam) -> Regional:
@@ -192,6 +216,24 @@ def build_regional(econ, sam) -> Regional:
         nat_gov[c] = econ.gov_dem[cols].sum()
         nat_inv[c] = econ.inv_dem[cols].sum()
     nat_budget = nat_spend / np.maximum(nat_spend.sum(axis=1, keepdims=True), 1e-12)
+    government_accounts, gov_regional = _institution_demand(
+        econ, sam, spec.regional_government, regions, origin_index, "regional_government")
+    investment_accounts, inv_regional = _institution_demand(
+        econ, sam, spec.regional_investment, regions, origin_index, "regional_investment")
+    fac_gov_regional = np.zeros((n_reg, econ.n_fac))
+    if government_accounts:
+        hh_fac = sam.block(econ.hhs, econ.factors)
+        other_gov = sum((sam.block([account], econ.factors).ravel()
+                         for account in government_accounts.values()),
+                        start=np.zeros(econ.n_fac))
+        fac_total = (hh_fac.sum(axis=0) + other_gov
+                     + sam.block([econ.layout.government], econ.factors).ravel()
+                     + sam.block([econ.layout.rest_of_world], econ.factors).ravel())
+        for region, account in government_accounts.items():
+            i = regions.index(region)
+            payments = sam.block([account], econ.factors).ravel()
+            fac_gov_regional[i] = np.where(fac_total > 0,
+                                           payments / np.maximum(fac_total, 1e-12), 0.0)
 
     return Regional(
         regions=regions, local_commodities=local, origin_index=origin_index,
@@ -199,7 +241,10 @@ def build_regional(econ, sam) -> Regional:
         arm_share=np.ones(n_loc), ptax=ptax, sigma_arm=sigma_arm,
         hh_budget=nat_budget, gov_dem=nat_gov, inv_dem=nat_inv, io=nat_io,
         exp_share=exp_share, activity_region=activity_region,
-        household_region=household_region)
+        household_region=household_region, government_accounts=government_accounts,
+        investment_accounts=investment_accounts,
+        gov_dem_regional=gov_regional, inv_dem_regional=inv_regional,
+        fac_gov_regional=fac_gov_regional)
 
 
 def _sigma(spec, local: list[str]) -> np.ndarray:
@@ -403,19 +448,22 @@ def _quantities(econ, reg, w, supply, facshare, fac_gov, fac_row, dtax, transfer
     phi = prices["phi"]
     dsh = prices["dsh"]
     fac_inc = w * supply
-    kept = fac_inc * (1.0 - fac_gov - fac_row)
+    kept = fac_inc * (1.0 - fac_gov - fac_row - reg.fac_gov_regional.sum(axis=0))
     hh_income = facshare @ kept + transfers + gov_tr + remit
     disposable = hh_income * (1.0 - dtax)
     hh_sav = disposable * econ.hh_savrate
     spend = disposable - hh_sav
     hh_q = reg.hh_budget * spend[:, None] / np.maximum(pq, 1e-12)
     hh_final = hh_q.sum(axis=0)
-    gov_q = reg.gov_dem / np.maximum(1.0 + reg.ptax, 1e-12)
-    inv_share = reg.inv_dem / max(float(reg.inv_dem.sum()), 1e-12) if reg.inv_dem.sum() > 0 \
+    gov_regional_q = reg.gov_dem_regional / np.maximum(1.0 + reg.ptax, 1e-12)
+    gov_q = reg.gov_dem / np.maximum(1.0 + reg.ptax, 1e-12) + gov_regional_q.sum(axis=0)
+    inv_total = reg.inv_dem + reg.inv_dem_regional.sum(axis=0)
+    inv_share = inv_total / max(float(inv_total.sum()), 1e-12) if inv_total.sum() > 0 \
         else np.zeros(C)
     gov_spend = float(pq @ gov_q)
-    gov_fixed = float((fac_inc * fac_gov).sum()) + float((hh_income * dtax).sum()) - gov_spend \
-        - float(gov_tr.sum())
+    gov_fixed = (float((fac_inc * fac_gov).sum())
+                 + float((fac_inc * reg.fac_gov_regional).sum())
+                 + float((hh_income * dtax).sum()) - gov_spend - float(gov_tr.sum()))
     available0 = float(hh_sav.sum()) + gov_fixed + foreign_target + levy
     v = inv_share / np.maximum(pq, 1e-12)          # inv quantity per unit of nominal saving
     inv_q = (inv_share * investment_level / np.maximum(1.0 + reg.ptax, 1e-12)
@@ -485,7 +533,8 @@ def _quantities(econ, reg, w, supply, facshare, fac_gov, fac_row, dtax, transfer
     use = (io * X[None, :])
     for j in range(econ.n_act):
         inter[reg.activity_region[j]] += use[:, j]
-    dest = hh_by + inter
+    inv_q_reg = inv_q * (reg.inv_dem_regional / max(float(inv_total.sum()), 1e-12))
+    dest = hh_by + inter + gov_regional_q + inv_q_reg
     bilateral = phi[:, None, :] * dest[None, :, :]
 
     trade = float(prices["pm"] @ M_c - prices["p_origin"] @ exports)
@@ -506,7 +555,7 @@ def _quantities(econ, reg, w, supply, facshare, fac_gov, fac_row, dtax, transfer
         hh_income=hh_income, spend=spend, gov_q=gov_origin, inv_q=inv_origin,
         fac_dem=fac_dem, fac_by=fac_by, savings=savings, available=available, current=current,
         bilateral=bilateral, hh_nat=hh_q, gov_nat=gov_q, inv_nat=inv_q, ND=ND,
-        hh_sav=hh_sav)
+        hh_sav=hh_sav, gov_regional_q=gov_regional_q, inv_q_reg=inv_q_reg)
 
 
 def _solve(residuals, n_unknown, tolerance, warm_start, raise_on_fail):

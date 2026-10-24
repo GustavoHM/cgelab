@@ -52,6 +52,10 @@ class ModelSpec:
     government: str = "gov"
     investment: str = "s_i"
     rest_of_world: str = "row"
+    #: Optional additional accounts by region, ``{region: account}``. National
+    #: accounts above remain in place; regional demand is added, never split.
+    regional_government: Mapping[str, str] | None = None
+    regional_investment: Mapping[str, str] | None = None
 
     #: Account that collects the import tariff from commodities (Hosoe's TRF).
     #: Absent, there is no tariff unless ``calibrate(..., tariffs=)`` supplies rates.

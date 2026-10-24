@@ -3,7 +3,12 @@
 All notable changes to `cgelab`. Versions follow [semantic versioning](https://semver.org/);
 before 1.0, a minor version may add to the API and a patch version only fixes.
 
-## Unreleased
+## 0.5.5 — 2026-10-23
+
+The six items of the roadmap's milestone 0.6 that are done: imperfect factor mobility,
+segmented labour, microsimulation, building a SAM from supply and use tables and surveys, a
+baseline calibrated to a GDP path, and capital by sector with vintages. They come out as 0.5.5,
+ahead of 0.6.0, which waits for the robustness tools the milestone also includes.
 
 ### Added
 

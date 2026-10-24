@@ -889,7 +889,7 @@ efeito[["treated_change", "control_change", "effect"]]</code></pre>
 <pre class="output" data-label="Saída"><code><span class="out-expr">efeito[["treated_change", "control_change", "effect"]]</span>
          treated_change  control_change  effect
 outcome
-output               20       2.842e-14      20</code></pre>
+output               20       1.421e-14      20</code></pre>
   <p>O efeito é a variação do produto de r1 menos a de r2. Um choque comum e simétrico se cancela.
   Os controles podem ter pesos, e as medidas incluem produto, renda real, demanda de fatores,
   fluxos bilaterais ou uma função própria. É um contraste auditável de equilíbrios; o desenho da
@@ -1044,6 +1044,12 @@ deficit = cge.solve_period(economia_regional, cge.Closure(
 taxa_poupanca.government["saving"]
 deficit.government["saving"]
 deficit.government["consumption"]</code></pre>
+<pre class="output" data-label="Saída"><code><span class="out-expr">taxa_poupanca.government["saving"]</span>
+0
+<span class="out-expr">deficit.government["saving"]</span>
+12
+<span class="out-expr">deficit.government["consumption"]</span>
+8</code></pre>
   <p>A regra de taxa de poupança divide a receita entre consumo e poupança. Com meta de poupança
   12, o gasto residual é 8. Metas e taxas consolidam contas nacionais e regionais mapeadas; os
   ajustes por imposto direto e sobre produto usam a mesma solução afim do solver nacional.</p>

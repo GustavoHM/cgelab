@@ -46,6 +46,7 @@ from .micro import (MicroResult, Survey, account_sources, atkinson, fgt, fgt_dec
                     ge_decomposition, generalized_entropy, gini, inequality,
                     mean_log_deviation, microsimulate, poverty, theil)
 from .mobility import FactorMobility
+from .match import MatchResult, match_targets
 from .multipliers import (Multipliers, accounting_multipliers, fixed_price_multipliers,
                           leontief_multipliers, linkages, structural_paths)
 from .results import (factor_demand_by_activity, government_account, national_accounts,
@@ -90,6 +91,7 @@ __all__ = [
     "linkages", "structural_paths",
     "subtotals", "path_decomposition", "scenario_vector", "welfare_decomposition",
     "sensitivity", "spec_sweep", "stroud_points", "SensitivityResult", "sobol", "SobolResult",
+    "match_targets", "MatchResult",
     "closure_sweep", "closure_grid", "ClosureSweep", "in_money",
     "robustness_report", "RobustnessReport",
     "Uniform", "Normal", "Triangular",

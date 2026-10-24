@@ -61,13 +61,14 @@ from .sensitivity import (Normal, SensitivityResult, SobolResult, Triangular, Un
                           sensitivity, sobol, spec_sweep, stroud_points)
 from .solve import PeriodResult, factor_intensity, solve_period, value_added_price
 from .spec import AccountLayout, ModelSpec
+from .transport import TransportMargins
 from .welfare import compensating_variation, equivalent_variation, ev_by_group
 
 __version__ = "0.6.0"
 
 __all__ = [
     "SAM", "BalanceError", "sam_distance", "SAMDraws", "sam_draws", "sam_sweep",
-    "ModelSpec", "AccountLayout",
+    "ModelSpec", "AccountLayout", "TransportMargins",
     "calibrate", "Economy",
     "Closure", "LabourMarket", "Scenario", "consumer_wedge",
     "solve_period", "PeriodResult", "value_added_price", "factor_intensity",

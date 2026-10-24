@@ -91,6 +91,15 @@ models.
 `AccountLayout`: `activities`, `commodities`, `households`, `factors`,
 `government`, `investment`, `rest_of_world`.
 
+`TransportMargins.from_long(routes, supply, regions=..., commodities=..., destinations=...)`
+reads route rows with `origin`, `destination`, `commodity`, `fob` and `transport`,
+and service-supply rows with `origin`, `commodity` and `value`. Global transport
+must equal global service supply. `evaluate(shipments, fob_prices, service_prices)`
+returns route `vxwd`, `vtwr`, `viws` and pool `qt`, `pt`, `qst`: CIF is FOB plus
+transport, route demand is proportional to shipments, and service supply forms a
+Cobb–Douglas pool. This is the transport data and equation block; it does not by
+itself calibrate or solve an `Economy`.
+
 ---
 
 ## Calibration

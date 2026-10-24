@@ -253,8 +253,9 @@ investment, and optional government and investment accounts can be mapped by
 region. CET/logit factor migration with a proximity matrix is in too. Delivered
 margins and CET exports inside the origin nest are in, with one-region checks against
 the national solver. Destination-specific origin nests reproduce bilateral SAM cells,
-with domestic and imported content reported separately. Route-specific transport and
-its global supply, regional government closure rules and trade taxes remain open.
+with domestic and imported content reported separately. `TransportMargins` implements
+and tests the GTAP route and global-pool equations; their calibration into the regional
+equilibrium, regional government closure rules and trade taxes remain open.
 Regional capital accumulation and a tidy simulated panel are in. The
 regional solver refuses a calibrated `tm0` or `tauz0`. A GTAP-style global bank is further
 out. Today a single region plus a "rest of the country" account remains the way a

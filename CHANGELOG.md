@@ -7,6 +7,12 @@ before 1.0, a minor version may add to the API and a patch version only fixes.
 
 ### Added
 
+- `TransportMargins` validates route-level FOB and transport values and global
+  service supply. Its evaluation implements the GTAP identities
+  `VIWS = VXWD + VTWR`, route demand proportional to shipments and a
+  Cobb–Douglas global transport pool, returning `qt`, `pt`, `qst`, `vtwr`,
+  `vxwd` and `viws`. Tests check the hand-written base year, price responses,
+  conservation and invalid data.
 - Regional origin CES nests are calibrated by destination from the SAM's
   household, activity and institutional purchases. `PeriodResult.bilateral`
   reports domestic sales and `bilateral_imports` the imported content on the

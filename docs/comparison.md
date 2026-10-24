@@ -110,6 +110,7 @@ the goal is to cover the whole list by 1.0; each item's version is the one in
 | Foreign saving fixed in foreign currency | 📄 Hosoe, IFPRI | **done** | 0.2 |
 | Decomposition of results by shock (subtotals) | 📄 GEMPACK | **done**: Harrison, Horridge and Pearson, integrated along the straight path | 0.3 |
 | Systematic sensitivity and robustness | 📄 GEMPACK | **done**: Stroud degree-3 quadrature and Monte Carlo, recalibrating at every point; Sobol indices, closure grids, results in money, balanced SAM draws with joint elasticity draws, and a one-call report with sourced ranges and optional figures | 0.3, 0.6 |
+| Minimum-distance matching to external targets | 📄 estimation and validation practice | **done**: bounded ModelSpec fields fitted by covariance-weighted distance, with pseudo-inverses and optimiser evidence; exact against closed-form weighted least squares | 0.7 |
 | Accounts and reports: GDP by expenditure and income, price indices, terms of trade | 📄 GEMPACK, GTAP | **done**: GDP from both sides, Laspeyres, Paasche and Fisher indices, terms of trade, the government account | 0.3 |
 | Welfare decomposition (Huff and Hertel) | 📄 GTAP | **done** for real absorption, the identity closing below 1e-9; the comparison with GTAP waits on the GTAP database | 0.3 |
 | SAM multipliers and input–output | 📄 Pyatt and Round; Defourny and Thorbecke | **done**: accounting, fixed-price, Leontief, linkages (Rasmussen and Ghosh), structural path analysis | 0.3 |

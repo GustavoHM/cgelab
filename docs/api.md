@@ -536,6 +536,21 @@ distribution figures, and Sobol bars when available; it requires the optional
 `plot` extra (`matplotlib>=3.7`). `RobustnessReport` never requires matplotlib
 when figures are not requested.
 
+### `match_targets(sam, spec, *, targets, parameters, measure, covariance=None, scenario=None, closure=None, calibrate_kwargs=None, options=None) -> MatchResult`
+
+Minimum-distance matching to external coefficients, recalibrating and solving
+at every evaluation through `spec_sweep`. `targets` is `{name: published value}`;
+`parameters` is `{ModelSpec field: (low, high)}`; `measure` has the usual
+`(reference, alternative)` signature. The objective is `r' Σ⁺ r`, where `r` is
+`achieved - target`. `covariance` is a full matrix or diagonal of variances,
+defaulting to the identity; a positive-semidefinite singular matrix uses its
+pseudo-inverse. `options` goes to L-BFGS-B in `scipy.optimize.minimize`.
+
+`MatchResult`: `parameters`, `achieved`, `target`, `residuals`, `distance`,
+`success`, `message`, `nit`, `nfev`, `evaluations` and the fitted `spec`. This
+is deterministic target matching, not an econometric estimator; optimiser
+failure and solver errors remain visible.
+
 ---
 
 ## Dynamics

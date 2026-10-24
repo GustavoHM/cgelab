@@ -147,6 +147,7 @@ period.
 | Decompositions: subtotals by shock, Huff-Hertel welfare decomposition | `subtotals`, `welfare_decomposition` |
 | SAM multipliers, linkages, structural path analysis | `accounting_multipliers`, `linkages`, `structural_paths` |
 | Systematic sensitivity and one-call robustness reports: quadrature, Monte Carlo, Sobol, SAM draws, closure grids, money and optional figures | `sensitivity`, `spec_sweep`, `sobol`, `sam_draws`, `sam_sweep`, `closure_sweep`, `in_money`, `robustness_report` |
+| Minimum-distance matching of model outcomes to external coefficients, with covariance weighting and bounded elasticities | `match_targets`, `MatchResult` |
 | Welfare: EV, CV and composition-immune group aggregation | `cgelab.welfare` |
 | Base-year reproduction, homogeneity, Walras | `cgelab.diagnostics` |
 | The same equilibrium as a JuMP model, for independent validation | `to_jump` |

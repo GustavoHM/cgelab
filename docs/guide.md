@@ -1088,6 +1088,41 @@ needs `python -m pip install "cgelab[plot]"`; otherwise the error gives that
 installation instruction. The base package does not import or depend on
 matplotlib.
 
+### Matching external targets
+
+An estimated coefficient can discipline an elasticity without writing a second
+model. `match_targets` finds ModelSpec fields whose outcomes are closest to the
+external numbers, recalibrating and solving at every evaluation:
+
+```python
+fit = cge.match_targets(
+    sam, spec,
+    targets={"gdp_pct": published_gdp_change},
+    parameters={"sigma_armington": (1.0, 4.0)},
+    measure=gdp_pct,
+    scenario=policy)
+fit.parameters        # fitted elasticities
+fit.achieved          # coefficients at the fit
+fit.distance          # weighted squared distance
+fit.success           # optimiser status, not merely a number to trust
+fit.evaluations       # every evaluation, including solver errors
+```
+
+The objective is `r' Σ⁺ r`, with `r = achieved - target` and `Σ⁺` the
+pseudo-inverse of the covariance. `targets` maps coefficient names to values;
+`parameters` maps fields accepted by `spec_sweep` to finite `(low, high)` bounds.
+`covariance` can be a full matrix or a diagonal of variances, and defaults to the
+identity. A positive-semidefinite singular matrix is handled by its
+pseudo-inverse; invalid shapes, asymmetry and negative eigenvalues are refused.
+`options` is passed to `scipy.optimize.minimize` with L-BFGS-B.
+
+This is a deterministic match, not an econometric estimator and not a confidence
+interval. `MatchResult` keeps fitted `parameters`, `achieved`, `target`,
+`residuals`, `distance`, `success`, `message`, `nit`, `nfev`, `evaluations` and
+the fitted `spec`. A failed optimiser remains visible in the result. Validation
+includes the closed-form weighted least-squares solution, a singular covariance
+and recovery of an elasticity from a simulated CGE outcome.
+
 ---
 
 ## 13. Subtotals: which shock did what

@@ -175,7 +175,7 @@ ref.worst_walras          # o primeiro número a conferir
 ref.capital_stock         # estoque obtido do custo de uso, e não da MCS</code></pre>
 <pre class="output" data-label="Saída"><code><span class="out-expr">ref.aggregates()</span>
       exchange_rate  savings     walras  residual  ...  inv_real  hh_sav_real  gov_sav_real  for_sav_real
-year                                               ...                                                   
+year                                               ...
 2021              1       50          0 3.553e-16  ...        50           35             5            10
 2022          0.972    50.83 -2.442e-15 2.292e-16  ...     52.28        36.08          5.92         10.29
 2023         0.9446    51.66 -1.151e-15 7.105e-16  ...     54.67         37.2         6.888         10.58
@@ -594,7 +594,7 @@ atkinson_1   0.3859 0.4194 0.03343
 atkinson_2   0.5538  0.591 0.03719
 <span class="out-expr">cge.poverty(micro, 3.0)</span>
               ref    alt  change
-line alpha                      
+line alpha
 3.0  0     0.6978 0.7309 0.03307
      1     0.4588 0.4899 0.03111
      2      0.325 0.3529 0.02792</code></pre>
@@ -856,6 +856,26 @@ hist.preferences["hh_1"]</code></pre>
   por alimento são as incógnitas, resolvidas em conjunto em log. A outra mercadoria fixa a escala
   das preferências. Depois, <code>hist.run(policy)</code> mantém esses deslocadores e deixa os
   alvos se moverem. <code>calibrate_baseline</code> usa as mesmas rotinas de raiz.</p>
+  <h3>31. Ajustando um alvo externo</h3>
+<pre><code>spec_conhecida = toy.spec(sigma_armington=2.2)
+economia_conhecida = cge.calibrate(sam_toy, spec_conhecida)
+base_conhecida = cge.solve_period(economia_conhecida)
+alt_conhecida = cge.solve_period(economia_conhecida, scenario=choque, warm_start=base_conhecida)
+publicado = pib_pct(base_conhecida, alt_conhecida)["pib_pct"]
+ajuste = cge.match_targets(sam_toy, toy.spec(), targets={"pib_pct": publicado},
+    parameters={"sigma_armington": (1.5, 2.5)}, measure=pib_pct, scenario=choque)
+ajuste.parameters
+ajuste.achieved
+ajuste.distance</code></pre>
+<pre class="output" data-label="Saída"><code><span class="out-expr">ajuste.parameters</span>
+sigma_armington   2.2
+<span class="out-expr">ajuste.achieved</span>
+pib_pct   -0.161
+<span class="out-expr">ajuste.distance</span>
+1.522e-19</code></pre>
+  <p>O alvo vem de um coeficiente externo; o parâmetro tem limites e cada avaliação recalibra e
+  resolve o modelo. O ajuste recupera 2.2. A ponderação pela covariância usa pseudo-inversa em
+  sistemas singulares, e <code>evaluations</code> conserva toda a trilha da otimização.</p>
 </div></section>
 
 <section id="verificacoes"><div class="wrap">

@@ -173,7 +173,7 @@ ref.worst_walras          # the number to look at first
 ref.capital_stock         # the stock, recovered from the user cost and not from the SAM</code></pre>
 <pre class="output" data-label="Output"><code><span class="out-expr">ref.aggregates()</span>
       exchange_rate  savings     walras  residual  ...  inv_real  hh_sav_real  gov_sav_real  for_sav_real
-year                                               ...                                                   
+year                                               ...
 2021              1       50          0 3.553e-16  ...        50           35             5            10
 2022          0.972    50.83 -2.442e-15 2.292e-16  ...     52.28        36.08          5.92         10.29
 2023         0.9446    51.66 -1.151e-15 7.105e-16  ...     54.67         37.2         6.888         10.58
@@ -588,7 +588,7 @@ atkinson_1   0.3859 0.4194 0.03343
 atkinson_2   0.5538  0.591 0.03719
 <span class="out-expr">cge.poverty(micro, 3.0)</span>
               ref    alt  change
-line alpha                      
+line alpha
 3.0  0     0.6978 0.7309 0.03307
      1     0.4588 0.4899 0.03111
      2      0.325 0.3529 0.02792</code></pre>
@@ -848,6 +848,26 @@ hist.preferences["hh_1"]</code></pre>
   preference for food are the unknowns, solved jointly in logs. The other commodity fixes the
   preference scale. A later <code>hist.run(policy)</code> holds these calibrated shifters and lets
   the targets move. <code>calibrate_baseline</code> uses the same root routines.</p>
+  <h3>31. Matching an external target</h3>
+<pre><code>known_spec = toy.spec(sigma_armington=2.2)
+known_econ = cge.calibrate(sam_toy, known_spec)
+known_base = cge.solve_period(known_econ)
+known_alt = cge.solve_period(known_econ, scenario=shock, warm_start=known_base)
+published = gdp_pct(known_base, known_alt)["gdp_pct"]
+fit = cge.match_targets(sam_toy, toy.spec(), targets={"gdp_pct": published},
+    parameters={"sigma_armington": (1.5, 2.5)}, measure=gdp_pct, scenario=shock)
+fit.parameters
+fit.achieved
+fit.distance</code></pre>
+<pre class="output" data-label="Output"><code><span class="out-expr">fit.parameters</span>
+sigma_armington   2.2
+<span class="out-expr">fit.achieved</span>
+gdp_pct   -0.161
+<span class="out-expr">fit.distance</span>
+1.522e-19</code></pre>
+  <p>The target comes from an external coefficient; the parameter is bounded and every evaluation
+  recalibrates and solves the model. The fit recovers 2.2. Covariance weighting and singular
+  systems use a pseudo-inverse, and <code>evaluations</code> keeps the whole optimisation trail.</p>
 </div></section>
 
 <section id="gates"><div class="wrap">

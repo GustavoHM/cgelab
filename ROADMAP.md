@@ -137,9 +137,9 @@ bridge to causal inference (see *General equilibrium and causal inference*):
 - [ ] **Treated against control** as a result of a regional model (`treated_vs_control`).
 - [ ] **A simulated panel**: a tidy region-by-year panel from `run_path`, with optional noise,
   on which a reader runs the event-study estimator of their choice (`simulated_panel`).
-- [ ] **Matching external targets**: elasticities chosen by minimum distance to estimated
+- [x] **Matching external targets**: elasticities chosen by minimum distance to estimated
   coefficients, weighted by the inverse of their covariance, on the machinery of `spec_sweep`
-  (`match_targets`).
+  (`match_targets`), checked against closed-form weighted least squares.
 
 **0.8 — complementarity and solvers.** Activities that can switch off, quotas with rents, price
 floors and ceilings, as a mixed complementarity problem; Pyomo with IPOPT and PATH besides

@@ -5,6 +5,15 @@ before 1.0, a minor version may add to the API and a patch version only fixes.
 
 ## Unreleased
 
+### Added
+
+- `match_targets` fits bounded ModelSpec fields to external coefficients by
+  weighted minimum distance, recalibrating and solving at every evaluation.
+  Full or diagonal covariances use a pseudo-inverse for singular systems;
+  `MatchResult` keeps fitted and achieved values, residuals, optimiser evidence
+  and every evaluation. Validation includes the closed-form weighted
+  least-squares solution and recovery of an elasticity in the toy CGE.
+
 ## 0.6.0 — 2026-10-24
 
 Robustness and limited historical calibration. The six original items of the 0.6 milestone

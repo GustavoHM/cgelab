@@ -5,6 +5,12 @@ before 1.0, a minor version may add to the API and a patch version only fixes.
 
 ## Unreleased
 
+## 0.6.0 — 2026-10-24
+
+Robustness and limited historical calibration. The six original items of the 0.6 milestone
+were already released in 0.5.5; this release contains the robustness items and the Armington
+Cobb–Douglas fix.
+
 ### Added
 
 - `calibrate_historical` is a limited historical closure: observed scalar
@@ -56,6 +62,11 @@ before 1.0, a minor version may add to the API and a patch version only fixes.
   household's change at base-year prices is its equivalent variation at base-year prices; a
   doubled numeraire doubles the current-price columns and leaves the others, as the tests
   check.
+
+### Changed
+
+- Table cells on the site wrap their text, so the comparison tables no longer run off the page;
+  numbers and inline code still do not break.
 
 ### Fixed
 

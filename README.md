@@ -3,6 +3,7 @@
 [![tests](https://github.com/GustavoHM/cgelab/actions/workflows/tests.yml/badge.svg)](https://github.com/GustavoHM/cgelab/actions/workflows/tests.yml)
 [![license: MIT](https://img.shields.io/badge/license-MIT-blue)](https://github.com/GustavoHM/cgelab/blob/main/LICENSE)
 [![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.23458851.svg)](https://doi.org/10.5281/zenodo.23458851)
+[![site](https://img.shields.io/badge/site-gustavohm.github.io%2Fcgelab-8a4b2a)](https://gustavohm.github.io/cgelab/)
 
 A general toolkit for SAM-based computable general equilibrium models in Python.
 You supply a social accounting matrix. The package calibrates a standard nested
@@ -229,14 +230,14 @@ without knowing which. [`CITATION.cff`](https://github.com/GustavoHM/cgelab/blob
 holds the same metadata in the format GitHub reads.
 
 Moreira, G. H. (2026). cgelab: A general toolkit for SAM-based computable general equilibrium
-models in Python (Version 0.5.5) [Computer software]. Zenodo. https://doi.org/10.5281/zenodo.23614565
+models in Python (Version 0.6.0) [Computer software]. Zenodo. https://doi.org/10.5281/zenodo.23614565
 
 ```bibtex
 @software{cgelab_2026,
   author  = {Moreira, Gustavo Hoffmann},
   title   = {{cgelab}: a general toolkit for SAM-based computable general equilibrium models in Python},
   year    = {2026},
-  version = {0.5.5},
+  version = {0.6.0},
   license = {MIT},
   doi     = {10.5281/zenodo.23614565},
   url     = {https://github.com/GustavoHM/cgelab},
@@ -245,5 +246,5 @@ models in Python (Version 0.5.5) [Computer software]. Zenodo. https://doi.org/10
 ```
 
 Each release is archived on Zenodo with a DOI of its own; the DOI above is that of version
-0.5.5 (0.5.0 is [10.5281/zenodo.23458852](https://doi.org/10.5281/zenodo.23458852)). The concept DOI
+0.6.0 (0.5.0 is [10.5281/zenodo.23458852](https://doi.org/10.5281/zenodo.23458852)). The concept DOI
 [10.5281/zenodo.23458851](https://doi.org/10.5281/zenodo.23458851) resolves to the latest release.

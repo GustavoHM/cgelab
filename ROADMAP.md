@@ -131,14 +131,23 @@ released in 0.5.5, ahead of 0.6.0, which also waits for the robustness items (se
 closures, margins and CET inside the origin nest, a capital stock per region in `run_path`;
 bilateral trade with transport margins; reading and aggregating GTAP data. Validation against
 GTAP and ORANI-G/TERM. Reading is in: `read_har` and `write_har`, exact against harpy3 on GTAP
-10A. Aggregation and a one-region SAM from GTAP are next.
+10A. Aggregation and a one-region SAM from GTAP are next. On top of the regional model, the
+bridge to causal inference (see *General equilibrium and causal inference*):
+
+- [ ] **Treated against control** as a result of a regional model (`treated_vs_control`).
+- [ ] **A simulated panel**: a tidy region-by-year panel from `run_path`, with optional noise,
+  on which a reader runs the event-study estimator of their choice (`simulated_panel`).
+- [ ] **Matching external targets**: elasticities chosen by minimum distance to estimated
+  coefficients, weighted by the inverse of their covariance, on the machinery of `spec_sweep`
+  (`match_targets`).
 
 **0.8 — complementarity and solvers.** Activities that can switch off, quotas with rents, price
 floors and ceilings, as a mixed complementarity problem; Pyomo with IPOPT and PATH besides
 `scipy`. Validation against GAMS/MPSGE with PATH. Analytic derivatives and sparse algebra for
 large SAMs.
 
-**0.9 — the frontier.** A generic closure swap in the GEMPACK manner; SAM estimation by cross
+**0.9 — the frontier.** A generic closure swap in the GEMPACK manner (the historical closure of
+0.6 is its first case); SAM estimation by cross
 entropy; an intertemporal CGE with expectations, on the dsgelab bridge; imperfect competition
 and Melitz firms; asymmetric Armington; export taxes; capital utilization; AIDS and CDE demand;
 land use allocated by CET; export to GAMS/MPSGE and GEMPACK.
@@ -325,6 +334,17 @@ moved it. Perturbing blocks of the matrix (a Dirichlet draw on the shares of a c
 multiplicative noise followed by `SAM.balance`), recalibrating and solving again gives the part
 of the uncertainty that the elasticities do not carry. The reference is the same experiment
 done by hand, and a case with a closed form (Leontief).
+
+## General equilibrium and causal inference
+
+An event study identifies the effect of a shock on treated units relative to controls. A
+general equilibrium model gives the aggregate effect and the counterfactual for a policy that
+has not happened. The two meet in three places: estimated coefficients can discipline the
+model's elasticities, the model can be asked to predict an effect estimated after the fact,
+and the model can generate a panel on which an estimator is run to see what it recovers when
+general equilibrium effects reach the controls. The econometrics stays outside the package, in
+the estimators the reader already uses. The package provides the regional result, the panel
+and the matching, in 0.7, because a treated and a control unit need the regional model.
 
 ## Tools around the model
 

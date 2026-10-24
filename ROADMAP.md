@@ -124,8 +124,8 @@ released in 0.5.5, ahead of 0.6.0, which also waits for the robustness items (se
   observed variables are exogenous and the technology and preference shifters that reproduce
   them are endogenous (`calibrate_historical`, `Historical`). The dynamic calibration of the
   baseline to a GDP path is a special case and uses the same root routines.
-- [ ] **Release**: the version, the dates and the citations set to 0.6.0, the `validation`
-  workflow, a tag, PyPI and Zenodo.
+- [x] **Release**: 0.6.0 on PyPI and archived on Zenodo
+  ([10.5281/zenodo.23624109](https://doi.org/10.5281/zenodo.23624109)).
 
 **0.7 — several regions, completed.** Factor migration, regional investment and government
 closures, margins and CET inside the origin nest, a capital stock per region in `run_path`;

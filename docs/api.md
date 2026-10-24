@@ -82,7 +82,8 @@ destination has a CES of origins, then the usual Armington against foreign
 imports. One region makes the CES a single variety. `PeriodResult.bilateral` is
 `(origin, destination, local commodity)` for households, activities and mapped
 regional institutions; `bilateral_imports` reports imported content on the same
-grid, and their sum reproduces the SAM cells. National government and investment
+grid. Their sum reproduces the SAM cells without route margins; with routes, add
+`transport["vtwr"]` for the purchaser-value identity. National government and investment
 use a separate channel. Margins and CET exports are supported; LES, trade taxes,
 energy nests and non-default closures are refused by name rather than ignored.
 `run_path` supports full `region:factor` names; `to_jump` still refuses regional
@@ -97,14 +98,18 @@ and service-supply rows with `origin`, `commodity` and `value`. Global transport
 must equal global service supply. `evaluate(shipments, fob_prices, service_prices)`
 returns route `vxwd`, `vtwr`, `viws` and pool `qt`, `pt`, `qst`: CIF is FOB plus
 transport, route demand is proportional to shipments, and service supply forms a
-Cobb–Douglas pool. This is the transport data and equation block; it does not by
-itself calibrate or solve an `Economy`.
+Cobb–Douglas pool. `calibrate(..., transport=margins)` reconciles these data with
+the SAM and solves them in the regional equilibrium. Destinations are the regions
+followed by `"national"`. FOB plus service supply must reproduce domestic sales;
+SAM cells minus FOB and transport must reproduce imports; and both sides of every
+margin commodity must match the commodity–commodity block. `PeriodResult.transport`
+contains the solved GTAP flows.
 
 ---
 
 ## Calibration
 
-### `calibrate(sam, spec=None, *, income_elasticities=None, population=None, tariffs=None, output_taxes=None, factor_pools=None, check_balance=True) -> Economy`
+### `calibrate(sam, spec=None, *, income_elasticities=None, population=None, tariffs=None, output_taxes=None, factor_pools=None, transport=None, check_balance=True) -> Economy`
 
 `income_elasticities` maps commodity to income elasticity (LES only).
 `population` maps household account to a household count — the weight of a per
@@ -992,6 +997,7 @@ sam, econ = toy.build_one_good()               # closed, one good: the stochasti
 
 from cgelab.examples import regions
 sam, econ = regions.build()                    # two identical regions under one origin nest
+sam, econ = regions.build_with_transport()     # two goods, route margins and a global service pool
 
 from cgelab.examples import hosoe
 sam, econ = hosoe.build()                      # Hosoe's stdcge; hosoe.CLOSURE is his closure

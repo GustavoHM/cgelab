@@ -889,7 +889,7 @@ efeito[["treated_change", "control_change", "effect"]]</code></pre>
 <pre class="output" data-label="Saída"><code><span class="out-expr">efeito[["treated_change", "control_change", "effect"]]</span>
          treated_change  control_change  effect
 outcome
-output               20      -5.684e-14      20</code></pre>
+output               20       2.842e-14      20</code></pre>
   <p>O efeito é a variação do produto de r1 menos a de r2. Um choque comum e simétrico se cancela.
   Os controles podem ter pesos, e as medidas incluem produto, renda real, demanda de fatores,
   fluxos bilaterais ou uma função própria. É um contraste auditável de equilíbrios; o desenho da
@@ -1001,6 +1001,24 @@ base_regional.bilateral + base_regional.bilateral_imports</code></pre>
   volta aos 50/20 e 20/50 da MCS. Cada destino tem seu próprio ninho CES de origens, calibrado
   pelas famílias, atividades e instituições mapeadas. Governo e investimento nacionais usam um
   canal separado. Os serviços de transporte por rota não ficam escondidos nessas células.</p>
+  <h3>39. Transporte por rota e pool global de serviços</h3>
+<pre><code>sam_transporte, economia_transporte = regions.build_with_transport()
+rotas = cge.solve_period(economia_transporte)
+rotas.transport["qt"]
+rotas.transport["qst"]
+rotas.transport["viws"][:, :, 0]</code></pre>
+<pre class="output" data-label="Saída"><code><span class="out-expr">rotas.transport["qt"]</span>
+24
+<span class="out-expr">rotas.transport["qst"]</span>
+[[0 12]
+ [0 12]]
+<span class="out-expr">rotas.transport["viws"][:, :, 0]</span>
+[[57 18 27]
+ [18 57 27]]</code></pre>
+  <p>Cada região oferece 12 unidades de serviços de transporte, formando um pool global de 24.
+  Os valores CIF por rota somam FOB e transporte; governo e investimento nacionais ocupam a
+  terceira coluna. A calibração confere esses fluxos com a MCS, e o equilíbrio preserva Walras e
+  a identidade global das margens.</p>
 </div></section>
 
 <section id="verificacoes"><div class="wrap">

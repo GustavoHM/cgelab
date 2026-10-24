@@ -1181,7 +1181,28 @@ destination's demand, rather than reallocating a fixed national mix.
 Their sum reproduces the SAM's regional buyer cells in the base year. Domestic
 sales plus national government and investment close against output net of
 exports. Tests also cover Walras, homogeneity, CET and one-region equivalence.
-Route-specific transport services and their global supply remain separate.
+
+### Route transport and the global service pool
+
+`TransportMargins` supplies FOB shipments and transport values by origin,
+destination and local commodity, plus service supply by origin. Destinations are
+the regions followed by `"national"`. Pass the object to `calibrate(transport=)`;
+`regions.build_with_transport()` is a complete hand-written example:
+
+```python
+sam, econ = regions.build_with_transport()
+result = cge.solve_period(econ)
+result.transport["qt"]       # global transport services
+result.transport["qst"]      # service supply by origin and commodity
+result.transport["viws"]     # CIF = FOB + route transport
+```
+
+Calibration refuses data that do not reproduce domestic sales, imports and both
+sides of the SAM margin block. CES and Armington distribution parameters are
+converted from value shares at non-unit route prices. The solver includes route
+prices, shipment-proportional service demand and a Cobb–Douglas global transport
+pool. FOB, imported content and route transport sum to purchaser cells. Tests
+cover the base year, productivity, homogeneity, Walras and the GTAP identities.
 
 ### Fixed-real investment in a regional model
 

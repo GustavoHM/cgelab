@@ -160,6 +160,8 @@ class PeriodResult:
     #: Imported content attributed to origin accounts on the same grid. The sum
     #: of ``bilateral`` and ``bilateral_imports`` is absorption by origin account.
     bilateral_imports: np.ndarray | None = None
+    #: GTAP transport values and quantities when route margins were calibrated.
+    transport: dict | None = None
     #: World prices in foreign currency, as multiples of the base year: the
     #: scenario's ``export_price`` and ``world_price``, moved along the demand
     #: and supply curves of ``ModelSpec.export_demand`` and ``import_supply``.

@@ -6,17 +6,17 @@ their calibrated origin cells; national government and investment share a final
 channel. With a single origin the CES price is that origin's price, so a
 one-region SAM written with a region label solves as the national model.
 
-Delivered trade and transport margins enter both purchaser prices and the
-quantity system. Under ``export_rule="cet"``, each origin splits output between
-home sales and exports in response to the foreign price. A regional government
-closure and the JuMP replica are not here. There is one national numeraire, and
-its market stays out of the system so the Walras residual remains an independent
-check that a sale in one region was a purchase in another.
+Delivered margins enter purchaser prices and quantities. Optional route margins
+add shipment-proportional demand and a Cobb–Douglas global service pool. Under
+``export_rule="cet"``, each origin splits output between home sales and exports
+in response to the foreign price. A regional government closure and the JuMP
+replica are not here. There is one national numeraire, and its market stays out
+of the system so the Walras residual remains an independent check.
 
 ``bilateral`` reports domestic origin sales and ``bilateral_imports`` the
 imported content on the same destination grid. Their sum reproduces the SAM's
-regional buyer cells. Route-specific transport services and their global supply
-are a further block, not an accounting relabelling of these flows.
+regional buyer cells without routes; ``transport['vtwr']`` completes the
+purchaser-value identity when route margins are present.
 """
 
 from __future__ import annotations
@@ -29,6 +29,7 @@ from scipy.optimize import root
 from .functions import armington, ces_intensity, ces_price, cet, cet_domestic_price
 from .mobility import FactorMobility
 from .solve import PeriodResult, factor_intensity, value_added_price
+from .transport import TransportMargins
 
 __all__ = ["Regional", "build_regional", "solve_regions"]
 
@@ -48,10 +49,13 @@ class Regional:
     #: Origin shares by origin, destination channel and local commodity. The
     #: last channel combines national government and national investment.
     destination_share: np.ndarray     # (n_reg, n_reg + 1, n_local)
+    import_share: np.ndarray          # imported-content attribution, same shape
     absorption0: np.ndarray           # (n_reg + 1, n_local)
     sigma: np.ndarray                 # (n_local,)
     dom_share: np.ndarray             # national Armington domestic share
+    dom_share_dest: np.ndarray        # (n_reg + 1, n_local)
     arm_share: np.ndarray
+    base_price: np.ndarray            # (n_reg + 1, n_local), purchaser prices
     ptax: np.ndarray
     sigma_arm: np.ndarray
     hh_budget: np.ndarray             # (n_hh, n_local)
@@ -70,6 +74,7 @@ class Regional:
     inv_dem_regional: np.ndarray | None = None
     fac_gov_regional: np.ndarray | None = None  # (n_reg, n_fac), zero absent
     migration: dict = field(default_factory=dict)
+    transport: TransportMargins | None = None
 
     @property
     def n_reg(self) -> int:
@@ -137,10 +142,92 @@ def _destination_shares(econ, sam, regions, origin_index, origin_share, ptax,
         empty = total[d] <= 0
         shares[:, d, empty] = origin_share[:, empty]
     absorption0 = total / (1.0 + ptax)[None, :]
-    return shares, absorption0
+    return shares, absorption0, use
 
 
-def build_regional(econ, sam, *, migration_pools=None) -> Regional:
+def _transport_calibration(econ, transport, regions, local, origin_index, use,
+                           destination_share, absorption0, dom_share, arm_share, mq,
+                           ptax, sigma, sigma_arm):
+    K, C = use.shape[1:]
+    yard = 1.0 + ptax
+    if transport is None:
+        return (destination_share, destination_share, absorption0, np.tile(dom_share, (K, 1)),
+                arm_share, mq, np.tile(yard, (K, 1)), None)
+    if not isinstance(transport, TransportMargins):
+        raise TypeError("transport must be a TransportMargins object")
+    expected_destinations = tuple(regions) + ("national",)
+    if (transport.regions != tuple(regions) or transport.commodities != tuple(local)
+            or transport.destinations != expected_destinations):
+        raise ValueError("transport labels must match regions, local commodities and "
+                         f"destinations {expected_destinations}")
+    raw = use / yard[None, None, :]
+    imported = raw - transport.fob - transport.transport
+    if imported.min() < -1e-8:
+        raise ValueError("transport FOB plus margins exceeds a SAM absorption cell")
+    if not np.allclose(transport.fob.sum(axis=1) + transport.supply,
+                       econ.dom0[origin_index], rtol=1e-9, atol=1e-8):
+        raise ValueError("transport FOB plus service supply does not reproduce domestic sales")
+    if not np.allclose(imported.sum(axis=1), econ.imp0[origin_index],
+                       rtol=1e-9, atol=1e-8):
+        raise ValueError("SAM cells minus FOB and transport do not reproduce imports")
+    margin_values = econ.mq * econ.A0[None, :]
+    for r in range(len(regions)):
+        for c in range(len(local)):
+            i = origin_index[r, c]
+            if not np.isclose(transport.supply[r, c], margin_values[i].sum(),
+                              rtol=1e-9, atol=1e-8):
+                raise ValueError(f"transport supply does not match the margin row for {econ.coms[i]}")
+            if not np.isclose(transport.transport[r, :, c].sum(), margin_values[:, i].sum(),
+                              rtol=1e-9, atol=1e-8):
+                raise ValueError(f"route margins do not match the margin column for {econ.coms[i]}")
+
+    destination_share = destination_share.copy()
+    import_share = destination_share.copy()
+    arm_share = arm_share.copy()
+    mq = mq.copy()
+    dom_share_dest = np.tile(dom_share, (K, 1))
+    delivered = transport.fob + transport.transport
+    delivered_total = delivered.sum(axis=0)
+    raw_total = raw.sum(axis=0)
+    routed = transport.transport.sum(axis=(0, 1)) > 0
+    arm_share[routed] = 1.0
+    mq[:, routed] = 0.0
+    arm_price = np.ones((K, C))
+    for c in np.where(routed)[0]:
+        for d in range(K):
+            total = delivered_total[d, c]
+            if total <= 0:
+                raise ValueError(f"destination {d} has no absorption for transported "
+                                 f"commodity {local[c]!r}")
+            value_share = delivered[:, d, c] / total
+            import_total = imported[:, d, c].sum()
+            if import_total > 0:
+                import_share[:, d, c] = imported[:, d, c] / import_total
+            prices = 1.0 + transport.coefficient[:, d, c]
+            theta = value_share * prices ** (sigma[c] - 1.0)
+            destination_share[:, d, c] = theta / theta.sum()
+            pd = float(ces_price(destination_share[:, d, c:c + 1], prices, sigma[c])[0])
+            desired = delivered_total[d, c] / max(raw_total[d, c], 1e-12)
+            domestic_weight = desired * pd ** (sigma_arm[c] - 1.0)
+            dom_share_dest[d, c] = domestic_weight / (domestic_weight + 1.0 - desired)
+            arm_price[d, c] = float(armington(
+                np.array([dom_share_dest[d, c]]), np.array([pd]), np.array([1.0]),
+                np.array([sigma_arm[c]]))[0][0])
+    basic_price = np.ones((K, C))
+    for _ in range(_PRICE_ITERS):
+        new = arm_price * arm_share + basic_price @ mq
+        if np.max(np.abs(new - basic_price)) < 1e-14:
+            basic_price = new
+            break
+        basic_price = new
+    else:
+        raise RuntimeError("base regional margin prices did not converge")
+    absorption0 = raw_total / np.maximum(basic_price, 1e-12)
+    return (destination_share, import_share, absorption0, dom_share_dest, arm_share, mq,
+            basic_price * yard, transport)
+
+
+def build_regional(econ, sam, *, migration_pools=None, transport=None) -> Regional:
     """Read the origin nest off a calibrated regional economy. Refuse a SAM it cannot price."""
     spec = econ.spec
     regions = tuple(spec.regions)
@@ -279,23 +366,28 @@ def build_regional(econ, sam, *, migration_pools=None) -> Regional:
             fac_gov_regional[i] = np.where(fac_total > 0,
                                            payments / np.maximum(fac_total, 1e-12), 0.0)
 
-    destination_share, absorption0 = _destination_shares(
+    destination_share, absorption0, use = _destination_shares(
         econ, sam, regions, origin_index, origin_share, ptax, activity_region,
         household_region, government_accounts, investment_accounts)
+    (destination_share, import_share, absorption0, dom_share_dest, nat_arm, nat_mq,
+     base_price, transport) = _transport_calibration(
+        econ, transport, regions, local, origin_index, use, destination_share,
+        absorption0, dom_share, nat_arm, nat_mq, ptax, sigma, sigma_arm)
     migration = _build_migration(spec, econ, regions, migration_pools)
 
     return Regional(
         regions=regions, local_commodities=local, origin_index=origin_index,
         origin_share=origin_share, destination_share=destination_share,
-        absorption0=absorption0, sigma=sigma, dom_share=dom_share,
-        arm_share=nat_arm, ptax=ptax, sigma_arm=sigma_arm,
+        import_share=import_share, absorption0=absorption0, sigma=sigma, dom_share=dom_share,
+        dom_share_dest=dom_share_dest, arm_share=nat_arm, base_price=base_price,
+        ptax=ptax, sigma_arm=sigma_arm,
         hh_budget=nat_budget, gov_dem=nat_gov, inv_dem=nat_inv, io=nat_io,
         exp_share=exp_share, sigma_cet=np.repeat(sigma_cet[None, :], n_reg, axis=0),
         mq=nat_mq, cet=spec.export_rule == "cet", activity_region=activity_region,
         household_region=household_region, government_accounts=government_accounts,
         investment_accounts=investment_accounts,
         gov_dem_regional=gov_regional, inv_dem_regional=inv_regional,
-        fac_gov_regional=fac_gov_regional, migration=migration)
+        fac_gov_regional=fac_gov_regional, migration=migration, transport=transport)
 
 
 def _build_migration(spec, econ, regions, migration_pools=None):
@@ -420,8 +512,8 @@ def solve_regions(econ, closure, scenario, *, warm_start=None, raise_on_fail: bo
     gov_tr = econ.zeros_if_none("hh_gov_transfer", econ.n_hh) * nu
     remit = econ.zeros_if_none("hh_remit_net", econ.n_hh) * nu
     foreign_target = econ.foreign_sav * nu
-    investment_level = (reg.inv_dem.sum() if scenario.investment_level is None
-                        else float(scenario.investment_level))
+    investment_level = ((reg.inv_dem + reg.inv_dem_regional.sum(axis=0)).sum()
+                        if scenario.investment_level is None else float(scenario.investment_level))
     if not np.isfinite(investment_level) or investment_level < 0:
         raise ValueError("investment_level must be finite and nonnegative")
     state: dict = {}
@@ -506,13 +598,13 @@ def _prices(econ, reg: Regional, w, er, world, export_world, tfp, nu):
     vunit = econ.vunit / tfp
     atax = econ.atax * nu
     K, C = reg.n_dest, reg.n_local
-    pq = np.ones((K, C))
+    pq = reg.base_price.copy() if reg.transport is not None else np.ones((K, C))
     p_origin = np.ones(econ.n_com)
     pa = np.ones(econ.n_act)
     pd_dest = np.ones((K, C))
     arm_price = np.ones((K, C))
     phi = reg.destination_share.copy()
-    dsh = np.tile(reg.dom_share, (K, 1))
+    dsh = reg.dom_share_dest.copy()
     msh = 1.0 - dsh
     pe = er * export_world
     pm = er * world
@@ -523,14 +615,20 @@ def _prices(econ, reg: Regional, w, er, world, export_world, tfp, nu):
         p_rc = p_origin[reg.origin_index]
         if reg.cet:
             p_rc = cet_domestic_price(reg.exp_share, p_rc, pe[None, :], reg.sigma_cet)
+        if reg.transport is None:
+            transport_price = 0.0
+            p_deliver = np.tile(p_rc[:, None, :], (1, K, 1))
+        else:
+            transport_price = reg.transport.pool_price(p_origin[reg.origin_index])
+            p_deliver = p_rc[:, None, :] + reg.transport.coefficient * transport_price
         for d in range(K):
             for c in range(C):
                 sh = reg.destination_share[:, d, c:c + 1]
-                pd_dest[d, c] = float(ces_price(sh, p_rc[:, c], reg.sigma[c])[0])
+                pd_dest[d, c] = float(ces_price(sh, p_deliver[:, d, c], reg.sigma[c])[0])
                 phi[:, d, c] = ces_intensity(
-                    sh, p_rc[:, c], np.array([pd_dest[d, c]]), reg.sigma[c])[:, 0]
+                    sh, p_deliver[:, d, c], np.array([pd_dest[d, c]]), reg.sigma[c])[:, 0]
                 arm, ds, ms = armington(
-                    np.array([reg.dom_share[c]]), np.array([pd_dest[d, c]]),
+                    np.array([reg.dom_share_dest[d, c]]), np.array([pd_dest[d, c]]),
                     np.array([pm[c]]), np.array([reg.sigma_arm[c]]))
                 arm_price[d, c] = float(arm[0])
                 dsh[d, c], msh[d, c] = float(ds[0]), float(ms[0])
@@ -551,7 +649,8 @@ def _prices(econ, reg: Regional, w, er, world, export_world, tfp, nu):
         dom_frac, exp_frac = 1.0 - reg.exp_share, reg.exp_share
     return dict(pa=pa, p_origin=p_origin, pd_dest=pd_dest, phi=phi, pq=pq,
                 pbase=pq / np.maximum(1.0 + reg.ptax, 1e-12), dsh=dsh, msh=msh,
-                pm=pm, pe=pe, dom_frac=dom_frac, exp_frac=exp_frac)
+                pm=pm, pe=pe, dom_frac=dom_frac, exp_frac=exp_frac,
+                p_ship=p_rc, p_deliver=p_deliver, transport_price=transport_price)
 
 
 def _quantities(econ, reg, w, supply, facshare, fac_gov, fac_row, dtax, transfers,
@@ -579,16 +678,18 @@ def _quantities(econ, reg, w, supply, facshare, fac_gov, fac_row, dtax, transfer
         hh_by[reg.household_region[h]] += hh_q[h]
 
     gov_channel_q = np.zeros((K, C))
-    gov_channel_q[-1] = reg.gov_dem / np.maximum(1.0 + reg.ptax, 1e-12)
-    gov_channel_q[:reg.n_reg] = reg.gov_dem_regional / np.maximum(1.0 + reg.ptax, 1e-12)
+    gov_channel_q[-1] = reg.gov_dem / np.maximum(reg.base_price[-1], 1e-12)
+    gov_channel_q[:reg.n_reg] = (reg.gov_dem_regional
+                                  / np.maximum(reg.base_price[:reg.n_reg], 1e-12))
     gov_regional_q = gov_channel_q[:reg.n_reg]
     gov_q = gov_channel_q.sum(axis=0)
     inv_total = reg.inv_dem + reg.inv_dem_regional.sum(axis=0)
     inv_channel = np.zeros((K, C))
     inv_channel[-1] = reg.inv_dem
     inv_channel[:reg.n_reg] = reg.inv_dem_regional
-    total_level = max(float(inv_total.sum()), 1e-12)
-    inv_share_channel = inv_channel / total_level if inv_total.sum() > 0 else inv_channel
+    inv_base_q = inv_channel / np.maximum(reg.base_price, 1e-12)
+    inv_base_cost = float(inv_total.sum())
+    inv_share_channel = inv_channel / inv_base_cost if inv_base_cost > 0 else inv_channel
     inv_price = np.divide((inv_channel * pq).sum(axis=0), inv_total,
                           out=np.ones(C), where=inv_total > 0)
     v_channel = inv_share_channel / np.maximum(inv_price[None, :], 1e-12)
@@ -597,20 +698,30 @@ def _quantities(econ, reg, w, supply, facshare, fac_gov, fac_row, dtax, transfer
                  + float((fac_inc * reg.fac_gov_regional).sum())
                  + float((hh_income * dtax).sum()) - gov_spend - float(gov_tr.sum()))
     available0 = float(hh_sav.sum()) + gov_fixed + foreign_target + levy
-    inv_channel_q = (inv_share_channel * investment_level
-                     / np.maximum(1.0 + reg.ptax, 1e-12)
-                     if fixed_investment else v_channel * available0)
+    inv_channel_q = (inv_base_q * investment_level / inv_base_cost
+                     if fixed_investment and inv_base_cost > 0
+                     else v_channel * available0)
     inv_q = inv_channel_q.sum(axis=0)
     F0 = hh_by + gov_channel_q + inv_channel_q
 
-    link = (phi * (dsh * reg.arm_share)[None, :, :]
-            / np.maximum(prices["dom_frac"][:, None, :], 1e-12))
+    link = phi * (dsh * reg.arm_share)[None, :, :]
+    if reg.transport is None:
+        coefficient = np.zeros_like(link)
+        service_share = np.zeros((reg.n_reg, C))
+    else:
+        coefficient = reg.transport.coefficient
+        service_prices = prices["p_origin"][reg.origin_index]
+        service_share = (reg.transport.supply / reg.transport.supply.sum()
+                         * prices["transport_price"] / service_prices)
+    transport_link = (coefficient * link).sum(axis=0)
+    output_link = (link / np.maximum(prices["dom_frac"][:, None, :], 1e-12)
+                   + service_share[:, None, :] * transport_link[None, :, :])
     M = np.zeros((econ.n_act, K, C))
     for r in range(reg.n_reg):
         for d in range(K):
             for c in range(C):
                 i = reg.origin_index[r, c]
-                M[:, d, c] += econ.msh[:, i] * link[r, d, c]
+                M[:, d, c] += econ.msh[:, i] * output_link[r, d, c]
     io = reg.io / tfp[None, :]
     IO = np.zeros((K, C, econ.n_act))
     for j in range(econ.n_act):
@@ -638,10 +749,13 @@ def _quantities(econ, reg, w, supply, facshare, fac_gov, fac_row, dtax, transfer
         inv_channel_q = v_channel * available
         inv_q = inv_channel_q.sum(axis=0)
     savings = float((pq * inv_channel_q).sum()) if fixed_investment else available
-    Q_rc = (link * A[None, :, :]).sum(axis=1)
     D_rc = phi * (dsh * reg.arm_share * A)[None, :, :]
+    Q_rc = (D_rc.sum(axis=1) / np.maximum(prices["dom_frac"], 1e-12)
+            + service_share * (coefficient * D_rc).sum())
     E_rc = prices["exp_frac"] * Q_rc
     M_c = prices["msh"] * reg.arm_share * A
+    origin_mix = (phi if reg.transport is None else
+                  phi * dsh[None, :, :] + reg.import_share * prices["msh"][None, :, :])
     Q = np.zeros(econ.n_com)
     exports = np.zeros(econ.n_com)
     imports = np.zeros(econ.n_com)
@@ -652,7 +766,7 @@ def _quantities(econ, reg, w, supply, facshare, fac_gov, fac_row, dtax, transfer
             exports[i] = E_rc[r, c]
     for r in range(reg.n_reg):
         for c in range(C):
-            imports[reg.origin_index[r, c]] = (phi[r, :, c] * M_c[:, c]).sum()
+            imports[reg.origin_index[r, c]] = (reg.import_share[r, :, c] * M_c[:, c]).sum()
     X = econ.msh @ Q
     fi = factor_intensity(econ, w, vunit=econ.vunit / tfp, aunit=econ.aunit / tfp[None, :])
     fac_by = fi * ((econ.vunit / tfp) * X)[None, :]
@@ -670,22 +784,28 @@ def _quantities(econ, reg, w, supply, facshare, fac_gov, fac_row, dtax, transfer
             i = int(reg.origin_index[r, c])
             for h in range(econ.n_hh):
                 d = reg.household_region[h]
-                hh_origin[h, i] = phi[r, d, c] * hh_q[h, c]
-            gov_origin[i] = (phi[r, -1, c] * gov_channel_q[-1, c]
-                             + (phi[r, :reg.n_reg, c] * gov_regional_q[:, c]).sum())
-            inv_origin[i] = (phi[r, :, c] * inv_channel_q[:, c]).sum()
+                hh_origin[h, i] = origin_mix[r, d, c] * hh_q[h, c]
+            gov_origin[i] = (origin_mix[r, -1, c] * gov_channel_q[-1, c]
+                             + (origin_mix[r, :reg.n_reg, c] * gov_regional_q[:, c]).sum())
+            inv_origin[i] = (origin_mix[r, :, c] * inv_channel_q[:, c]).sum()
     government_saving = available - float(hh_sav.sum()) - levy - foreign_target
+    transport_result = None
+    if reg.transport is not None:
+        transport_result = reg.transport.evaluate(
+            D_rc, np.tile(prices["p_ship"][:, None, :], (1, K, 1)),
+            prices["p_origin"][reg.origin_index])
     return dict(
         A=A.sum(axis=0), A_dest=A, Q=Q, X=X, D=D_rc, exports=exports, imports=imports,
         hh_q=hh_origin, hh_income=hh_income, spend=spend, gov_q=gov_origin, inv_q=inv_origin,
         fac_dem=fac_dem, fac_by=fac_by, savings=savings, available=available, current=current,
         bilateral=D_rc[:, :reg.n_reg, :],
-        bilateral_imports=(phi * M_c[None, :, :])[:, :reg.n_reg, :],
+        bilateral_imports=(reg.import_share * M_c[None, :, :])[:, :reg.n_reg, :],
         hh_nat=hh_q, gov_nat=gov_q, inv_nat=inv_q,
         ND=(dsh * reg.arm_share * A).sum(axis=0), hh_sav=hh_sav,
         government_saving=government_saving,
         gov_regional_q=gov_regional_q, inv_q_reg=inv_channel_q[:reg.n_reg],
-        migration=migration_results)
+        gov_channel_q=gov_channel_q, inv_channel_q=inv_channel_q,
+        migration=migration_results, transport=transport_result)
 
 
 def _solve(residuals, n_unknown, tolerance, warm_start, raise_on_fail):
@@ -732,8 +852,7 @@ def _pack(econ, reg, closure, scenario, state, z, residual, label, message, tole
             i = int(reg.origin_index[r, c])
             pq_full[i] = pq_nat[c]
             pbase_full[i] = pbase_nat[c]
-    yard = 1.0 + reg.ptax
-    base_cost = reg.hh_budget @ yard
+    base_cost = (reg.hh_budget * reg.base_price[reg.household_region]).sum(axis=1)
     now_cost = (reg.hh_budget * state["pq"][reg.household_region]).sum(axis=1)
     hh_index = np.where(base_cost > 0, now_cost / np.maximum(base_cost, 1e-12), 1.0)
     ok = residual < tolerance
@@ -753,9 +872,9 @@ def _pack(econ, reg, closure, scenario, state, z, residual, label, message, tole
         foreign_saving=state["foreign_sav"],
         factor_pools=state["migration"] or None,
         real=dict(
-            hh_real=float(yard @ state["hh_nat"].sum(axis=0)),
-            gov_real=float(yard @ state["gov_nat"]),
-            inv_real=float(yard @ state["inv_nat"]),
+            hh_real=float((reg.base_price[reg.household_region] * state["hh_nat"]).sum()),
+            gov_real=float((reg.base_price * state["gov_channel_q"]).sum()),
+            inv_real=float((reg.base_price * state["inv_channel_q"]).sum()),
             hh_real_income=np.where(hh_index > 0, state["spend"] / hh_index, 0.0),
             hh_price_index=hh_index,
             national_absorption=state["A"],
@@ -765,7 +884,7 @@ def _pack(econ, reg, closure, scenario, state, z, residual, label, message, tole
         gaps={f: float(g) for f, g in zip(econ.factors, state["gaps"])},
         walras=state["walras"], residual=residual, converged=ok, attempt=label,
         message=message, bilateral=state["bilateral"],
-        bilateral_imports=state["bilateral_imports"])
+        bilateral_imports=state["bilateral_imports"], transport=state["transport"])
 
 
 def _absorb(reg, state):

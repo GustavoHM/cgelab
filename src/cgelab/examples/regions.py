@@ -7,13 +7,15 @@ Government is national and is paid a slice of each region's capital.
 
 from __future__ import annotations
 
+import numpy as np
 import pandas as pd
 
 from ..calibrate import calibrate
 from ..sam import SAM
 from ..spec import ModelSpec
+from ..transport import TransportMargins
 
-__all__ = ["build", "spec", "ENTRIES"]
+__all__ = ["build", "build_with_transport", "spec", "ENTRIES"]
 
 
 def spec(**overrides) -> ModelSpec:
@@ -68,3 +70,35 @@ def build(model_spec: ModelSpec | None = None, *, rename=None):
     sam.check_balance(abs_tol=1e-9)
     econ = calibrate(sam, model_spec or spec())
     return sam, econ
+
+
+def build_with_transport():
+    """Two goods and two regions with hand-written route and service margins."""
+    entries = list(ENTRIES)
+    for region in ("r1", "r2"):
+        entries += [
+            (f"{region}:f_lab", f"{region}:a_m", 8.0),
+            (f"{region}:f_cap", f"{region}:a_m", 4.0),
+            (f"{region}:a_m", f"{region}:m", 12.0),
+            (f"{region}:m", f"{region}:c", 12.0),
+            (f"{region}:m", f"{region}:m", -12.0),
+            (f"{region}:c", f"{region}:hh", 12.0),
+            (f"{region}:hh", f"{region}:f_lab", 8.0),
+            (f"{region}:hh", f"{region}:f_cap", 4.0),
+        ]
+    sam = SAM.from_long(pd.DataFrame(entries, columns=["row", "col", "value"]),
+                        name="two-region transport")
+    model_spec = spec(
+        activities=[f"{r}:{a}" for r in ("r1", "r2") for a in ("a", "a_m")],
+        commodities=[f"{r}:{c}" for r in ("r1", "r2") for c in ("c", "m")],
+        margins=True)
+    fob = np.zeros((2, 3, 2))
+    fob[0, :, 0] = [45.0, 18.0, 27.0]
+    fob[1, :, 0] = [18.0, 45.0, 27.0]
+    transport = np.zeros_like(fob)
+    transport[0, 0, 0] = 12.0
+    transport[1, 1, 0] = 12.0
+    supply = np.array([[0.0, 12.0], [0.0, 12.0]])
+    margins = TransportMargins(("r1", "r2"), ("c", "m"),
+                               ("r1", "r2", "national"), fob, transport, supply)
+    return sam, calibrate(sam, model_spec, transport=margins)

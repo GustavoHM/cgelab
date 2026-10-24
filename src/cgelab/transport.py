@@ -105,6 +105,14 @@ class TransportMargins:
         return np.divide(self.transport, self.cif, out=np.zeros_like(self.fob),
                          where=self.cif > 0)
 
+    def pool_price(self, service_prices) -> float:
+        """Cobb–Douglas price of the global transport composite."""
+        service_prices = np.asarray(service_prices, dtype=float)
+        positive = self.supply > 0
+        share = self.supply / self.supply.sum()
+        with np.errstate(divide="ignore", invalid="ignore"):
+            return float(np.prod(np.where(positive, service_prices ** share, 1.0)))
+
     def evaluate(self, shipments, fob_prices, service_prices) -> dict:
         """Apply the GTAP transport equations at quantities and relative prices."""
         shipments = np.asarray(shipments, dtype=float)
@@ -124,8 +132,7 @@ class TransportMargins:
             raise ValueError("service_prices must be finite and nonnegative, and positive "
                              "wherever supply is positive")
         share = self.supply / self.supply.sum()
-        with np.errstate(divide="ignore", invalid="ignore"):
-            pt = float(np.prod(np.where(positive, service_prices ** share, 1.0)))
+        pt = self.pool_price(service_prices)
         qt = float((self.coefficient * shipments).sum())
         qst = np.divide(share * pt * qt, service_prices,
                         out=np.zeros_like(self.supply), where=positive)

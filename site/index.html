@@ -881,7 +881,7 @@ effect[["treated_change", "control_change", "effect"]]</code></pre>
 <pre class="output" data-label="Output"><code><span class="out-expr">effect[["treated_change", "control_change", "effect"]]</span>
          treated_change  control_change  effect
 outcome
-output               20      -5.684e-14      20</code></pre>
+output               20       2.842e-14      20</code></pre>
   <p>The effect is r1's output change less r2's. A common symmetric shock cancels. Controls can be
   weighted, and measures cover output, real household income, factor demand, bilateral outflows
   or a custom function. This is an auditable contrast of equilibria; the research design stays
@@ -991,6 +991,24 @@ reg_base.bilateral + reg_base.bilateral_imports</code></pre>
   SAM's 50/20 and 20/50. Each destination has its own origin CES, calibrated from households,
   activities and mapped institutions. National government and investment use a separate channel.
   Route-specific transport services are not hidden in these accounting cells.</p>
+  <h3>39. Route transport and the global service pool</h3>
+<pre><code>sam_transport, econ_transport = regions.build_with_transport()
+routes = cge.solve_period(econ_transport)
+routes.transport["qt"]
+routes.transport["qst"]
+routes.transport["viws"][:, :, 0]</code></pre>
+<pre class="output" data-label="Output"><code><span class="out-expr">routes.transport["qt"]</span>
+24
+<span class="out-expr">routes.transport["qst"]</span>
+[[0 12]
+ [0 12]]
+<span class="out-expr">routes.transport["viws"][:, :, 0]</span>
+[[57 18 27]
+ [18 57 27]]</code></pre>
+  <p>Each region supplies 12 units of transport services, so the global pool is 24. Route CIF
+  values include FOB and transport; national government and investment occupy the third column.
+  Calibration checks these flows against the SAM, and the solver preserves Walras and the global
+  margin identity.</p>
 </div></section>
 
 <section id="gates"><div class="wrap">

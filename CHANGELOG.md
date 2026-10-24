@@ -11,8 +11,11 @@ before 1.0, a minor version may add to the API and a patch version only fixes.
   service supply. Its evaluation implements the GTAP identities
   `VIWS = VXWD + VTWR`, route demand proportional to shipments and a
   Cobb–Douglas global transport pool, returning `qt`, `pt`, `qst`, `vtwr`,
-  `vxwd` and `viws`. Tests check the hand-written base year, price responses,
-  conservation and invalid data.
+  `vxwd` and `viws`. `calibrate(transport=)` reconciles routes with the SAM and
+  solves them in the regional equilibrium, with CES/Armington parameters
+  calibrated at non-unit route prices and `PeriodResult.transport` exposing the
+  solved flows. Tests check the hand-written base year, price responses,
+  productivity, homogeneity, Walras, conservation and invalid data.
 - Regional origin CES nests are calibrated by destination from the SAM's
   household, activity and institutional purchases. `PeriodResult.bilateral`
   reports domestic sales and `bilateral_imports` the imported content on the

@@ -947,6 +947,26 @@ migracao.factor_pools["f_lab"]["supply"]</code></pre>
   <p>Trabalhadores se movem entre pools regionais, com renda na origem e oferta no destino. As
   linhas da matriz somam um, e suas colunas reproduzem a dotação de cada região. A logit preserva
   o número de trabalhadores de cada origem, e Walras continua sendo uma verificação independente.</p>
+  <h3>36. Capital regional e painel simulado</h3>
+<pre><code>crescimento = cge.Growth(labour=0.01, depreciation=0.01,
+                         labour_factor="r1:f_lab", capital_factor=["r1:f_cap", "r2:f_cap"])
+trajetoria = cge.run_path(economia_regional, years=[2021, 2022], growth=crescimento)
+painel = cge.simulated_panel(trajetoria, treated="r1")
+trajetoria.capital_stock
+painel</code></pre>
+<pre class="output" data-label="Saída"><code><span class="out-expr">trajetoria.capital_stock</span>
+[[666.7 666.7]
+ [680 680]]
+<span class="out-expr">painel</span>
+   year region outcome  value  treated  noise
+0  2021     r1  output    100     True      1
+1  2021     r2  output    100    False      1
+2  2022     r1  output  101.4     True      1
+3  2022     r2  output  100.8    False      1</code></pre>
+  <p>Cada estoque regional nomeado acumula a partir do próprio investimento resolvido. O painel
+  contém os resultados regionais resolvidos por ano; o indicador de tratamento é apenas um rótulo.
+  O ruído lognormal opcional e reprodutível muda os valores reportados, nunca o equilíbrio ou o
+  estoque de capital.</p>
 </div></section>
 
 <section id="verificacoes"><div class="wrap">

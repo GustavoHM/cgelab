@@ -135,7 +135,7 @@ GTAP and ORANI-G/TERM. Reading is in: `read_har` and `write_har`, exact against 
 bridge to causal inference (see *General equilibrium and causal inference*):
 
 - [x] **Treated against control** as a result of a regional model (`treated_vs_control`).
-- [ ] **A simulated panel**: a tidy region-by-year panel from `run_path`, with optional noise,
+- [x] **A simulated panel**: a tidy region-by-year panel from `run_path`, with optional noise,
   on which a reader runs the event-study estimator of their choice (`simulated_panel`).
 - [x] **Matching external targets**: elasticities chosen by minimum distance to estimated
   coefficients, weighted by the inverse of their covariance, on the machinery of `spec_sweep`
@@ -251,8 +251,8 @@ regions of origin under the Armington, factors clearing where they are, one nati
 numeraire. Fixed-real investment with forced saving is in, alongside savings-driven
 investment, and optional government and investment accounts can be mapped by
 region. CET/logit factor migration with a proximity matrix is in too. Still open:
-regional government closure rules, margins and CET inside the nest,
-`run_path` accumulating a capital stock per region, and a tariff or an indirect tax. The
+regional government closure rules, margins and CET inside the nest, and a tariff or an
+indirect tax. Regional capital accumulation and a tidy simulated panel are in. The
 regional solver refuses a calibrated `tm0` or `tauz0`. A GTAP-style global bank is further
 out. Today a single region plus a "rest of the country" account remains the way a
 national model stands in for the regions it does not have.

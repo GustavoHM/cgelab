@@ -1213,6 +1213,31 @@ Zero elasticity keeps base-year origins. Walras still checks the numeraire's
 regional market, and fixed-real investment and institution maps compose with
 migration.
 
+### Regional capital and a simulated panel
+
+`run_path` accumulates a capital stock per region when `Growth` uses full
+regional factor names:
+
+```python
+growth = cge.Growth(labour=0.01, depreciation=0.01,
+                    labour_factor="r1:f_lab",
+                    capital_factor=["r1:f_cap", "r2:f_cap"])
+path = cge.run_path(econ, years=[2021, 2022], growth=growth)
+panel = cge.simulated_panel(path, treated="r1")
+```
+
+Each stock depreciates and receives investment by return; regional investment,
+institution maps and migration compose with it. `capital_stock` keeps one column
+per regional capital factor. A local name such as `f_cap` is rejected with an
+instruction to use `region:factor`.
+
+`simulated_panel` returns tidy `year`, `region`, `outcome`, `value`, `treated`
+and `noise` columns. `measure` has the same forms as `treated_vs_control`.
+`treated` is only a label. `noise` is the log standard deviation of independent
+lognormal multipliers with mean one, seeded and applied only after all equilibria
+and stocks have been solved. It never changes the equilibrium or the next year's
+capital, and the estimator stays outside the package.
+
 ---
 
 ## 13. Subtotals: which shock did what

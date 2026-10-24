@@ -580,7 +580,9 @@ grows as a whole.
 ### `Growth(labour=0.0, tfp=0.0, depreciation=0.05, discount=0.05, labour_factor="f_lab", capital_factor="f_cap", allocation="proportional", productivity="hicks_neutral", investment_deflator="base_price")`
 
 `capital_factor` is one factor or a sequence of them, each accumulated from its
-own service flow; `depreciation` is a rate or a mapping by capital factor.
+own service flow. In a regional model, `labour_factor` and every capital factor
+must use full `region:factor` names, and each regional stock accumulates from
+investment by return. `depreciation` is a rate or a mapping by capital factor.
 `allocation` shares domestic investment among them: `"proportional"` to the
 stocks, or a number `e` making shares proportional to `K_k (r_k / r_mean)^e`. A
 capital factor with pools (`calibrate(factor_pools=)`) has a stock per pool,
@@ -648,6 +650,15 @@ scenario multiplier), `multiplier` (the calibrated productivity alone),
 `preferences` (year × commodity frames by household), `scenario(policy=None)`
 and `run(policy=None)`. A policy holds the calibrated shifters. The baseline
 uses the same scalar and joint root routines.
+
+### `simulated_panel(path, *, measure="output", treated=None, noise=0.0, seed=20260724) -> DataFrame`
+
+A tidy region-by-year panel from a regional `PathResult`. `measure` has the
+`treated_vs_control` built-ins and callable forms. `treated` labels rows only;
+it never changes the model. `noise` is the log standard deviation of independent
+lognormal multipliers with mean one, applied only to reported values after all
+equilibria and capital accumulation are complete. Columns: `year`, `region`,
+`outcome`, `value`, `treated`, `noise`.
 
 ### `PathResult`
 

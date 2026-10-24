@@ -938,6 +938,25 @@ mig.factor_pools["f_lab"]["supply"]</code></pre>
   <p>Workers move between regional pools, with origin income and destination supply. The matrix
   rows sum to one and its columns reproduce each region's endowment. Logit preserves the head
   count of each origin pool, and Walras remains an independent check.</p>
+  <h3>36. Regional capital and a simulated panel</h3>
+<pre><code>growth = cge.Growth(labour=0.01, depreciation=0.01,
+                    labour_factor="r1:f_lab", capital_factor=["r1:f_cap", "r2:f_cap"])
+path = cge.run_path(reg_econ, years=[2021, 2022], growth=growth)
+panel = cge.simulated_panel(path, treated="r1")
+path.capital_stock
+panel</code></pre>
+<pre class="output" data-label="Output"><code><span class="out-expr">path.capital_stock</span>
+[[666.7 666.7]
+ [680 680]]
+<span class="out-expr">panel</span>
+   year region outcome  value  treated  noise
+0  2021     r1  output    100     True      1
+1  2021     r2  output    100    False      1
+2  2022     r1  output  101.4     True      1
+3  2022     r2  output  100.8    False      1</code></pre>
+  <p>Each named regional capital stock accumulates from its own solved investment. The panel
+  contains the solved regional outcomes by year; the treatment flag is only a label. Optional
+  seeded lognormal noise changes reported values, never the equilibrium or the capital stock.</p>
 </div></section>
 
 <section id="gates"><div class="wrap">

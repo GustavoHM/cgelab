@@ -152,6 +152,7 @@ period.
 | Regional investment driven by saving or held fixed in real terms, with a per-capita forced-saving levy | `Closure(investment="fixed_real")`, `Scenario.investment_level` |
 | Optional government and investment accounts mapped by region, with factor income and household saving included | `ModelSpec.regional_government`, `ModelSpec.regional_investment` |
 | Factor migration between regional pools, with CET/logit proximity matrices and origin income preserved | `ModelSpec.factor_migration`, `calibrate(factor_pools=)` |
+| Capital stock per region in `run_path`, and a tidy simulated region-by-year panel with optional ex-post noise | `run_path`, `simulated_panel` |
 | Welfare: EV, CV and composition-immune group aggregation | `cgelab.welfare` |
 | Base-year reproduction, homogeneity, Walras | `cgelab.diagnostics` |
 | The same equilibrium as a JuMP model, for independent validation | `to_jump` |

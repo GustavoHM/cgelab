@@ -7,6 +7,10 @@ before 1.0, a minor version may add to the API and a patch version only fixes.
 
 ### Added
 
+- `run_path` accumulates a capital stock per region when `Growth` uses full
+  `region:factor` names. `simulated_panel` returns a tidy region-by-year panel
+  with explicit treatment labels and optional seeded lognormal noise applied
+  only to reported values, never to equilibrium or capital accumulation.
 - `ModelSpec.factor_migration` moves regional factor pools with CET or logit,
   preserving origin income and destination supply. `calibrate(factor_pools=)`
   supplies a proximity matrix validated for row shares and endowment totals.

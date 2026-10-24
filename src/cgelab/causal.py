@@ -7,7 +7,7 @@ from typing import Mapping
 import numpy as np
 import pandas as pd
 
-__all__ = ["treated_vs_control"]
+__all__ = ["treated_vs_control", "simulated_panel"]
 
 
 def _region_outcome(period, region: str, measure):
@@ -98,3 +98,43 @@ def treated_vs_control(reference, alternative, *, treated: str, controls,
                       "reference_treated": ref_t, "alternative_treated": alt_t,
                       "reference_control": ref_c, "alternative_control": alt_c}
     return pd.DataFrame.from_dict(rows, orient="index").rename_axis("outcome")
+
+
+def simulated_panel(path, *, measure="output", treated=None,
+                    noise: float = 0.0, seed: int | None = 20260724) -> pd.DataFrame:
+    """A tidy region-by-year panel from a regional ``PathResult``.
+
+    ``measure`` has the same built-ins and callable forms as
+    :func:`treated_vs_control`. ``treated`` only labels rows; it never changes
+    the model. ``noise`` is the log standard deviation of independent lognormal
+    multipliers with mean one, applied only to reported values after every
+    equilibrium and capital stock has been solved.
+    """
+    if not hasattr(path, "years") or not hasattr(path, "periods"):
+        raise TypeError("simulated_panel expects a PathResult")
+    if path.econ.regional is None:
+        raise ValueError("simulated_panel needs a regional path")
+    if not np.isfinite(noise) or noise < 0:
+        raise ValueError("noise must be finite and nonnegative")
+    if isinstance(measure, Mapping):
+        measures = dict(measure)
+    elif callable(measure) or isinstance(measure, str):
+        measures = {measure if isinstance(measure, str) else "effect": measure}
+    else:
+        raise TypeError("measure must be a name, callable or mapping")
+    if not measures:
+        raise ValueError("measure must contain at least one outcome")
+    regions = list(path.econ.regional.regions)
+    if treated is not None and treated not in regions:
+        raise KeyError(f"treated region {treated!r} is not in the model")
+    rng = np.random.default_rng(seed)
+    rows = []
+    for year, period in zip(path.years, path.periods):
+        for region in regions:
+            for name, definition in measures.items():
+                value = _region_outcome(period, region, definition)
+                shock = (float(rng.lognormal(-0.5 * noise ** 2, noise)) if noise else 1.0)
+                rows.append({"year": year, "region": region, "outcome": name,
+                             "value": value * shock, "treated": region == treated,
+                             "noise": shock})
+    return pd.DataFrame(rows, columns=["year", "region", "outcome", "value", "treated", "noise"])

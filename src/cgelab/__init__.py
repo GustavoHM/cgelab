@@ -33,6 +33,7 @@ from .emissions import Emissions, add_emissions, emissions
 from .physical import PhysicalUnits, add_physical_units, physical, physical_coefficient
 from .export import to_jump
 from .har import read_har, write_har
+from .gtap import aggregate_gtap, gtap_sam, gtap_supply_use
 from .dynamics import Growth, PathResult, run_path
 from .baseline import Baseline, calibrate_baseline
 from .historical import Historical, calibrate_historical
@@ -84,7 +85,7 @@ __all__ = [
     "ge_decomposition", "fgt_decomposition",
     "equivalent_variation", "ev_by_group", "compensating_variation",
     "base_year_reproduction", "homogeneity_test", "walras_check", "report",
-    "to_jump", "read_har", "write_har",
+    "to_jump", "read_har", "write_har", "aggregate_gtap", "gtap_supply_use", "gtap_sam",
     "Emissions", "add_emissions", "emissions",
     "PhysicalUnits", "add_physical_units", "physical", "physical_coefficient",
     "factor_demand_by_activity", "real_gdp", "real_value_added", "sectoral_path",

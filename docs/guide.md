@@ -1418,8 +1418,20 @@ demand, cost equals revenue in every activity, and output is sold. Point
 are licensed and stay out of the repository; `.gitignore` refuses `.har`, `.prm`
 and `.pkg` files.
 
-Aggregating GTAP and building a one-region SAM from it are the next steps, with
-the regional work of 0.7.
+`aggregate_gtap(headers, groups, values=[...], weighted={...})` aggregates only
+declared value headers. Each `groups` entry is an axis position and a map from old
+labels to the new label, so repeated `REG` axes remain independent. Parameters use
+`weighted={"NAME": (weights, reduce_axes)}` and become weighted means, never sums;
+weights may be another `Header` or an array.
+
+`gtap_supply_use(headers, region)` and `gtap_sam(headers, region)` map one region
+to supply-use tables or a SAM. Imports are FOB, CIF minus FOB enters the margin
+block, `VIMS − VIWS` is the tariff, and `OSEP` remains a production tax. Transport
+supply less route margins is net service exports. Activities receive `a_` names
+so they cannot collide with commodity accounts. The synthetic
+`cgelab.examples.gtap.build()` reproduces this mapping and solves its base year.
+Optional checks use `CGELAB_GTAP_DIR`; comparison with GTAPAgg/FlexAgg remains a
+separate validation, not a claim made by these tests.
 
 ---
 

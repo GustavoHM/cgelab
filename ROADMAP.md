@@ -131,7 +131,9 @@ released in 0.5.5, ahead of 0.6.0, which also waits for the robustness items (se
 closures, margins and CET inside the origin nest, a capital stock per region in `run_path`;
 bilateral trade with transport margins; reading and aggregating GTAP data. Validation against
 GTAP and ORANI-G/TERM. Reading is in: `read_har` and `write_har`, exact against harpy3 on GTAP
-10A. Aggregation and a one-region SAM from GTAP are next. On top of the regional model, the
+10A. Declared aggregation with explicit parameter weights and a one-region SAM are in,
+with a hand-balanced synthetic GTAP example and optional licensed-data tests. Comparison
+with GTAPAgg/FlexAgg and ORANI-G/TERM remains open. On top of the regional model, the
 bridge to causal inference (see *General equilibrium and causal inference*):
 
 - [x] **Treated against control** as a result of a regional model (`treated_vs_control`).

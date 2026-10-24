@@ -7,6 +7,13 @@ before 1.0, a minor version may add to the API and a patch version only fixes.
 
 ### Added
 
+- `aggregate_gtap` sums only declared GTAP value headers by axis position and
+  computes parameter means with explicit weights. `gtap_supply_use` and
+  `gtap_sam` map one region to supply-use tables or a SAM, separating FOB
+  imports, CIF margins, tariffs, product and production taxes, and net transport
+  service exports. `cgelab.examples.gtap` provides a hand-balanced synthetic
+  dataset that calibrates and solves. Licensed-data checks remain conditional on
+  `CGELAB_GTAP_DIR`; no data are included.
 - `TransportMargins` validates route-level FOB and transport values and global
   service supply. Its evaluation implements the GTAP identities
   `VIWS = VXWD + VTWR`, route demand proportional to shipments and a

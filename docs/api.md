@@ -795,6 +795,19 @@ GEMPACK header array files, the format of the GTAP database. Types `1C`, `2I`,
 `name`, `description`, `kind`, `array` (float64, or int64 for `2I`, object for
 `1C`), `sets` and `labels` per dimension, and `to_series()` in long form.
 
+### `aggregate_gtap(headers, groups, *, values, weighted=None)`
+
+Only `values` are summed. `groups` maps axis positions to old-to-new label maps,
+including repeated set names. `weighted={"NAME": (weights, reduce_axes)}` computes
+weighted means with a `Header` or array and positional reduction before grouping.
+
+### `gtap_supply_use(headers, region=0)`, `gtap_sam(headers, region=0, **kwargs)`
+
+Map one GTAP region to `SupplyUse` or a balanced `SAM`: one `a_` activity per
+commodity, FOB imports, CIF margins, tariffs, product and production taxes, and
+net transport service exports. `cgelab.examples.gtap.synthetic()` supplies the
+hand-balanced headers and `build()` the corresponding calibrated economy.
+
 ---
 
 ## Microsimulation (`cgelab.micro`)

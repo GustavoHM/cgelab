@@ -218,8 +218,9 @@ where it stands. Things to know before relying on it:
   elasticity of one it is badly conditioned.
 - **Forward-looking investment** goes through [dsgelab](https://github.com/GustavoHM/dsgelab)
   (`pip install "cgelab[dsge]"`). `run_path` itself has no forward-looking agent.
-- **GTAP data** can be read, but not yet aggregated or turned into a SAM, and the
-  welfare decomposition has not been compared with GTAP's own.
+- **GTAP data** can be read, aggregated with explicit parameter weights and turned
+  into a one-region SAM. Comparison with GTAPAgg/FlexAgg and with GTAP's welfare
+  decomposition remains open.
 - **Platforms**: an editable install (`pip install -e`) can break silently on
   Python 3.14 on macOS; install from the wheel if `import cgelab` fails.
 

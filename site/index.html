@@ -1009,6 +1009,23 @@ routes.transport["viws"][:, :, 0]</code></pre>
   values include FOB and transport; national government and investment occupy the third column.
   Calibration checks these flows against the SAM, and the solver preserves Walras and the global
   margin identity.</p>
+  <h3>40. A one-region SAM from GTAP-shaped data</h3>
+<pre><code>from cgelab.examples import gtap as gtap_example
+sam_gtap, econ_gtap = gtap_example.build()
+gtap_result = cge.solve_period(econ_gtap)
+gtap_result.X
+gtap_result.imports
+gtap_result.exports</code></pre>
+<pre class="output" data-label="Output"><code><span class="out-expr">gtap_result.X</span>
+[120 20]
+<span class="out-expr">gtap_result.imports</span>
+[20 0]
+<span class="out-expr">gtap_result.exports</span>
+[15 0]</code></pre>
+  <p>The synthetic headers map to a balanced SAM with FOB imports, CIF margins, tariffs and
+  production taxes. Output is 120 and 20, imports are 20 of the goods commodity, and exports are
+  15. `gtap_supply_use` and `gtap_sam` apply the same mapping to licensed data; aggregation sums
+  only declared flows and uses explicit weights for parameters.</p>
 </div></section>
 
 <section id="gates"><div class="wrap">

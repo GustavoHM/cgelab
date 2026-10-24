@@ -1019,6 +1019,23 @@ rotas.transport["viws"][:, :, 0]</code></pre>
   Os valores CIF por rota somam FOB e transporte; governo e investimento nacionais ocupam a
   terceira coluna. A calibração confere esses fluxos com a MCS, e o equilíbrio preserva Walras e
   a identidade global das margens.</p>
+  <h3>40. MCS de uma região a partir de dados GTAP</h3>
+<pre><code>from cgelab.examples import gtap as exemplo_gtap
+sam_gtap, economia_gtap = exemplo_gtap.build()
+resultado_gtap = cge.solve_period(economia_gtap)
+resultado_gtap.X
+resultado_gtap.imports
+resultado_gtap.exports</code></pre>
+<pre class="output" data-label="Saída"><code><span class="out-expr">resultado_gtap.X</span>
+[120 20]
+<span class="out-expr">resultado_gtap.imports</span>
+[20 0]
+<span class="out-expr">resultado_gtap.exports</span>
+[15 0]</code></pre>
+  <p>Os headers sintéticos viram uma MCS balanceada com importações FOB, margens CIF, tarifas e
+  impostos de produção. A produção é 120 e 20, as importações são 20 do bem e as exportações 15.
+  `gtap_supply_use` e `gtap_sam` aplicam o mesmo mapeamento a dados licenciados; a agregação soma
+  apenas fluxos declarados e usa pesos explícitos para parâmetros.</p>
 </div></section>
 
 <section id="verificacoes"><div class="wrap">

@@ -124,7 +124,7 @@ the goal is to cover the whole list by 1.0; each item's version is the one in
 | Dynamic and historical calibration; sectoral capital and vintages | 📄 MONASH, GDyn, LINKAGE | **done**: the productivity that hits a path of real GDP, by year or by activity, and a limited historical closure with joint technology and relative-preference shifters, with policy runs at the calibrated path; capital by sector with investment shared by rents; putty-clay vintages against the JuMP replica | 0.6 |
 | SAM construction and disaggregation | 📄 IFPRI, PEP | **done**: construction from supply and use tables with the provenance of every block, and disaggregation of households and of labour by household surveys | 0.6 |
 | Several regions | 📄 GTAP, TERM, ORANI-G | destination-specific origin nests and bilateral SAM cells, delivered margins and CET exports, route transport and a global service pool, institution maps, fixed-real investment, factor migration, regional capital and a simulated panel done; other closure rules missing | 0.7 |
-| GTAP data | 📄 GTAPAgg, FlexAgg | HAR reading and writing done, exact against harpy3 on GTAP 10A; aggregation and a one-region SAM missing | 0.7 |
+| GTAP data | 📄 GTAPAgg, FlexAgg | HAR reading and writing exact against harpy3; declared aggregation with explicit parameter weights and a one-region SAM done and solved on synthetic data; independent GTAPAgg/FlexAgg comparison pending | 0.7 |
 | Complementarity (MCP); alternative solvers | 📄 GAMS/MPSGE with PATH; pycge (Pyomo) | missing | 0.8 |
 | Generic closure swap; cross entropy; intertemporal CGE; imperfect competition; land use; export to GAMS and GEMPACK | 📄 GEMPACK, MPSGE, GTAP-AEZ | missing | 0.9 |
 

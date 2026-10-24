@@ -57,6 +57,19 @@ pre {
   padding: 1rem 1.1rem; overflow-x: auto; margin: 1rem 0; font-size: .87rem; line-height: 1.55;
 }
 pre code { background: none; padding: 0; font-size: 1em; }
+/* What a block prints, right under it, so the reader sees what the program does without running
+   it. Written by tools/check_site_examples.py --write, never by hand. */
+pre:has(+ pre.output) { border-radius: 6px 6px 0 0; margin-bottom: 0; }
+pre.output {
+  margin-top: 0; border-top: 1px dashed var(--rule); border-radius: 0 0 6px 6px; background: var(--bg);
+  color: var(--muted); font-size: .8rem; line-height: 1.45; max-height: 26rem; overflow: auto;
+}
+pre.output::before {
+  content: attr(data-label); display: block; margin-bottom: .35rem; font: 600 .7rem var(--sans);
+  text-transform: uppercase; letter-spacing: .05em; color: var(--muted);
+}
+pre.output .out-expr { color: var(--fg); }
+pre.output .out-expr::before { content: "\203A  "; color: var(--accent); }
 .tok-kw { color: var(--accent); font-weight: 600; }
 .tok-str { color: var(--ok); }
 .tok-com { color: var(--muted); font-style: italic; }

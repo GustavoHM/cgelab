@@ -94,6 +94,25 @@ assert abs(base.X[econ.activity("a_brd")] - 15) &lt; 1e-8
 assert abs(base.X[econ.activity("a_mlk")] - 35) &lt; 1e-8
 assert abs(base.pq[econ.commodity("c_brd")] - 1) &lt; 1e-8
 print(base.X, base.walras)</code></pre>
+<pre class="output" data-label="Output"><code><span class="out-expr">sam.check_balance(abs_tol=1e-9)</span>
+{
+  'ok': True,
+  'worst': 0,
+  'limit': 2e-07,
+  'offenders': Series([], ),
+  'imbalance': row
+a_brd   0
+a_mlk   0
+c_brd   0
+c_mlk   0
+f_cap   0
+f_lab   0
+gov     0
+hh_1    0
+row     0
+s_i     0
+}
+[15. 35.] 0.0</code></pre>
   <p>Solved output is 15 and 35, purchaser prices are 1, imports and saving are 0, and the Walras
   residual on the numeraire is 0. That is the published benchmark, not a policy table: the GAMS
   file does not report one.</p>
@@ -124,6 +143,8 @@ for large in (False, True):
     print("lrgcge" if large else "stdcge",
           np.round(100 * (free.imports / base.imports - 1), 2),   # imports, % change
           round(100 * (free.exchange_rate - 1), 2))               # exchange rate, % change</code></pre>
+<pre class="output" data-label="Output"><code>stdcge [-1.08 18.85] 6.28
+lrgcge [-2.78  6.76] 9.51</code></pre>
   <p>The programs compute these changes and print no table, and GAMS is not installed here. The
   reference is therefore <code>validation/hosoe.jl</code>, a line-by-line JuMP transcription of
   the two <code>.gms</code> files (matrix, calibration and equations), solved with Ipopt. All 49

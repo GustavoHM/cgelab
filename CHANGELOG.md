@@ -7,6 +7,11 @@ before 1.0, a minor version may add to the API and a patch version only fixes.
 
 ### Added
 
+- `treated_vs_control` computes a treated region's change minus the weighted
+  control change between two solved regional periods. Built-in outcomes are
+  output, real household income, factor demand and bilateral outflows; custom
+  measures and control weights are supported. The table exposes levels and both
+  changes, and validation covers no-op, treated-only and common shocks.
 - `match_targets` fits bounded ModelSpec fields to external coefficients by
   weighted minimum distance, recalibrating and solving at every evaluation.
   Full or diagonal covariances use a pseudo-inverse for singular systems;

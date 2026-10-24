@@ -551,6 +551,17 @@ pseudo-inverse. `options` goes to L-BFGS-B in `scipy.optimize.minimize`.
 is deterministic target matching, not an econometric estimator; optimiser
 failure and solver errors remain visible.
 
+### `treated_vs_control(reference, alternative, *, treated, controls, measure="output", weights=None) -> DataFrame`
+
+Two solved regional periods; the treated change minus the weighted control
+change. `controls` is a region or sequence, with equal default weights or
+explicit weights normalised to one. `measure` is `"output"`, `"real_income"`,
+`"factor_demand"`, `"bilateral"`, a callable `f(period, region)`, or a mapping
+of output names to any of them. Columns: `treated_change`, `control_change`,
+`effect`, and the reference and alternative levels of treated and control.
+Regions, account compatibility and weights are validated. This is a contrast of
+outcomes, not an econometric estimator.
+
 ---
 
 ## Dynamics

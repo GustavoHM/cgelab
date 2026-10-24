@@ -868,6 +868,24 @@ gdp_pct   -0.161
   <p>The target comes from an external coefficient; the parameter is bounded and every evaluation
   recalibrates and solves the model. The fit recovers 2.2. Covariance weighting and singular
   systems use a pseudo-inverse, and <code>evaluations</code> keeps the whole optimisation trail.</p>
+  <h3>32. Treated against control</h3>
+<pre><code>from cgelab.examples import regions
+reg_econ = regions.build()[1]
+reg_base = cge.solve_period(reg_econ)
+tfp = np.ones(reg_econ.n_act)
+tfp[reg_econ.activity("r1:a")] = 1.2
+reg_alt = cge.solve_period(reg_econ, scenario=cge.Scenario(productivity=tfp),
+                           warm_start=reg_base)
+effect = cge.treated_vs_control(reg_base, reg_alt, treated="r1", controls="r2")
+effect[["treated_change", "control_change", "effect"]]</code></pre>
+<pre class="output" data-label="Output"><code><span class="out-expr">effect[["treated_change", "control_change", "effect"]]</span>
+         treated_change  control_change  effect
+outcome
+output               20      -1.421e-14      20</code></pre>
+  <p>The effect is r1's output change less r2's. A common symmetric shock cancels. Controls can be
+  weighted, and measures cover output, real household income, factor demand, bilateral outflows
+  or a custom function. This is an auditable contrast of equilibria; the research design stays
+  with the reader.</p>
 </div></section>
 
 <section id="gates"><div class="wrap">

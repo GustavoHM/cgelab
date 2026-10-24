@@ -1123,6 +1123,29 @@ the fitted `spec`. A failed optimiser remains visible in the result. Validation
 includes the closed-form weighted least-squares solution, a singular covariance
 and recovery of an elasticity from a simulated CGE outcome.
 
+### Treated against control
+
+A regional counterfactual can be read as a treatment-effect contrast without
+putting an estimator inside the model:
+
+```python
+effect = cge.treated_vs_control(
+    reference, alternative, treated="r1", controls="r2", measure="output")
+effect[["treated_change", "control_change", "effect"]]
+```
+
+The effect is the treated region's change minus the controls' weighted change.
+Controls are equally weighted by default; `weights={region: value}` is
+normalised to one. `measure` is `"output"`, `"real_income"`,
+`"factor_demand"`, `"bilateral"`, a callable `f(period, region)`, or a mapping
+of result names to any of them. The table also keeps both levels and changes so
+the contrast can be audited.
+
+This is arithmetic on solved equilibria, not an identification strategy or a
+standard error. The reader supplies the research design and the estimator. The
+tests cover a no-op, a shock only in the treated region, a common shock that
+cancels, custom measures and bilateral outflows.
+
 ---
 
 ## 13. Subtotals: which shock did what

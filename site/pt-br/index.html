@@ -876,6 +876,24 @@ pib_pct   -0.161
   <p>O alvo vem de um coeficiente externo; o parâmetro tem limites e cada avaliação recalibra e
   resolve o modelo. O ajuste recupera 2.2. A ponderação pela covariância usa pseudo-inversa em
   sistemas singulares, e <code>evaluations</code> conserva toda a trilha da otimização.</p>
+  <h3>32. Região tratada contra controle</h3>
+<pre><code>from cgelab.examples import regions
+economia_regional = regions.build()[1]
+base_regional = cge.solve_period(economia_regional)
+ptf = np.ones(economia_regional.n_act)
+ptf[economia_regional.activity("r1:a")] = 1.2
+alt_regional = cge.solve_period(economia_regional, scenario=cge.Scenario(productivity=ptf),
+                                warm_start=base_regional)
+efeito = cge.treated_vs_control(base_regional, alt_regional, treated="r1", controls="r2")
+efeito[["treated_change", "control_change", "effect"]]</code></pre>
+<pre class="output" data-label="Saída"><code><span class="out-expr">efeito[["treated_change", "control_change", "effect"]]</span>
+         treated_change  control_change  effect
+outcome
+output               20      -1.421e-14      20</code></pre>
+  <p>O efeito é a variação do produto de r1 menos a de r2. Um choque comum e simétrico se cancela.
+  Os controles podem ter pesos, e as medidas incluem produto, renda real, demanda de fatores,
+  fluxos bilaterais ou uma função própria. É um contraste auditável de equilíbrios; o desenho da
+  pesquisa fica com o leitor.</p>
 </div></section>
 
 <section id="verificacoes"><div class="wrap">

@@ -134,7 +134,7 @@ GTAP and ORANI-G/TERM. Reading is in: `read_har` and `write_har`, exact against 
 10A. Aggregation and a one-region SAM from GTAP are next. On top of the regional model, the
 bridge to causal inference (see *General equilibrium and causal inference*):
 
-- [ ] **Treated against control** as a result of a regional model (`treated_vs_control`).
+- [x] **Treated against control** as a result of a regional model (`treated_vs_control`).
 - [ ] **A simulated panel**: a tidy region-by-year panel from `run_path`, with optional noise,
   on which a reader runs the event-study estimator of their choice (`simulated_panel`).
 - [x] **Matching external targets**: elasticities chosen by minimum distance to estimated

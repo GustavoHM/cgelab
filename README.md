@@ -150,6 +150,7 @@ period.
 | Minimum-distance matching of model outcomes to external coefficients, with covariance weighting and bounded elasticities | `match_targets`, `MatchResult` |
 | Treated-minus-control contrasts of solved regional outcomes, with custom measures and control weights | `treated_vs_control` |
 | Regional investment driven by saving or held fixed in real terms, with a per-capita forced-saving levy | `Closure(investment="fixed_real")`, `Scenario.investment_level` |
+| Optional government and investment accounts mapped by region, with factor income and household saving included | `ModelSpec.regional_government`, `ModelSpec.regional_investment` |
 | Welfare: EV, CV and composition-immune group aggregation | `cgelab.welfare` |
 | Base-year reproduction, homogeneity, Walras | `cgelab.diagnostics` |
 | The same equilibrium as a JuMP model, for independent validation | `to_jump` |

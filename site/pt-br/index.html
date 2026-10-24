@@ -909,6 +909,29 @@ fixo.forced_saving</code></pre>
   <p>A quantidade de investimento fica em 80 a preços do ano-base. A poupança nominal muda com os
   preços, e um tributo per capita fecha a conta. <code>household_saving</code> separa a poupança
   voluntária da forçada, e Walras continua sendo uma verificação independente.</p>
+  <h3>34. Instituições mapeadas por região</h3>
+<pre><code>linhas = []
+for r, c, valor in regions.ENTRIES:
+    origem, destino = r.split(":")[0], c.split(":")[0]
+    if r == "gov": r = f"{destino}:gov"
+    if c == "gov": c = f"{origem}:gov"
+    if r == "s_i": r = f"{destino}:s_i"
+    if c == "s_i": c = f"{origem}:s_i"
+    linhas.append((r, c, valor))
+sam_regional = cge.SAM.from_long(pd.DataFrame(linhas, columns=["row", "col", "value"]))
+spec_regional = regions.spec(government="r1:gov", investment="r1:s_i",
+    regional_government={"r2": "r2:gov"}, regional_investment={"r2": "r2:s_i"})
+economia_institucional = cge.calibrate(sam_regional, spec_regional)
+institucional = cge.solve_period(economia_institucional)
+economia_institucional.regional.government_accounts
+institucional.real["inv_real"]</code></pre>
+<pre class="output" data-label="Saída"><code><span class="out-expr">economia_institucional.regional.government_accounts</span>
+{'r2': 'r2:gov'}
+<span class="out-expr">institucional.real["inv_real"]</span>
+40</code></pre>
+  <p>A conta nacional é r1 e a adicional é r2. Sua demanda, renda fatorial e poupança das famílias
+  entram no equilíbrio; nenhum total nacional é dividido por uma regra ad hoc. O investimento real
+  fixo funciona sobre as mesmas contas.</p>
 </div></section>
 
 <section id="verificacoes"><div class="wrap">

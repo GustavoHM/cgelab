@@ -249,8 +249,9 @@ with income, and a labour–leisure choice for labour supply.
 **Several regions, continued.** The origin nest is in: regional accounts, a CES across
 regions of origin under the Armington, factors clearing where they are, one national
 numeraire. Fixed-real investment with forced saving is in, alongside savings-driven
-investment. Still open, and still what a state study asks for next: factor migration, a
-regional government closure, margins and CET inside the nest,
+investment, and optional government and investment accounts can be mapped by
+region. Still open, and still what a state study asks for next: factor migration,
+regional government closure rules, margins and CET inside the nest,
 `run_path` accumulating a capital stock per region, and a tariff or an indirect tax. The
 regional solver refuses a calibrated `tm0` or `tauz0`. A GTAP-style global bank is further
 out. Today a single region plus a "rest of the country" account remains the way a

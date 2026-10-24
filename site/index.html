@@ -901,6 +901,29 @@ fixed.forced_saving</code></pre>
   <p>The quantity of investment stays at 80 in base-year prices. Nominal saving moves with prices,
   and a per-capita levy closes the account. <code>household_saving</code> separates voluntary from
   forced saving, and Walras remains an independent check.</p>
+  <h3>34. Institutions mapped by region</h3>
+<pre><code>rows = []
+for r, c, value in regions.ENTRIES:
+    origin, destination = r.split(":")[0], c.split(":")[0]
+    if r == "gov": r = f"{destination}:gov"
+    if c == "gov": c = f"{origin}:gov"
+    if r == "s_i": r = f"{destination}:s_i"
+    if c == "s_i": c = f"{origin}:s_i"
+    rows.append((r, c, value))
+sam_regional = cge.SAM.from_long(pd.DataFrame(rows, columns=["row", "col", "value"]))
+spec_regional = regions.spec(government="r1:gov", investment="r1:s_i",
+    regional_government={"r2": "r2:gov"}, regional_investment={"r2": "r2:s_i"})
+econ_regional = cge.calibrate(sam_regional, spec_regional)
+institutional = cge.solve_period(econ_regional)
+econ_regional.regional.government_accounts
+institutional.real["inv_real"]</code></pre>
+<pre class="output" data-label="Output"><code><span class="out-expr">econ_regional.regional.government_accounts</span>
+{'r2': 'r2:gov'}
+<span class="out-expr">institutional.real["inv_real"]</span>
+40</code></pre>
+  <p>The national account is r1 and the additional account is r2. Their demand, factor income and
+  household saving enter the equilibrium; no national total is split by an ad hoc rule. Fixed-real
+  investment works over the same accounts.</p>
 </div></section>
 
 <section id="gates"><div class="wrap">

@@ -7,6 +7,11 @@ before 1.0, a minor version may add to the API and a patch version only fixes.
 
 ### Added
 
+- `ModelSpec.regional_government` and `regional_investment` add optional
+  `{region: account}` maps. Their demand, factor income and household saving
+  enter the equilibrium and the origin mix, rather than splitting national
+  totals. Mappings validate regions, accounts and duplicates and work with
+  fixed-real investment.
 - The regional solver accepts `investment="fixed_real"`, holding quantities at
   base-year purchaser prices and financing them with a per-capita forced-saving
   levy, as in the one-region model. `household_saving`, `forced_saving` and

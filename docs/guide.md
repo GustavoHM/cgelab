@@ -1167,6 +1167,27 @@ the default. The other regional restrictions (migration, alternative government
 closures, margins and bilateral transport) stay explicit rather than being
 silently relaxed.
 
+### Government and investment accounts by region
+
+National government and investment accounts remain the default. Additional
+accounts can be mapped explicitly instead of splitting their totals by an ad hoc
+regional rule:
+
+```python
+spec = regions.spec(
+    government="r1:gov", investment="r1:s_i",
+    regional_government={"r2": "r2:gov"},
+    regional_investment={"r2": "r2:s_i"})
+```
+
+`regional_government` and `regional_investment` add demand and its financing:
+factor income is assigned to each government, household saving includes every
+investment account, and final demand enters the origin mix in `bilateral`. A
+mapping must name a known region and account and may not reuse one account for
+two regions. National accounts remain in place, so a mixed national/regional
+model is valid. `real["gov_real"]` and `real["inv_real"]` include all of them,
+and `fixed_real` holds the total investment at base-year prices.
+
 ---
 
 ## 13. Subtotals: which shock did what

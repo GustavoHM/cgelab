@@ -57,7 +57,7 @@ from .solve import PeriodResult, factor_intensity, solve_period, value_added_pri
 from .spec import AccountLayout, ModelSpec
 from .welfare import compensating_variation, equivalent_variation, ev_by_group
 
-__version__ = "0.5.0"
+__version__ = "0.5.5"
 
 __all__ = [
     "SAM", "BalanceError",

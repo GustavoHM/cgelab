@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "cgelab"
-version = "0.5.0"
+version = "0.5.5"
 description = "General-purpose toolkit for SAM-based computable general equilibrium models: balancing, calibration, closures, CET trade, institutions and foreign ownership, recursive dynamics with several capital stocks, and welfare."
 readme = "README.md"
 requires-python = ">=3.11"

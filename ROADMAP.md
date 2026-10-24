@@ -88,7 +88,8 @@ several regions, the result helpers, and the JuMP export replicating all of it. 
 - [x] **Release**: 0.5.0 on PyPI on 18 October 2026, archived on Zenodo
   ([10.5281/zenodo.23458852](https://doi.org/10.5281/zenodo.23458852)), the repository public and the site on Pages.
 
-**0.6 — the distributional side and the labour market: done, to be released.**
+**0.6 — the distributional side and the labour market.** The six items below are done and were
+released in 0.5.5, ahead of 0.6.0.
 
 - [x] **Imperfect factor mobility and the proximity matrix**: a CET or a logit across the
   activities that use a factor, pools of origin (`ModelSpec.factor_mobility`,
@@ -128,7 +129,8 @@ land use allocated by CET; export to GAMS/MPSGE and GEMPACK.
 
 ## Next: gaps an applied model hit
 
-Nothing from 0.2 to 0.6 is open; 0.5.0 is released, and 0.6 waits only on its release.
+Nothing from 0.2 to 0.6 is open; the six items of 0.6 are released in 0.5.5, and 0.6.0 waits
+on its release.
 
 Done, and no longer gaps:
 

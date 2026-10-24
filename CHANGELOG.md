@@ -7,6 +7,10 @@ before 1.0, a minor version may add to the API and a patch version only fixes.
 
 ### Added
 
+- Regional results now populate `government`, `world_export_price`,
+  `world_import_price`, `pe`, `domestic_sales`, `p_domestic`,
+  `factor_income_abroad`, household direct taxes and factor prices by activity.
+  `government_account` and `national_accounts` work on solved regional periods.
 - `aggregate_gtap` sums only declared GTAP value headers by axis position and
   computes parameter means with explicit weights. `gtap_supply_use` and
   `gtap_sam` map one region to supply-use tables or a SAM, separating FOB

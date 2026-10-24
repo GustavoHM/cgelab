@@ -789,6 +789,23 @@ def _quantities(econ, reg, w, supply, facshare, fac_gov, fac_row, dtax, transfer
                              + (origin_mix[r, :reg.n_reg, c] * gov_regional_q[:, c]).sum())
             inv_origin[i] = (origin_mix[r, :, c] * inv_channel_q[:, c]).sum()
     government_saving = available - float(hh_sav.sum()) - levy - foreign_target
+    gov_account = dict(
+        product_tax=float((prices["pbase"] * reg.ptax * A).sum()),
+        activity_tax=float((econ.atax * nu) @ X),
+        carbon_production=0.0, carbon_households=0.0, tariff=0.0, output_tax=0.0,
+        direct_tax=float((hh_income * dtax).sum()),
+        factor_income=float((fac_inc * fac_gov).sum()
+                            + (fac_inc * reg.fac_gov_regional).sum()),
+        wedge=0.0, transfers=float(gov_tr.sum()), consumption=gov_spend, absorbed=0.0)
+    gov_account["revenue"] = sum(gov_account[k] for k in (
+        "product_tax", "activity_tax", "carbon_production", "carbon_households",
+        "tariff", "output_tax", "direct_tax", "factor_income", "wedge"))
+    gov_account["saving"] = (gov_account["revenue"] - gov_account["transfers"]
+                             - gov_account["consumption"] - gov_account["absorbed"])
+    pe_full = np.zeros(econ.n_com)
+    pe_full[reg.origin_index] = export_prices
+    domestic_sales = np.zeros(econ.n_com)
+    domestic_sales[reg.origin_index] = D_rc.sum(axis=1)
     transport_result = None
     if reg.transport is not None:
         transport_result = reg.transport.evaluate(
@@ -805,6 +822,9 @@ def _quantities(econ, reg, w, supply, facshare, fac_gov, fac_row, dtax, transfer
         government_saving=government_saving,
         gov_regional_q=gov_regional_q, inv_q_reg=inv_channel_q[:reg.n_reg],
         gov_channel_q=gov_channel_q, inv_channel_q=inv_channel_q,
+        government=gov_account, pe=pe_full, domestic_sales=domestic_sales,
+        p_domestic=prices["p_ship"], hh_direct_tax=hh_income * dtax,
+        row_fac=float((fac_inc * fac_row).sum()),
         migration=migration_results, transport=transport_result)
 
 
@@ -847,11 +867,15 @@ def _pack(econ, reg, closure, scenario, state, z, residual, label, message, tole
     pbase_nat = (weight * state["pbase"]).sum(axis=0)
     pq_full = np.zeros(econ.n_com)
     pbase_full = np.zeros(econ.n_com)
+    world_export = np.zeros(econ.n_com)
+    world_import = np.zeros(econ.n_com)
     for r in range(reg.n_reg):
         for c in range(reg.n_local):
             i = int(reg.origin_index[r, c])
             pq_full[i] = pq_nat[c]
             pbase_full[i] = pbase_nat[c]
+            world_export[i] = state["pe"][c]
+            world_import[i] = state["pm"][c]
     base_cost = (reg.hh_budget * reg.base_price[reg.household_region]).sum(axis=1)
     now_cost = (reg.hh_budget * state["pq"][reg.household_region]).sum(axis=1)
     hh_index = np.where(base_cost > 0, now_cost / np.maximum(base_cost, 1e-12), 1.0)
@@ -871,6 +895,12 @@ def _pack(econ, reg, closure, scenario, state, z, residual, label, message, tole
         household_saving=float(np.sum(state["hh_sav"])), forced_saving=state["levy"],
         foreign_saving=state["foreign_sav"],
         factor_pools=state["migration"] or None,
+        pe=state["pe"], hh_direct_tax=state["hh_direct_tax"],
+        factor_income_abroad=state["row_fac"],
+        world_export_price=world_export, world_import_price=world_import,
+        domestic_sales=state["domestic_sales"], p_domestic=state["p_domestic"],
+        government=state["government"],
+        factor_prices_by_activity=np.broadcast_to(state["w"][:, None], state["fac_by"].shape),
         real=dict(
             hh_real=float((reg.base_price[reg.household_region] * state["hh_nat"]).sum()),
             gov_real=float((reg.base_price * state["gov_channel_q"]).sum()),

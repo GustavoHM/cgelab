@@ -734,6 +734,44 @@ the whole scenario for the year, built from the baseline's as any policy is
 built from its reference; a productivity it sets multiplies the calibrated one.
 With no policy, running it reproduces the baseline exactly.
 
+### A limited historical closure
+
+`calibrate_historical` generalises the same target-and-shifter mechanism beyond
+GDP. Observed variables become roots; technology and relative preferences are
+the unknowns. The period equations do not change:
+
+```python
+hist = cge.calibrate_historical(
+    econ, years=range(2021, 2025),
+    targets={
+        "gdp": (gdp_observed, lambda r: cge.real_gdp(r)["expenditure"]),
+        "food": (food_observed, lambda r: r.hh_quantity[0, 0]),
+    },
+    shifters={
+        "gdp": ("productivity",),
+        "food": ("preference", "hh_1", "c_agr"),
+    },
+    preference_reference={"hh_1": "c_ind"},
+    kind="level", scenario=observed_shocks, growth=growth)
+hist.target, hist.achieved
+hist.run(policy)             # calibrated technology and preferences held
+```
+
+Each target is `(observed Series, measure(result))`; each has a distinct
+`("productivity",)`, `("productivity", activity)` or `("preference", household,
+commodity)` shifter. One positive log multiplier per target is solved jointly
+per year, sequentially along a recursive path. `kind` is `"level"`, `"index"`
+or `"growth"`, with the baseline's treatment of the first year. `pattern`
+exponentiates an aggregate productivity shifter by activity.
+
+Preference multipliers are normalised within each household. The multiplier of
+the commodity named in `preference_reference` is fixed at one, which sets the
+scale: only relative preferences are identified. Moving that reference
+commodity, omitting the reference or reusing a shifter is refused. Every target
+must be positive because the root is in logs. This is the limited historical
+closure, not the generic closure swap of 0.9. `calibrate_baseline` uses the same
+scalar and joint root routines, with its existing API and results.
+
 ### Reading a path
 
 ```python
@@ -890,6 +928,165 @@ that the result is far from cubic somewhere in the range. One cause is an
 Armington elasticity near one under fixed export shares (see *Closures*). There,
 a sweep of `sigma_armington` over `Uniform(1, 3)` on the toy economy had a
 median of −0.009% and one draw at −5.8%.
+
+### Where the variance comes from: Sobol indices
+
+The quadrature gives a mean and a standard deviation, and does not say which
+parameter the variance comes from when parameters interact. Sobol indices do:
+
+```python
+res = cge.sobol(run, params, n=1024)        # n (k + 2) solves
+res.indices()            # S1, ST and their half-widths, by output and parameter
+res.summary()            # mean, sd and quantiles over the independent draws
+```
+
+`S1` is the share of the variance a parameter explains alone; `ST` adds every
+interaction it takes part in, so `ST - S1` is how much of its effect depends on
+the others. The design is Saltelli's: two matrices `A` and `B` from a scrambled
+Sobol sequence, carried to each distribution by its quantile function, and for
+each parameter `A` with that column taken from `B`. First-order indices use the
+estimator of Saltelli et al. (2010), total ones Jansen's (1999), on outputs
+centred on their mean, with bootstrap intervals; given the same seed, SALib
+draws the same design and its analyser gives the same indices
+(`validation/sobol_salib.py`, to 1e-15). `n` must be a power of two. With twenty
+elasticities and `n = 1024` that is 22,528 solves, against forty for the
+quadrature: the indices are for when the quadrature has shown a spread worth
+explaining.
+
+### Uncertainty in the SAM
+
+The elasticities are not the only estimated inputs: every SAM entry is an estimate
+too. `sam_draws` perturbs selected blocks and rebalances every draw, and
+`sam_sweep` recalibrates and solves them:
+
+```python
+draws = cge.sam_draws(
+    sam,
+    blocks={"intermediate": (["c_agr", "c_ind"], ["a_agr", "a_ind"])},
+    method="dirichlet", concentration=100.0, draws=500, seed=20260724,
+    balance_kwargs={"rel_tol": 1e-12, "abs_tol": 1e-10})
+res = cge.sam_sweep(draws, spec, scenario=policy, measure=gdp_pct,
+                    parameters={"sigma_va": cge.Uniform(0.3, 1.3)})
+res.points               # draw, weight, sam_distance, sigma_va, gdp_pct
+res.summary()            # mean, sd, quantiles and range over the draws
+```
+
+A block is a `(rows, columns)` pair; blocks may not overlap. With `"dirichlet"`,
+the positive selected cells of each column receive a Dirichlet shock centred on
+their original shares. `concentration` is the precision: larger values stay
+closer to the original, structural zeros stay zero, and negative selected cells
+are refused. With `"noise"`, nonzero selected cells receive independent
+lognormal shocks with mean one and log standard deviation `scale`.
+
+The blocks delimit the **direct shock**, not everything that may move.
+`SAM.balance` then restores accounting balance and can adjust cells outside
+them, so the final column shares need not retain the Dirichlet distribution.
+`balance_kwargs` controls its tolerances; a tight absolute tolerance is useful
+on small SAMs whose default absolute floor of one is large relative to their
+flows. Every returned draw passes `check_balance` under the same tolerances.
+
+`SAMDraws.points` records the equal sampling weights and
+`sam_distance(original, draw)`, the KL divergence `D_KL(original || draw)` over
+normalised nonnegative flows. KL is undefined with negative flows, so the column
+is NaN in that case rather than a distance invented by shifting the data. For a
+forecast comparison, call `sam_distance(observed, predicted)`. `sam_sweep` uses
+Monte Carlo summaries and can draw elasticities on the same rows, ready for
+coverage and probability-integral-transform calculations. Validation includes a
+one-sector Leontief economy: a Dirichlet share in a two-cell column is Beta, and
+`E[1 / (1 - a)] = (alpha + beta - 1) / (beta - 1)` for `beta > 1`.
+
+### Under other closures
+
+A closure is a model of who bears an adjustment, and two defensible ones can give
+results of opposite sign. `closure_sweep` solves the reference and the scenario
+under each closure of a list and measures the change, with the signature of
+`spec_sweep`:
+
+```python
+grid = cge.closure_grid(investment=["savings_driven", "fixed_real"],
+                        foreign=["fixed_saving", "fixed_rate"],
+                        labour=["full_employment", "wage_curve"],
+                        natural_unemployment=0.08)
+sweep = cge.closure_sweep(econ, grid, scenario=policy, measure=gdp_pct)
+sweep.table             # one row per closure
+sweep.failed            # {label: reason} for the combinations refused or unsolved
+sweep.range()           # min, max, spread, the closures at the ends, same sign or not
+```
+
+`closure_grid` gives every combination of the `Closure` fields it is given,
+labelled by the fields that differ from the default. A combination `Closure`
+refuses, or one under which the model does not solve, gets a row of NaN and its
+reason in `failed`, and the sweep goes on: which combinations are impossible is
+part of the answer. With `years` (and `growth`, `economy`) both are paths of
+`run_path`, and `measure` receives the two `PathResult` objects.
+
+### Results in money
+
+A percent change says nothing of size. `in_money` puts a counterfactual in levels:
+
+```python
+cge.in_money(base, alt, unit=1e-3, label="R$ billion")   # a SAM in R$ million
+```
+
+One row per item, by block: `final_demand` (consumption, government,
+investment, exports, imports and GDP), `factor_income`, `households` (the income
+a household can spend: net of direct tax and of payments straight to an
+activity) and `government` (revenue, consumption, transfers, saving). Columns:
+the reference and the alternative at current prices and their change, the same
+at base-year prices and their change, and the change in volume in percent.
+
+At base-year prices, final demand is the Laspeyres volume of `price_indices`
+and GDP the expenditure side of `real_gdp`; a factor's income becomes its
+services, at the base-year price of one; a household's income is deflated by its
+own cost-of-living index against the base year's, so its change is the
+equivalent variation valued at base-year prices; the government's flows are
+deflated by the GDP deflator. Current prices are in units of the numeraire, and
+`unit` multiplies every level and change; the package does not know the SAM's
+currency, and `label` only names it. Two paths give the table for every year
+they share.
+
+### One robustness report
+
+`robustness_report` assembles those analyses for a period without hiding any of
+the underlying objects:
+
+```python
+rel = cge.robustness_report(
+    sam, spec, scenario=policy, measure=gdp_pct,
+    sam_blocks={"intermediate": (comms, acts)},
+    draws=200, sobol=False, figures=False)
+rel.tables["monte_carlo"]
+rel.tables["oat"]
+rel.parts["closures"].range()
+```
+
+The tables cover sourced ranges, one-at-a-time results, quadrature, Monte Carlo,
+closures, SAM uncertainty and money. `parts` contains the full
+`SensitivityResult`, `ClosureSweep` and other public results. Sobol is opt-in.
+The default closure grid crosses savings-driven and fixed-real investment with
+fixed-saving and fixed-rate foreign closures; pass `closures=` to replace it.
+
+The default `ranges="rose2023"` uses `0.5x, x, 1.5x` for value-added, Armington
+and export-CET elasticities. Rose et al. (2023) is the source of the ±50%
+endpoints; the triangular shape is a package convention, not a distribution
+estimated in that paper. `ranges="arndt2002"` gives the Armington support
+`(0.3, 1.5, 9)` and CET support `(0.3, 1.5, 5)` of Arndt, Robinson and Tarp
+(2002). Asymmetric supports skip quadrature with the reason in
+`tables["quadrature"].attrs["skipped"]`; Monte Carlo and Sobol still run. Other
+active elasticities need `ranges={name: (low, mode, high)}` or
+`parameters={name: distribution}` and are named in the error if omitted.
+
+A one-at-a-time point the model refuses is NaN in `tables["oat"]`, with its
+parameter, endpoint and reason in `tables["oat_failed"]`. This matters, for
+example, when halving an Armington elasticity of two reaches the singular
+Cobb–Douglas case under fixed export shares. Other components' failures are not
+silently converted into robust results.
+
+Figures are optional and off by default. With `figures=True`, `figures` contains
+a tornado and distribution plot per output, and Sobol bars when requested. This
+needs `python -m pip install "cgelab[plot]"`; otherwise the error gives that
+installation instruction. The base package does not import or depend on
+matplotlib.
 
 ---
 

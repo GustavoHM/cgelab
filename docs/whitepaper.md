@@ -268,6 +268,12 @@ e o feixe velho passa a ter, por unidade, a média dos seus insumos e dos do fei
 
 `calibrate_baseline` inverte a ordem da trajetória. O PIB real de cada ano, \(Y_t^*\), é dado, e a incógnita do ano é um escalar \(\Lambda_t\) que multiplica a produtividade de Hicks neutra de cada atividade \(a\) por \(\Lambda_t^{\pi_a}\), com \(\pi\) o padrão (um por padrão). Os anos são resolvidos em sequência, porque o capital de cada ano vem do investimento dos anteriores: uma raiz de Brent por ano em \(\log Y_t(\Lambda_t) = \log Y_t^*\). Com o valor adicionado setorial como alvo, cada atividade tem a sua incógnita e as raízes são resolvidas juntas. O valor adicionado é medido por dupla deflação, produção a preços do ano-base menos os insumos a preços do ano-base. O `value_added` de `real_gdp` não serve: é o uso de fatores a preços do ano-base, e a produtividade muda o que um fator produz, não o fator. Uma simulação de política mantém a produtividade calibrada e deixa o PIB se mover.
 
+### Fechamento histórico limitado
+
+`calibrate_historical` estende a mesma inversão a alvos escalares arbitrários. Se \(y_{kt}^{*}\) é o valor observado do alvo \(k\) e \(y_{kt}(\lambda_t)\) o resultado do período, os multiplicadores são resolvidos em conjunto por \(\log y_{kt}(\lambda_t)-\log y_{kt}^{*}=0\). Cada incógnita é um multiplicador positivo de produtividade, comum ou próprio de uma atividade, ou de preferência de um domicílio por uma mercadoria. Os anos permanecem sequenciais quando o capital é recursivo, e `calibrate_baseline` chama as mesmas rotinas de raiz escalar e vetorial.
+
+Para o domicílio \(h\), os pesos de orçamento são recalculados por \(b_{hc}'=b_{hc}m_{hc}/\sum_j b_{hj}m_{hj}\). O multiplicador de uma mercadoria de referência é fixado em um, porque a Cobb–Douglas e a LES só identificam preferências relativas; sem essa normalização e esse *gauge*, o sistema teria uma direção a mais sem identificação. Uma política posterior mantém produtividade e preferências calibradas e deixa os alvos se moverem. É uma versão limitada da troca de fechamento, não o mecanismo genérico previsto para a 0.9.
+
 ### Trajetórias de política
 
 Uma trajetória de política é uma função do ano que devolve um cenário. O que não é preço, imposto ou dotação, como um coeficiente técnico que muda ao longo do tempo, entra por uma função que devolve a economia daquele ano, com as mesmas contas.
@@ -311,13 +317,33 @@ com o Theil \(T = GE(1)\) e o desvio logarítmico médio \(L = GE(0)\) como limi
 
 Na microssimulação comportamental de Bourguignon, Robilliard e Robinson cada pessoa escolhe o status \(k\) por uma logit multinomial, \(U_{ik} = x_i \beta_k + a_{k,H(i)} + \varepsilon_{ik}\), e ganha \(\log y_{ig} = x_i \gamma_g + b_{g,H(i)} + u_{ig}\) no segmento \(g\). Os interceptos \(a\) e \(b\), por conta, se movem até o emprego e o rendimento por trabalhador de cada segmento mudarem como no modelo. Os resíduos da escolha são sorteados condicionais ao status observado, de modo que a base reproduz a pesquisa. A expectativa desses sorteios tem forma fechada, as probabilidades de transição da logit com interceptos deslocados, e é suave nos interceptos, o que deixa os alvos serem atingidos exatamente.
 
-## 10. O que este sistema não resolve
+## 10. Robustez e incerteza
+
+Os índices de Sobol repartem a variância de uma saída entre os parâmetros. No desenho de Saltelli, \(A\) e \(B\) são matrizes de sorteios independentes e \(AB_i\) é \(A\) com a coluna \(i\) tomada de \(B\). Com \(V=\operatorname{Var}(y_A,y_B)\), as implementações usam os estimadores de Saltelli et al. (2010) e Jansen (1999),
+
+\[
+S_i=\frac{\operatorname{média}[y_B(y_{AB_i}-y_A)]}{V},
+\qquad
+ST_i=\frac{\operatorname{média}[(y_A-y_{AB_i})^2]}{2V}.
+\]
+
+As saídas são centradas na média de todas as soluções antes do cálculo, como no SALib. O primeiro índice mede a parcela explicada pelo parâmetro sozinho; o segundo inclui todas as suas interações. Os intervalos vêm de bootstrap sobre os pontos de base, e a validação confere os índices contra o SALib no mesmo desenho.
+
+A MCS também é uma estimativa. Num bloco escolhido, as participações positivas de cada coluna podem receber um choque \(p_{\cdot j}\sim\operatorname{Dirichlet}(\kappa p^0_{\cdot j})\), ou cada fluxo não nulo pode receber ruído lognormal \(x_{ij}'=x_{ij}\exp(\varepsilon_{ij}-s^2/2)\), com \(\varepsilon_{ij}\sim N(0,s^2)\) e média multiplicativa um. Zeros estruturais permanecem zero. O choque direto é seguido do RAS com preservação de sinal de `SAM.balance`, que restaura o equilíbrio e pode mover células fora do bloco; portanto as participações finais não precisam conservar a distribuição Dirichlet. Cada matriz é recalibrada e resolvida, sozinha ou com sorteios independentes de elasticidades na mesma linha.
+
+A distância entre matrizes não negativas é \(D_{KL}(P\|Q)=\sum_{ij:p_{ij}>0}p_{ij}\log(p_{ij}/q_{ij})\), após normalizar os fluxos para soma um. Ela é dirigida como `sam_distance(observada, prevista)`; suporte zero na segunda matriz sob massa positiva na primeira dá infinito, e fluxos negativos são recusados porque não admitem essa interpretação probabilística. Num Leontief de um setor com \(x=d/(1-a)\) e \(a\sim\operatorname{Beta}(\alpha,\beta)\), a referência fechada é \(E[(1-a)^{-1}]=(\alpha+\beta-1)/(\beta-1)\), para \(\beta>1\).
+
+O `robustness_report` reúne essas análises sem substituir suas APIs. Nas faixas padrão, os limites de ±50% para as elasticidades do valor adicionado, de Armington e da CET seguem Rose et al. (2023); a forma triangular centrada no valor do modelo é uma convenção declarada do pacote, não uma distribuição estimada. Como alternativa, os suportes de Arndt, Robinson e Tarp (2002) são \((0{,}3;1{,}5;9)\) para Armington e \((0{,}3;1{,}5;5)\) para a CET. A quadratura é omitida com a razão registrada quando uma distribuição assimétrica viola seu pressuposto; Monte Carlo e Sobol permanecem disponíveis. Um ponto que o modelo recusa aparece como falha identificada, não como zero.
+
+## 11. O que este sistema não resolve
 
 A trajetória da seção 7 é recursiva. Uma política anunciada para uma data futura não move o investimento do primeiro ano, porque nenhum agente a vê. Levar esse efeito a sério é outro objeto. O equilíbrio do período continua sendo o desta nota. O resíduo intertemporal, uma Euler ou um \(q\) de Tobin ao longo de uma trajetória anunciada, seria resolvido pelo `dsgelab`, que já empilha uma função de resíduos e já aceita uma sequência de parâmetros. A matriz não entraria naquele pacote. A dependência seria opcional. O desenho está no `ROADMAP.md`, na seção *Extensions that call dsgelab*.
 
 Ninhos além do valor adicionado, contas de emissões, unidades físicas de energia e um banco global no estilo GTAP também não estão nas equações acima. São extensões do equilíbrio de período, não do bloco intertemporal.
 
 ## Referências
+
+Arndt, C., Robinson, S. e Tarp, F. (2002). Parameter estimation for a computable general equilibrium model: a maximum entropy approach. *Economic Modelling*, 19(3), 375–398.
 
 Armington, P. S. (1969). A theory of demand for products distinguished by place of production. *IMF Staff Papers*, 16(1), 159–178.
 
@@ -334,5 +360,7 @@ Harris, J. R. e Todaro, M. P. (1970). Migration, unemployment and development: a
 Hosoe, N., Gasawa, K. e Hashimoto, H. (2010). *Textbook of Computable General Equilibrium Modelling: Programming and Simulations*. Basingstoke: Palgrave Macmillan.
 
 Hertel, T. W. (org.) (1997). *Global Trade Analysis: Modeling and Applications*. Cambridge: Cambridge University Press.
+
+Rose, A., Chen, Z. e Wei, D. (2023). The economic impacts of Russia–Ukraine War export disruptions of grain commodities. *Applied Economic Perspectives and Policy*, 45(2), 645–665.
 
 Stone, R. (1954). Linear expenditure systems and demand analysis: an application to the pattern of British demand. *The Economic Journal*, 64(255), 511–527.

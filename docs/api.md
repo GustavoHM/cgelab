@@ -29,6 +29,13 @@ Constructors: `SAM.from_long(df, row="row", col="col", value="value", name="sam"
 
 `BalanceError` is raised by both.
 
+### `sam_distance(sam, other) -> float`
+
+Kullback–Leibler divergence `D_KL(sam || other)` after aligning accounts and
+normalising nonnegative flows to sum to one. Use `sam_distance(observed,
+predicted)` for forecasts. Zero support in `other` under positive mass in `sam`
+gives `inf`; negative or nonfinite entries and zero total flow are refused.
+
 ---
 
 ## Specification
@@ -415,7 +422,8 @@ absent, it follows `product_tax`.
 
 `run` maps `{parameter: value}` to a number, a mapping or a Series. `parameters`
 maps names to `Uniform(low, high)`, `Normal(mean, sd)` or
-`Triangular(low, mode, high)`, independent. `"quadrature"` is Stroud's degree-3
+`Triangular(low, mode, high)`, independent; each has `mean`, `sd`, `draw(rng, n)`
+and `ppf(u)`. `"quadrature"` is Stroud's degree-3
 rule at `2n` points (symmetric distributions only); `"monte_carlo"` draws with
 the seed.
 
@@ -434,6 +442,99 @@ for one entry), recalibrates, solves base and scenario, and returns
 ### `stroud_points(n) -> ndarray`
 
 The `(2n, n)` standardised points of the rule.
+
+### `sobol(run, parameters, *, n=1024, seed=20260724, bootstrap=200, conf_level=0.95) -> SobolResult`
+
+First-order and total Sobol indices on Saltelli's design, at `n (k + 2)` solves;
+`n` a power of two. `run` and `parameters` as in `sensitivity`; each
+distribution needs `ppf(u)`, its quantile function, which `Uniform`, `Normal`
+and `Triangular` have. `bootstrap=0` gives no intervals.
+
+### `SobolResult`
+
+`points` (one row per solve: `matrix` `"A"`, `"B"` or `"AB_<parameter>"`, `row`,
+the parameters, `weight`, the outputs; the `A` and `B` rows weighted `1/(2n)` as
+independent draws), `parameters`, `outputs`, `n`; `indices()`: `S1`, `S1_conf`,
+`ST`, `ST_conf` by output and parameter; `summary(quantiles=...)` over the `A`
+and `B` rows.
+
+### `sam_draws(sam, *, blocks, method="dirichlet", concentration=100.0, scale=0.05, draws=1000, seed=20260724, balance_kwargs=None) -> SAMDraws`
+
+Balanced SAM draws. `blocks` is `{label: (rows, columns)}`, with no overlap.
+`"dirichlet"` perturbs positive selected cells by column shares centred on the
+original, with the given precision; negative selected cells are refused.
+`"noise"` multiplies nonzero selected cells by lognormal noise with mean one and
+log standard deviation `scale`. Structural zeros stay zero. Sign-preserving
+`SAM.balance` follows the direct shock and can move cells outside the blocks;
+`balance_kwargs` sets its options. The input is not mutated.
+
+`SAMDraws.sams` holds the matrices. `points` has `draw`, equal `weight` and
+`sam_distance`, the KL divergence from the original to each draw, or NaN when
+negative flows make KL undefined. `method`, `blocks`, `seed` and `len()` are
+also available.
+
+### `sam_sweep(draws, spec, *, measure, closure=None, scenario=None, parameters=None, calibrate_kwargs=None) -> SensitivityResult`
+
+Recalibrates and solves every `SAMDraws` row, calling
+`measure(reference, alternative)` as `spec_sweep` does. `parameters` optionally
+adds independent elasticity draws from `Uniform`, `Normal` or `Triangular` on
+the same rows. The Monte Carlo result's `points` retain `draw`, `weight`,
+`sam_distance`, parameter values and outputs; `summary()` adds quantiles and the
+range. A failed calibration or solve names its draw.
+
+### `closure_sweep(econ, closures, *, measure, scenario=None, reference=None, years=None, growth=None, economy=None) -> ClosureSweep`
+
+The reference and the scenario solved under each closure, and
+`measure(reference, alternative)`. `closures` is `{label: closure}` or a list
+(labelled by the fields that differ from `Closure()`); each closure is a
+`Closure` or its keyword arguments. With `years`, both are paths of `run_path`
+and `measure` receives two `PathResult`. A closure refused or unsolved gets a
+row of NaN and its reason in `failed`.
+
+### `closure_grid(**options) -> dict`
+
+`{label: keyword arguments}` for every combination of the `Closure` fields
+given; a field given one value applies to all. Unknown fields raise `TypeError`.
+
+### `ClosureSweep`
+
+`table` (closures by outputs), `walras` and `converged` by closure, `failed`
+(`{label: reason}`), `closures`; `range()`: `min`, `max`, `spread`, `argmin`,
+`argmax` and `same_sign` for each output.
+
+### `in_money(reference, alternative, *, unit=1.0, label=None, years=None) -> DataFrame`
+
+Two periods, or two paths (every shared year, or `years`). Index
+`(block, item)`, with `year` first for paths; blocks `final_demand`,
+`factor_income`, `households`, `government`. Columns `reference`,
+`alternative`, `change` (current prices), `reference_base_prices`,
+`alternative_base_prices`, `change_base_prices`, `pct_base_prices`. Households
+are deflated by their own index against the base year's, the government by the
+GDP deflator. `unit` scales levels and changes; `label` is kept in
+`attrs["unit"]`.
+
+### `robustness_report(sam, spec, *, measure, scenario=None, sam_blocks, ranges="rose2023", parameters=None, closures=None, draws=200, seed=20260724, sobol=False, sobol_n=256, money=True, unit=1.0, label=None, figures=False, calibrate_kwargs=None, sam_kwargs=None) -> RobustnessReport`
+
+Runs one-at-a-time ranges, quadrature, Monte Carlo, a closure grid, balanced SAM
+draws with joint elasticity draws, and `in_money` for one period. `measure` has
+the `spec_sweep` signature. The default closure grid has four combinations of
+investment and foreign closures. `sam_blocks` and `sam_kwargs` go to
+`sam_draws`; `parameters` supplies distributions and `ranges` supplies
+`(low, mode, high)` triples.
+
+`rose2023` uses sourced ±50% endpoints and package-chosen triangular shapes for
+value-added, Armington and export-CET elasticities. `arndt2002` uses published
+trade-elasticity supports `(0.3, 1.5, 9)` and `(0.3, 1.5, 5)`. Other active
+elasticity fields need user values. Asymmetric distributions skip quadrature and
+record the reason in the table's `attrs["skipped"]`.
+
+`tables` contains `ranges`, `oat`, `oat_failed`, `quadrature`, `monte_carlo`,
+`closures`, `sam` and `money`, plus `sobol` when requested. `parts` contains the
+full public result objects. `ranges` is also a property. Refused OAT points are
+NaN with their reasons in `oat_failed`. `figures=True` adds tornado and
+distribution figures, and Sobol bars when available; it requires the optional
+`plot` extra (`matplotlib>=3.7`). `RobustnessReport` never requires matplotlib
+when figures are not requested.
 
 ---
 
@@ -493,6 +594,26 @@ calibrated `PathResult`), `target`, `achieved`, `measure`; `scenario(policy=None
 gives `f(year, t) -> Scenario` for `run_path`, with the policy (a `Scenario` or
 `f(year, t)`, the whole scenario for the year) at the calibrated productivity,
 and `run(policy=None)` runs it.
+
+### `calibrate_historical(econ, closure=None, *, years, targets, shifters, kind="level", growth=None, scenario=None, economy=None, pattern=None, preference_reference=None, tol=1e-12) -> Historical`
+
+A limited historical closure: observed variables are targets, and technology or
+preference multipliers are solved endogenously. Each `targets[name]` is
+`(observed Series, measure(result))`; `shifters[name]` is `("productivity",)`,
+`("productivity", activity)` or `("preference", household, commodity)`. One log
+multiplier per target is solved jointly per year, sequentially for a path.
+`kind` is `"level"`, `"index"` or `"growth"`; `pattern` gives the activity
+exponents of an aggregate productivity shifter.
+
+Preferences are normalised by household, with the multiplier of the commodity
+in `preference_reference` fixed at one. Targets must be positive; targets and
+shifters must correspond one-to-one, and reference commodities cannot move.
+
+`Historical` has `years`, `path`, `target`, `achieved`, `productivity` (the
+scenario multiplier), `multiplier` (the calibrated productivity alone),
+`preferences` (year × commodity frames by household), `scenario(policy=None)`
+and `run(policy=None)`. A policy holds the calibrated shifters. The baseline
+uses the same scalar and joint root routines.
 
 ### `PathResult`
 

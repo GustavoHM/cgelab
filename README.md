@@ -29,6 +29,7 @@ pip install cgelab                 # from PyPI
 pip install "cgelab[parquet]"      # adds pyarrow for .parquet SAMs
 pip install "cgelab[dsge]"         # adds dsgelab, for forward-looking investment
 pip install "cgelab[ibge]"         # adds xlrd, for the IBGE's supply and use tables
+pip install "cgelab[plot]"         # adds matplotlib, for optional robustness figures
 pip install "cgelab @ git+https://github.com/GustavoHM/cgelab"   # the current main branch
 ```
 
@@ -137,14 +138,14 @@ period.
 | Factor mobility (CET or logit, pools of origin); labour segments, dual markets and Harris–Todaro | `ModelSpec.factor_mobility`, `ModelSpec.labour_segments`, `LabourMarket` |
 | Counterfactuals: taxes, wedges, endowments, ownership, productivity, own-account levels, world prices, FDI, the investment basket | `Scenario` |
 | Recursive dynamics: several capital stocks, capital by sector, putty-clay vintages, investment allocation, foreign-owned capital, a per-year economy | `run_path`, `Growth`, `ModelSpec.vintages` |
-| A baseline calibrated to a path of real GDP, and policy runs at its productivity | `calibrate_baseline`, `Baseline` |
+| Baselines calibrated to real GDP and limited historical closures with technology and relative-preference shifters | `calibrate_baseline`, `calibrate_historical`, `Baseline`, `Historical` |
 | Microsimulation: survey households reconciled with the SAM; Gini, FGT, generalised entropy, Atkinson and their decompositions; reweighting; a behavioural model (BRR) | `microsimulate`, `inequality`, `poverty`, `Behaviour` |
 | Building a SAM from supply and use tables, with the provenance of every block; splitting households and labour by surveys; readers for the IBGE's tables, PNAD Contínua and POF | `sut_to_sam`, `split_households`, `split_factor`, `read_tru`, `pnadc`, `pof` |
 | Forward-looking investment (a Ramsey CGE solved by dsgelab) | `cgelab.bridge` |
 | Accounts: GDP from both sides, Laspeyres, Paasche and Fisher indices, terms of trade, the government account | `national_accounts`, `price_indices`, `government_account` |
 | Decompositions: subtotals by shock, Huff-Hertel welfare decomposition | `subtotals`, `welfare_decomposition` |
 | SAM multipliers, linkages, structural path analysis | `accounting_multipliers`, `linkages`, `structural_paths` |
-| Systematic sensitivity: Stroud quadrature and Monte Carlo over elasticities | `sensitivity`, `spec_sweep` |
+| Systematic sensitivity and one-call robustness reports: quadrature, Monte Carlo, Sobol, SAM draws, closure grids, money and optional figures | `sensitivity`, `spec_sweep`, `sobol`, `sam_draws`, `sam_sweep`, `closure_sweep`, `in_money`, `robustness_report` |
 | Welfare: EV, CV and composition-immune group aggregation | `cgelab.welfare` |
 | Base-year reproduction, homogeneity, Walras | `cgelab.diagnostics` |
 | The same equilibrium as a JuMP model, for independent validation | `to_jump` |

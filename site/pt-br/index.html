@@ -727,6 +727,135 @@ trajetoria[2021].vintage_value_added                 # os feixes velho e novo</c
   novo vai para onde rende mais. Quando o preço da indústria sobe, só a safra nova acompanha no
   começo, então o produto responde menos que com capital móvel, e alcança à medida que a
   indústria instala mais do investimento de cada ano.</p>
+
+  <h3>26. O mesmo choque sob quatro fechamentos, e em moeda</h3>
+<pre><code>_, simples = toy.build()
+choque = cge.Scenario(world_price=np.array([1.0, 1.2]))
+pib_pct = lambda base, alt: {"pib_pct": 100 * (cge.real_gdp(alt)["expenditure"]
+                                               / cge.real_gdp(base)["expenditure"] - 1)}
+grade = cge.closure_grid(investment=["savings_driven", "fixed_real"],
+                         foreign=["fixed_saving", "fixed_rate"])
+varredura = cge.closure_sweep(simples, grade, scenario=choque, measure=pib_pct)
+varredura.table
+varredura.range()[["min", "max", "same_sign"]]
+base, alt = cge.solve_period(simples), cge.solve_period(simples, scenario=choque)
+cge.in_money(base, alt).loc["final_demand", ["change", "change_base_prices"]]</code></pre>
+<pre class="output" data-label="Saída"><code><span class="out-expr">varredura.table</span>
+                                           pib_pct
+closure
+default                                    -0.1454
+foreign=fixed_rate                         -0.4845
+investment=fixed_real                      -0.1458
+investment=fixed_real, foreign=fixed_rate  -0.4978
+<span class="out-expr">varredura.range()[["min", "max", "same_sign"]]</span>
+            min     max  same_sign
+pib_pct -0.4978 -0.1454       True
+<span class="out-expr">cge.in_money(base, alt).loc["final_demand", ["change", "change_base_prices"]]</span>
+              change  change_base_prices
+item
+consumption  -0.1189              0.3996
+government  -0.00778                   0
+investment  -0.07754             -0.2573
+exports     -0.01755             0.05611
+imports     -0.01755              0.4819
+gdp          -0.2042             -0.2835</code></pre>
+  <p>O fechamento que um resultado supõe é uma escolha, e dois fechamentos defensáveis podem
+  discordar. A varredura resolve a referência e o cenário sob cada um, diz quais combinações o
+  pacote recusa e por quê, e dá a amplitude. <code>in_money</code> põe a variação em níveis, a
+  preços correntes e do ano-base, na unidade da MCS vezes <code>unit</code>: uma MCS em milhões e
+  <code>unit=1e-3</code> dão bilhões.</p>
+
+  <h3>27. De onde vem a variância</h3>
+<pre><code>res = cge.sobol(run, params, n=256, bootstrap=100)     # o run e os parâmetros do exemplo 12
+res.indices()</code></pre>
+<pre class="output" data-label="Saída"><code><span class="out-expr">res.indices()</span>
+                              S1  S1_conf    ST   ST_conf
+output  parameter
+gdp_pct sigma_va        0.001761 0.009473 0.003 0.0007993
+        sigma_armington    1.013   0.1872 1.012    0.1222</code></pre>
+  <p>Os índices de Sobol repartem a variância de um resultado entre os parâmetros: <code>S1</code>
+  é a parcela que um parâmetro explica sozinho, <code>ST</code> soma as suas interações. O desenho é
+  o de Saltelli, com <code>n (k + 2)</code> soluções, e o SALib dá os mesmos índices no mesmo
+  desenho. Aqui a elasticidade de Armington carrega quase toda a variância do PIB real. Uma
+  estimativa pode passar de um por erro de amostragem; as semiamplitudes dizem de quanto, e mais
+  pontos de base as reduzem.</p>
+  <h3>28. A MCS também é uma estimativa</h3>
+<pre><code>sorteios = cge.sam_draws(sam_toy,
+    blocks={"intermediario": (["c_agr", "c_ind"], ["a_agr", "a_ind"])},
+    concentration=80.0, draws=8, seed=7,
+    balance_kwargs={"rel_tol": 1e-12, "abs_tol": 1e-10})
+incerteza = cge.sam_sweep(sorteios, toy.spec(), measure=pib_pct, scenario=choque)
+incerteza.points[["draw", "sam_distance", "pib_pct"]]
+incerteza.summary()</code></pre>
+<pre class="output" data-label="Saída"><code><span class="out-expr">incerteza.points[["draw", "sam_distance", "pib_pct"]]</span>
+   draw  sam_distance  pib_pct
+0     0     9.736e-05  -0.1447
+1     1     7.543e-05   -0.146
+2     2     0.0004869  -0.1437
+3     3      0.001046  -0.1446
+4     4     0.0007494  -0.1434
+5     5     0.0004054  -0.1466
+6     6      0.001005  -0.1448
+7     7     4.359e-05  -0.1451
+<span class="out-expr">incerteza.summary()</span>
+           mean       sd   q0.05    q0.5   q0.95     min     max
+pib_pct -0.1449 0.001002 -0.1464 -0.1447 -0.1435 -0.1466 -0.1434</code></pre>
+  <p>O choque Dirichlet direto move o bloco intermediário; depois o RAS com preservação de sinal
+  restaura o equilíbrio. Cada MCS é recalibrada e resolvida, e os pontos conservam seu peso e sua
+  distância KL da original. O resumo é a distribuição do resultado sobre os sorteios da MCS, não
+  apenas sobre as elasticidades.</p>
+  <h3>29. O relatório de robustez completo</h3>
+<pre><code>rel = cge.robustness_report(sam_toy, toy.spec(), scenario=choque, measure=pib_pct,
+    sam_blocks={"intermediario": (["c_agr", "c_ind"], ["a_agr", "a_ind"])},
+    draws=4, seed=7,
+    sam_kwargs={"balance_kwargs": {"rel_tol": 1e-12, "abs_tol": 1e-10}})
+rel.tables["monte_carlo"]
+rel.tables["oat"][["low", "central", "high"]]</code></pre>
+<pre class="output" data-label="Saída"><code><span class="out-expr">rel.tables["monte_carlo"]</span>
+           mean      sd   q0.05    q0.5    q0.95     min      max
+pib_pct -0.1395 0.04613 -0.1833 -0.1523 -0.07789 -0.1845 -0.06909
+<span class="out-expr">rel.tables["oat"][["low", "central", "high"]]</span>
+point                      low  central    high
+output  parameter
+pib_pct sigma_va        -0.145  -0.1454 -0.1455
+        sigma_armington    NaN  -0.1454  -0.224</code></pre>
+  <p>Uma chamada reúne faixas um de cada vez, quadratura, Monte Carlo, quatro fechamentos,
+  sorteios da MCS e tabelas em moeda. Os resultados completos ficam em <code>parts</code>. Aqui o
+  ponto inferior de Armington é NaN porque vale exatamente um, que este fechamento recusa;
+  <code>oat_failed</code> registra o motivo. Figuras de tornado e distribuição estão disponíveis
+  com o extra opcional <code>plot</code>.</p>
+  <h3>30. Um fechamento histórico limitado</h3>
+<pre><code>import dataclasses
+orcamento = simples.hh_budget.copy()
+pesos = orcamento[0] * np.array([1.2, 1.0])
+orcamento[0] = pesos / pesos.sum()
+economia_observada = dataclasses.replace(simples, hh_budget=orcamento)
+observado = cge.solve_period(economia_observada,
+    scenario=cge.Scenario(productivity=np.full(simples.n_act, 1.05)))
+hist = cge.calibrate_historical(simples, years=[2021],
+    targets={"pib": (pd.Series({2021: cge.real_gdp(observado)["expenditure"]}),
+                     lambda r: cge.real_gdp(r)["expenditure"]),
+             "alimento": (pd.Series({2021: observado.hh_quantity[0, 0]}),
+                          lambda r: r.hh_quantity[0, 0])},
+    shifters={"pib": ("productivity",),
+              "alimento": ("preference", "hh_1", "c_agr")},
+    preference_reference={"hh_1": "c_ind"})
+hist.achieved
+hist.multiplier
+hist.preferences["hh_1"]</code></pre>
+<pre class="output" data-label="Saída"><code><span class="out-expr">hist.achieved</span>
+       pib  alimento
+2021 210.8     34.42
+<span class="out-expr">hist.multiplier</span>
+      a_agr  a_ind
+2021   1.05   1.05
+<span class="out-expr">hist.preferences["hh_1"]</span>
+      c_agr  c_ind
+2021    1.2      1</code></pre>
+  <p>O PIB e a demanda alimentar observados são os alvos; a produtividade e a preferência relativa
+  por alimento são as incógnitas, resolvidas em conjunto em log. A outra mercadoria fixa a escala
+  das preferências. Depois, <code>hist.run(policy)</code> mantém esses deslocadores e deixa os
+  alvos se moverem. <code>calibrate_baseline</code> usa as mesmas rotinas de raiz.</p>
 </div></section>
 
 <section id="verificacoes"><div class="wrap">

@@ -5,6 +5,58 @@ before 1.0, a minor version may add to the API and a patch version only fixes.
 
 ## Unreleased
 
+### Added
+
+- `calibrate_historical` is a limited historical closure: observed scalar
+  targets become exogenous constraints and technology or relative-preference
+  multipliers are solved jointly, in one period or along a recursive path.
+  `Historical` replays a policy at the calibrated shifters. Preference weights
+  are normalised by household with a declared reference commodity, so only
+  relative preferences are identified. `calibrate_baseline` now uses the same
+  scalar and joint root routines, with all 15 baseline tests unchanged; new
+  validation recovers known simulated histories and hand-written log roots.
+- `robustness_report` runs sourced one-at-a-time ranges, quadrature, Monte
+  Carlo, closure grids, balanced SAM draws with joint elasticity draws and money
+  tables in one call, with optional Sobol indices. `RobustnessReport` keeps both
+  summary tables and the full public result objects; refused OAT points are
+  reported with their reasons. The `rose2023` preset uses ±50% endpoints from
+  Rose et al. and declares the triangular shape a package convention;
+  `arndt2002` supplies the published Armington and CET supports and skips
+  quadrature when asymmetry makes it invalid. The optional `plot` extra adds
+  matplotlib figures only on request, leaving the base installation unchanged.
+- `sam_draws` perturbs selected SAM blocks by Dirichlet shares or mean-one
+  lognormal noise and rebalances every draw; `sam_sweep` recalibrates and solves
+  each SAM, optionally with elasticity draws on the same rows. Its
+  `SensitivityResult.points` retain `draw`, `weight` and `sam_distance` for
+  coverage and PIT calculations. `sam_distance` is the single public KL
+  divergence between SAMs, aligned by account and directed as
+  `D_KL(observed || predicted)`; negative flows are refused. Validation includes
+  a hand-run noise experiment, base-year reproduction and a one-sector Leontief
+  economy whose Beta-distributed share gives
+  `E[1 / (1 - a)] = (alpha + beta - 1) / (beta - 1)`.
+- `sobol` computes first-order and total Sobol indices on Saltelli's design, from a scrambled
+  Sobol sequence carried to each distribution by its quantile function (`ppf`, new on
+  `Uniform`, `Normal` and `Triangular`), at `n (k + 2)` solves; `SobolResult.indices()` gives
+  them with bootstrap intervals, and its points keep the format of `SensitivityResult.points`.
+  The indices match Ishigami's closed form, a linear, an additive and a purely interactive
+  model; given the same seed, SALib draws the same design and gives the same indices, to
+  8.9e-16, on Ishigami and on the toy economy (`validation/sobol_salib.py`, now in the
+  `validation` workflow).
+
+- `closure_sweep` solves the reference and a scenario under each closure of a list, in a
+  period or along a path, and measures the change with the signature of `spec_sweep`.
+  `closure_grid` gives every combination of `Closure` fields, labelled by what differs from
+  the default; a combination `Closure` refuses, or one that does not solve, is reported with
+  its reason and the sweep goes on. `ClosureSweep.range` gives each output's spread over the
+  closures, the closures at its ends, and whether they all agree on its sign.
+- `in_money` puts a counterfactual in levels, at current and at base-year prices, with the
+  change in each and the change in volume, in a unit the user picks: final demand, factor
+  income, the income households can spend and the government account. Its levels are those
+  of `national_accounts`, `real_gdp` and the Laspeyres volume of `price_indices`; a
+  household's change at base-year prices is its equivalent variation at base-year prices; a
+  doubled numeraire doubles the current-price columns and leaves the others, as the tests
+  check.
+
 ### Fixed
 
 - `functions.armington` at `sigma_armington = 1`. The CES formula has the exponent

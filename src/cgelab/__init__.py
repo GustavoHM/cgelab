@@ -35,6 +35,7 @@ from .export import to_jump
 from .har import read_har, write_har
 from .dynamics import Growth, PathResult, run_path
 from .baseline import Baseline, calibrate_baseline
+from .historical import Historical, calibrate_historical
 from .functions import (armington, ces_intensity, ces_price, cet, cet_domestic_price,
                         cobb_douglas_price)
 from .behaviour import Behaviour, PersonSurvey, transition_probabilities
@@ -49,10 +50,13 @@ from .multipliers import (Multipliers, accounting_multipliers, fixed_price_multi
                           leontief_multipliers, linkages, structural_paths)
 from .results import (factor_demand_by_activity, government_account, national_accounts,
                       price_indices, real_gdp, real_value_added, sectoral_path)
-from .sam import SAM, BalanceError
+from .sam import SAM, BalanceError, sam_distance
+from .sam_uncertainty import SAMDraws, sam_draws, sam_sweep
 from .scenario import Scenario, consumer_wedge
-from .sensitivity import (Normal, SensitivityResult, Triangular, Uniform, sensitivity,
-                          spec_sweep, stroud_points)
+from .robustness import ClosureSweep, closure_grid, closure_sweep, in_money
+from .robustness_report import RobustnessReport, robustness_report
+from .sensitivity import (Normal, SensitivityResult, SobolResult, Triangular, Uniform,
+                          sensitivity, sobol, spec_sweep, stroud_points)
 from .solve import PeriodResult, factor_intensity, solve_period, value_added_price
 from .spec import AccountLayout, ModelSpec
 from .welfare import compensating_variation, equivalent_variation, ev_by_group
@@ -60,12 +64,13 @@ from .welfare import compensating_variation, equivalent_variation, ev_by_group
 __version__ = "0.5.5"
 
 __all__ = [
-    "SAM", "BalanceError",
+    "SAM", "BalanceError", "sam_distance", "SAMDraws", "sam_draws", "sam_sweep",
     "ModelSpec", "AccountLayout",
     "calibrate", "Economy",
     "Closure", "LabourMarket", "Scenario", "consumer_wedge",
     "solve_period", "PeriodResult", "value_added_price", "factor_intensity",
     "run_path", "PathResult", "Growth", "calibrate_baseline", "Baseline",
+    "calibrate_historical", "Historical",
     "FactorMobility",
     "Survey", "MicroResult", "microsimulate", "account_sources", "inequality", "poverty",
     "PersonSurvey", "Behaviour", "transition_probabilities",
@@ -84,7 +89,9 @@ __all__ = [
     "Multipliers", "accounting_multipliers", "fixed_price_multipliers", "leontief_multipliers",
     "linkages", "structural_paths",
     "subtotals", "path_decomposition", "scenario_vector", "welfare_decomposition",
-    "sensitivity", "spec_sweep", "stroud_points", "SensitivityResult",
+    "sensitivity", "spec_sweep", "stroud_points", "SensitivityResult", "sobol", "SobolResult",
+    "closure_sweep", "closure_grid", "ClosureSweep", "in_money",
+    "robustness_report", "RobustnessReport",
     "Uniform", "Normal", "Triangular",
     "ces_price", "ces_intensity", "cobb_douglas_price", "armington", "cet", "cet_domestic_price",
     "__version__",

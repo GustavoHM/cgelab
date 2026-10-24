@@ -89,7 +89,8 @@ several regions, the result helpers, and the JuMP export replicating all of it. 
   ([10.5281/zenodo.23458852](https://doi.org/10.5281/zenodo.23458852)), the repository public and the site on Pages.
 
 **0.6 — the distributional side and the labour market.** The six items below are done and were
-released in 0.5.5, ahead of 0.6.0.
+released in 0.5.5, ahead of 0.6.0, which also waits for the robustness items (see
+*Robustness*).
 
 - [x] **Imperfect factor mobility and the proximity matrix**: a CET or a logit across the
   activities that use a factor, pools of origin (`ModelSpec.factor_mobility`,
@@ -106,6 +107,23 @@ released in 0.5.5, ahead of 0.6.0.
 - [x] **A baseline calibrated to a path of real GDP** (`calibrate_baseline`, `Baseline`).
 - [x] **Capital by sector and putty-clay vintages** (`factor_pools={"f_cap": "activities"}`,
   `ModelSpec.vintages`, `split_vintages`).
+- [x] **A robustness report**: one call that runs quadrature and Monte Carlo over every
+  elasticity, one-at-a-time ranges for a tornado chart, a grid of closures and the
+  uncertainty of the SAM itself, and returns tables and optional figures
+  (`robustness_report`, with the `plot` extra).
+- [x] **Global sensitivity indices** (first-order and total Sobol indices, Saltelli design),
+  validated against SALib (`sobol`).
+- [x] **Uncertainty in the SAM**: perturbing blocks of the matrix, rebalancing with
+  `SAM.balance`, recalibrating and propagating the draws to the results
+  (`sam_draws`, `sam_sweep`, `sam_distance`).
+- [x] **Closure robustness**: the same scenario under a list of closures (`closure_sweep`,
+  `closure_grid`).
+- [x] **Results in money**: changes expressed as levels at base-year and at current prices,
+  in a unit the user picks (`in_money`).
+- [x] **A historical closure**: a limited, early version of the 0.9 closure swap, in which
+  observed variables are exogenous and the technology and preference shifters that reproduce
+  them are endogenous (`calibrate_historical`, `Historical`). The dynamic calibration of the
+  baseline to a GDP path is a special case and uses the same root routines.
 - [ ] **Release**: the version, the dates and the citations set to 0.6.0, the `validation`
   workflow, a tag, PyPI and Zenodo.
 
@@ -129,8 +147,8 @@ land use allocated by CET; export to GAMS/MPSGE and GEMPACK.
 
 ## Next: gaps an applied model hit
 
-Nothing from 0.2 to 0.6 is open; the six items of 0.6 are released in 0.5.5, and 0.6.0 waits
-on its release.
+Nothing from 0.2 to 0.5 is open; the first six items of 0.6 are released in 0.5.5, and 0.6.0
+waits for the robustness items and its release.
 
 Done, and no longer gaps:
 
@@ -195,11 +213,12 @@ the vintages, which needs a regime switch for idle capital, and the sale of old 
 declining sectors, as in LINKAGE; vintages with an energy nest, with foreign-owned capital
 and in several regions.
 
-**A baseline calibrated to GDP.** Done in 0.6: `calibrate_baseline`, the productivity path
-that makes a recursive baseline hit real GDP, by year or by activity, and `Baseline`, which
-runs a policy at it. Still open: other targets with other unknowns (employment through the
-labour supply, the investment rate through saving, exports through world prices), the rest
-of a MONASH historical closure.
+**Baseline and historical calibration.** Done in 0.6: `calibrate_baseline`, the productivity
+path that makes a recursive baseline hit real GDP, by year or by activity, and `Baseline`, which
+runs a policy at it. `calibrate_historical` generalises the same root routines to observed scalar
+targets with technology and relative-preference shifters, and `Historical` replays a policy at
+them. Still open: other unknowns (employment through labour supply, the investment rate through
+saving, exports through world prices) and the generic closure swap of 0.9.
 
 **Asymmetric Armington.** The substitution elasticity is one number per commodity. Cicowiez and
 Lofgren (2022) make it depend on the origin of the import. Their Mongolia 2015 workbook also
@@ -287,6 +306,25 @@ Changes to the period equilibrium stay in the sections above, whether done (ener
 tariff accounting, government closures) or open (bilateral trade among regions, a GTAP-style
 global bank). dsgelab has no
 representation for a SAM, and calling it does not close those gaps.
+
+## Robustness
+
+**What is there.** `sensitivity` and `spec_sweep` (0.3) turn a result into a distribution over
+the elasticities; `closure_sweep`, `in_money`, `sam_draws` and `sam_sweep` (0.6) solve it under
+a list of closures, put it in money, and propagate balanced SAM draws through recalibration and
+solution. `robustness_report` assembles them with sourced ranges, one-at-a-time results and
+optional tornado and distribution figures. Its parts stay public, so that a study can run one
+of them alone.
+
+**Sobol indices.** The quadrature gives a mean and a standard deviation. It does not say which
+parameter the variance comes from when they interact. First-order and total Sobol indices do,
+at the cost of many more solves; SALib is the independent reference.
+
+**The SAM is an estimate.** Every entry of a SAM was estimated, and RAS or cross entropy then
+moved it. Perturbing blocks of the matrix (a Dirichlet draw on the shares of a column, or
+multiplicative noise followed by `SAM.balance`), recalibrating and solving again gives the part
+of the uncertainty that the elasticities do not carry. The reference is the same experiment
+done by hand, and a case with a closed form (Leontief).
 
 ## Tools around the model
 

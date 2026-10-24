@@ -20,7 +20,34 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 
-__all__ = ["SAM", "BalanceError"]
+__all__ = ["SAM", "BalanceError", "sam_distance"]
+
+
+def sam_distance(sam: "SAM", other: "SAM") -> float:
+    """Kullback--Leibler divergence from ``other`` to ``sam``, ``D_KL(sam || other)``.
+
+    The two matrices are aligned by account name and their nonnegative flows are
+    normalised to sum to one. In a forecast comparison, call this as
+    ``sam_distance(observed, predicted)``. A zero in ``other`` where ``sam`` has
+    positive mass gives infinity. Negative flows have no probability
+    interpretation and are refused rather than shifted or silently discarded.
+    """
+    accounts = sorted(set(sam.accounts) | set(other.accounts))
+    p = sam.matrix(accounts).to_numpy(dtype=float).ravel()
+    q = other.matrix(accounts).to_numpy(dtype=float).ravel()
+    if not np.isfinite(p).all() or not np.isfinite(q).all():
+        raise ValueError("sam_distance needs finite SAM entries")
+    if (p < 0).any() or (q < 0).any():
+        raise ValueError("Kullback--Leibler distance is undefined for negative SAM entries")
+    sp, sq = p.sum(), q.sum()
+    if not sp > 0 or not sq > 0:
+        raise ValueError("sam_distance needs two SAMs with positive total flow")
+    p, q = p / sp, q / sq
+    positive = p > 0
+    if (q[positive] == 0).any():
+        return float("inf")
+    terms = p[positive] * np.log(p[positive] / q[positive])
+    return float(max(0.0, terms.sum()))
 
 
 class BalanceError(ValueError):

@@ -3,6 +3,19 @@
 All notable changes to `cgelab`. Versions follow [semantic versioning](https://semver.org/);
 before 1.0, a minor version may add to the API and a patch version only fixes.
 
+## Unreleased
+
+### Fixed
+
+- `functions.armington` at `sigma_armington = 1`. The CES formula has the exponent
+  `1 / (1 - sigma)`, which is infinite there, and its inner sum is one, so the composite price
+  came out as 1 whatever the domestic and import prices, and the intensities were wrong with
+  it. Value was still conserved, so no balance check or Walras residual showed it. A
+  Cobb–Douglas Armington, on one commodity or on all of them, therefore did not respond to
+  prices, in the national and the regional models alike. The nest now takes the Cobb–Douglas
+  limit at one, as `ces_price` already did. `tests/test_armington.py` checks the limit, its
+  continuity from both sides and a world-price shock that moves a Cobb–Douglas composite.
+
 ## 0.5.5 — 2026-10-23
 
 The six items of the roadmap's milestone 0.6 that are done: imperfect factor mobility,

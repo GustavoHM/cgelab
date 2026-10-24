@@ -101,14 +101,23 @@ def armington(domestic_share: np.ndarray, p_domestic: np.ndarray, p_import: np.n
 
     Returns ``(composite price, domestic intensity, import intensity)``, both
     intensities per unit of the composite.
+
+    ``sigma == 1`` is the Cobb-Douglas limit, ``pd^sd pm^sm``, as in
+    :func:`ces_price`. The general formula cannot be used there: its exponent
+    ``1 / (1 - sigma)`` is infinite, and the inner sum is one, so it returned a
+    composite price of one whatever the prices.
     """
     sigma = np.asarray(sigma, dtype=float)
     if sigma.ndim == 0:
         sigma = np.full(domestic_share.shape, float(sigma))
     sd = domestic_share
     sm = 1.0 - sd
+    unit = np.abs(sigma - 1.0) < 1e-9
+    s = np.where(unit, 0.5, sigma)          # any value off one keeps the CES branch finite
     with np.errstate(divide="ignore", invalid="ignore"):
-        pq = (sd * p_domestic ** (1 - sigma) + sm * p_import ** (1 - sigma)) ** (1 / (1 - sigma))
+        ces = (sd * p_domestic ** (1 - s) + sm * p_import ** (1 - s)) ** (1 / (1 - s))
+        cd = (np.where(sd > 0, p_domestic ** sd, 1.0) * np.where(sm > 0, p_import ** sm, 1.0))
+        pq = np.where(unit, cd, ces)
         dsh = np.where(p_domestic > 0, sd * (pq / p_domestic) ** sigma, 0.0)
         msh = np.where(p_import > 0, sm * (pq / p_import) ** sigma, 0.0)
     return pq, dsh, msh

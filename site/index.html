@@ -772,6 +772,31 @@ gdp_pct sigma_va        0.001761 0.009473 0.003 0.0007993
   Saltelli's, at <code>n (k + 2)</code> solves, and SALib gives the same indices on the same design.
   Here the Armington elasticity carries nearly all of real GDP's variance. An estimate can pass one
   by sampling error; the half-widths say by how much, and more base points shrink them.</p>
+  <h3>28. The SAM is an estimate too</h3>
+<pre><code>draws = cge.sam_draws(sam_toy,
+    blocks={"intermediate": (["c_agr", "c_ind"], ["a_agr", "a_ind"])},
+    concentration=80.0, draws=8, seed=7,
+    balance_kwargs={"rel_tol": 1e-12, "abs_tol": 1e-10})
+unc = cge.sam_sweep(draws, toy.spec(), measure=gdp_pct, scenario=shock)
+unc.points[["draw", "sam_distance", "gdp_pct"]]
+unc.summary()</code></pre>
+<pre class="output" data-label="Output"><code><span class="out-expr">unc.points[["draw", "sam_distance", "gdp_pct"]]</span>
+   draw  sam_distance  gdp_pct
+0     0     9.736e-05  -0.1447
+1     1     7.543e-05   -0.146
+2     2     0.0004869  -0.1437
+3     3      0.001046  -0.1446
+4     4     0.0007494  -0.1434
+5     5     0.0004054  -0.1466
+6     6      0.001005  -0.1448
+7     7     4.359e-05  -0.1451
+<span class="out-expr">unc.summary()</span>
+           mean       sd   q0.05    q0.5   q0.95     min     max
+gdp_pct -0.1449 0.001002 -0.1464 -0.1447 -0.1435 -0.1466 -0.1434</code></pre>
+  <p>The direct Dirichlet shock moves the intermediate block; sign-preserving RAS then restores
+  balance. Every SAM is recalibrated and solved, and the points keep its weight and KL distance
+  from the original. The summary is the distribution of the result over the SAM draws, not just
+  over elasticities.</p>
 </div></section>
 
 <section id="gates"><div class="wrap">

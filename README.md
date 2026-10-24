@@ -144,7 +144,7 @@ period.
 | Accounts: GDP from both sides, Laspeyres, Paasche and Fisher indices, terms of trade, the government account | `national_accounts`, `price_indices`, `government_account` |
 | Decompositions: subtotals by shock, Huff-Hertel welfare decomposition | `subtotals`, `welfare_decomposition` |
 | SAM multipliers, linkages, structural path analysis | `accounting_multipliers`, `linkages`, `structural_paths` |
-| Systematic sensitivity: Stroud quadrature and Monte Carlo over elasticities, Sobol indices; the same scenario under a grid of closures; results in money | `sensitivity`, `spec_sweep`, `sobol`, `closure_sweep`, `in_money` |
+| Systematic sensitivity: quadrature, Monte Carlo and Sobol over elasticities; balanced SAM draws propagated through the model; closure grids; results in money | `sensitivity`, `spec_sweep`, `sobol`, `sam_draws`, `sam_sweep`, `closure_sweep`, `in_money` |
 | Welfare: EV, CV and composition-immune group aggregation | `cgelab.welfare` |
 | Base-year reproduction, homogeneity, Walras | `cgelab.diagnostics` |
 | The same equilibrium as a JuMP model, for independent validation | `to_jump` |

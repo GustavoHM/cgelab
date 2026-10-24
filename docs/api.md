@@ -29,6 +29,13 @@ Constructors: `SAM.from_long(df, row="row", col="col", value="value", name="sam"
 
 `BalanceError` is raised by both.
 
+### `sam_distance(sam, other) -> float`
+
+Kullback–Leibler divergence `D_KL(sam || other)` after aligning accounts and
+normalising nonnegative flows to sum to one. Use `sam_distance(observed,
+predicted)` for forecasts. Zero support in `other` under positive mass in `sam`
+gives `inf`; negative or nonfinite entries and zero total flow are refused.
+
 ---
 
 ## Specification
@@ -450,6 +457,30 @@ the parameters, `weight`, the outputs; the `A` and `B` rows weighted `1/(2n)` as
 independent draws), `parameters`, `outputs`, `n`; `indices()`: `S1`, `S1_conf`,
 `ST`, `ST_conf` by output and parameter; `summary(quantiles=...)` over the `A`
 and `B` rows.
+
+### `sam_draws(sam, *, blocks, method="dirichlet", concentration=100.0, scale=0.05, draws=1000, seed=20260724, balance_kwargs=None) -> SAMDraws`
+
+Balanced SAM draws. `blocks` is `{label: (rows, columns)}`, with no overlap.
+`"dirichlet"` perturbs positive selected cells by column shares centred on the
+original, with the given precision; negative selected cells are refused.
+`"noise"` multiplies nonzero selected cells by lognormal noise with mean one and
+log standard deviation `scale`. Structural zeros stay zero. Sign-preserving
+`SAM.balance` follows the direct shock and can move cells outside the blocks;
+`balance_kwargs` sets its options. The input is not mutated.
+
+`SAMDraws.sams` holds the matrices. `points` has `draw`, equal `weight` and
+`sam_distance`, the KL divergence from the original to each draw, or NaN when
+negative flows make KL undefined. `method`, `blocks`, `seed` and `len()` are
+also available.
+
+### `sam_sweep(draws, spec, *, measure, closure=None, scenario=None, parameters=None, calibrate_kwargs=None) -> SensitivityResult`
+
+Recalibrates and solves every `SAMDraws` row, calling
+`measure(reference, alternative)` as `spec_sweep` does. `parameters` optionally
+adds independent elasticity draws from `Uniform`, `Normal` or `Triangular` on
+the same rows. The Monte Carlo result's `points` retain `draw`, `weight`,
+`sam_distance`, parameter values and outputs; `summary()` adds quantiles and the
+range. A failed calibration or solve names its draw.
 
 ### `closure_sweep(econ, closures, *, measure, scenario=None, reference=None, years=None, growth=None, economy=None) -> ClosureSweep`
 

@@ -7,6 +7,16 @@ before 1.0, a minor version may add to the API and a patch version only fixes.
 
 ### Added
 
+- `sam_draws` perturbs selected SAM blocks by Dirichlet shares or mean-one
+  lognormal noise and rebalances every draw; `sam_sweep` recalibrates and solves
+  each SAM, optionally with elasticity draws on the same rows. Its
+  `SensitivityResult.points` retain `draw`, `weight` and `sam_distance` for
+  coverage and PIT calculations. `sam_distance` is the single public KL
+  divergence between SAMs, aligned by account and directed as
+  `D_KL(observed || predicted)`; negative flows are refused. Validation includes
+  a hand-run noise experiment, base-year reproduction and a one-sector Leontief
+  economy whose Beta-distributed share gives
+  `E[1 / (1 - a)] = (alpha + beta - 1) / (beta - 1)`.
 - `sobol` computes first-order and total Sobol indices on Saltelli's design, from a scrambled
   Sobol sequence carried to each distribution by its quantile function (`ppf`, new on
   `Uniform`, `Normal` and `Triangular`), at `n (k + 2)` solves; `SobolResult.indices()` gives

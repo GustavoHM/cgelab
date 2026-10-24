@@ -311,7 +311,23 @@ com o Theil \(T = GE(1)\) e o desvio logarítmico médio \(L = GE(0)\) como limi
 
 Na microssimulação comportamental de Bourguignon, Robilliard e Robinson cada pessoa escolhe o status \(k\) por uma logit multinomial, \(U_{ik} = x_i \beta_k + a_{k,H(i)} + \varepsilon_{ik}\), e ganha \(\log y_{ig} = x_i \gamma_g + b_{g,H(i)} + u_{ig}\) no segmento \(g\). Os interceptos \(a\) e \(b\), por conta, se movem até o emprego e o rendimento por trabalhador de cada segmento mudarem como no modelo. Os resíduos da escolha são sorteados condicionais ao status observado, de modo que a base reproduz a pesquisa. A expectativa desses sorteios tem forma fechada, as probabilidades de transição da logit com interceptos deslocados, e é suave nos interceptos, o que deixa os alvos serem atingidos exatamente.
 
-## 10. O que este sistema não resolve
+## 10. Robustez e incerteza
+
+Os índices de Sobol repartem a variância de uma saída entre os parâmetros. No desenho de Saltelli, \(A\) e \(B\) são matrizes de sorteios independentes e \(AB_i\) é \(A\) com a coluna \(i\) tomada de \(B\). Com \(V=\operatorname{Var}(y_A,y_B)\), as implementações usam os estimadores de Saltelli et al. (2010) e Jansen (1999),
+
+\[
+S_i=\frac{\operatorname{média}[y_B(y_{AB_i}-y_A)]}{V},
+\qquad
+ST_i=\frac{\operatorname{média}[(y_A-y_{AB_i})^2]}{2V}.
+\]
+
+As saídas são centradas na média de todas as soluções antes do cálculo, como no SALib. O primeiro índice mede a parcela explicada pelo parâmetro sozinho; o segundo inclui todas as suas interações. Os intervalos vêm de bootstrap sobre os pontos de base, e a validação confere os índices contra o SALib no mesmo desenho.
+
+A MCS também é uma estimativa. Num bloco escolhido, as participações positivas de cada coluna podem receber um choque \(p_{\cdot j}\sim\operatorname{Dirichlet}(\kappa p^0_{\cdot j})\), ou cada fluxo não nulo pode receber ruído lognormal \(x_{ij}'=x_{ij}\exp(\varepsilon_{ij}-s^2/2)\), com \(\varepsilon_{ij}\sim N(0,s^2)\) e média multiplicativa um. Zeros estruturais permanecem zero. O choque direto é seguido do RAS com preservação de sinal de `SAM.balance`, que restaura o equilíbrio e pode mover células fora do bloco; portanto as participações finais não precisam conservar a distribuição Dirichlet. Cada matriz é recalibrada e resolvida, sozinha ou com sorteios independentes de elasticidades na mesma linha.
+
+A distância entre matrizes não negativas é \(D_{KL}(P\|Q)=\sum_{ij:p_{ij}>0}p_{ij}\log(p_{ij}/q_{ij})\), após normalizar os fluxos para soma um. Ela é dirigida como `sam_distance(observada, prevista)`; suporte zero na segunda matriz sob massa positiva na primeira dá infinito, e fluxos negativos são recusados porque não admitem essa interpretação probabilística. Num Leontief de um setor com \(x=d/(1-a)\) e \(a\sim\operatorname{Beta}(\alpha,\beta)\), a referência fechada é \(E[(1-a)^{-1}]=(\alpha+\beta-1)/(\beta-1)\), para \(\beta>1\).
+
+## 11. O que este sistema não resolve
 
 A trajetória da seção 7 é recursiva. Uma política anunciada para uma data futura não move o investimento do primeiro ano, porque nenhum agente a vê. Levar esse efeito a sério é outro objeto. O equilíbrio do período continua sendo o desta nota. O resíduo intertemporal, uma Euler ou um \(q\) de Tobin ao longo de uma trajetória anunciada, seria resolvido pelo `dsgelab`, que já empilha uma função de resíduos e já aceita uma sequência de parâmetros. A matriz não entraria naquele pacote. A dependência seria opcional. O desenho está no `ROADMAP.md`, na seção *Extensions that call dsgelab*.
 

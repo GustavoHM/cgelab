@@ -112,8 +112,9 @@ released in 0.5.5, ahead of 0.6.0, which also waits for the robustness items (se
   uncertainty of the SAM itself, and returns tables and figures (`robustness_report`).
 - [x] **Global sensitivity indices** (first-order and total Sobol indices, Saltelli design),
   validated against SALib (`sobol`).
-- [ ] **Uncertainty in the SAM**: perturbing blocks of the matrix, rebalancing with
-  `SAM.balance`, recalibrating and propagating the draws to the results.
+- [x] **Uncertainty in the SAM**: perturbing blocks of the matrix, rebalancing with
+  `SAM.balance`, recalibrating and propagating the draws to the results
+  (`sam_draws`, `sam_sweep`, `sam_distance`).
 - [x] **Closure robustness**: the same scenario under a list of closures (`closure_sweep`,
   `closure_grid`).
 - [x] **Results in money**: changes expressed as levels at base-year and at current prices,
@@ -307,11 +308,11 @@ representation for a SAM, and calling it does not close those gaps.
 ## Robustness
 
 **What is there.** `sensitivity` and `spec_sweep` (0.3) turn a result into a distribution over
-the elasticities; `closure_sweep` and `in_money` (0.6) solve it under a list of closures and put
-it in money. What a published study still assembles by hand is everything around them: the
-ranges for every elasticity, the tornado chart, and the fact that the SAM is itself an
-estimate. `robustness_report` runs all of that in one call. Its parts stay public, so that a
-study can run one of them alone.
+the elasticities; `closure_sweep`, `in_money`, `sam_draws` and `sam_sweep` (0.6) solve it under
+a list of closures, put it in money, and propagate balanced SAM draws through recalibration and
+solution. What a published study still assembles by hand is the report around them: sourced
+ranges for every elasticity, one-at-a-time ranges and the tornado chart. `robustness_report`
+runs all of that in one call. Its parts stay public, so that a study can run one of them alone.
 
 **Sobol indices.** The quadrature gives a mean and a standard deviation. It does not say which
 parameter the variance comes from when they interact. First-order and total Sobol indices do,

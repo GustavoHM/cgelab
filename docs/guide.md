@@ -915,6 +915,48 @@ elasticities and `n = 1024` that is 22,528 solves, against forty for the
 quadrature: the indices are for when the quadrature has shown a spread worth
 explaining.
 
+### Uncertainty in the SAM
+
+The elasticities are not the only estimated inputs: every SAM entry is an estimate
+too. `sam_draws` perturbs selected blocks and rebalances every draw, and
+`sam_sweep` recalibrates and solves them:
+
+```python
+draws = cge.sam_draws(
+    sam,
+    blocks={"intermediate": (["c_agr", "c_ind"], ["a_agr", "a_ind"])},
+    method="dirichlet", concentration=100.0, draws=500, seed=20260724,
+    balance_kwargs={"rel_tol": 1e-12, "abs_tol": 1e-10})
+res = cge.sam_sweep(draws, spec, scenario=policy, measure=gdp_pct,
+                    parameters={"sigma_va": cge.Uniform(0.3, 1.3)})
+res.points               # draw, weight, sam_distance, sigma_va, gdp_pct
+res.summary()            # mean, sd, quantiles and range over the draws
+```
+
+A block is a `(rows, columns)` pair; blocks may not overlap. With `"dirichlet"`,
+the positive selected cells of each column receive a Dirichlet shock centred on
+their original shares. `concentration` is the precision: larger values stay
+closer to the original, structural zeros stay zero, and negative selected cells
+are refused. With `"noise"`, nonzero selected cells receive independent
+lognormal shocks with mean one and log standard deviation `scale`.
+
+The blocks delimit the **direct shock**, not everything that may move.
+`SAM.balance` then restores accounting balance and can adjust cells outside
+them, so the final column shares need not retain the Dirichlet distribution.
+`balance_kwargs` controls its tolerances; a tight absolute tolerance is useful
+on small SAMs whose default absolute floor of one is large relative to their
+flows. Every returned draw passes `check_balance` under the same tolerances.
+
+`SAMDraws.points` records the equal sampling weights and
+`sam_distance(original, draw)`, the KL divergence `D_KL(original || draw)` over
+normalised nonnegative flows. KL is undefined with negative flows, so the column
+is NaN in that case rather than a distance invented by shifting the data. For a
+forecast comparison, call `sam_distance(observed, predicted)`. `sam_sweep` uses
+Monte Carlo summaries and can draw elasticities on the same rows, ready for
+coverage and probability-integral-transform calculations. Validation includes a
+one-sector Leontief economy: a Dirichlet share in a two-cell column is Beta, and
+`E[1 / (1 - a)] = (alpha + beta - 1) / (beta - 1)` for `beta > 1`.
+
 ### Under other closures
 
 A closure is a model of who bears an adjustment, and two defensible ones can give

@@ -61,6 +61,7 @@ gives `inf`; negative or nonfinite entries and zero total flow are refused.
 | `margins` | `True` | read the commodity-to-commodity margin block |
 | `regions` | `None` | region names. Accounts are then `region:local`. Absent, the one-region model |
 | `regional_government`, `regional_investment` | `None` | optional additional `{region: account}` maps. National accounts remain, and demand is added, never split; factor income and household saving are included |
+| `factor_migration` | `None` | `{local factor: ω}` migration between regional pools, distinct from sectoral `factor_mobility`; zero holds base-year origins. `factor_pools={factor: DataFrame}` gives the proximity matrix, whose rows sum to one and whose columns reproduce endowments |
 | `sigma_interregional` | `2.0` | CES across regions of origin, under the Armington. Scalar or mapping by local commodity |
 | `tariff_account` | `None` | account that collects the import tariff from commodities (Hosoe's TRF). The tariff goes inside the Armington import price |
 | `indirect_tax_account` | `None` | account that collects the indirect tax on all of output (Hosoe's IDT). The tax goes inside the gross output price the CET splits, so exports carry it |

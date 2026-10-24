@@ -1188,6 +1188,31 @@ two regions. National accounts remain in place, so a mixed national/regional
 model is valid. `real["gov_real"]` and `real["inv_real"]` include all of them,
 and `fixed_real` holds the total investment at base-year prices.
 
+### Factor migration between regions
+
+`factor_migration` allows a local factor to move between regional pools instead
+of clearing only where it was supplied:
+
+```python
+proximity = pd.DataFrame([[0.9, 0.1], [0.1, 0.9]],
+                         index=["r1", "r2"], columns=["r1", "r2"])
+econ = cge.calibrate(sam, regions.spec(
+    factor_migration={"f_lab": 5.0}, factor_mobility_form="logit"),
+    factor_pools={"f_lab": proximity})
+result = cge.solve_period(econ)
+result.factor_pools["f_lab"]["supply"]     # origin pool × destination region
+```
+
+This is different from `factor_mobility`, which transforms one factor across
+activities. Migration pays the destination wage, keeps origin income in the
+pool, and reports `factor_pools` with `pools`, `price`, `endowment` and `supply`.
+CET and logit are the same two forms as sectoral mobility. Logit preserves the
+head count of each origin pool; CET preserves its income. The proximity frame's
+rows sum to one, and `endowment @ delta` must reproduce each region's endowment.
+Zero elasticity keeps base-year origins. Walras still checks the numeraire's
+regional market, and fixed-real investment and institution maps compose with
+migration.
+
 ---
 
 ## 13. Subtotals: which shock did what

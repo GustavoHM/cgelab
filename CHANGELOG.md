@@ -7,6 +7,12 @@ before 1.0, a minor version may add to the API and a patch version only fixes.
 
 ### Added
 
+- `ModelSpec.factor_migration` moves regional factor pools with CET or logit,
+  preserving origin income and destination supply. `calibrate(factor_pools=)`
+  supplies a proximity matrix validated for row shares and endowment totals.
+  `FactorMobility.allow_new` permits new destinations while preserving the
+  base-year structure. Tests check zero elasticity, logit migration and pool
+  conservation.
 - `ModelSpec.regional_government` and `regional_investment` add optional
   `{region: account}` maps. Their demand, factor income and household saving
   enter the equilibrium and the origin mix, rather than splitting national

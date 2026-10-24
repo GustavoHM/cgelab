@@ -932,6 +932,21 @@ institucional.real["inv_real"]</code></pre>
   <p>A conta nacional é r1 e a adicional é r2. Sua demanda, renda fatorial e poupança das famílias
   entram no equilíbrio; nenhum total nacional é dividido por uma regra ad hoc. O investimento real
   fixo funciona sobre as mesmas contas.</p>
+  <h3>35. Migração de fatores com proximidade</h3>
+<pre><code>proximidade = pd.DataFrame([[0.9, 0.1], [0.1, 0.9]],
+                           index=["r1", "r2"], columns=["r1", "r2"])
+spec_migracao = dataclasses.replace(spec_regional, factor_migration={"f_lab": 5.0},
+                                    factor_mobility_form="logit")
+economia_migracao = cge.calibrate(sam_regional, spec_migracao,
+                                  factor_pools={"f_lab": proximidade})
+migracao = cge.solve_period(economia_migracao)
+migracao.factor_pools["f_lab"]["supply"]</code></pre>
+<pre class="output" data-label="Saída"><code><span class="out-expr">migracao.factor_pools["f_lab"]["supply"]</span>
+[[54 6]
+ [6 54]]</code></pre>
+  <p>Trabalhadores se movem entre pools regionais, com renda na origem e oferta no destino. As
+  linhas da matriz somam um, e suas colunas reproduzem a dotação de cada região. A logit preserva
+  o número de trabalhadores de cada origem, e Walras continua sendo uma verificação independente.</p>
 </div></section>
 
 <section id="verificacoes"><div class="wrap">

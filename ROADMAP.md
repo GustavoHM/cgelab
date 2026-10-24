@@ -250,7 +250,7 @@ with income, and a labour–leisure choice for labour supply.
 regions of origin under the Armington, factors clearing where they are, one national
 numeraire. Fixed-real investment with forced saving is in, alongside savings-driven
 investment, and optional government and investment accounts can be mapped by
-region. Still open, and still what a state study asks for next: factor migration,
+region. CET/logit factor migration with a proximity matrix is in too. Still open:
 regional government closure rules, margins and CET inside the nest,
 `run_path` accumulating a capital stock per region, and a tariff or an indirect tax. The
 regional solver refuses a calibrated `tm0` or `tauz0`. A GTAP-style global bank is further

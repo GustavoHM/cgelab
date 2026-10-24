@@ -39,6 +39,7 @@ from .historical import Historical, calibrate_historical
 from .functions import (armington, ces_intensity, ces_price, cet, cet_domestic_price,
                         cobb_douglas_price)
 from .behaviour import Behaviour, PersonSurvey, transition_probabilities
+from .causal import treated_vs_control
 from .build import (Institutions, SupplyUse, group_population, read_tru, segment_shares,
                     split_factor, split_households, split_vintages, sut_to_sam)
 from .ibge import pnadc, pof, read_ibge, read_sas_program
@@ -91,7 +92,7 @@ __all__ = [
     "linkages", "structural_paths",
     "subtotals", "path_decomposition", "scenario_vector", "welfare_decomposition",
     "sensitivity", "spec_sweep", "stroud_points", "SensitivityResult", "sobol", "SobolResult",
-    "match_targets", "MatchResult",
+    "match_targets", "MatchResult", "treated_vs_control",
     "closure_sweep", "closure_grid", "ClosureSweep", "in_money",
     "robustness_report", "RobustnessReport",
     "Uniform", "Normal", "Triangular",

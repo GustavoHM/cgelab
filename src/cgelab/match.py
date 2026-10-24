@@ -116,9 +116,9 @@ def _match(run, targets, parameters, *, covariance=None, options=None):
         return distance
 
     options = dict(options or {})
-    options.setdefault("maxiter", 200)
-    options.setdefault("ftol", 1e-12)
-    options.setdefault("gtol", 1e-8)
+    options.setdefault("maxiter", 500)
+    options.setdefault("ftol", 1e-15)
+    options.setdefault("gtol", 1e-10)
     first = evaluate(midpoint)
     if first >= 1e100:
         raise RuntimeError(f"the initial parameter midpoint failed: {evaluations[-1]['error']}")

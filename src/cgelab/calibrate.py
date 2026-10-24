@@ -527,7 +527,7 @@ def calibrate(sam: SAM, spec: ModelSpec | None = None, *,
     )
     if spec.regions:
         from .regional import build_regional
-        econ.regional = build_regional(econ, sam)
+        econ.regional = build_regional(econ, sam, migration_pools=factor_pools)
     return econ
 
 

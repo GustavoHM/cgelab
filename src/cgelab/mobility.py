@@ -57,6 +57,8 @@ class FactorMobility:
     pools: list               # pool names
     delta: np.ndarray         # (n_pool, n_act) base-year shares of each pool, rows sum to one
     endowment0: np.ndarray    # (n_pool,) base-year endowment of each pool
+    #: Allow destinations absent in the base year (regional migration, not sectoral pools).
+    allow_new: bool = False
 
     @property
     def n_pool(self) -> int:
@@ -73,10 +75,12 @@ class FactorMobility:
         u = self.users
         logw = np.zeros(self.delta.shape[1])
         logw[u] = np.log(np.asarray(wage, dtype=float)[u])
-        reach = self.delta > 0
+        reach = (np.ones_like(self.delta, dtype=bool) if self.allow_new
+                 else self.delta > 0)
         # In logs: a large ω on a wage a little above one would overflow w^(1+ω).
         with np.errstate(divide="ignore"):
-            logd = np.where(reach, np.log(np.where(reach, self.delta, 1.0)), -np.inf)
+            logd = (np.log(np.maximum(self.delta, 1e-300)) if self.allow_new
+                    else np.where(reach, np.log(np.where(reach, self.delta, 1.0)), -np.inf))
         om = self.omega
         endowment = np.asarray(endowment, dtype=float)
         if self.form == "cet":
@@ -106,7 +110,7 @@ def build_mobility(spec, facs, acts, base_use, factor_pools) -> dict:
 
     mobility = spec.factor_mobility or {}
     pools_in = dict(factor_pools or {})
-    stray = [f for f in pools_in if f not in mobility]
+    stray = [f for f in pools_in if f not in mobility and f not in (spec.factor_migration or {})]
     if stray:
         raise ValueError(
             f"calibrate(factor_pools=) names {stray}, which ModelSpec.factor_mobility does "

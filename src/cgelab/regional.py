@@ -27,6 +27,7 @@ import numpy as np
 from scipy.optimize import root
 
 from .functions import armington, ces_intensity, ces_price
+from .mobility import FactorMobility
 from .solve import PeriodResult, factor_intensity, value_added_price
 
 __all__ = ["Regional", "build_regional", "solve_regions"]
@@ -61,6 +62,7 @@ class Regional:
     gov_dem_regional: np.ndarray | None = None  # (n_reg, n_local), zero absent
     inv_dem_regional: np.ndarray | None = None
     fac_gov_regional: np.ndarray | None = None  # (n_reg, n_fac), zero absent
+    migration: dict = field(default_factory=dict)
 
     @property
     def n_reg(self) -> int:
@@ -99,7 +101,7 @@ def _institution_demand(econ, sam, mapping, regions, origin_index, label):
     return accounts, demand
 
 
-def build_regional(econ, sam) -> Regional:
+def build_regional(econ, sam, *, migration_pools=None) -> Regional:
     """Read the origin nest off a calibrated regional economy. Refuse a SAM it cannot price."""
     spec = econ.spec
     regions = tuple(spec.regions)
@@ -235,6 +237,8 @@ def build_regional(econ, sam) -> Regional:
             fac_gov_regional[i] = np.where(fac_total > 0,
                                            payments / np.maximum(fac_total, 1e-12), 0.0)
 
+    migration = _build_migration(spec, econ, regions, migration_pools)
+
     return Regional(
         regions=regions, local_commodities=local, origin_index=origin_index,
         origin_share=origin_share, sigma=sigma, dom_share=dom_share,
@@ -244,7 +248,47 @@ def build_regional(econ, sam) -> Regional:
         household_region=household_region, government_accounts=government_accounts,
         investment_accounts=investment_accounts,
         gov_dem_regional=gov_regional, inv_dem_regional=inv_regional,
-        fac_gov_regional=fac_gov_regional)
+        fac_gov_regional=fac_gov_regional, migration=migration)
+
+
+def _build_migration(spec, econ, regions, migration_pools=None):
+    """CET/logit migration pools by local factor, with origin income preserved."""
+    pools_in = dict(migration_pools or {})
+    out = {}
+    for local, omega in (spec.factor_migration or {}).items():
+        omega = float(omega)
+        if not np.isfinite(omega) or omega < 0:
+            raise ValueError(f"factor_migration[{local!r}] must be finite and >= 0")
+        names = [f"{region}:{local}" for region in regions]
+        missing = [name for name in names if name not in econ.factors]
+        if missing:
+            raise KeyError(f"factor_migration[{local!r}] needs these regional factors: {missing}")
+        indices = np.array([econ.factors.index(name) for name in names])
+        endowment = np.asarray(econ.fac_supply[indices], dtype=float)
+        if local in pools_in:
+            frame = pools_in[local]
+            if set(frame.index) != set(regions) or set(frame.columns) != set(regions):
+                raise ValueError(f"migration pool {local!r} must index and column every region")
+            delta = frame.loc[list(regions), list(regions)].to_numpy(dtype=float)
+        else:
+            delta = np.eye(len(regions))
+        if not np.isfinite(delta).all() or (delta < 0).any():
+            raise ValueError(f"migration pool {local!r} must be finite and nonnegative")
+        if not np.allclose(delta.sum(axis=1), 1.0, rtol=1e-10, atol=1e-12):
+            raise ValueError(f"migration pool {local!r} rows must sum to one")
+        if not np.allclose(endowment @ delta, endowment, rtol=1e-10, atol=1e-10):
+            raise ValueError(f"migration pool {local!r} does not reproduce regional endowments")
+        form_option = spec.factor_mobility_form
+        form = form_option.get(local, form_option.get("__default__", "cet")) \
+            if isinstance(form_option, dict) else form_option
+        out[local] = {
+            "model": FactorMobility(factor=local, index=int(indices[0]), form=form,
+                                    omega=omega, users=np.ones(len(regions), dtype=bool),
+                                    pools=list(regions), delta=delta,
+                                    endowment0=endowment, allow_new=True),
+            "indices": indices,
+        }
+    return out
 
 
 def _sigma(spec, local: list[str]) -> np.ndarray:
@@ -344,8 +388,13 @@ def solve_regions(econ, closure, scenario, *, warm_start=None, raise_on_fail: bo
                           transfers - levy * econ.pop_share, gov_tr, remit,
                           foreign_target, tfp, prices, nu,
                           investment_level=investment_level, levy=levy,
-                          fixed_investment=fixed_investment)
+                          fixed_investment=fixed_investment, migration=reg.migration)
         gaps = (qty["fac_dem"] - supply) / np.maximum(np.abs(supply), 1.0)
+        for local, item in reg.migration.items():
+            idx = item["indices"]
+            migrated = qty["migration"][local]["supply"].sum(axis=0)
+            gaps[idx] = ((qty["fac_dem"][idx] - migrated)
+                         / np.maximum(np.abs(supply[idx]), 1.0))
         out = [float(gaps[i]) for i in others]
         scale = max(abs(foreign_target), 1.0)
         out.append((qty["current"] - foreign_target) / scale)
@@ -441,13 +490,20 @@ def _prices(econ, reg: Regional, w, er, world, tfp, nu):
 
 def _quantities(econ, reg, w, supply, facshare, fac_gov, fac_row, dtax, transfers,
                 gov_tr, remit, foreign_target, tfp, prices, nu, *,
-                investment_level, levy, fixed_investment):
+                investment_level, levy, fixed_investment, migration=None):
     """National absorption, then each origin's sales. Tax revenue is affine in absorption."""
     C = reg.n_local
     pq = prices["pq"]
     phi = prices["phi"]
     dsh = prices["dsh"]
     fac_inc = w * supply
+    migration_results = {}
+    for local, item in (migration or {}).items():
+        idx = item["indices"]
+        migrated, price = item["model"].supply(w[idx], supply[idx])
+        fac_inc[idx] = price * supply[idx]
+        migration_results[local] = dict(pools=item["model"].pools, price=price,
+                                        endowment=supply[idx], supply=migrated)
     kept = fac_inc * (1.0 - fac_gov - fac_row - reg.fac_gov_regional.sum(axis=0))
     hh_income = facshare @ kept + transfers + gov_tr + remit
     disposable = hh_income * (1.0 - dtax)
@@ -555,7 +611,8 @@ def _quantities(econ, reg, w, supply, facshare, fac_gov, fac_row, dtax, transfer
         hh_income=hh_income, spend=spend, gov_q=gov_origin, inv_q=inv_origin,
         fac_dem=fac_dem, fac_by=fac_by, savings=savings, available=available, current=current,
         bilateral=bilateral, hh_nat=hh_q, gov_nat=gov_q, inv_nat=inv_q, ND=ND,
-        hh_sav=hh_sav, gov_regional_q=gov_regional_q, inv_q_reg=inv_q_reg)
+        hh_sav=hh_sav, gov_regional_q=gov_regional_q, inv_q_reg=inv_q_reg,
+        migration=migration_results)
 
 
 def _solve(residuals, n_unknown, tolerance, warm_start, raise_on_fail):
@@ -619,6 +676,7 @@ def _pack(econ, reg, closure, scenario, state, z, residual, label, message, tole
         savings=state["savings"], wedge_revenue=0.0, government_cost=0.0,
         household_saving=float(np.sum(state["hh_sav"])), forced_saving=state["levy"],
         foreign_saving=state["foreign_sav"],
+        factor_pools=state["migration"] or None,
         real=dict(
             hh_real=float(yard @ state["hh_nat"].sum(axis=0)),
             gov_real=float(yard @ state["gov_nat"]),

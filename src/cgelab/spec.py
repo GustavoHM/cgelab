@@ -56,6 +56,9 @@ class ModelSpec:
     #: accounts above remain in place; regional demand is added, never split.
     regional_government: Mapping[str, str] | None = None
     regional_investment: Mapping[str, str] | None = None
+    #: Elasticity of factor migration between regions, by local factor name.
+    #: Distinct from sectoral ``factor_mobility``; zero fixes the base-year origins.
+    factor_migration: Mapping[str, float] | None = None
 
     #: Account that collects the import tariff from commodities (Hosoe's TRF).
     #: Absent, there is no tariff unless ``calibrate(..., tariffs=)`` supplies rates.

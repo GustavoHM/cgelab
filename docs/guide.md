@@ -1168,8 +1168,20 @@ result = cge.solve_period(econ, scenario=cge.Scenario(export_price=[1.1]),
 per regional account. Fixed export shares reject an export-price shock instead
 of ignoring it. Tests compare a labelled one-region model directly with the
 national solver, including margins, productivity and external-price shocks.
-Destination-specific bilateral trade and transport are a separate structure;
-the origin mix remains national here.
+### Bilateral origin cells by destination
+
+Every destination calibrates its own origin CES from the SAM. Households and
+activities belong to their region; mapped regional government and investment
+accounts join that destination, while the national accounts use a separate
+channel. A productivity shock therefore changes both origin prices and each
+destination's demand, rather than reallocating a fixed national mix.
+
+`PeriodResult.bilateral` contains domestic origin sales. Imported content is in
+`bilateral_imports` on the same `(origin, destination, local commodity)` grid.
+Their sum reproduces the SAM's regional buyer cells in the base year. Domestic
+sales plus national government and investment close against output net of
+exports. Tests also cover Walras, homogeneity, CET and one-region equivalence.
+Route-specific transport services and their global supply remain separate.
 
 ### Fixed-real investment in a regional model
 
@@ -1182,14 +1194,16 @@ fixed.real["inv_real"]       # 80, at base-year purchaser prices
 fixed.savings                # nominal saving at the solved prices
 fixed.household_saving       # voluntary saving
 fixed.forced_saving          # the per-capita levy that closes the account
+fixed.real["government_saving"]
 ```
 
 The investment quantity is held, not scaled by current prices. The forced levy
 is deducted from households in proportion to population, exactly as in the
-one-region model, and `available` equals nominal savings at the solution. With
-no scenario level, the calibrated investment is used. `savings_driven` remains
-the default. Alternative government closures and destination-specific bilateral
-transport stay explicit rather than being silently relaxed.
+one-region model. Household saving, the levy, government saving and foreign
+saving sum to nominal investment at the solved prices. With no scenario level,
+the calibrated investment is used. `savings_driven` remains the default.
+Alternative government closures and destination-specific transport services
+stay explicit rather than being silently relaxed.
 
 ### Government and investment accounts by region
 

@@ -1,10 +1,10 @@
 """Several regions inside one equilibrium.
 
-The nest added here is one CES, under the Armington the one-region model already
-has. Buyers in every region pay for a national composite. That composite is a CES
-of the regions of origin, and the Armington then mixes it with the foreign import.
-With a single origin the CES price is that origin's price, so a one-region SAM
-written with a region label solves as the national model.
+Each destination has a CES across regions of origin, under the Armington the
+one-region model already has. Households, activities and mapped institutions use
+their calibrated origin cells; national government and investment share a final
+channel. With a single origin the CES price is that origin's price, so a
+one-region SAM written with a region label solves as the national model.
 
 Delivered trade and transport margins enter both purchaser prices and the
 quantity system. Under ``export_rule="cet"``, each origin splits output between
@@ -13,12 +13,10 @@ closure and the JuMP replica are not here. There is one national numeraire, and
 its market stays out of the system so the Walras residual remains an independent
 check that a sale in one region was a purchase in another.
 
-Bilateral cells of the SAM are not a prediction of the model. The origin mix is
-national, common to every buyer. The base year reproduces each region's output
-and the national absorption. A destination's purchases from an origin are that
-common mix times the destination's own absorption (its households and its
-activities). Government and investment buy the composite, with optional
-additional accounts mapped by region.
+``bilateral`` reports domestic origin sales and ``bilateral_imports`` the
+imported content on the same destination grid. Their sum reproduces the SAM's
+regional buyer cells. Route-specific transport services and their global supply
+are a further block, not an accounting relabelling of these flows.
 """
 
 from __future__ import annotations
@@ -47,6 +45,10 @@ class Regional:
     origin_index: np.ndarray
     #: Base-year share of each origin in domestic sales of the local commodity.
     origin_share: np.ndarray          # (n_reg, n_local)
+    #: Origin shares by origin, destination channel and local commodity. The
+    #: last channel combines national government and national investment.
+    destination_share: np.ndarray     # (n_reg, n_reg + 1, n_local)
+    absorption0: np.ndarray           # (n_reg + 1, n_local)
     sigma: np.ndarray                 # (n_local,)
     dom_share: np.ndarray             # national Armington domestic share
     arm_share: np.ndarray
@@ -77,6 +79,10 @@ class Regional:
     def n_local(self) -> int:
         return len(self.local_commodities)
 
+    @property
+    def n_dest(self) -> int:
+        return self.n_reg + 1
+
 
 def _split(name: str, regions: tuple) -> tuple[str, str]:
     reg, sep, local = name.partition(":")
@@ -102,8 +108,36 @@ def _institution_demand(econ, sam, mapping, regions, origin_index, label):
     for i, region in enumerate(regions):
         if region in accounts:
             account = accounts[region]
-            demand[i] = sam.block(list(econ.coms), [account]).ravel()[origin_index[i]]
+            purchases = sam.block(list(econ.coms), [account]).ravel()
+            demand[i] = purchases[origin_index].sum(axis=0)
     return accounts, demand
+
+
+def _destination_shares(econ, sam, regions, origin_index, origin_share, ptax,
+                        activity_region, household_region, government_accounts,
+                        investment_accounts):
+    n_reg, n_local = origin_index.shape
+    use = np.zeros((n_reg, n_reg + 1, n_local))
+    for d in range(n_reg):
+        buyers = ([h for i, h in enumerate(econ.hhs) if household_region[i] == d]
+                  + [a for j, a in enumerate(econ.acts) if activity_region[j] == d])
+        for mapping in (government_accounts, investment_accounts):
+            account = mapping.get(regions[d])
+            if account is not None:
+                buyers.append(account)
+        for c in range(n_local):
+            use[:, d, c] = sam.block(list(econ.coms), buyers).sum(axis=1)[origin_index[:, c]]
+    national = [econ.layout.government, econ.layout.investment]
+    for c in range(n_local):
+        use[:, -1, c] = sam.block(list(econ.coms), national).sum(axis=1)[origin_index[:, c]]
+    total = use.sum(axis=0)
+    shares = np.divide(use, total[None, :, :], out=np.zeros_like(use),
+                       where=total[None, :, :] > 0)
+    for d in range(n_reg + 1):
+        empty = total[d] <= 0
+        shares[:, d, empty] = origin_share[:, empty]
+    absorption0 = total / (1.0 + ptax)[None, :]
+    return shares, absorption0
 
 
 def build_regional(econ, sam, *, migration_pools=None) -> Regional:
@@ -245,11 +279,15 @@ def build_regional(econ, sam, *, migration_pools=None) -> Regional:
             fac_gov_regional[i] = np.where(fac_total > 0,
                                            payments / np.maximum(fac_total, 1e-12), 0.0)
 
+    destination_share, absorption0 = _destination_shares(
+        econ, sam, regions, origin_index, origin_share, ptax, activity_region,
+        household_region, government_accounts, investment_accounts)
     migration = _build_migration(spec, econ, regions, migration_pools)
 
     return Regional(
         regions=regions, local_commodities=local, origin_index=origin_index,
-        origin_share=origin_share, sigma=sigma, dom_share=dom_share,
+        origin_share=origin_share, destination_share=destination_share,
+        absorption0=absorption0, sigma=sigma, dom_share=dom_share,
         arm_share=nat_arm, ptax=ptax, sigma_arm=sigma_arm,
         hh_budget=nat_budget, gov_dem=nat_gov, inv_dem=nat_inv, io=nat_io,
         exp_share=exp_share, sigma_cet=np.repeat(sigma_cet[None, :], n_reg, axis=0),
@@ -463,35 +501,40 @@ def _refuse_unsupported(econ, closure, scenario, reg: Regional):
 
 
 def _prices(econ, reg: Regional, w, er, world, export_world, tfp, nu):
-    """CET origin sales, the domestic CES, Armington, then delivered margins."""
+    """CET origin sales and a delivered Armington composite in each destination."""
     io = reg.io / tfp[None, :]
     vunit = econ.vunit / tfp
     atax = econ.atax * nu
-    pq = np.ones(reg.n_local)
+    K, C = reg.n_dest, reg.n_local
+    pq = np.ones((K, C))
     p_origin = np.ones(econ.n_com)
     pa = np.ones(econ.n_act)
-    pd_nat = np.ones(reg.n_local)
-    phi = reg.origin_share.copy()
-    dsh = reg.dom_share.copy()
+    pd_dest = np.ones((K, C))
+    arm_price = np.ones((K, C))
+    phi = reg.destination_share.copy()
+    dsh = np.tile(reg.dom_share, (K, 1))
     msh = 1.0 - dsh
     pe = er * export_world
+    pm = er * world
     for _ in range(_PRICE_ITERS):
         pva = value_added_price(econ, w)
-        pa = io.T @ pq + pva * vunit + atax
+        pa = (io.T * pq[reg.activity_region]).sum(axis=1) + pva * vunit + atax
         p_origin = econ.msh.T @ pa
         p_rc = p_origin[reg.origin_index]
         if reg.cet:
             p_rc = cet_domestic_price(reg.exp_share, p_rc, pe[None, :], reg.sigma_cet)
-        pd_nat = np.zeros(reg.n_local)
-        phi = np.zeros_like(reg.origin_share)
-        for c in range(reg.n_local):
-            sh = reg.origin_share[:, c:c + 1]
-            pd_nat[c] = float(ces_price(sh, p_rc[:, c], reg.sigma[c])[0])
-            phi[:, c] = ces_intensity(
-                sh, p_rc[:, c], np.array([pd_nat[c]]), reg.sigma[c])[:, 0]
-        pm = er * world
-        arm, dsh, msh = armington(reg.dom_share, pd_nat, pm, reg.sigma_arm)
-        pbase = arm * reg.arm_share + pq @ reg.mq
+        for d in range(K):
+            for c in range(C):
+                sh = reg.destination_share[:, d, c:c + 1]
+                pd_dest[d, c] = float(ces_price(sh, p_rc[:, c], reg.sigma[c])[0])
+                phi[:, d, c] = ces_intensity(
+                    sh, p_rc[:, c], np.array([pd_dest[d, c]]), reg.sigma[c])[:, 0]
+                arm, ds, ms = armington(
+                    np.array([reg.dom_share[c]]), np.array([pd_dest[d, c]]),
+                    np.array([pm[c]]), np.array([reg.sigma_arm[c]]))
+                arm_price[d, c] = float(arm[0])
+                dsh[d, c], msh[d, c] = float(ds[0]), float(ms[0])
+        pbase = arm_price * reg.arm_share + pq @ reg.mq
         new = pbase * (1.0 + reg.ptax)
         converged = np.max(np.abs(new - pq)) < 1e-14
         pq = new
@@ -506,19 +549,17 @@ def _prices(econ, reg: Regional, w, er, world, export_world, tfp, nu):
         _, dom_frac, exp_frac = cet(reg.exp_share, p_rc, pe[None, :], reg.sigma_cet)
     else:
         dom_frac, exp_frac = 1.0 - reg.exp_share, reg.exp_share
-    return dict(pa=pa, p_origin=p_origin, pd_nat=pd_nat, phi=phi, pq=pq,
+    return dict(pa=pa, p_origin=p_origin, pd_dest=pd_dest, phi=phi, pq=pq,
                 pbase=pq / np.maximum(1.0 + reg.ptax, 1e-12), dsh=dsh, msh=msh,
-                pm=er * world, pe=pe, dom_frac=dom_frac, exp_frac=exp_frac)
+                pm=pm, pe=pe, dom_frac=dom_frac, exp_frac=exp_frac)
 
 
 def _quantities(econ, reg, w, supply, facshare, fac_gov, fac_row, dtax, transfers,
                 gov_tr, remit, foreign_target, tfp, prices, nu, *,
                 investment_level, levy, fixed_investment, migration=None):
-    """National absorption, then each origin's sales. Tax revenue is affine in absorption."""
-    C = reg.n_local
-    pq = prices["pq"]
-    phi = prices["phi"]
-    dsh = prices["dsh"]
+    """Solve destination absorption and origin sales in one linear system."""
+    K, C = reg.n_dest, reg.n_local
+    pq, phi, dsh = prices["pq"], prices["phi"], prices["dsh"]
     fac_inc = w * supply
     migration_results = {}
     for local, item in (migration or {}).items():
@@ -532,53 +573,73 @@ def _quantities(econ, reg, w, supply, facshare, fac_gov, fac_row, dtax, transfer
     disposable = hh_income * (1.0 - dtax)
     hh_sav = disposable * econ.hh_savrate
     spend = disposable - hh_sav
-    hh_q = reg.hh_budget * spend[:, None] / np.maximum(pq, 1e-12)
-    hh_final = hh_q.sum(axis=0)
-    gov_regional_q = reg.gov_dem_regional / np.maximum(1.0 + reg.ptax, 1e-12)
-    gov_q = reg.gov_dem / np.maximum(1.0 + reg.ptax, 1e-12) + gov_regional_q.sum(axis=0)
+    hh_q = reg.hh_budget * spend[:, None] / np.maximum(pq[reg.household_region], 1e-12)
+    hh_by = np.zeros((K, C))
+    for h in range(econ.n_hh):
+        hh_by[reg.household_region[h]] += hh_q[h]
+
+    gov_channel_q = np.zeros((K, C))
+    gov_channel_q[-1] = reg.gov_dem / np.maximum(1.0 + reg.ptax, 1e-12)
+    gov_channel_q[:reg.n_reg] = reg.gov_dem_regional / np.maximum(1.0 + reg.ptax, 1e-12)
+    gov_regional_q = gov_channel_q[:reg.n_reg]
+    gov_q = gov_channel_q.sum(axis=0)
     inv_total = reg.inv_dem + reg.inv_dem_regional.sum(axis=0)
-    inv_share = inv_total / max(float(inv_total.sum()), 1e-12) if inv_total.sum() > 0 \
-        else np.zeros(C)
-    gov_spend = float(pq @ gov_q)
+    inv_channel = np.zeros((K, C))
+    inv_channel[-1] = reg.inv_dem
+    inv_channel[:reg.n_reg] = reg.inv_dem_regional
+    total_level = max(float(inv_total.sum()), 1e-12)
+    inv_share_channel = inv_channel / total_level if inv_total.sum() > 0 else inv_channel
+    inv_price = np.divide((inv_channel * pq).sum(axis=0), inv_total,
+                          out=np.ones(C), where=inv_total > 0)
+    v_channel = inv_share_channel / np.maximum(inv_price[None, :], 1e-12)
+    gov_spend = float((pq * gov_channel_q).sum())
     gov_fixed = (float((fac_inc * fac_gov).sum())
                  + float((fac_inc * reg.fac_gov_regional).sum())
                  + float((hh_income * dtax).sum()) - gov_spend - float(gov_tr.sum()))
     available0 = float(hh_sav.sum()) + gov_fixed + foreign_target + levy
-    v = inv_share / np.maximum(pq, 1e-12)          # inv quantity per unit of nominal saving
-    inv_q = (inv_share * investment_level / np.maximum(1.0 + reg.ptax, 1e-12)
-             if fixed_investment else v * available0)
-    F0 = hh_final + gov_q + inv_q
+    inv_channel_q = (inv_share_channel * investment_level
+                     / np.maximum(1.0 + reg.ptax, 1e-12)
+                     if fixed_investment else v_channel * available0)
+    inv_q = inv_channel_q.sum(axis=0)
+    F0 = hh_by + gov_channel_q + inv_channel_q
 
-    link = (phi * (dsh * reg.arm_share)[None, :]
-            / np.maximum(prices["dom_frac"], 1e-12))
-    M = np.zeros((econ.n_act, C))
+    link = (phi * (dsh * reg.arm_share)[None, :, :]
+            / np.maximum(prices["dom_frac"][:, None, :], 1e-12))
+    M = np.zeros((econ.n_act, K, C))
     for r in range(reg.n_reg):
-        for c in range(C):
-            i = reg.origin_index[r, c]
-            M[:, c] += econ.msh[:, i] * link[r, c]
+        for d in range(K):
+            for c in range(C):
+                i = reg.origin_index[r, c]
+                M[:, d, c] += econ.msh[:, i] * link[r, d, c]
     io = reg.io / tfp[None, :]
-    B = io @ M + reg.mq
-    tax_per = prices["pbase"] * reg.ptax + M.T @ (econ.atax * nu)
-    eye = np.eye(C)
+    IO = np.zeros((K, C, econ.n_act))
+    for j in range(econ.n_act):
+        IO[reg.activity_region[j], :, j] = io[:, j]
+    B = IO.reshape(K * C, econ.n_act) @ M.reshape(econ.n_act, K * C)
+    B += np.kron(np.eye(K), reg.mq)
+    tax_per = prices["pbase"] * reg.ptax + (M.reshape(econ.n_act, K * C).T
+                                              @ (econ.atax * nu)).reshape(K, C)
+    eye = np.eye(K * C)
     try:
         L = np.linalg.solve(eye - B, eye)
     except np.linalg.LinAlgError as exc:
         raise RuntimeError(
             "the regional quantity system is singular. A commodity is used in "
             "its own production with a coefficient of one or more.") from exc
-    # A = L @ (F0 + outer(v, tax) @ A)
-    leak = L @ np.outer(v, tax_per)
+    leak = L @ np.outer(v_channel.ravel(), tax_per.ravel())
     try:
-        A = np.linalg.solve(eye - leak, L @ F0)
+        A = np.linalg.solve(eye - leak, L @ F0.ravel()).reshape(K, C)
     except np.linalg.LinAlgError as exc:
         raise RuntimeError(
             "product-tax revenue feeds investment which feeds the tax base, and "
             "that loop does not have a finite sum.") from exc
-    available = available0 + float(tax_per @ A)
-    savings = float(pq @ inv_q) if fixed_investment else available
-    ND = dsh * reg.arm_share * A
-    Q_rc = link * A[None, :]
-    D_rc = phi * ND[None, :]
+    available = available0 + float((tax_per * A).sum())
+    if not fixed_investment:
+        inv_channel_q = v_channel * available
+        inv_q = inv_channel_q.sum(axis=0)
+    savings = float((pq * inv_channel_q).sum()) if fixed_investment else available
+    Q_rc = (link * A[None, :, :]).sum(axis=1)
+    D_rc = phi * (dsh * reg.arm_share * A)[None, :, :]
     E_rc = prices["exp_frac"] * Q_rc
     M_c = prices["msh"] * reg.arm_share * A
     Q = np.zeros(econ.n_com)
@@ -589,49 +650,41 @@ def _quantities(econ, reg, w, supply, facshare, fac_gov, fac_row, dtax, transfer
             i = int(reg.origin_index[r, c])
             Q[i] = Q_rc[r, c]
             exports[i] = E_rc[r, c]
-    imp0 = np.array([econ.imp0[reg.origin_index[r]] for r in range(reg.n_reg)])
-    imp_w = imp0 / np.maximum(imp0.sum(axis=0), 1e-12)
-    imp_w = np.where(imp0.sum(axis=0) > 0, imp_w, 0.0)
     for r in range(reg.n_reg):
         for c in range(C):
-            imports[reg.origin_index[r, c]] = imp_w[r, c] * M_c[c]
+            imports[reg.origin_index[r, c]] = (phi[r, :, c] * M_c[:, c]).sum()
     X = econ.msh @ Q
     fi = factor_intensity(econ, w, vunit=econ.vunit / tfp, aunit=econ.aunit / tfp[None, :])
     fac_by = fi * ((econ.vunit / tfp) * X)[None, :]
     fac_dem = fac_by.sum(axis=1)
 
-    hh_by = np.zeros((reg.n_reg, C))
-    for h in range(econ.n_hh):
-        hh_by[reg.household_region[h]] += hh_q[h]
-    inter = np.zeros((reg.n_reg, C))
-    use = (io * X[None, :])
-    for j in range(econ.n_act):
-        inter[reg.activity_region[j]] += use[:, j]
-    inv_q_reg = inv_q * (reg.inv_dem_regional / max(float(inv_total.sum()), 1e-12))
-    dest = hh_by + inter + gov_regional_q + inv_q_reg
-    bilateral = phi[:, None, :] * dest[None, :, :]
-
     export_prices = (np.tile(prices["pe"], (reg.n_reg, 1)) if reg.cet
                      else prices["p_origin"][reg.origin_index])
-    trade = float(prices["pm"] @ M_c - export_prices.ravel() @ exports)
+    trade = float(prices["pm"] @ M_c.sum(axis=0) - export_prices.ravel() @ exports)
     current = trade + float((fac_inc * fac_row).sum()) - float(remit.sum())
-    # Household quantities on the regional grid: the origin mix times the
-    # household's composite quantity. They sum back to the composite.
     hh_origin = np.zeros((econ.n_hh, econ.n_com))
     gov_origin = np.zeros(econ.n_com)
     inv_origin = np.zeros(econ.n_com)
     for r in range(reg.n_reg):
         for c in range(C):
             i = int(reg.origin_index[r, c])
-            hh_origin[:, i] = phi[r, c] * hh_q[:, c]
-            gov_origin[i] = phi[r, c] * gov_q[c]
-            inv_origin[i] = phi[r, c] * inv_q[c]
+            for h in range(econ.n_hh):
+                d = reg.household_region[h]
+                hh_origin[h, i] = phi[r, d, c] * hh_q[h, c]
+            gov_origin[i] = (phi[r, -1, c] * gov_channel_q[-1, c]
+                             + (phi[r, :reg.n_reg, c] * gov_regional_q[:, c]).sum())
+            inv_origin[i] = (phi[r, :, c] * inv_channel_q[:, c]).sum()
+    government_saving = available - float(hh_sav.sum()) - levy - foreign_target
     return dict(
-        A=A, Q=Q, X=X, D=D_rc, exports=exports, imports=imports, hh_q=hh_origin,
-        hh_income=hh_income, spend=spend, gov_q=gov_origin, inv_q=inv_origin,
+        A=A.sum(axis=0), A_dest=A, Q=Q, X=X, D=D_rc, exports=exports, imports=imports,
+        hh_q=hh_origin, hh_income=hh_income, spend=spend, gov_q=gov_origin, inv_q=inv_origin,
         fac_dem=fac_dem, fac_by=fac_by, savings=savings, available=available, current=current,
-        bilateral=bilateral, hh_nat=hh_q, gov_nat=gov_q, inv_nat=inv_q, ND=ND,
-        hh_sav=hh_sav, gov_regional_q=gov_regional_q, inv_q_reg=inv_q_reg,
+        bilateral=D_rc[:, :reg.n_reg, :],
+        bilateral_imports=(phi * M_c[None, :, :])[:, :reg.n_reg, :],
+        hh_nat=hh_q, gov_nat=gov_q, inv_nat=inv_q,
+        ND=(dsh * reg.arm_share * A).sum(axis=0), hh_sav=hh_sav,
+        government_saving=government_saving,
+        gov_regional_q=gov_regional_q, inv_q_reg=inv_channel_q[:reg.n_reg],
         migration=migration_results)
 
 
@@ -669,17 +722,19 @@ def _solve(residuals, n_unknown, tolerance, warm_start, raise_on_fail):
 
 
 def _pack(econ, reg, closure, scenario, state, z, residual, label, message, tolerance):
+    weight = reg.absorption0 / np.maximum(reg.absorption0.sum(axis=0), 1e-12)[None, :]
+    pq_nat = (weight * state["pq"]).sum(axis=0)
+    pbase_nat = (weight * state["pbase"]).sum(axis=0)
     pq_full = np.zeros(econ.n_com)
     pbase_full = np.zeros(econ.n_com)
     for r in range(reg.n_reg):
         for c in range(reg.n_local):
             i = int(reg.origin_index[r, c])
-            pq_full[i] = state["pq"][c]
-            pbase_full[i] = state["pbase"][c]
+            pq_full[i] = pq_nat[c]
+            pbase_full[i] = pbase_nat[c]
     yard = 1.0 + reg.ptax
-    # Basket cost relative to the base year, weights fixed at the calibrated shares.
     base_cost = reg.hh_budget @ yard
-    now_cost = reg.hh_budget @ state["pq"]
+    now_cost = (reg.hh_budget * state["pq"][reg.household_region]).sum(axis=1)
     hh_index = np.where(base_cost > 0, now_cost / np.maximum(base_cost, 1e-12), 1.0)
     ok = residual < tolerance
     return PeriodResult(
@@ -704,11 +759,13 @@ def _pack(econ, reg, closure, scenario, state, z, residual, label, message, tole
             hh_real_income=np.where(hh_index > 0, state["spend"] / hh_index, 0.0),
             hh_price_index=hh_index,
             national_absorption=state["A"],
-            national_price=state["pq"],
+            national_price=pq_nat,
+            government_saving=state["government_saving"],
         ),
         gaps={f: float(g) for f, g in zip(econ.factors, state["gaps"])},
         walras=state["walras"], residual=residual, converged=ok, attempt=label,
-        message=message, bilateral=state["bilateral"])
+        message=message, bilateral=state["bilateral"],
+        bilateral_imports=state["bilateral_imports"])
 
 
 def _absorb(reg, state):
@@ -717,5 +774,5 @@ def _absorb(reg, state):
     for r in range(reg.n_reg):
         for c in range(reg.n_local):
             i = int(reg.origin_index[r, c])
-            out[i] = state["D"][r, c] + state["imports"][i]
+            out[i] = state["D"][r, :, c].sum() + state["imports"][i]
     return out

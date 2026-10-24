@@ -77,14 +77,16 @@ Methods: `classify(sam) -> AccountLayout`, `prepare(sam)` (expands regional
 accounts), `sigma_va_vector(activities)`, `sigma_armington_vector(commodities)`.
 
 With `regions` set, the numeraire is one factor in one region (`"r1:f_lab"`).
-Factors may be passed as local names and are expanded to every region. Buyers
-pay a national composite: a CES of origins, then the usual Armington against
-foreign imports. One region makes the CES a single variety. `PeriodResult.bilateral`
-is `(origin, destination, local commodity)` for households, activities and any
-mapped regional institutions. Margins and CET exports are supported; LES, trade
-taxes, energy nests and non-default closures are refused by name rather than
-ignored. `run_path` supports full `region:factor` names; `to_jump` still refuses
-regional models.
+Factors may be passed as local names and are expanded to every region. Each
+destination has a CES of origins, then the usual Armington against foreign
+imports. One region makes the CES a single variety. `PeriodResult.bilateral` is
+`(origin, destination, local commodity)` for households, activities and mapped
+regional institutions; `bilateral_imports` reports imported content on the same
+grid, and their sum reproduces the SAM cells. National government and investment
+use a separate channel. Margins and CET exports are supported; LES, trade taxes,
+energy nests and non-default closures are refused by name rather than ignored.
+`run_path` supports full `region:factor` names; `to_jump` still refuses regional
+models.
 
 `AccountLayout`: `activities`, `commodities`, `households`, `factors`,
 `government`, `investment`, `rest_of_world`.

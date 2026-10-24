@@ -889,7 +889,7 @@ efeito[["treated_change", "control_change", "effect"]]</code></pre>
 <pre class="output" data-label="Saída"><code><span class="out-expr">efeito[["treated_change", "control_change", "effect"]]</span>
          treated_change  control_change  effect
 outcome
-output               20       1.421e-14      20</code></pre>
+output               20      -5.684e-14      20</code></pre>
   <p>O efeito é a variação do produto de r1 menos a de r2. Um choque comum e simétrico se cancela.
   Os controles podem ter pesos, e as medidas incluem produto, renda real, demanda de fatores,
   fluxos bilaterais ou uma função própria. É um contraste auditável de equilíbrios; o desenho da
@@ -982,6 +982,25 @@ exportacao_cara.exports</code></pre>
   exportação tem uma entrada por bem local. Um preço externo maior desloca ambas as origens para
   o exterior; a conta corrente nacional e Walras continuam fechando. As margens de comércio e
   transporte usam o mesmo bloco bem a bem do modelo nacional.</p>
+  <h3>38. Células bilaterais por destino</h3>
+<pre><code>base_regional.bilateral
+base_regional.bilateral + base_regional.bilateral_imports</code></pre>
+<pre class="output" data-label="Saída"><code><span class="out-expr">base_regional.bilateral</span>
+[[[45]
+  [18]]
+
+ [[18]
+  [45]]]
+<span class="out-expr">base_regional.bilateral + base_regional.bilateral_imports</span>
+[[[50]
+  [20]]
+
+ [[20]
+  [50]]]</code></pre>
+  <p>As vendas domésticas por origem são 45/18 e 18/45; o conteúdo importado leva as células de
+  volta aos 50/20 e 20/50 da MCS. Cada destino tem seu próprio ninho CES de origens, calibrado
+  pelas famílias, atividades e instituições mapeadas. Governo e investimento nacionais usam um
+  canal separado. Os serviços de transporte por rota não ficam escondidos nessas células.</p>
 </div></section>
 
 <section id="verificacoes"><div class="wrap">

@@ -201,10 +201,11 @@ python validation/replicate_hosoe.py                       # stdcge and lrgcge
 maturity of GAMS or GEMPACK, and [`docs/comparison.md`](https://github.com/GustavoHM/cgelab/blob/main/docs/comparison.md) says
 where it stands. Things to know before relying on it:
 
-- **Several regions** share one origin nest under the Armington, with delivered
-  margins, CET exports, factor migration and regional capital accumulation.
-  LES, trade taxes, energy nests and most alternative closures are refused by
-  name. Destination-specific bilateral trade and transport remain under 0.7.
+- **Several regions** use destination-specific origin nests under the Armington,
+  with bilateral domestic and imported flows, delivered margins, CET exports,
+  factor migration and regional capital accumulation. LES, trade taxes, energy
+  nests and most alternative closures are refused by name. Route-specific
+  transport and its global supply remain under 0.7.
 - **No complementarity**: activities cannot switch off, and there are no quotas,
   price floors or capacity limits. That is 0.8.
 - **The solver** uses finite-difference Jacobians on a few unknowns. It is fine up

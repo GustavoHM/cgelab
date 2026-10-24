@@ -881,7 +881,7 @@ effect[["treated_change", "control_change", "effect"]]</code></pre>
 <pre class="output" data-label="Output"><code><span class="out-expr">effect[["treated_change", "control_change", "effect"]]</span>
          treated_change  control_change  effect
 outcome
-output               20       1.421e-14      20</code></pre>
+output               20      -5.684e-14      20</code></pre>
   <p>The effect is r1's output change less r2's. A common symmetric shock cancels. Controls can be
   weighted, and measures cover output, real household income, factor demand, bilateral outflows
   or a custom function. This is an auditable contrast of equilibria; the research design stays
@@ -972,6 +972,25 @@ dear_exports.exports</code></pre>
   one entry per local commodity. A higher foreign price shifts both origins abroad; the national
   current account and Walras still close. Delivered trade and transport margins use the same
   commodity–commodity block as the national model.</p>
+  <h3>38. Bilateral cells by destination</h3>
+<pre><code>reg_base.bilateral
+reg_base.bilateral + reg_base.bilateral_imports</code></pre>
+<pre class="output" data-label="Output"><code><span class="out-expr">reg_base.bilateral</span>
+[[[45]
+  [18]]
+
+ [[18]
+  [45]]]
+<span class="out-expr">reg_base.bilateral + reg_base.bilateral_imports</span>
+[[[50]
+  [20]]
+
+ [[20]
+  [50]]]</code></pre>
+  <p>Domestic origin sales are 45/18 and 18/45; imported content brings the cells back to the
+  SAM's 50/20 and 20/50. Each destination has its own origin CES, calibrated from households,
+  activities and mapped institutions. National government and investment use a separate channel.
+  Route-specific transport services are not hidden in these accounting cells.</p>
 </div></section>
 
 <section id="gates"><div class="wrap">

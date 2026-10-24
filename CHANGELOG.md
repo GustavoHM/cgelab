@@ -7,6 +7,12 @@ before 1.0, a minor version may add to the API and a patch version only fixes.
 
 ### Added
 
+- Regional origin CES nests are calibrated by destination from the SAM's
+  household, activity and institutional purchases. `PeriodResult.bilateral`
+  reports domestic sales and `bilateral_imports` the imported content on the
+  same grid; their sum reproduces the base-year regional buyer cells. National
+  institutions use a separate channel. Validation covers one-region equivalence,
+  Walras, homogeneity, CET, migration and regional investment.
 - The regional origin nest now carries national-accounts trade and transport
   margins through delivered prices and the quantity system, and supports CET
   exports under `export_rule="cet"`. Regional `export_price` shocks use one

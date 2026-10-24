@@ -46,7 +46,7 @@ def test_the_base_year_reproduces_both_regions():
     assert period.Q[econ.commodity("r2:c")] == pytest.approx(100.0, abs=1e-6)
     assert period.factor_prices[econ.factor("r2:f_cap")] == pytest.approx(1.0, abs=1e-6)
     # Domestic sales of each origin are output minus the base-year export share.
-    # Bilateral cells of the SAM are not reproduced: buyers share one national mix.
+    # Destination-specific bilateral cells have their own reconciliation tests.
     r1 = econ.commodity("r1:c")
     assert period.Q[r1] - period.exports[r1] == pytest.approx(90.0, abs=1e-6)
 

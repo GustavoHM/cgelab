@@ -35,6 +35,12 @@ def assert_same_solution(national, regional, labelled):
         assert regional.Q[j] == pytest.approx(national.Q[i], rel=1e-8, abs=1e-8)
         assert regional.exports[j] == pytest.approx(national.exports[i], rel=1e-8, abs=1e-8)
         assert regional.imports[j] == pytest.approx(national.imports[i], rel=1e-8, abs=1e-8)
+        assert regional.investment_quantity[j] == pytest.approx(
+            national.investment_quantity[i], rel=1e-8, abs=1e-8)
+        assert regional.gov_quantity[j] == pytest.approx(
+            national.gov_quantity[i], rel=1e-8, abs=1e-8)
+        assert regional.hh_quantity[:, j].sum() == pytest.approx(
+            national.hh_quantity[:, i].sum(), rel=1e-8, abs=1e-8)
 
 
 def test_one_region_margins_match_the_national_solver():

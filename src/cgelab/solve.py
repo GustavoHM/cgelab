@@ -154,9 +154,12 @@ class PeriodResult:
     unemployment: float = 0.0
     real_wage: float = float("nan")
     #: Domestic origin sold into each destination's absorption,
-    #: ``(origin, destination, local commodity)``. Government and investment are
-    #: national and are not a destination. None when the model has no regions.
+    #: ``(origin, destination, local commodity)``. National government and
+    #: investment are outside the destination grid; mapped regional ones are in it.
     bilateral: np.ndarray | None = None
+    #: Imported content attributed to origin accounts on the same grid. The sum
+    #: of ``bilateral`` and ``bilateral_imports`` is absorption by origin account.
+    bilateral_imports: np.ndarray | None = None
     #: World prices in foreign currency, as multiples of the base year: the
     #: scenario's ``export_price`` and ``world_price``, moved along the demand
     #: and supply curves of ``ModelSpec.export_demand`` and ``import_supply``.

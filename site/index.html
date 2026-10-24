@@ -797,6 +797,25 @@ gdp_pct -0.1449 0.001002 -0.1464 -0.1447 -0.1435 -0.1466 -0.1434</code></pre>
   balance. Every SAM is recalibrated and solved, and the points keep its weight and KL distance
   from the original. The summary is the distribution of the result over the SAM draws, not just
   over elasticities.</p>
+  <h3>29. The whole robustness report</h3>
+<pre><code>rel = cge.robustness_report(sam_toy, toy.spec(), scenario=shock, measure=gdp_pct,
+    sam_blocks={"intermediate": (["c_agr", "c_ind"], ["a_agr", "a_ind"])},
+    draws=4, seed=7,
+    sam_kwargs={"balance_kwargs": {"rel_tol": 1e-12, "abs_tol": 1e-10}})
+rel.tables["monte_carlo"]
+rel.tables["oat"][["low", "central", "high"]]</code></pre>
+<pre class="output" data-label="Output"><code><span class="out-expr">rel.tables["monte_carlo"]</span>
+           mean      sd   q0.05    q0.5    q0.95     min      max
+gdp_pct -0.1395 0.04613 -0.1833 -0.1523 -0.07789 -0.1845 -0.06909
+<span class="out-expr">rel.tables["oat"][["low", "central", "high"]]</span>
+point                      low  central    high
+output  parameter
+gdp_pct sigma_va        -0.145  -0.1454 -0.1455
+        sigma_armington    NaN  -0.1454  -0.224</code></pre>
+  <p>One call assembles one-at-a-time ranges, quadrature, Monte Carlo, four closures, SAM draws
+  and money tables. The full results remain in <code>parts</code>. Here the lower Armington point
+  is NaN because it is exactly one, which this closure refuses; <code>oat_failed</code> records
+  the reason. Tornado and distribution figures are available with the optional <code>plot</code> extra.</p>
 </div></section>
 
 <section id="gates"><div class="wrap">

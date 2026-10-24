@@ -107,9 +107,10 @@ released in 0.5.5, ahead of 0.6.0, which also waits for the robustness items (se
 - [x] **A baseline calibrated to a path of real GDP** (`calibrate_baseline`, `Baseline`).
 - [x] **Capital by sector and putty-clay vintages** (`factor_pools={"f_cap": "activities"}`,
   `ModelSpec.vintages`, `split_vintages`).
-- [ ] **A robustness report**: one call that runs quadrature and Monte Carlo over every
+- [x] **A robustness report**: one call that runs quadrature and Monte Carlo over every
   elasticity, one-at-a-time ranges for a tornado chart, a grid of closures and the
-  uncertainty of the SAM itself, and returns tables and figures (`robustness_report`).
+  uncertainty of the SAM itself, and returns tables and optional figures
+  (`robustness_report`, with the `plot` extra).
 - [x] **Global sensitivity indices** (first-order and total Sobol indices, Saltelli design),
   validated against SALib (`sobol`).
 - [x] **Uncertainty in the SAM**: perturbing blocks of the matrix, rebalancing with
@@ -310,9 +311,9 @@ representation for a SAM, and calling it does not close those gaps.
 **What is there.** `sensitivity` and `spec_sweep` (0.3) turn a result into a distribution over
 the elasticities; `closure_sweep`, `in_money`, `sam_draws` and `sam_sweep` (0.6) solve it under
 a list of closures, put it in money, and propagate balanced SAM draws through recalibration and
-solution. What a published study still assembles by hand is the report around them: sourced
-ranges for every elasticity, one-at-a-time ranges and the tornado chart. `robustness_report`
-runs all of that in one call. Its parts stay public, so that a study can run one of them alone.
+solution. `robustness_report` assembles them with sourced ranges, one-at-a-time results and
+optional tornado and distribution figures. Its parts stay public, so that a study can run one
+of them alone.
 
 **Sobol indices.** The quadrature gives a mean and a standard deviation. It does not say which
 parameter the variance comes from when they interact. First-order and total Sobol indices do,

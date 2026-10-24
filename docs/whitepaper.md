@@ -327,6 +327,8 @@ A MCS também é uma estimativa. Num bloco escolhido, as participações positiv
 
 A distância entre matrizes não negativas é \(D_{KL}(P\|Q)=\sum_{ij:p_{ij}>0}p_{ij}\log(p_{ij}/q_{ij})\), após normalizar os fluxos para soma um. Ela é dirigida como `sam_distance(observada, prevista)`; suporte zero na segunda matriz sob massa positiva na primeira dá infinito, e fluxos negativos são recusados porque não admitem essa interpretação probabilística. Num Leontief de um setor com \(x=d/(1-a)\) e \(a\sim\operatorname{Beta}(\alpha,\beta)\), a referência fechada é \(E[(1-a)^{-1}]=(\alpha+\beta-1)/(\beta-1)\), para \(\beta>1\).
 
+O `robustness_report` reúne essas análises sem substituir suas APIs. Nas faixas padrão, os limites de ±50% para as elasticidades do valor adicionado, de Armington e da CET seguem Rose et al. (2023); a forma triangular centrada no valor do modelo é uma convenção declarada do pacote, não uma distribuição estimada. Como alternativa, os suportes de Arndt, Robinson e Tarp (2002) são \((0{,}3;1{,}5;9)\) para Armington e \((0{,}3;1{,}5;5)\) para a CET. A quadratura é omitida com a razão registrada quando uma distribuição assimétrica viola seu pressuposto; Monte Carlo e Sobol permanecem disponíveis. Um ponto que o modelo recusa aparece como falha identificada, não como zero.
+
 ## 11. O que este sistema não resolve
 
 A trajetória da seção 7 é recursiva. Uma política anunciada para uma data futura não move o investimento do primeiro ano, porque nenhum agente a vê. Levar esse efeito a sério é outro objeto. O equilíbrio do período continua sendo o desta nota. O resíduo intertemporal, uma Euler ou um \(q\) de Tobin ao longo de uma trajetória anunciada, seria resolvido pelo `dsgelab`, que já empilha uma função de resíduos e já aceita uma sequência de parâmetros. A matriz não entraria naquele pacote. A dependência seria opcional. O desenho está no `ROADMAP.md`, na seção *Extensions that call dsgelab*.
@@ -334,6 +336,8 @@ A trajetória da seção 7 é recursiva. Uma política anunciada para uma data f
 Ninhos além do valor adicionado, contas de emissões, unidades físicas de energia e um banco global no estilo GTAP também não estão nas equações acima. São extensões do equilíbrio de período, não do bloco intertemporal.
 
 ## Referências
+
+Arndt, C., Robinson, S. e Tarp, F. (2002). Parameter estimation for a computable general equilibrium model: a maximum entropy approach. *Economic Modelling*, 19(3), 375–398.
 
 Armington, P. S. (1969). A theory of demand for products distinguished by place of production. *IMF Staff Papers*, 16(1), 159–178.
 
@@ -350,5 +354,7 @@ Harris, J. R. e Todaro, M. P. (1970). Migration, unemployment and development: a
 Hosoe, N., Gasawa, K. e Hashimoto, H. (2010). *Textbook of Computable General Equilibrium Modelling: Programming and Simulations*. Basingstoke: Palgrave Macmillan.
 
 Hertel, T. W. (org.) (1997). *Global Trade Analysis: Modeling and Applications*. Cambridge: Cambridge University Press.
+
+Rose, A., Chen, Z. e Wei, D. (2023). The economic impacts of Russia–Ukraine War export disruptions of grain commodities. *Applied Economic Perspectives and Policy*, 45(2), 645–665.
 
 Stone, R. (1954). Linear expenditure systems and demand analysis: an application to the pattern of British demand. *The Economic Journal*, 64(255), 511–527.

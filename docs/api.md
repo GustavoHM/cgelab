@@ -513,6 +513,29 @@ are deflated by their own index against the base year's, the government by the
 GDP deflator. `unit` scales levels and changes; `label` is kept in
 `attrs["unit"]`.
 
+### `robustness_report(sam, spec, *, measure, scenario=None, sam_blocks, ranges="rose2023", parameters=None, closures=None, draws=200, seed=20260724, sobol=False, sobol_n=256, money=True, unit=1.0, label=None, figures=False, calibrate_kwargs=None, sam_kwargs=None) -> RobustnessReport`
+
+Runs one-at-a-time ranges, quadrature, Monte Carlo, a closure grid, balanced SAM
+draws with joint elasticity draws, and `in_money` for one period. `measure` has
+the `spec_sweep` signature. The default closure grid has four combinations of
+investment and foreign closures. `sam_blocks` and `sam_kwargs` go to
+`sam_draws`; `parameters` supplies distributions and `ranges` supplies
+`(low, mode, high)` triples.
+
+`rose2023` uses sourced ±50% endpoints and package-chosen triangular shapes for
+value-added, Armington and export-CET elasticities. `arndt2002` uses published
+trade-elasticity supports `(0.3, 1.5, 9)` and `(0.3, 1.5, 5)`. Other active
+elasticity fields need user values. Asymmetric distributions skip quadrature and
+record the reason in the table's `attrs["skipped"]`.
+
+`tables` contains `ranges`, `oat`, `oat_failed`, `quadrature`, `monte_carlo`,
+`closures`, `sam` and `money`, plus `sobol` when requested. `parts` contains the
+full public result objects. `ranges` is also a property. Refused OAT points are
+NaN with their reasons in `oat_failed`. `figures=True` adds tornado and
+distribution figures, and Sobol bars when available; it requires the optional
+`plot` extra (`matplotlib>=3.7`). `RobustnessReport` never requires matplotlib
+when figures are not requested.
+
 ---
 
 ## Dynamics

@@ -29,6 +29,7 @@ pip install cgelab                 # from PyPI
 pip install "cgelab[parquet]"      # adds pyarrow for .parquet SAMs
 pip install "cgelab[dsge]"         # adds dsgelab, for forward-looking investment
 pip install "cgelab[ibge]"         # adds xlrd, for the IBGE's supply and use tables
+pip install "cgelab[plot]"         # adds matplotlib, for optional robustness figures
 pip install "cgelab @ git+https://github.com/GustavoHM/cgelab"   # the current main branch
 ```
 
@@ -144,7 +145,7 @@ period.
 | Accounts: GDP from both sides, Laspeyres, Paasche and Fisher indices, terms of trade, the government account | `national_accounts`, `price_indices`, `government_account` |
 | Decompositions: subtotals by shock, Huff-Hertel welfare decomposition | `subtotals`, `welfare_decomposition` |
 | SAM multipliers, linkages, structural path analysis | `accounting_multipliers`, `linkages`, `structural_paths` |
-| Systematic sensitivity: quadrature, Monte Carlo and Sobol over elasticities; balanced SAM draws propagated through the model; closure grids; results in money | `sensitivity`, `spec_sweep`, `sobol`, `sam_draws`, `sam_sweep`, `closure_sweep`, `in_money` |
+| Systematic sensitivity and one-call robustness reports: quadrature, Monte Carlo, Sobol, SAM draws, closure grids, money and optional figures | `sensitivity`, `spec_sweep`, `sobol`, `sam_draws`, `sam_sweep`, `closure_sweep`, `in_money`, `robustness_report` |
 | Welfare: EV, CV and composition-immune group aggregation | `cgelab.welfare` |
 | Base-year reproduction, homogeneity, Walras | `cgelab.diagnostics` |
 | The same equilibrium as a JuMP model, for independent validation | `to_jump` |

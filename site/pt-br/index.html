@@ -798,6 +798,26 @@ pib_pct -0.1449 0.001002 -0.1464 -0.1447 -0.1435 -0.1466 -0.1434</code></pre>
   restaura o equilíbrio. Cada MCS é recalibrada e resolvida, e os pontos conservam seu peso e sua
   distância KL da original. O resumo é a distribuição do resultado sobre os sorteios da MCS, não
   apenas sobre as elasticidades.</p>
+  <h3>29. O relatório de robustez completo</h3>
+<pre><code>rel = cge.robustness_report(sam_toy, toy.spec(), scenario=choque, measure=pib_pct,
+    sam_blocks={"intermediario": (["c_agr", "c_ind"], ["a_agr", "a_ind"])},
+    draws=4, seed=7,
+    sam_kwargs={"balance_kwargs": {"rel_tol": 1e-12, "abs_tol": 1e-10}})
+rel.tables["monte_carlo"]
+rel.tables["oat"][["low", "central", "high"]]</code></pre>
+<pre class="output" data-label="Saída"><code><span class="out-expr">rel.tables["monte_carlo"]</span>
+           mean      sd   q0.05    q0.5    q0.95     min      max
+pib_pct -0.1395 0.04613 -0.1833 -0.1523 -0.07789 -0.1845 -0.06909
+<span class="out-expr">rel.tables["oat"][["low", "central", "high"]]</span>
+point                      low  central    high
+output  parameter
+pib_pct sigma_va        -0.145  -0.1454 -0.1455
+        sigma_armington    NaN  -0.1454  -0.224</code></pre>
+  <p>Uma chamada reúne faixas um de cada vez, quadratura, Monte Carlo, quatro fechamentos,
+  sorteios da MCS e tabelas em moeda. Os resultados completos ficam em <code>parts</code>. Aqui o
+  ponto inferior de Armington é NaN porque vale exatamente um, que este fechamento recusa;
+  <code>oat_failed</code> registra o motivo. Figuras de tornado e distribuição estão disponíveis
+  com o extra opcional <code>plot</code>.</p>
 </div></section>
 
 <section id="portarias"><div class="wrap">

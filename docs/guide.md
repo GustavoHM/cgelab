@@ -1007,6 +1007,49 @@ deflated by the GDP deflator. Current prices are in units of the numeraire, and
 currency, and `label` only names it. Two paths give the table for every year
 they share.
 
+### One robustness report
+
+`robustness_report` assembles those analyses for a period without hiding any of
+the underlying objects:
+
+```python
+rel = cge.robustness_report(
+    sam, spec, scenario=policy, measure=gdp_pct,
+    sam_blocks={"intermediate": (comms, acts)},
+    draws=200, sobol=False, figures=False)
+rel.tables["monte_carlo"]
+rel.tables["oat"]
+rel.parts["closures"].range()
+```
+
+The tables cover sourced ranges, one-at-a-time results, quadrature, Monte Carlo,
+closures, SAM uncertainty and money. `parts` contains the full
+`SensitivityResult`, `ClosureSweep` and other public results. Sobol is opt-in.
+The default closure grid crosses savings-driven and fixed-real investment with
+fixed-saving and fixed-rate foreign closures; pass `closures=` to replace it.
+
+The default `ranges="rose2023"` uses `0.5x, x, 1.5x` for value-added, Armington
+and export-CET elasticities. Rose et al. (2023) is the source of the ±50%
+endpoints; the triangular shape is a package convention, not a distribution
+estimated in that paper. `ranges="arndt2002"` gives the Armington support
+`(0.3, 1.5, 9)` and CET support `(0.3, 1.5, 5)` of Arndt, Robinson and Tarp
+(2002). Asymmetric supports skip quadrature with the reason in
+`tables["quadrature"].attrs["skipped"]`; Monte Carlo and Sobol still run. Other
+active elasticities need `ranges={name: (low, mode, high)}` or
+`parameters={name: distribution}` and are named in the error if omitted.
+
+A one-at-a-time point the model refuses is NaN in `tables["oat"]`, with its
+parameter, endpoint and reason in `tables["oat_failed"]`. This matters, for
+example, when halving an Armington elasticity of two reaches the singular
+Cobb–Douglas case under fixed export shares. Other components' failures are not
+silently converted into robust results.
+
+Figures are optional and off by default. With `figures=True`, `figures` contains
+a tornado and distribution plot per output, and Sobol bars when requested. This
+needs `python -m pip install "cgelab[plot]"`; otherwise the error gives that
+installation instruction. The base package does not import or depend on
+matplotlib.
+
 ---
 
 ## 13. Subtotals: which shock did what

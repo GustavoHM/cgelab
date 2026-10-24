@@ -7,6 +7,15 @@ before 1.0, a minor version may add to the API and a patch version only fixes.
 
 ### Added
 
+- `robustness_report` runs sourced one-at-a-time ranges, quadrature, Monte
+  Carlo, closure grids, balanced SAM draws with joint elasticity draws and money
+  tables in one call, with optional Sobol indices. `RobustnessReport` keeps both
+  summary tables and the full public result objects; refused OAT points are
+  reported with their reasons. The `rose2023` preset uses ±50% endpoints from
+  Rose et al. and declares the triangular shape a package convention;
+  `arndt2002` supplies the published Armington and CET supports and skips
+  quadrature when asymmetry makes it invalid. The optional `plot` extra adds
+  matplotlib figures only on request, leaving the base installation unchanged.
 - `sam_draws` perturbs selected SAM blocks by Dirichlet shares or mean-one
   lognormal noise and rebalances every draw; `sam_sweep` recalibrates and solves
   each SAM, optionally with elasticity draws on the same rows. Its

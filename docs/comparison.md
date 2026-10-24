@@ -108,7 +108,7 @@ the goal is to cover the whole list by 1.0; each item's version is the one in
 | Export demand and import supply with finite elasticities | 📄 Hosoe (`lrgcge`) | **done**: the equations of `lrgcge`; its tariff abolition reproduces the transcription | 0.2 |
 | Foreign saving fixed in foreign currency | 📄 Hosoe, IFPRI | **done** | 0.2 |
 | Decomposition of results by shock (subtotals) | 📄 GEMPACK | **done**: Harrison, Horridge and Pearson, integrated along the straight path | 0.3 |
-| Systematic sensitivity and robustness | 📄 GEMPACK | **done**: Stroud degree-3 quadrature and Monte Carlo, recalibrating at every point; Sobol indices, closure grids, results in money, and balanced SAM draws recalibrated and solved with optional joint elasticity draws | 0.3, 0.6 |
+| Systematic sensitivity and robustness | 📄 GEMPACK | **done**: Stroud degree-3 quadrature and Monte Carlo, recalibrating at every point; Sobol indices, closure grids, results in money, balanced SAM draws with joint elasticity draws, and a one-call report with sourced ranges and optional figures | 0.3, 0.6 |
 | Accounts and reports: GDP by expenditure and income, price indices, terms of trade | 📄 GEMPACK, GTAP | **done**: GDP from both sides, Laspeyres, Paasche and Fisher indices, terms of trade, the government account | 0.3 |
 | Welfare decomposition (Huff and Hertel) | 📄 GTAP | **done** for real absorption, the identity closing below 1e-9; the comparison with GTAP waits on the GTAP database | 0.3 |
 | SAM multipliers and input–output | 📄 Pyatt and Round; Defourny and Thorbecke | **done**: accounting, fixed-price, Leontief, linkages (Rasmussen and Ghosh), structural path analysis | 0.3 |

@@ -53,6 +53,7 @@ from .sam import SAM, BalanceError, sam_distance
 from .sam_uncertainty import SAMDraws, sam_draws, sam_sweep
 from .scenario import Scenario, consumer_wedge
 from .robustness import ClosureSweep, closure_grid, closure_sweep, in_money
+from .robustness_report import RobustnessReport, robustness_report
 from .sensitivity import (Normal, SensitivityResult, SobolResult, Triangular, Uniform,
                           sensitivity, sobol, spec_sweep, stroud_points)
 from .solve import PeriodResult, factor_intensity, solve_period, value_added_price
@@ -88,6 +89,7 @@ __all__ = [
     "subtotals", "path_decomposition", "scenario_vector", "welfare_decomposition",
     "sensitivity", "spec_sweep", "stroud_points", "SensitivityResult", "sobol", "SobolResult",
     "closure_sweep", "closure_grid", "ClosureSweep", "in_money",
+    "robustness_report", "RobustnessReport",
     "Uniform", "Normal", "Triangular",
     "ces_price", "ces_intensity", "cobb_douglas_price", "armington", "cet", "cet_domestic_price",
     "__version__",

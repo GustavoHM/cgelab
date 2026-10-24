@@ -237,6 +237,28 @@ def sensitivity(run: Callable[[dict], object], parameters: Mapping[str, object],
     return SensitivityResult(method=method, points=frame, parameters=names, outputs=outputs)
 
 
+def _replace_spec(spec, values):
+    """Apply whole-field or ``field[account]`` values to a ModelSpec."""
+    fields = {f.name for f in dataclasses.fields(spec)}
+    changes: dict = {}
+    for name, value in values.items():
+        field, _, account = name.partition("[")
+        if field not in fields:
+            raise KeyError(f"{field!r} is not a ModelSpec field")
+        if account:
+            account = account.rstrip("]")
+            current = changes.get(field, getattr(spec, field))
+            if isinstance(current, Mapping):
+                mapping = dict(current)
+            else:
+                mapping = {"__default__": float(current)}
+            mapping[account] = float(value)
+            changes[field] = mapping
+        else:
+            changes[field] = float(value)
+    return dataclasses.replace(spec, **changes)
+
+
 def spec_sweep(sam, spec, *, measure: Callable, closure=None, scenario=None,
                calibrate_kwargs: Mapping | None = None) -> Callable[[dict], object]:
     """A run that sets ``ModelSpec`` fields, recalibrates, and solves base and scenario.
@@ -250,27 +272,10 @@ def spec_sweep(sam, spec, *, measure: Callable, closure=None, scenario=None,
     from .calibrate import calibrate
     from .solve import solve_period
 
-    fields = {f.name for f in dataclasses.fields(spec)}
     kwargs = dict(calibrate_kwargs or {})
 
     def run(values: dict):
-        changes: dict = {}
-        for name, value in values.items():
-            field, _, account = name.partition("[")
-            if field not in fields:
-                raise KeyError(f"{field!r} is not a ModelSpec field")
-            if account:
-                account = account.rstrip("]")
-                current = changes.get(field, getattr(spec, field))
-                if isinstance(current, Mapping):
-                    mapping = dict(current)
-                else:
-                    mapping = {"__default__": float(current)}
-                mapping[account] = float(value)
-                changes[field] = mapping
-            else:
-                changes[field] = float(value)
-        econ = calibrate(sam, dataclasses.replace(spec, **changes), **kwargs)
+        econ = calibrate(sam, _replace_spec(spec, values), **kwargs)
         base = solve_period(econ, closure)
         alt = solve_period(econ, closure, scenario, warm_start=base)
         return measure(base, alt)

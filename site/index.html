@@ -1026,6 +1026,18 @@ gtap_result.exports</code></pre>
   production taxes. Output is 120 and 20, imports are 20 of the goods commodity, and exports are
   15. `gtap_supply_use` and `gtap_sam` apply the same mapping to licensed data; aggregation sums
   only declared flows and uses explicit weights for parameters.</p>
+  <h3>41. Consolidated regional government closures</h3>
+<pre><code>saving_rate = cge.solve_period(reg_econ, cge.Closure(government="saving_rate"))
+deficit = cge.solve_period(reg_econ, cge.Closure(
+    government_target="saving", government_target_value=12.0,
+    government_adjusts="spending"))
+saving_rate.government["saving"]
+deficit.government["saving"]
+deficit.government["consumption"]</code></pre>
+  <p>The saving-rate rule shares revenue between consumption and saving. With a saving target of
+  12, spending is the residual 8. Targets and rates consolidate national and mapped regional
+  accounts; direct- and product-tax levers use the same affine budget solution as the national
+  solver.</p>
 </div></section>
 
 <section id="gates"><div class="wrap">

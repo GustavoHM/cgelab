@@ -120,4 +120,4 @@ def test_price_iteration_failure_is_not_accepted(monkeypatch):
     with pytest.raises(RuntimeError, match="price fixed point did not converge"):
         _prices(econ, econ.regional, np.ones(econ.n_fac), 1.0,
                 np.ones(econ.regional.n_local), np.ones(econ.regional.n_local),
-                np.ones(econ.n_act), 1.0)
+                np.ones(econ.n_act), 1.0, econ.regional.ptax)

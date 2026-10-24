@@ -84,8 +84,10 @@ imports. One region makes the CES a single variety. `PeriodResult.bilateral` is
 regional institutions; `bilateral_imports` reports imported content on the same
 grid. Their sum reproduces the SAM cells without route margins; with routes, add
 `transport["vtwr"]` for the purchaser-value identity. National government and investment
-use a separate channel. Margins and CET exports are supported; LES, trade taxes,
-energy nests and non-default closures are refused by name rather than ignored.
+use a separate channel. Margins, CET exports and the government closures
+`real_fixed`, `nominal_fixed`, `saving_rate` and saving/revenue targets are
+supported. LES, trade taxes, energy nests and unsupported labour closures are
+refused by name rather than ignored.
 `run_path` supports full `region:factor` names; `to_jump` still refuses regional
 models.
 

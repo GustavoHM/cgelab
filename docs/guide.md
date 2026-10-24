@@ -1223,8 +1223,16 @@ is deducted from households in proportion to population, exactly as in the
 one-region model. Household saving, the levy, government saving and foreign
 saving sum to nominal investment at the solved prices. With no scenario level,
 the calibrated investment is used. `savings_driven` remains the default.
-Alternative government closures and destination-specific transport services
-stay explicit rather than being silently relaxed.
+
+### Government closures in a regional model
+
+`real_fixed`, `nominal_fixed` and `saving_rate` work on the consolidated regional
+accounts. `government_target="saving"` or `"revenue"` can be met by direct-tax or
+product-tax scaling, or by spending. The product-tax scenario and target use one
+value per local commodity. Base saving, revenue and the saving rate include all
+mapped regional accounts, not just the national one. One-region comparisons cover
+every rule, shocks and homogeneity; two-region tests cover consolidated revenue
+and a deficit target. Unsupported labour closures and trade taxes are refused.
 
 ### Government and investment accounts by region
 

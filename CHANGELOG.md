@@ -7,6 +7,12 @@ before 1.0, a minor version may add to the API and a patch version only fixes.
 
 ### Added
 
+- Regional government supports `nominal_fixed`, `saving_rate` and saving/revenue
+  targets met by direct tax, product tax or spending. Targets use consolidated
+  base saving and revenue across all mapped accounts. Affine government and
+  investment budget probes match the national solver, including shocks and
+  homogeneity. `Scenario.product_tax` accepts one rate per local commodity and
+  `PeriodResult.tax_scale` records the adjustment.
 - Regional results now populate `government`, `world_export_price`,
   `world_import_price`, `pe`, `domestic_sales`, `p_domestic`,
   `factor_income_abroad`, household direct taxes and factor prices by activity.

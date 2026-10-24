@@ -74,6 +74,9 @@ class Regional:
     inv_dem_regional: np.ndarray | None = None
     fac_gov_regional: np.ndarray | None = None  # (n_reg, n_fac), zero absent
     migration: dict = field(default_factory=dict)
+    gov_saving0: float = 0.0
+    gov_revenue0: float = 0.0
+    gov_savrate: float = 0.0
     transport: TransportMargins | None = None
 
     @property
@@ -374,6 +377,18 @@ def build_regional(econ, sam, *, migration_pools=None, transport=None) -> Region
         econ, transport, regions, local, origin_index, use, destination_share,
         absorption0, dom_share, nat_arm, nat_mq, ptax, sigma, sigma_arm)
     migration = _build_migration(spec, econ, regions, migration_pools)
+    dtax = econ.zeros_if_none("hh_dtax", econ.n_hh)
+    direct = float((np.asarray(econ.hh_gross0, float) * dtax).sum())
+    transfers = float(econ.zeros_if_none("hh_gov_transfer", econ.n_hh).sum())
+    factor_gov = float((econ.fac_supply * (econ.zeros_if_none("fac_gov_share", econ.n_fac)
+                                           + fac_gov_regional.sum(axis=0))).sum())
+    revenue0 = (float(ptax @ econ.A0[origin_index].sum(axis=0))
+                + float(econ.atax @ econ.X0)
+                + direct + factor_gov)
+    consumption0 = float(nat_gov.sum() + gov_regional.sum())
+    saving0 = revenue0 - transfers - consumption0
+    net_revenue = revenue0 - transfers
+    savrate = saving0 / net_revenue if net_revenue > 0 else float(econ.gov_savrate)
 
     return Regional(
         regions=regions, local_commodities=local, origin_index=origin_index,
@@ -387,7 +402,9 @@ def build_regional(econ, sam, *, migration_pools=None, transport=None) -> Region
         household_region=household_region, government_accounts=government_accounts,
         investment_accounts=investment_accounts,
         gov_dem_regional=gov_regional, inv_dem_regional=inv_regional,
-        fac_gov_regional=fac_gov_regional, migration=migration, transport=transport)
+        fac_gov_regional=fac_gov_regional, migration=migration,
+        gov_saving0=saving0, gov_revenue0=revenue0, gov_savrate=savrate,
+        transport=transport)
 
 
 def _build_migration(spec, econ, regions, migration_pools=None):
@@ -476,8 +493,15 @@ def solve_regions(econ, closure, scenario, *, warm_start=None, raise_on_fail: bo
     i_er = len(others)
     i_inv = i_er + 1
     fixed_investment = closure.investment == "fixed_real"
-    n_unknown = i_er + 1 + int(fixed_investment)
+    target = closure.government_target
+    adjusts = closure.government_adjusts
+    tax_lever = target is not None and adjusts in ("direct_tax", "product_tax")
+    i_tax = i_inv + int(fixed_investment)
+    n_unknown = i_tax + int(tax_lever)
     nu = closure.numeraire
+    target_base = reg.gov_saving0 if target == "saving" else reg.gov_revenue0
+    target_value = (target_base if closure.government_target_value is None
+                    else float(closure.government_target_value)) * nu
     supply = (econ.fac_supply if scenario.factor_supply is None
               else np.asarray(scenario.factor_supply, float))
     if supply.shape != (nf,):
@@ -512,6 +536,11 @@ def solve_regions(econ, closure, scenario, *, warm_start=None, raise_on_fail: bo
     gov_tr = econ.zeros_if_none("hh_gov_transfer", econ.n_hh) * nu
     remit = econ.zeros_if_none("hh_remit_net", econ.n_hh) * nu
     foreign_target = econ.foreign_sav * nu
+    ptax_set = reg.ptax if scenario.product_tax is None else np.asarray(
+        scenario.product_tax, dtype=float)
+    if ptax_set.shape != (reg.n_local,):
+        raise ValueError("product_tax in a regional model is one rate per local "
+                         f"commodity ({reg.local_commodities}), got shape {ptax_set.shape}")
     investment_level = ((reg.inv_dem + reg.inv_dem_regional.sum(axis=0)).sum()
                         if scenario.investment_level is None else float(scenario.investment_level))
     if not np.isfinite(investment_level) or investment_level < 0:
@@ -525,12 +554,16 @@ def solve_regions(econ, closure, scenario, *, warm_start=None, raise_on_fail: bo
             w[i] = nu * float(np.exp(z[k]))
         er = float(np.exp(z[i_er]))
         levy = float(z[i_inv]) if fixed_investment else 0.0
-        prices = _prices(econ, reg, w, er, world, export_world, tfp, nu)
-        qty = _quantities(econ, reg, w, supply, facshare, fac_gov, fac_row, dtax,
+        tax_scale = float(np.exp(z[i_tax])) if tax_lever else 1.0
+        dtax_eff = dtax * (tax_scale if adjusts == "direct_tax" and tax_lever else 1.0)
+        ptax_eff = ptax_set * (tax_scale if adjusts == "product_tax" and tax_lever else 1.0)
+        prices = _prices(econ, reg, w, er, world, export_world, tfp, nu, ptax_eff)
+        qty = _quantities(econ, reg, w, supply, facshare, fac_gov, fac_row, dtax_eff,
                           transfers - levy * econ.pop_share, gov_tr, remit,
                           foreign_target, tfp, prices, nu,
                           investment_level=investment_level, levy=levy,
-                          fixed_investment=fixed_investment, migration=reg.migration)
+                          fixed_investment=fixed_investment, migration=reg.migration,
+                          ptax=ptax_eff, closure=closure, target_value=target_value)
         gaps = (qty["fac_dem"] - supply) / np.maximum(np.abs(supply), 1.0)
         for local, item in reg.migration.items():
             idx = item["indices"]
@@ -542,10 +575,13 @@ def solve_regions(econ, closure, scenario, *, warm_start=None, raise_on_fail: bo
         out.append((qty["current"] - foreign_target) / scale)
         if fixed_investment:
             out.append((qty["available"] - qty["savings"]) / scale)
+        if tax_lever:
+            hit = qty["government"]["saving" if target == "saving" else "revenue"]
+            out.append((hit - target_value) / max(abs(target_value), 1.0))
         state.update(prices)
         state.update(qty)
         state.update(w=w, er=er, gaps=gaps, walras=float(gaps[num]),
-                     levy=levy, foreign_sav=foreign_target)
+                     levy=levy, foreign_sav=foreign_target, tax_scale=tax_scale)
         return np.asarray(out, dtype=float)
 
     z_hat, residual, label, message = _solve(residuals, n_unknown, closure.tolerance,
@@ -561,11 +597,18 @@ def _refuse_unsupported(econ, closure, scenario, reg: Regional):
             "regional factors clear where they are supplied. "
             f"closure.labour={closure.labour!r} would move a wage without a "
             "migration equation, and the two are different closures.")
-    if closure.investment not in ("savings_driven", "fixed_real") or closure.government != "real_fixed":
-        raise ValueError(
-            "the regional slice solves savings-driven or fixed-real investment and "
-            f"government quantities fixed. Got investment={closure.investment!r}, "
-            f"government={closure.government!r}.")
+    if closure.investment not in ("savings_driven", "fixed_real"):
+        raise ValueError(f"unsupported regional investment closure {closure.investment!r}")
+    if closure.government not in ("real_fixed", "nominal_fixed", "saving_rate"):
+        raise ValueError(f"unsupported regional government closure {closure.government!r}")
+    if closure.government_adjusts == "direct_tax" and closure.government_target is not None:
+        dtax = econ.zeros_if_none("hh_dtax", econ.n_hh)
+        if not np.any(dtax != 0):
+            raise ValueError("government_adjusts='direct_tax', but no household pays direct tax")
+    if closure.government_adjusts == "product_tax" and closure.government_target is not None:
+        ptax = reg.ptax if scenario.product_tax is None else np.asarray(scenario.product_tax)
+        if not np.any(ptax != 0):
+            raise ValueError("government_adjusts='product_tax', but every product tax rate is zero")
     if closure.foreign != "fixed_saving":
         raise ValueError(
             "the exchange rate clears one national current account. "
@@ -573,7 +616,6 @@ def _refuse_unsupported(econ, closure, scenario, reg: Regional):
     blocked = {
         "consumer_wedge": scenario.consumer_wedge,
         "government_wedge": scenario.government_wedge,
-        "product_tax": scenario.product_tax,
         "product_tax_firm": scenario.product_tax_firm,
         "investment_mix": scenario.investment_mix,
         "foreign_factor_share": scenario.foreign_factor_share,
@@ -592,7 +634,7 @@ def _refuse_unsupported(econ, closure, scenario, reg: Regional):
         raise ValueError("regional model has no regions")
 
 
-def _prices(econ, reg: Regional, w, er, world, export_world, tfp, nu):
+def _prices(econ, reg: Regional, w, er, world, export_world, tfp, nu, ptax):
     """CET origin sales and a delivered Armington composite in each destination."""
     io = reg.io / tfp[None, :]
     vunit = econ.vunit / tfp
@@ -633,7 +675,7 @@ def _prices(econ, reg: Regional, w, er, world, export_world, tfp, nu):
                 arm_price[d, c] = float(arm[0])
                 dsh[d, c], msh[d, c] = float(ds[0]), float(ms[0])
         pbase = arm_price * reg.arm_share + pq @ reg.mq
-        new = pbase * (1.0 + reg.ptax)
+        new = pbase * (1.0 + ptax)
         converged = np.max(np.abs(new - pq)) < 1e-14
         pq = new
         if converged:
@@ -648,14 +690,15 @@ def _prices(econ, reg: Regional, w, er, world, export_world, tfp, nu):
     else:
         dom_frac, exp_frac = 1.0 - reg.exp_share, reg.exp_share
     return dict(pa=pa, p_origin=p_origin, pd_dest=pd_dest, phi=phi, pq=pq,
-                pbase=pq / np.maximum(1.0 + reg.ptax, 1e-12), dsh=dsh, msh=msh,
+                pbase=pq / np.maximum(1.0 + ptax, 1e-12), dsh=dsh, msh=msh,
                 pm=pm, pe=pe, dom_frac=dom_frac, exp_frac=exp_frac,
                 p_ship=p_rc, p_deliver=p_deliver, transport_price=transport_price)
 
 
 def _quantities(econ, reg, w, supply, facshare, fac_gov, fac_row, dtax, transfers,
                 gov_tr, remit, foreign_target, tfp, prices, nu, *,
-                investment_level, levy, fixed_investment, migration=None):
+                investment_level, levy, fixed_investment, migration=None,
+                ptax=None, closure=None, target_value=0.0):
     """Solve destination absorption and origin sales in one linear system."""
     K, C = reg.n_dest, reg.n_local
     pq, phi, dsh = prices["pq"], prices["phi"], prices["dsh"]
@@ -677,12 +720,31 @@ def _quantities(econ, reg, w, supply, facshare, fac_gov, fac_row, dtax, transfer
     for h in range(econ.n_hh):
         hh_by[reg.household_region[h]] += hh_q[h]
 
-    gov_channel_q = np.zeros((K, C))
-    gov_channel_q[-1] = reg.gov_dem / np.maximum(reg.base_price[-1], 1e-12)
-    gov_channel_q[:reg.n_reg] = (reg.gov_dem_regional
-                                  / np.maximum(reg.base_price[:reg.n_reg], 1e-12))
+    gov_values = np.zeros((K, C))
+    gov_values[-1] = reg.gov_dem
+    gov_values[:reg.n_reg] = reg.gov_dem_regional
+    gov_base_q = gov_values / np.maximum(reg.base_price, 1e-12)
+    gov_total = float(gov_values.sum())
+    gov_mix = gov_values / gov_total if gov_total > 0 else gov_values
+    income_excl = (float((fac_inc * fac_gov).sum())
+                   + float((fac_inc * reg.fac_gov_regional).sum())
+                   + float((hh_income * dtax).sum()) - float(gov_tr.sum()))
+    dynamic_gov = (closure.government == "saving_rate"
+                   or (closure.government_target == "saving"
+                       and closure.government_adjusts == "spending"))
+    if dynamic_gov:
+        gov_channel_q = np.zeros((K, C))
+        available0 = 0.0
+        gov_q = np.zeros(C)
+    else:
+        if closure.government == "nominal_fixed":
+            gov_channel_q = gov_values * nu / np.maximum(pq, 1e-12)
+        else:
+            gov_channel_q = gov_base_q
+        gov_q = gov_channel_q.sum(axis=0)
+        gov_spend = float((pq * gov_channel_q).sum())
+        available0 = float(hh_sav.sum()) + income_excl - gov_spend + foreign_target + levy
     gov_regional_q = gov_channel_q[:reg.n_reg]
-    gov_q = gov_channel_q.sum(axis=0)
     inv_total = reg.inv_dem + reg.inv_dem_regional.sum(axis=0)
     inv_channel = np.zeros((K, C))
     inv_channel[-1] = reg.inv_dem
@@ -693,11 +755,6 @@ def _quantities(econ, reg, w, supply, facshare, fac_gov, fac_row, dtax, transfer
     inv_price = np.divide((inv_channel * pq).sum(axis=0), inv_total,
                           out=np.ones(C), where=inv_total > 0)
     v_channel = inv_share_channel / np.maximum(inv_price[None, :], 1e-12)
-    gov_spend = float((pq * gov_channel_q).sum())
-    gov_fixed = (float((fac_inc * fac_gov).sum())
-                 + float((fac_inc * reg.fac_gov_regional).sum())
-                 + float((hh_income * dtax).sum()) - gov_spend - float(gov_tr.sum()))
-    available0 = float(hh_sav.sum()) + gov_fixed + foreign_target + levy
     inv_channel_q = (inv_base_q * investment_level / inv_base_cost
                      if fixed_investment and inv_base_cost > 0
                      else v_channel * available0)
@@ -728,8 +785,9 @@ def _quantities(econ, reg, w, supply, facshare, fac_gov, fac_row, dtax, transfer
         IO[reg.activity_region[j], :, j] = io[:, j]
     B = IO.reshape(K * C, econ.n_act) @ M.reshape(econ.n_act, K * C)
     B += np.kron(np.eye(K), reg.mq)
-    tax_per = prices["pbase"] * reg.ptax + (M.reshape(econ.n_act, K * C).T
-                                              @ (econ.atax * nu)).reshape(K, C)
+    ptax = reg.ptax if ptax is None else ptax
+    tax_per = prices["pbase"] * ptax + (M.reshape(econ.n_act, K * C).T
+                                         @ (econ.atax * nu)).reshape(K, C)
     eye = np.eye(K * C)
     try:
         L = np.linalg.solve(eye - B, eye)
@@ -737,18 +795,60 @@ def _quantities(econ, reg, w, supply, facshare, fac_gov, fac_row, dtax, transfer
         raise RuntimeError(
             "the regional quantity system is singular. A commodity is used in "
             "its own production with a coefficient of one or more.") from exc
-    leak = L @ np.outer(v_channel.ravel(), tax_per.ravel())
-    try:
-        A = np.linalg.solve(eye - leak, L @ F0.ravel()).reshape(K, C)
-    except np.linalg.LinAlgError as exc:
-        raise RuntimeError(
-            "product-tax revenue feeds investment which feeds the tax base, and "
-            "that loop does not have a finite sum.") from exc
-    available = available0 + float((tax_per * A).sum())
-    if not fixed_investment:
-        inv_channel_q = v_channel * available
+    if dynamic_gov:
+        free = ["gov"] + ([] if fixed_investment else ["sav"])
+
+        def flows(u):
+            gov_budget = float(u[0])
+            inv_budget = float(u[-1]) if not fixed_investment else 0.0
+            gov_q_now = gov_mix * gov_budget / np.maximum(pq, 1e-12)
+            inv_q_now = (inv_base_q * investment_level / inv_base_cost
+                         if fixed_investment and inv_base_cost > 0
+                         else v_channel * inv_budget)
+            A_now = (L @ (hh_by + gov_q_now + inv_q_now).ravel()).reshape(K, C)
+            income = income_excl + float((tax_per * A_now).sum())
+            spend_now = float((pq * gov_q_now).sum())
+            avail = (float(hh_sav.sum()) + levy + foreign_target + income - spend_now)
+            return gov_q_now, inv_q_now, A_now, income, avail
+
+        def gap(u):
+            _, _, _, income, avail = flows(u)
+            out = []
+            if closure.government == "saving_rate":
+                out.append(u[0] - (1.0 - reg.gov_savrate) * income)
+            else:
+                out.append(u[0] - (income - target_value))
+            if not fixed_investment:
+                out.append(u[-1] - avail)
+            return np.asarray(out)
+
+        r0 = gap(np.zeros(len(free)))
+        J = np.empty((len(free), len(free)))
+        scale = max(abs(foreign_target), 1.0)
+        for k in range(len(free)):
+            step = np.zeros(len(free))
+            step[k] = scale
+            J[:, k] = (gap(step) - r0) / scale
+        u = np.linalg.solve(J, -r0)
+        gov_channel_q, inv_channel_q, A, _, available = flows(u)
+        gov_regional_q = gov_channel_q[:reg.n_reg]
+        gov_q = gov_channel_q.sum(axis=0)
+        gov_spend = float((pq * gov_channel_q).sum())
         inv_q = inv_channel_q.sum(axis=0)
-    savings = float((pq * inv_channel_q).sum()) if fixed_investment else available
+        savings = float((pq * inv_channel_q).sum()) if fixed_investment else available
+    else:
+        leak = L @ np.outer(v_channel.ravel(), tax_per.ravel())
+        try:
+            A = np.linalg.solve(eye - leak, L @ F0.ravel()).reshape(K, C)
+        except np.linalg.LinAlgError as exc:
+            raise RuntimeError(
+                "product-tax revenue feeds investment which feeds the tax base, and "
+                "that loop does not have a finite sum.") from exc
+        available = available0 + float((tax_per * A).sum())
+        if not fixed_investment:
+            inv_channel_q = v_channel * available
+            inv_q = inv_channel_q.sum(axis=0)
+        savings = float((pq * inv_channel_q).sum()) if fixed_investment else available
     D_rc = phi * (dsh * reg.arm_share * A)[None, :, :]
     Q_rc = (D_rc.sum(axis=1) / np.maximum(prices["dom_frac"], 1e-12)
             + service_share * (coefficient * D_rc).sum())
@@ -790,7 +890,7 @@ def _quantities(econ, reg, w, supply, facshare, fac_gov, fac_row, dtax, transfer
             inv_origin[i] = (origin_mix[r, :, c] * inv_channel_q[:, c]).sum()
     government_saving = available - float(hh_sav.sum()) - levy - foreign_target
     gov_account = dict(
-        product_tax=float((prices["pbase"] * reg.ptax * A).sum()),
+        product_tax=float((prices["pbase"] * ptax * A).sum()),
         activity_tax=float((econ.atax * nu) @ X),
         carbon_production=0.0, carbon_households=0.0, tariff=0.0, output_tax=0.0,
         direct_tax=float((hh_income * dtax).sum()),
@@ -893,7 +993,7 @@ def _pack(econ, reg, closure, scenario, state, z, residual, label, message, tole
         factor_demand=state["fac_dem"], factor_demand_by_activity=state["fac_by"],
         savings=state["savings"], wedge_revenue=0.0, government_cost=0.0,
         household_saving=float(np.sum(state["hh_sav"])), forced_saving=state["levy"],
-        foreign_saving=state["foreign_sav"],
+        foreign_saving=state["foreign_sav"], tax_scale=state["tax_scale"],
         factor_pools=state["migration"] or None,
         pe=state["pe"], hh_direct_tax=state["hh_direct_tax"],
         factor_income_abroad=state["row_fac"],

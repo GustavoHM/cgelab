@@ -1036,6 +1036,17 @@ resultado_gtap.exports</code></pre>
   impostos de produção. A produção é 120 e 20, as importações são 20 do bem e as exportações 15.
   `gtap_supply_use` e `gtap_sam` aplicam o mesmo mapeamento a dados licenciados; a agregação soma
   apenas fluxos declarados e usa pesos explícitos para parâmetros.</p>
+  <h3>41. Fechamentos de governo regional consolidado</h3>
+<pre><code>taxa_poupanca = cge.solve_period(economia_regional, cge.Closure(government="saving_rate"))
+deficit = cge.solve_period(economia_regional, cge.Closure(
+    government_target="saving", government_target_value=12.0,
+    government_adjusts="spending"))
+taxa_poupanca.government["saving"]
+deficit.government["saving"]
+deficit.government["consumption"]</code></pre>
+  <p>A regra de taxa de poupança divide a receita entre consumo e poupança. Com meta de poupança
+  12, o gasto residual é 8. Metas e taxas consolidam contas nacionais e regionais mapeadas; os
+  ajustes por imposto direto e sobre produto usam a mesma solução afim do solver nacional.</p>
 </div></section>
 
 <section id="verificacoes"><div class="wrap">

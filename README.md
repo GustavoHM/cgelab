@@ -203,9 +203,10 @@ where it stands. Things to know before relying on it:
 
 - **Several regions** use destination-specific origin nests under the Armington,
   with bilateral domestic and imported flows, delivered margins, CET exports,
-  factor migration, regional capital accumulation, route transport and a global
-  service pool. LES, trade taxes, energy nests and most alternative closures are
-  refused by name. A GTAP-style global savings bank remains future work.
+  factor migration, regional capital accumulation, route transport, a global
+  service pool and consolidated government closures. LES, trade taxes, energy
+  nests and unsupported labour closures are refused by name. A GTAP-style global
+  savings bank remains future work.
 - **No complementarity**: activities cannot switch off, and there are no quotas,
   price floors or capacity limits. That is 0.8.
 - **The solver** uses finite-difference Jacobians on a few unknowns. It is fine up

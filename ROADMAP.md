@@ -257,8 +257,9 @@ margins and CET exports inside the origin nest are in, with one-region checks ag
 the national solver. Destination-specific origin nests reproduce bilateral SAM cells,
 with domestic and imported content reported separately. Route transport and the
 Cobb–Douglas global service pool are calibrated and solved, with GTAP FOB/CIF and
-supply identities tested against a hand-written SAM. Regional government closure
-rules and trade taxes remain open.
+supply identities tested against a hand-written SAM. Regional government closures
+match the national solver, including saving-rate and tax/spending targets. Trade
+taxes remain open.
 Regional capital accumulation and a tidy simulated panel are in. The
 regional solver refuses a calibrated `tm0` or `tauz0`. A GTAP-style global bank is further
 out. Today a single region plus a "rest of the country" account remains the way a

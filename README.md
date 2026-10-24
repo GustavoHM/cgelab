@@ -230,7 +230,7 @@ without knowing which. [`CITATION.cff`](https://github.com/GustavoHM/cgelab/blob
 holds the same metadata in the format GitHub reads.
 
 Moreira, G. H. (2026). cgelab: A general toolkit for SAM-based computable general equilibrium
-models in Python (Version 0.6.0) [Computer software]. Zenodo. https://doi.org/10.5281/zenodo.23614565
+models in Python (Version 0.6.0) [Computer software]. Zenodo. https://doi.org/10.5281/zenodo.23624109
 
 ```bibtex
 @software{cgelab_2026,
@@ -239,7 +239,7 @@ models in Python (Version 0.6.0) [Computer software]. Zenodo. https://doi.org/10
   year    = {2026},
   version = {0.6.0},
   license = {MIT},
-  doi     = {10.5281/zenodo.23614565},
+  doi     = {10.5281/zenodo.23624109},
   url     = {https://github.com/GustavoHM/cgelab},
   note    = {Python package}
 }

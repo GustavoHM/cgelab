@@ -88,11 +88,25 @@ several regions, the result helpers, and the JuMP export replicating all of it. 
 - [x] **Release**: 0.5.0 on PyPI on 18 October 2026, archived on Zenodo
   ([10.5281/zenodo.23458852](https://doi.org/10.5281/zenodo.23458852)), the repository public and the site on Pages.
 
-**0.6 — the distributional side and the labour market.** Imperfect factor mobility and the
-proximity matrix; segmentation and informality; a link to microsimulation with Gini and FGT
-indices; dynamic calibration of the baseline to an observed or projected GDP path; sectoral
-capital and vintages (putty-clay); building and disaggregating a SAM from supply-use tables
-and household surveys (see *Tools around the model*).
+**0.6 — the distributional side and the labour market: done, to be released.**
+
+- [x] **Imperfect factor mobility and the proximity matrix**: a CET or a logit across the
+  activities that use a factor, pools of origin (`ModelSpec.factor_mobility`,
+  `calibrate(factor_pools=)`).
+- [x] **Segmentation and informality**: labour accounts that share one population, rigid
+  segments, a dual market, Harris–Todaro, a transformation between segments
+  (`ModelSpec.labour_segments`, `Closure.labour_markets`, `segment_mobility`).
+- [x] **Microsimulation, Gini and FGT**: a top-down link reconciled with the SAM, inequality
+  and poverty measures with their decompositions, reweighting, a behavioural microsimulation,
+  readers for the PNAD Contínua and the POF (`cgelab.micro`, `cgelab.behaviour`,
+  `cgelab.ibge`).
+- [x] **Building and disaggregating a SAM** from supply and use tables and household surveys
+  (`sut_to_sam`, `split_households`, `split_factor`, `read_tru`; see *Tools around the model*).
+- [x] **A baseline calibrated to a path of real GDP** (`calibrate_baseline`, `Baseline`).
+- [x] **Capital by sector and putty-clay vintages** (`factor_pools={"f_cap": "activities"}`,
+  `ModelSpec.vintages`, `split_vintages`).
+- [ ] **Release**: the version, the dates and the citations set to 0.6.0, the `validation`
+  workflow, a tag, PyPI and Zenodo.
 
 **0.7 — several regions, completed.** Factor migration, regional investment and government
 closures, margins and CET inside the origin nest, a capital stock per region in `run_path`;
@@ -114,7 +128,7 @@ land use allocated by CET; export to GAMS/MPSGE and GEMPACK.
 
 ## Next: gaps an applied model hit
 
-Nothing from 0.2 to 0.5 is open; 0.5.0 is released. Next is 0.6.
+Nothing from 0.2 to 0.6 is open; 0.5.0 is released, and 0.6 waits only on its release.
 
 Done, and no longer gaps:
 
@@ -134,6 +148,12 @@ Done, and no longer gaps:
 - **Investment:** `Scenario.investment_mix` for the commodity basket of investment.
   Investment by destination sector stays `Growth.allocation`.
 
+**Microsimulation.** Done in 0.6: `cgelab.micro`, a top-down link from the household
+accounts to the households of a survey, reconciled with the SAM, with Gini, FGT, generalised
+entropy and Atkinson indices, the survey reweighted to the model's employment by segment and
+unemployment, and a behavioural microsimulation in the manner of Bourguignon, Robilliard and
+Robinson (2005), and readers for the IBGE's PNAD Contínua and POF (`cgelab.ibge`).
+
 ## Then: model structure
 
 **Nesting beyond value added.** The value-added-energy nest is in: fuel use answers to prices,
@@ -151,11 +171,33 @@ stated in tonnes is a bound on an activity, and that is a complementarity condit
 replacement, met by direct taxes, product taxes or spending (`Closure.government_target`,
 `government_adjusts`).
 
-**Imperfect factor mobility.** Several capital stocks already accumulate separately. Between
-fully mobile and fully sector-specific, a CET over sectors for labour or capital would allow
-partial mobility. Lofgren and Cicowiez (2017) ask for a further instrument: a proximity matrix,
-in which sectors hire from neighbouring occupations rather than from one national nest. That
-is what their food-export-price result turns on.
+**Imperfect factor mobility.** Done in 0.6: `ModelSpec.factor_mobility`, a CET or a logit
+across the activities that use a factor, and `calibrate(factor_pools=)`, pools of origin that
+reach only the activities they supplied in the base year. That is the proximity matrix
+Lofgren and Cicowiez (2017) ask for, in which sectors hire from neighbouring occupations
+rather than from one national nest. Their food-export-price result is the replication still
+open.
+
+**Segmentation and informality.** Done in 0.6: `ModelSpec.labour_segments` and
+`Closure.labour_markets` (labour accounts that share one population; rigid segments, a dual
+market and Harris–Todaro, or `segment_mobility`, a CET or logit between segments with a queue
+in each rigid one; income that follows each household's workers). Still open: employment in
+persons rather than in base-year wage units, unemployment benefits, and a wage curve by
+segment.
+
+**Capital by sector and vintages.** Done in 0.6: a capital stock per activity
+(`calibrate(factor_pools={"f_cap": "activities"})`) with investment shared by rents, and
+putty-clay vintages (`ModelSpec.vintages`): installed capital sector-specific and with the
+technique it was installed with, new capital mobile. Still open: perfect substitution between
+the vintages, which needs a regime switch for idle capital, and the sale of old capital by
+declining sectors, as in LINKAGE; vintages with an energy nest, with foreign-owned capital
+and in several regions.
+
+**A baseline calibrated to GDP.** Done in 0.6: `calibrate_baseline`, the productivity path
+that makes a recursive baseline hit real GDP, by year or by activity, and `Baseline`, which
+runs a policy at it. Still open: other targets with other unknowns (employment through the
+labour supply, the investment rate through saving, exports through world prices), the rest
+of a MONASH historical closure.
 
 **Asymmetric Armington.** The substitution elasticity is one number per commodity. Cicowiez and
 Lofgren (2022) make it depend on the origin of the import. Their Mongolia 2015 workbook also
@@ -250,10 +292,13 @@ representation for a SAM, and calling it does not close those gaps.
 before `calibrate`. A regional SAM is usually built by hand from a supply-use table, an
 input–output matrix and regional accounts. Useful helpers:
 
-- read a supply-use table into a SAM;
+- read a supply-use table into a SAM (in 0.6: `sut_to_sam`, with the provenance of every
+  block, and `read_tru` for the IBGE's tables);
 - regionalise national coefficients (location quotients, FLQ);
 - balance by cross-entropy as well as RAS;
-- report where each block came from.
+- report where each block came from (in 0.6: `SAM.provenance`);
+- disaggregate households and labour with household surveys (in 0.6: `split_households`,
+  `split_factor`, `segment_shares`).
 
 **Speed on large SAMs.** The solver uses finite-difference Jacobians on few unknowns, which is
 fine up to a few hundred accounts. A multi-region model would need analytic derivatives and

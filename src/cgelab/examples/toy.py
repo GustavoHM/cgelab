@@ -17,6 +17,8 @@ where a real SAM breaks a naive calibration:
   production, own-account work.
 * :func:`build_with_trade_taxes` -- part of the product tax moved onto a tariff
   account and an indirect tax on output, the TRF and IDT of Hosoe's ``stdcge``.
+* :func:`build_with_segmented_labour` -- labour split into a formal and an
+  informal account that share one population of workers.
 """
 
 from __future__ import annotations
@@ -29,6 +31,7 @@ from ..spec import ModelSpec
 
 __all__ = ["build", "build_with_margins", "build_with_own_production", "build_with_twin_accounts",
            "build_with_institutions", "build_with_specific_capital", "build_with_trade_taxes",
+           "build_with_segmented_labour", "survey", "persons",
            "build_one_good", "spec"]
 
 
@@ -221,6 +224,97 @@ def build_with_trade_taxes(model_spec: ModelSpec | None = None, **kwargs):
     econ = calibrate(sam, model_spec or spec(tariff_account="trf", indirect_tax_account="idt"),
                      **kwargs)
     return sam, econ
+
+
+def build_with_segmented_labour(model_spec: ModelSpec | None = None, **kwargs):
+    """The plain economy with labour split into a formal and an informal account.
+
+    Industry pays its 70 of labour to ``f_for``, agriculture its 40 to
+    ``f_inf``, and the two form one group of segments, ``"labour"``: the same
+    people supply both. Formal labour is owned mostly by ``hh_1`` (60 of 70),
+    informal mostly by ``hh_2`` (30 of 40), so who loses a formal job matters
+    for the distribution. Capital is the numeraire.
+    """
+    drop = {("f_lab", "a_agr", 40.0), ("f_lab", "a_ind", 70.0),
+            ("hh_1", "f_lab", 70.0), ("hh_2", "f_lab", 40.0)}
+    entries = [e for e in _BASE if tuple(e) not in drop]
+    entries += [("f_inf", "a_agr", 40.0), ("f_for", "a_ind", 70.0),
+                ("hh_1", "f_inf", 10.0), ("hh_2", "f_inf", 30.0),
+                ("hh_1", "f_for", 60.0), ("hh_2", "f_for", 10.0)]
+    sam = _frame(entries)
+    econ = calibrate(sam, model_spec or spec(
+        factors=("f_cap", "f_for", "f_inf"), numeraire_factor="f_cap",
+        labour_segments={"labour": ["f_for", "f_inf"]}), **kwargs)
+    return sam, econ
+
+
+def survey():
+    """A synthetic household survey of :func:`build_with_segmented_labour`.
+
+    Twelve households, six in each SAM account, written by hand: survey weights,
+    sizes, formal and informal wages, capital income, and spending on food and
+    goods. It is not data. Its weighted totals deliberately differ from the
+    SAM's (formal wages 51 against 60 in ``hh_1``, capital 8.75 against 15 in
+    ``hh_2``), as a real survey's do, so that reconciliation has work to do.
+    """
+    from ..micro import Survey
+    rows = [
+        # group, weight, size, formal, informal, capital, food, goods
+        ("hh_1", 2.0, 4, 8.0, 0.0, 2.0, 3.0, 5.0),
+        ("hh_1", 1.5, 3, 10.0, 0.0, 4.0, 3.0, 6.0),
+        ("hh_1", 1.0, 2, 12.0, 0.0, 9.0, 3.0, 8.0),
+        ("hh_1", 1.0, 5, 0.0, 4.0, 1.0, 4.0, 2.0),
+        ("hh_1", 1.0, 1, 6.0, 1.0, 6.0, 2.0, 5.0),
+        ("hh_1", 0.5, 3, 4.0, 3.0, 12.0, 3.0, 9.0),
+        ("hh_2", 3.0, 5, 0.0, 3.0, 0.0, 2.0, 1.0),
+        ("hh_2", 2.5, 4, 2.0, 2.0, 0.5, 2.0, 1.0),
+        ("hh_2", 2.0, 6, 0.0, 4.0, 0.0, 3.0, 1.0),
+        ("hh_2", 1.5, 3, 3.0, 1.0, 1.0, 2.0, 2.0),
+        ("hh_2", 1.0, 2, 0.0, 2.0, 2.0, 1.0, 2.0),
+        ("hh_2", 1.0, 4, 1.0, 5.0, 4.0, 3.0, 3.0),
+    ]
+    frame = pd.DataFrame(rows, columns=["group", "weight", "size", "formal", "informal",
+                                        "capital", "food", "goods"])
+    return Survey(frame, sources={"formal": "f_for", "informal": "f_inf", "capital": "f_cap"},
+                  budget={"food": "c_agr", "goods": "c_ind"})
+
+
+def persons():
+    """The 42 persons of the twelve households of :func:`survey`, synthetic too.
+
+    Each has a status (formal ``f_for``, informal ``f_inf``, ``"unemployed"``
+    or ``"inactive"``, which includes children), labour earnings, years of
+    education, a ``female`` dummy and an age. The earnings need not add up to
+    the household survey's wage columns: each survey is reconciled with the SAM
+    on its own.
+    """
+    from ..behaviour import PersonSurvey
+    people = {
+        0: [("f_for", 8.0, 11, 0, 40), ("inactive", 0, 8, 1, 38), ("inactive", 0, 3, 1, 10),
+            ("inactive", 0, 1, 0, 6)],
+        1: [("f_for", 6.0, 12, 0, 35), ("f_for", 4.0, 9, 1, 33), ("unemployed", 0, 9, 0, 19)],
+        2: [("f_for", 12.0, 15, 1, 45), ("inactive", 0, 12, 0, 70)],
+        3: [("f_inf", 3.0, 6, 0, 42), ("f_inf", 1.0, 5, 1, 40), ("unemployed", 0, 7, 0, 20),
+            ("inactive", 0, 2, 1, 9), ("inactive", 0, 0, 0, 4)],
+        4: [("f_for", 7.0, 13, 1, 29)],
+        5: [("f_for", 4.0, 10, 0, 50), ("f_inf", 3.0, 8, 1, 48), ("inactive", 0, 9, 0, 75)],
+        6: [("f_inf", 2.0, 4, 0, 36), ("f_inf", 1.0, 3, 1, 34), ("unemployed", 0, 6, 0, 18),
+            ("inactive", 0, 1, 1, 8), ("inactive", 0, 0, 0, 3)],
+        7: [("f_for", 2.0, 9, 1, 30), ("f_inf", 2.0, 6, 0, 32), ("inactive", 0, 4, 1, 7),
+            ("inactive", 0, 1, 0, 2)],
+        8: [("f_inf", 2.0, 5, 0, 45), ("f_inf", 1.5, 4, 1, 43), ("f_inf", 0.5, 7, 0, 17),
+            ("unemployed", 0, 8, 1, 21), ("inactive", 0, 2, 0, 9), ("inactive", 0, 0, 1, 5)],
+        9: [("f_for", 3.0, 11, 0, 39), ("f_inf", 1.0, 7, 1, 37), ("inactive", 0, 5, 0, 12)],
+        10: [("f_inf", 2.0, 8, 1, 52), ("unemployed", 0, 6, 0, 24)],
+        11: [("f_for", 1.0, 10, 0, 28), ("f_inf", 3.0, 9, 1, 47), ("f_inf", 2.0, 7, 0, 49),
+             ("unemployed", 0, 11, 1, 22)],
+    }
+    rows = [(h, *p) for h, members in people.items() for p in members]
+    frame = pd.DataFrame(rows, columns=["household", "status", "earnings", "education",
+                                        "female", "age"])
+    frame["earnings"] = frame["earnings"].astype(float)
+    return PersonSurvey(frame, characteristics=["education", "female"],
+                        choice_characteristics=["education"])
 
 
 def build_one_good():

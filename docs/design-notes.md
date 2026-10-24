@@ -238,6 +238,84 @@ absorption is incomplete by construction, not approximately right.
 
 ---
 
+## A factor that moves only partway keeps its income in one place
+
+An imperfectly mobile factor has a price in every activity it works in, and
+its market clears activity by activity. Its income is computed once, on the
+supply side: each pool's price times its endowment, which under a CET is also
+the activity prices times the supplies. Computing it on the demand side as well
+and letting the two drift would leak exactly the income the Walras residual is
+there to catch. For the same reason the numeraire stays perfectly mobile: with
+a price in every activity there would be no single market left out.
+
+The form is a statement about the economy, and the welfare decomposition shows
+which one was made. Under a CET the wage gaps are the price of moving, the
+envelope theorem makes the reallocation term zero, and every gain is endowment.
+Under a logit the head count is fixed and nothing prices the move, so a worker
+who moves toward a higher wage adds output. That is reported as
+`factor_reallocation`. Folding it into `endowment` would close the identity and
+hide where the gain came from.
+
+## A lost formal job stays in its household
+
+When labour is split into formal and informal accounts that share one
+population, the ownership of each account cannot stay fixed. A household that
+owned formal labour and lost formal jobs would lose that income, and the
+informal income those workers now earn would go, by the informal account's
+ownership, to the households that were already informal. The distribution would
+move because the accounts changed size: the failure "Composition is not
+welfare" describes, inside the factor block. So each household keeps a fixed
+workforce in the group. It holds its base-year share of rigid jobs and of the
+queue, and the rest of its workforce is informal. At the base year that is the
+SAM's ownership exactly; away from it, the informal income follows the people.
+
+---
+
+## A survey is scaled to the SAM, and the scale is reported
+
+A survey and a SAM never agree: a survey understates capital income, a SAM is
+balanced by hand. Carrying the model's changes to unscaled survey incomes gives
+micro totals that move differently from the model's accounts, because each
+account's mix of sources is the survey's and not the SAM's. Scaling each source
+of each account to the SAM makes the micro totals the model's, source by source.
+The factors are the size of the disagreement, so they are returned, not
+discarded, as with the reluctant RAS. Where the survey and the SAM disagree on
+whether an account has a source at all, no factor reconciles them, and the
+microsimulation refuses rather than drop the income.
+
+---
+
+## The expected draws, not only the draws
+
+BRR draw the choice residuals conditional on each person's observed status and
+let people move where the shifted utilities put them. Employment is then a step
+function of the intercepts: no Newton step hits a target exactly on a finite
+sample, and the answer depends on the seed. The expectation of those draws has a
+closed form, the transition probabilities of the logit under shifted
+intercepts, and it is smooth. The intercepts are solved on it, so the model's
+targets are met exactly and the result is reproducible without a seed. The
+draws stay available, from the same intercepts, with their Monte Carlo error
+reported, because the expectation of an inequality index is not the index of
+the expected incomes.
+
+---
+
+## Clay keeps the technique it was installed with
+
+Vintage models usually give the old bundle the base year's factor proportions
+for good. In a recursive path that runs for decades, capital installed in 2040
+then works with the labour of the base year, and an economy whose capital grows
+faster than its labour accumulates old capital that cannot be manned: its rent
+falls to zero and the period stops solving. Each year here, the new capital an
+activity used joins that activity's old capital, and the old bundle's inputs per
+unit become the average of its own and the new bundle's, weighted by the two
+bundles' quantities, at the prices of the year it was installed. Its CES is
+recalibrated to use those inputs at those prices. With one elasticity in both
+bundles and one price for both capitals, the new technique is the old one and
+nothing moves.
+
+---
+
 ## Negative value added is data
 
 An activity can report a negative operating surplus — a sector that collapsed in

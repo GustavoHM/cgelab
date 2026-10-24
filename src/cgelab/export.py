@@ -34,6 +34,8 @@ import numpy as np
 
 from .calibrate import Economy
 from .closure import Closure
+from .mobility import period_endowments
+from .segments import period_groups
 from .scenario import Scenario, investment_shares
 from .solve import _marginal_budget_shares, _recycle_shares, _trade_curves
 
@@ -86,13 +88,27 @@ def to_jump(econ: Economy, closure: Closure | None = None, scenario: Scenario | 
             f"as the numeraire. That market is left to Walras' law, so pinning or "
             f"linking its wage would turn the check into an identity or a leak. "
             f"Set ModelSpec.numeraire_factor to another factor.")
+    if closure.labour != "full_employment" and lab in econ.mobility:
+        raise ValueError(
+            f"closure.labour={closure.labour!r} on {closure.labour_factor!r}, which is not "
+            f"perfectly mobile; only 'full_employment' is available for it.")
     value0 = (econ.hh_budget * np.asarray(econ.hh_spend0, float)[:, None]).sum(axis=0)
     pq0 = 1.0 + econ.ptax
     q_laspeyres = value0 / np.maximum(pq0, 1e-12)
 
-    supply = econ.fac_supply if sc.factor_supply is None else np.asarray(sc.factor_supply, float)
+    supply, endow = period_endowments(econ, sc)
     facshare = (econ.hh_facshare if sc.factor_ownership is None
                 else np.asarray(sc.factor_ownership, float))
+    grupos = period_groups(econ, closure, sc, supply, facshare)
+    if closure.labour != "full_employment" and any(lab in g.group.index for g in grupos):
+        raise ValueError(
+            f"closure.labour={closure.labour!r} on {closure.labour_factor!r}, which is a "
+            f"labour segment; make it rigid in Closure.labour_markets instead.")
+    # A renda de um grupo de segmentos segue os trabalhadores de cada domicílio, não a
+    # propriedade de cada segmento: as colunas do grupo saem da matriz de propriedade.
+    facshare_ef = np.array(facshare, dtype=float)
+    for g in grupos:
+        facshare_ef[:, g.group.index] = 0.0
     tfp = np.ones(na) if sc.productivity is None else np.asarray(sc.productivity, float)
     ptax_a = econ.ptax if sc.product_tax is None else np.asarray(sc.product_tax, float)
     ptax_f = ptax_a if sc.product_tax_firm is None else np.asarray(sc.product_tax_firm, float)
@@ -191,7 +207,7 @@ def to_jump(econ: Economy, closure: Closure | None = None, scenario: Scenario | 
         demand_coef=_l(coef), g_cap=_l(g_cap), g_gov=_l(g_gov),
         gamma_sum=_l(gamma_sum), gam_W=_l(gam_W), gam_Wg=_l(gam_Wg), Wt=_l(Wt),
         hh_committed=_l(econ.hh_committed), hh_savrate=_l(econ.hh_savrate),
-        facshare=_l(facshare), hh_direct=_l(econ.hh_direct), transfers=_l(transfers),
+        facshare=_l(facshare_ef), hh_direct=_l(econ.hh_direct), transfers=_l(transfers),
         les=bool(econ.spec.household_demand == "les"),
         # política
         wedge=_l(W), wedge_gov=_l(Wg),
@@ -269,6 +285,46 @@ def to_jump(econ: Economy, closure: Closure | None = None, scenario: Scenario | 
                     else np.zeros(na)),
         sigma_top=_l(ninho.sigma_top if ninho is not None and ninho.sigma_top is not None
                      else np.zeros(na)),
+        # safras de capital (putty-clay): o valor adicionado é uma CES de dois feixes, o velho
+        # (sem o capital novo) e o novo (sem o capital velho)
+        vintage=econ.vintage is not None,
+        vintage_share_old=_l(econ.vintage.share_old if econ.vintage is not None
+                             else np.zeros(na)),
+        vintage_theta_old=_l(econ.vintage.theta_old if econ.vintage is not None
+                             else np.zeros((nf, na))),
+        vintage_theta_new=_l(econ.vintage.theta_new if econ.vintage is not None
+                             else np.zeros((nf, na))),
+        vintage_sigma_old=_l(econ.vintage.sigma_old if econ.vintage is not None
+                             else np.zeros(na)),
+        vintage_sigma_new=_l(econ.vintage.sigma_new if econ.vintage is not None
+                             else np.zeros(na)),
+        vintage_sigma_top=_l(econ.vintage.sigma_top if econ.vintage is not None
+                             else np.zeros(na)),
+        # mobilidade imperfeita: por fator, a forma, a elasticidade, as atividades usuárias, as
+        # parcelas de cada pool no ano-base e a dotação de cada pool neste cenário
+        mobility=[dict(factor=int(i) + 1, form=m.form, omega=float(m.omega),
+                       users=[bool(b) for b in m.users], delta=_l(m.delta),
+                       endowment=_l(endow[i]))
+                  for i, m in sorted(econ.mobility.items())],
+        # segmentos de trabalho: por grupo, os índices (base 1), os rígidos e seus alvos, os
+        # flexíveis, o informal, Harris–Todaro, λ, a fila e a força de trabalho de cada domicílio
+        segments=[dict(index=[int(i) + 1 for i in g.group.index],
+                       rigid=[int(i) + 1 for i in g.rigid], target=_l(g.target),
+                       flexible=[int(i) + 1 for i in g.flexible],
+                       informal=int(g.informal) + 1, harris_todaro=bool(g.harris_todaro),
+                       lam=float(g.lam), U0=float(g.U0), N=float(g.N),
+                       shares=_l(g.shares), workforce=_l(g.workforce), queue=_l(g.queue),
+                       # transformação entre segmentos: os domicílios com trabalho no grupo
+                       # são os pools, com as parcelas de oferta do ano-base
+                       transform=g.transform is not None,
+                       form=g.transform.form if g.transform is not None else "cet",
+                       omega=float(g.transform.omega) if g.transform is not None else 0.0,
+                       active=([bool(b) for b in g.active] if g.active is not None
+                               else [True] * econ.n_hh),
+                       delta=(_l(g.transform.delta) if g.transform is not None
+                              else _l(np.zeros((1, len(g.group.index))))),
+                       clearing=[int(i) + 1 for i in g.clearing])
+                  for g in grupos],
     )
 
     path = Path(path)
@@ -379,6 +435,22 @@ q0(campo, padrao) = QUENTE === nothing ? padrao : Float64(QUENTE[campo])
 
 @variable(m, w[f = 1:nf] >= 1e-8, start = q("w", f, f == NUM ? nu : 0.85 * nu))
 fix(w[NUM], nu; force = true)
+# Mobilidade imperfeita: o fator tem um preço em cada atividade que o usa. `wf(f, j)` é o preço
+# que a atividade j paga pelo fator f; para um fator móvel, o mesmo `w[f]` em toda parte.
+const MOB = d.mobility
+ismob = falses(nf)
+wm = Dict{Tuple{Int,Int},VariableRef}()
+for mb in MOB
+    f = Int(mb.factor)
+    ismob[f] = true
+    us = collect(Bool, mb.users)
+    for j in 1:na
+        us[j] || continue
+        wm[(f, j)] = @variable(m, lower_bound = 1e-8,
+                               start = QUENTE === nothing ? 0.85 * nu : Float64(QUENTE["w_act"][f][j]))
+    end
+end
+wf(f, j) = haskey(wm, (f, j)) ? wm[(f, j)] : w[f]
 # Emprego pago. Sob salário real fixo ou curva salarial a renda usa a DEMANDA, não a força de
 # trabalho: pagar o desempregado fabrica renda e o resíduo de Walras deixa de ser verificação.
 if labour_slack
@@ -442,8 +514,72 @@ end
 # Índice de Laspeyres dos preços ao comprador. No ano-base vale o numerário, e o salário real é
 # o salário nominal dividido por ele. Os pesos são as quantidades do ano-base.
 @expression(m, P, sum(pq[c] * q_lasp[c] for c in 1:nc) / sum(pq0_lasp[c] * q_lasp[c] for c in 1:nc))
+# Segmentos de trabalho. O emprego de um segmento rígido ou flexível é a demanda, uma variável
+# E igualada a ela adiante; o informal emprega o resto da força de trabalho, N − ΣE − U.
+# Com transformação entre segmentos, cada domicílio é um pool da CET ou da logit: oferta S[h, k]
+# a cada segmento, aos salários dos segmentos; o flexível equilibra contra ela e o rígido deixa
+# na fila o que não contrata.
+const SEG = d.segments
+Eseg = Dict{Int,VariableRef}()
+Useg = Any[]
+SUP = Any[]
+pago_seg = Dict{Int,Any}()
+for (k, g) in enumerate(SEG)
+    for f in vcat(Int.(g.rigid), Int.(g.flexible))
+        Eseg[f] = @variable(m, lower_bound = 0.0, start = supply[f])
+    end
+    contratados = vcat(Int.(g.rigid), Int.(g.flexible))
+    for f in contratados
+        pago_seg[f] = Eseg[f]
+    end
+    if Bool(g.transform)
+        idx = Int.(g.index); dl = mat(g.delta); ativos = findall(collect(Bool, g.active))
+        nw = vecf(g.workforce); om = Float64(g.omega); ns = length(idx)
+        S = Dict{Tuple{Int,Int},Any}()
+        if String(g.form) == "cet"
+            Wp = @variable(m, [a = 1:length(ativos)], lower_bound = 1e-8, start = 1.0)
+            for (a, h) in enumerate(ativos)
+                @constraint(m, Wp[a]^(1 + om) == sum(dl[a, kk] * w[idx[kk]]^(1 + om)
+                                                     for kk in 1:ns if dl[a, kk] > 0))
+                for kk in 1:ns
+                    dl[a, kk] > 0 || continue
+                    S[(h, kk)] = @expression(m, dl[a, kk] * nw[h] * (w[idx[kk]] / Wp[a])^om)
+                end
+            end
+        else
+            Zp = @variable(m, [a = 1:length(ativos)], lower_bound = 1e-12, start = 1.0)
+            for (a, h) in enumerate(ativos)
+                @constraint(m, Zp[a] == sum(dl[a, kk] * w[idx[kk]]^om for kk in 1:ns if dl[a, kk] > 0))
+                for kk in 1:ns
+                    dl[a, kk] > 0 || continue
+                    S[(h, kk)] = @expression(m, nw[h] * dl[a, kk] * w[idx[kk]]^om / Zp[a])
+                end
+            end
+        end
+        oferta_k = [@expression(m, sum(S[(h, kk)] for h in 1:nh if haskey(S, (h, kk))))
+                    for kk in 1:ns]
+        for f in Int.(g.clearing)
+            pago_seg[f] = oferta_k[findfirst(==(f), idx)]
+        end
+        R = [kk for kk in 1:ns if idx[kk] in Int.(g.rigid)]
+        push!(Useg, isempty(R) ? 0.0 :
+                    @expression(m, sum(oferta_k[kk] - Eseg[idx[kk]] for kk in R)))
+        push!(SUP, (S, oferta_k))
+        continue
+    end
+    push!(SUP, nothing)
+    if Bool(g.harris_todaro)
+        push!(Useg, @variable(m, start = Float64(g.U0)))
+    else
+        push!(Useg, 0.0)
+    end
+    pago_seg[Int(g.informal)] = @expression(m, Float64(g.N) - sum(Eseg[f] for f in contratados)
+                                               - Useg[k])
+end
 function paid_supply(f)
-    if labour_slack && f == LAB
+    if haskey(pago_seg, f)
+        return pago_seg[f]
+    elseif labour_slack && f == LAB
         return emp
     elseif LABOUR == "elastic_supply" && f == LAB
         return supply[f] * (w[f] / P) ^ eps_ls
@@ -485,16 +621,47 @@ end
 @expression(m, pqf[c = 1:nc], pbase[c] * (1 + tf(c)))    # preço à FIRMA (parcela não creditável)
 
 # ---- 1. preço do valor adicionado: CES sobre fatores, Leontief onde o excedente é negativo
+const VINT = Bool(d.vintage)
+# Preço de uma CES de vários insumos com parcelas `sh` (que somam um): linear com elasticidade
+# zero, Cobb-Douglas com um.
+function cesprice!(pout, sh, prices, sg)
+    k = [i for i in eachindex(sh) if sh[i] > 0]
+    if sg == 0
+        @constraint(m, pout == sum(sh[i] * prices[i] for i in k))
+    elseif abs(sg - 1) < 1e-9
+        @constraint(m, log(pout) == sum(sh[i] * log(prices[i]) for i in k))
+    else
+        @constraint(m, pout^(1 - sg) == sum(sh[i] * prices[i]^(1 - sg) for i in k))
+    end
+end
+vpow(x, y, sg) = sg == 0 ? 1.0 : (x / y)^sg
+if VINT
+    # Duas safras: o feixe velho, CES de σ_velho sobre os fatores menos o capital novo; o novo,
+    # CES de σ_va sobre os fatores menos o capital velho; e uma CES de σ_safra entre os dois.
+    vso = vecf(d.vintage_share_old); vth_o = mat(d.vintage_theta_old)
+    vth_n = mat(d.vintage_theta_new); vs_o = vecf(d.vintage_sigma_old)
+    vs_n = vecf(d.vintage_sigma_new); vs_t = vecf(d.vintage_sigma_top)
+    @variable(m, pOld[j = 1:na] >= 1e-8, start = 1.0)
+    @variable(m, pNew[j = 1:na] >= 1e-8, start = 1.0)
+    for j in 1:na
+        cesprice!(pOld[j], vth_o[:, j], [wf(f, j) for f in 1:nf], vs_o[j])
+        cesprice!(pNew[j], vth_n[:, j], [wf(f, j) for f in 1:nf], vs_n[j])
+        cesprice!(pva[j], [vso[j], 1 - vso[j]], [pOld[j], pNew[j]], vs_t[j])
+    end
+    @expression(m, bOld[j = 1:na], vso[j] * vpow(pva[j], pOld[j], vs_t[j]))
+    @expression(m, bNew[j = 1:na], (1 - vso[j]) * vpow(pva[j], pNew[j], vs_t[j]))
+end
 for j in 1:na
+    VINT && break
     if leo[j]
-        @constraint(m, pva[j] * vunit[j] == sum(aunit[f, j] * w[f] for f in 1:nf))
+        @constraint(m, pva[j] * vunit[j] == sum(aunit[f, j] * wf(f, j) for f in 1:nf))
     elseif sum(theta[:, j]) <= 0
         @constraint(m, pva[j] == 0)
     elseif abs(sva[j] - 1.0) < 1e-9
-        @constraint(m, pva[j] == prod(w[f]^theta[f, j] for f in 1:nf if theta[f, j] > 0))
+        @constraint(m, pva[j] == prod(wf(f, j)^theta[f, j] for f in 1:nf if theta[f, j] > 0))
     else
         @constraint(m, pva[j]^(1 - sva[j]) ==
-                       sum(theta[f, j] * w[f]^(1 - sva[j]) for f in 1:nf if theta[f, j] > 0))
+                       sum(theta[f, j] * wf(f, j)^(1 - sva[j]) for f in 1:nf if theta[f, j] > 0))
     end
 end
 
@@ -543,7 +710,7 @@ if NEST
         @expression(m, topcost[j = 1:na], vaeq[j] * pVAE[j])
         @expression(m, facper[f = 1:nf, j = 1:na],
                     (leo[j] ? (vunit[j] != 0 ? aunit[f, j] / vunit[j] : 0.0)
-                            : (theta[f, j] > 0 ? theta[f, j] * (pva[j] / w[f])^sva[j] : 0.0)) * vaper[j])
+                            : (theta[f, j] > 0 ? theta[f, j] * (pva[j] / wf(f, j))^sva[j] : 0.0)) * vaper[j])
         @expression(m, fuelfix[c = 1:nc, j = 1:na], 0.0)
         nfree = falses(na)
     else
@@ -558,27 +725,27 @@ if NEST
                 @constraint(m, pKE[j] == 1.0); @constraint(m, pTOP[j] == 1.0)
                 continue
             end
-            ces2!(pKE[j], ksh[j], w[KI], 1 - ksh[j], pE[j], sigke[j])
+            ces2!(pKE[j], ksh[j], wf(KI, j), 1 - ksh[j], pE[j], sigke[j])
             fs = [f for f in 1:nf if ktop[f, j] > 0]
             if sigtop[j] == 0
-                @constraint(m, pTOP[j] == sum(ktop[f, j] * w[f] for f in fs) + kesh[j] * pKE[j])
+                @constraint(m, pTOP[j] == sum(ktop[f, j] * wf(f, j) for f in fs) + kesh[j] * pKE[j])
             elseif abs(sigtop[j] - 1) < 1e-9
-                @constraint(m, log(pTOP[j]) == sum(ktop[f, j] * log(w[f]) for f in fs) + kesh[j] * log(pKE[j]))
+                @constraint(m, log(pTOP[j]) == sum(ktop[f, j] * log(wf(f, j)) for f in fs) + kesh[j] * log(pKE[j]))
             else
-                @constraint(m, pTOP[j]^(1 - sigtop[j]) == sum(ktop[f, j] * w[f]^(1 - sigtop[j]) for f in fs)
+                @constraint(m, pTOP[j]^(1 - sigtop[j]) == sum(ktop[f, j] * wf(f, j)^(1 - sigtop[j]) for f in fs)
                                                          + kesh[j] * pKE[j]^(1 - sigtop[j]))
             end
         end
         @expression(m, keper[j = 1:na], vaeq[j] * kesh[j] * pw(pTOP[j], pKE[j], sigtop[j]))
         @expression(m, eper[j = 1:na], nfree[j] ? 0.0 : keper[j] * (1 - ksh[j]) * pw(pKE[j], pE[j], sigke[j]))
         @expression(m, topcost[j = 1:na],
-                    nfree[j] ? sum(aunit[f, j] * w[f] for f in 1:nf)
+                    nfree[j] ? sum(aunit[f, j] * wf(f, j) for f in 1:nf)
                                + sum((pqf[c] + carbf[c, j]) * io[c, j] for c in 1:nc if emask[c])
                              : vaeq[j] * pTOP[j])
         @expression(m, facper[f = 1:nf, j = 1:na],
                     nfree[j] ? aunit[f, j] :
-                    f == KI ? keper[j] * ksh[j] * pw(pKE[j], w[f], sigke[j])
-                            : vaeq[j] * ktop[f, j] * pw(pTOP[j], w[f], sigtop[j]))
+                    f == KI ? keper[j] * ksh[j] * pw(pKE[j], wf(f, j), sigke[j])
+                            : vaeq[j] * ktop[f, j] * pw(pTOP[j], wf(f, j), sigtop[j]))
         @expression(m, fuelfix[c = 1:nc, j = 1:na], nfree[j] && emask[c] ? io[c, j] : 0.0)
     end
     @expression(m, iouse[c = 1:nc, j = 1:na],
@@ -607,14 +774,76 @@ end
 @constraint(m, [c = 1:nc],
             pbase[c] == arm[c] * armsh[c] + sum(pqf[mm] * mq[mm, c] for mm in 1:nc))
 
+# ---- 6b. pools de um fator com mobilidade imperfeita. CET: o índice de preço do pool é a
+# fronteira dual, W^(1+ω) = Σ δ w^(1+ω), e a oferta à atividade é δ L (w/W)^ω. Logit: a oferta é a
+# parcela δ w^ω / Σ δ w^ω de uma dotação fixa em cabeças, e o preço do pool é a renda sobre ela.
+oferta = Dict{Tuple{Int,Int},Any}()     # (fator, atividade) => oferta total dos pools
+renda_mob = Dict{Int,Any}()             # fator => renda
+for mb in MOB
+    f = Int(mb.factor); om = Float64(mb.omega); dl = mat(mb.delta); L = vecf(mb.endowment)
+    us = collect(Bool, mb.users); np_ = length(L)
+    alc(o) = [j for j in 1:na if us[j] && dl[o, j] > 0]
+    if String(mb.form) == "cet"
+        Wp = @variable(m, [o = 1:np_], lower_bound = 1e-8, start = 1.0)
+        for o in 1:np_
+            @constraint(m, Wp[o]^(1 + om) == sum(dl[o, j] * wf(f, j)^(1 + om) for j in alc(o)))
+        end
+        S = (o, j) -> dl[o, j] * L[o] * (wf(f, j) / Wp[o])^om
+        renda_mob[f] = @expression(m, sum(Wp[o] * L[o] for o in 1:np_))
+    else
+        Z = @variable(m, [o = 1:np_], lower_bound = 1e-12, start = 1.0)
+        for o in 1:np_
+            @constraint(m, Z[o] == sum(dl[o, j] * wf(f, j)^om for j in alc(o)))
+        end
+        S = (o, j) -> L[o] * dl[o, j] * wf(f, j)^om / Z[o]
+        renda_mob[f] = @expression(m, sum(wf(f, j) * S(o, j) for o in 1:np_ for j in alc(o)))
+    end
+    for j in 1:na
+        us[j] || continue
+        oferta[(f, j)] = @expression(m, sum(S(o, j) for o in 1:np_ if dl[o, j] > 0))
+    end
+    # O preço reportado do fator é a renda sobre a dotação, como no cgelab.
+    @constraint(m, w[f] * sum(L) == renda_mob[f])
+end
+# Renda de cada fator: o preço vezes a oferta paga, ou a renda dos pools.
+renda_fator(f) = ismob[f] ? renda_mob[f] : w[f] * paid_supply(f)
+
 # ---- 7. famílias, COM a reciclagem do gravame
 @expression(m, direct[h = 1:nh], sum(hh_direct[h, j] * pa[j] * act_scale[j] for j in 1:na))
 # A poupança forçada do fechamento de investimento real é distribuída PER CAPITA, e a receita
 # reciclada do gravame pela regra do cenário: são pesos distintos, e trocá-los inverteria o sinal
 # distributivo de um dos dois.
+# Renda do trabalho segmentado por domicílio: os empregos rígidos e flexíveis nas participações
+# do ano-base, a fila na proporção dos empregos rígidos do ano-base, e o resto no informal.
+function renda_seg(h)
+    tot = 0.0
+    for (k, g) in enumerate(SEG)
+        idx = Int.(g.index); sh = mat(g.shares); wf_ = vecf(g.workforce); fila = vecf(g.queue)
+        if Bool(g.transform)
+            # a oferta do domicílio; no rígido, contratada na proporção E / oferta total
+            S, oferta_k = SUP[k]
+            for (kk, f) in enumerate(idx)
+                haskey(S, (h, kk)) || continue
+                parte = f in Int.(g.rigid) ? S[(h, kk)] * Eseg[f] / oferta_k[kk] : S[(h, kk)]
+                tot += w[f] * parte * (1 - gsh[f] - rsh[f])
+            end
+            continue
+        end
+        contratados = vcat(Int.(g.rigid), Int.(g.flexible))
+        emprego = 0.0
+        for (kk, f) in enumerate(idx)
+            f in contratados || continue
+            tot += w[f] * sh[h, kk] * Eseg[f] * (1 - gsh[f] - rsh[f])
+            emprego += sh[h, kk] * Eseg[f]
+        end
+        b = Int(g.informal)
+        tot += w[b] * (wf_[h] - emprego - fila[h] * Useg[k]) * (1 - gsh[b] - rsh[b])
+    end
+    return tot
+end
 @constraint(m, [h = 1:nh],
-            hh_income[h] == sum(facshare[h, f] * w[f] * paid_supply(f) * (1 - gsh[f] - rsh[f])
-                              for f in 1:nf)
+            hh_income[h] == sum(facshare[h, f] * renda_fator(f) * (1 - gsh[f] - rsh[f])
+                              for f in 1:nf) + renda_seg(h)
                           + transfers[h] - levy * popsh[h] + uplift_rev * alpha[h]
                           + gov_tr[h] + remit[h])
 # O gasto sai da renda DISPONÍVEL: imposto direto primeiro, poupança depois.
@@ -686,7 +915,7 @@ end
 # Renda do governo que o bloco tributário não vê: imposto direto e renda de fatores, menos o que
 # ele transfere às famílias.
 @expression(m, gov_inst, sum(hh_income[h] * td(h) for h in 1:nh)
-                       + sum(w[f] * paid_supply(f) * gsh[f] for f in 1:nf) - sum(gov_tr))
+                       + sum(renda_fator(f) * gsh[f] for f in 1:nf) - sum(gov_tr))
 
 if d.investment == "savings_driven"
     @expression(m, inv_q[c = 1:nc], inv_w[c] * savings / pqf[c])
@@ -735,10 +964,13 @@ end
 
 # ---- 10. demanda de fatores
 @expression(m, facint[f = 1:nf, j = 1:na],
-            leo[j] ? (vunit[j] != 0 ? aunit[f, j] / vunit[j] : 0.0)
-                   : (theta[f, j] > 0 ? theta[f, j] * (pva[j] / w[f])^sva[j] : 0.0))
-@expression(m, facdem[f = 1:nf],
-            sum((NEST ? facper[f, j] : facint[f, j] * vunit[j]) * X[j] for j in 1:na))
+            VINT ? ((vth_o[f, j] > 0 ? vth_o[f, j] * vpow(pOld[j], wf(f, j), vs_o[j]) * bOld[j] : 0.0)
+                    + (vth_n[f, j] > 0 ? vth_n[f, j] * vpow(pNew[j], wf(f, j), vs_n[j]) * bNew[j] : 0.0))
+                 : leo[j] ? (vunit[j] != 0 ? aunit[f, j] / vunit[j] : 0.0)
+                   : (theta[f, j] > 0 ? theta[f, j] * (pva[j] / wf(f, j))^sva[j] : 0.0))
+@expression(m, facdem_j[f = 1:nf, j = 1:na],
+            (NEST ? facper[f, j] : facint[f, j] * vunit[j]) * X[j])
+@expression(m, facdem[f = 1:nf], sum(facdem_j[f, j] for j in 1:na))
 if labour_slack
     @constraint(m, emp == facdem[LAB])
 end
@@ -746,6 +978,18 @@ end
 # ---- 11. os mercados resolvidos. O do NUMERÁRIO fica de fora, para a lei de Walras.
 for f in 1:nf
     f == NUM && continue
+    if ismob[f]
+        # um mercado por atividade usuária, contra a oferta dos pools
+        for j in 1:na
+            haskey(oferta, (f, j)) && @constraint(m, facdem_j[f, j] == oferta[(f, j)])
+        end
+        continue
+    end
+    if haskey(pago_seg, f)
+        # o segmento emprega o que a demanda pede; o informal, o resto da força de trabalho
+        @constraint(m, facdem[f] == pago_seg[f])
+        continue
+    end
     if LABOUR == "fixed_real_wage" && f == LAB
         continue
     elseif LABOUR == "wage_curve" && f == LAB
@@ -758,6 +1002,21 @@ for f in 1:nf
 end
 if LABOUR == "fixed_real_wage"
     @constraint(m, w[LAB] == real_wage_target * P)
+end
+for (k, g) in enumerate(SEG)
+    b = Int(g.informal)
+    for (f, alvo) in zip(Int.(g.rigid), vecf(g.target))
+        @constraint(m, w[f] == alvo * P)            # salário real fixo
+    end
+    for f in Int.(g.flexible)
+        @constraint(m, w[f] == w[b])                # o salário comum do informal
+    end
+    if Bool(g.harris_todaro)
+        # o salário informal é o salário rígido esperado por quem entra na fila
+        R = Int.(g.rigid)
+        @constraint(m, w[b] * (sum(Eseg[f] for f in R) + Useg[k])
+                       == Float64(g.lam) * sum(w[f] * Eseg[f] for f in R))
+    end
 end
 @expression(m, imports[c = 1:nc], mshm[c] * armsh[c] * Aabs[c] / (1 + tm0[c]))   # na fronteira
 @expression(m, exports[c = 1:nc], expfrac[c] * (1 + tauz0[c]) * Q[c])
@@ -775,7 +1034,7 @@ for c in 1:nc
         @constraint(m, imports[c] == M0[c] * (pwm[c] / wp[c])^psi_m[c])
     end
 end
-@expression(m, current, trade + sum(w[f] * paid_supply(f) * rsh[f] for f in 1:nf) - sum(remit))
+@expression(m, current, trade + sum(renda_fator(f) * rsh[f] for f in 1:nf) - sum(remit))
 @constraint(m, current == fsav)
 
 @objective(m, Min, 0.0)
@@ -803,6 +1062,8 @@ out = Dict{String,Any}(
     "status" => string(termination_status(m)),
     "violacao_max" => viol, "walras" => walras,
     "w" => value.(w), "er" => value(er),
+    "w_act" => [[value(wf(f, j)) for j in 1:na] for f in 1:nf],
+    "desemprego" => [value(u) for u in Useg],
     "pa" => value.(pa), "pd" => value.(pd),
     "pq" => [value(pq[c]) for c in 1:nc], "pqf" => [value(pqf[c]) for c in 1:nc],
     "pbase" => value.(pbase),

@@ -1,0 +1,24 @@
+/* PROGRAMA DE LEITURA EM SAS DO ARQUIVO DE MICRODADOS DA PNAD CONTÍNUA (fixture) */
+
+data pnadc_teste;
+infile "...\Dados\PNADC_teste.txt" lrecl=4000 Missover;
+input
+@0001 Ano   $4.   /* Ano de referência */
+@0005 Trimestre   $1.   /* Trimestre */
+@0006 UPA   $9.   /* UPA */
+@0015 V1008   $2.   /* V1008 */
+@0017 V1014   $2.   /* V1014 */
+@0019 V1028   15.   /* Peso COM calibração */
+@0034 V2005   $2.   /* V2005 */
+@0036 V2007   $1.   /* V2007 */
+@0037 V2009   3.   /* Idade */
+@0040 V4019   $1.   /* V4019 */
+@0041 VD3005   $2.   /* VD3005 */
+@0043 VD4001   $1.   /* VD4001 */
+@0044 VD4002   $1.   /* VD4002 */
+@0045 VD4009   $2.   /* VD4009 */
+@0047 VD4019   8.   /* VD4019 */
+@0055 V9999   4.2   /* Campo com decimais implícitos */
+@0059 V4013   $5.   /* Atividade no trab. principal */
+;
+run;

@@ -28,6 +28,7 @@ living in a branch inside a solver.
 pip install cgelab                 # from PyPI
 pip install "cgelab[parquet]"      # adds pyarrow for .parquet SAMs
 pip install "cgelab[dsge]"         # adds dsgelab, for forward-looking investment
+pip install "cgelab[ibge]"         # adds xlrd, for the IBGE's supply and use tables
 pip install "cgelab @ git+https://github.com/GustavoHM/cgelab"   # the current main branch
 ```
 
@@ -105,11 +106,19 @@ econ = cge.calibrate(sam, cge.ModelSpec(sigma_armington=2.0, sigma_va=0.5))
 * **Ownership:** factor income is shared among households, government and the
   rest of the world. Returns to foreign-owned capital leave through the current
   account, and foreign saving is the current account, not the trade balance.
+* **Factor markets:** a factor is perfectly mobile, or transformed across the
+  activities that use it by a CET or a logit, with pools of origin as a proximity
+  matrix and a price in each activity. Labour accounts can share one population:
+  formal and informal segments with a rigid wage, a dual market or
+  Harris–Todaro unemployment, and income that follows each household's workers.
 * **Government, investment, foreign:** five closure combinations, each with its
   own adjusting variable (see `Closure`).
 * **Dynamics:** recursive, with one or several capital stocks accumulated from
-  their service flows, investment shared by relative rent, FDI that builds
-  foreign-owned capital, and an economy that may change year by year.
+  their service flows, capital by sector, putty-clay vintages, investment shared
+  by relative rent, FDI that builds foreign-owned capital, an economy that may
+  change year by year, and a baseline calibrated to a path of real GDP.
+* **Distribution:** the households of a survey, reconciled with the SAM, with
+  poverty and inequality measures and a behavioural microsimulation.
 
 The **numeraire factor's market is deliberately not solved**. It is left to
 Walras' law, so its residual is an independent check on the accounting rather
@@ -125,8 +134,12 @@ period.
 | Within-period equilibrium; investment, government (including deficit and revenue targets), foreign and labour closures | `solve_period`, `Closure` |
 | Trade: Armington, CET, export demand and import supply curves (large country) | `ModelSpec` |
 | Energy: a value-added-energy or capital-energy nest with interfuel substitution, emissions accounts, a carbon price, physical units | `ModelSpec.energy`, `add_emissions`, `add_physical_units` |
+| Factor mobility (CET or logit, pools of origin); labour segments, dual markets and Harris–Todaro | `ModelSpec.factor_mobility`, `ModelSpec.labour_segments`, `LabourMarket` |
 | Counterfactuals: taxes, wedges, endowments, ownership, productivity, own-account levels, world prices, FDI, the investment basket | `Scenario` |
-| Recursive dynamics: several capital stocks, investment allocation, foreign-owned capital, a per-year economy | `run_path`, `Growth` |
+| Recursive dynamics: several capital stocks, capital by sector, putty-clay vintages, investment allocation, foreign-owned capital, a per-year economy | `run_path`, `Growth`, `ModelSpec.vintages` |
+| A baseline calibrated to a path of real GDP, and policy runs at its productivity | `calibrate_baseline`, `Baseline` |
+| Microsimulation: survey households reconciled with the SAM; Gini, FGT, generalised entropy, Atkinson and their decompositions; reweighting; a behavioural model (BRR) | `microsimulate`, `inequality`, `poverty`, `Behaviour` |
+| Building a SAM from supply and use tables, with the provenance of every block; splitting households and labour by surveys; readers for the IBGE's tables, PNAD Contínua and POF | `sut_to_sam`, `split_households`, `split_factor`, `read_tru`, `pnadc`, `pof` |
 | Forward-looking investment (a Ramsey CGE solved by dsgelab) | `cgelab.bridge` |
 | Accounts: GDP from both sides, Laspeyres, Paasche and Fisher indices, terms of trade, the government account | `national_accounts`, `price_indices`, `government_account` |
 | Decompositions: subtotals by shock, Huff-Hertel welfare decomposition | `subtotals`, `welfare_decomposition` |
@@ -164,7 +177,7 @@ compute itself:
   `stdcge` and `lrgcge` against a line-by-line JuMP transcription of the GAMS
   programs, in all 49 displayed variables, to 2.4e-12.
 - **An independent replica**: `to_jump` writes the same equilibrium as a JuMP model
-  in which nothing is nested. `validation/roundtrip_jump.py` runs 34 cases; the
+  in which nothing is nested. `validation/roundtrip_jump.py` runs 50 cases; the
   nested solver and Ipopt agree to 1.2e-11.
 
 ```
@@ -186,7 +199,8 @@ where it stands. Things to know before relying on it:
 - **No complementarity**: activities cannot switch off, and there are no quotas,
   price floors or capacity limits. That is 0.8.
 - **The solver** uses finite-difference Jacobians on a few unknowns. It is fine up
-  to a few hundred accounts; each commodity put on a trade curve adds an unknown.
+  to a few hundred accounts; each commodity put on a trade curve adds an unknown,
+  and so does each activity that uses an imperfectly mobile factor.
 - **Fixed proportions everywhere** (`sigma_va = 0` in every activity) can leave
   the model without a solution under full employment of every factor.
 - **Under fixed export shares** with a Cobb-Douglas Armington, the exchange rate is

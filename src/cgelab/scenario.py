@@ -25,6 +25,18 @@ class Scenario:
     #: Factor supplies, absolute levels. Absent, the calibrated supplies hold.
     factor_supply: np.ndarray | None = None
 
+    #: Endowment of each pool of an imperfectly mobile factor,
+    #: ``{factor: array over its pools}`` (``ModelSpec.factor_mobility``,
+    #: ``calibrate(..., factor_pools=)``). Absent, the pools scale with the
+    #: factor's supply. When ``factor_supply`` is also set, the two must agree on
+    #: the factor's total.
+    pool_supply: Mapping[str, np.ndarray] | None = None
+
+    #: Labour force of each group of ``ModelSpec.labour_segments``,
+    #: ``{group: workers}``, the queue included. Absent, the base year's,
+    #: scaled by the supply of the group's factors.
+    labour_force: Mapping[str, float] | None = None
+
     #: Ownership of each factor, ``(n_hh, n_fac)``, columns summing to one.
     #: The hook for an extensive-margin story in which households MOVE between
     #: accounts -- adopters and non-adopters, formal and informal -- rather than

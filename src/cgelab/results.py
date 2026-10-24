@@ -14,14 +14,16 @@ import pandas as pd
 
 from .solve import PeriodResult
 
-__all__ = ["factor_demand_by_activity", "real_gdp", "sectoral_path", "national_accounts",
-           "price_indices", "government_account"]
+__all__ = ["factor_demand_by_activity", "real_gdp", "real_value_added", "sectoral_path",
+           "national_accounts", "price_indices", "government_account"]
 
 
 def factor_demand_by_activity(period: PeriodResult) -> pd.DataFrame:
     """Factor use by activity. Rows are factors, columns are activities.
 
-    The row sums equal ``period.factor_demand``. Productivity is the scenario's,
+    The row sums equal ``period.factor_demand``, except for a factor under a CET
+    transformation (``ModelSpec.factor_mobility``), whose ``factor_demand`` is
+    its endowment. Productivity is the scenario's,
     because the matrix stored on the result was built with the same coefficients
     the equilibrium was solved at.
     """
@@ -63,7 +65,10 @@ def real_gdp(period: PeriodResult) -> dict:
     own_account = float((econ.hh_direct * scale[None, :]).sum())
     expenditure = float(yard @ final + period.exports.sum() - period.imports.sum()
                         + own_account)
-    value_added = float(period.factor_demand.sum())
+    # The factor services activities use, each at its base-year price of one.
+    # For an imperfectly mobile factor under a CET this is not its endowment,
+    # which `factor_demand` reports: moving between activities costs services.
+    value_added = float(period.factor_demand_by_activity.sum())
     product_tax = float(econ.ptax @ period.absorption)
     activity_tax = float(econ.atax @ period.X)
     gap = expenditure - value_added
@@ -77,6 +82,23 @@ def real_gdp(period: PeriodResult) -> dict:
         "own_account": own_account,
         "other": other,
     }
+
+
+def real_value_added(period: PeriodResult) -> pd.Series:
+    """Real value added by activity, by double deflation, at base-year prices.
+
+    Output at the base-year activity price of one, less the intermediate inputs
+    it used at base-year purchaser prices: how a statistical office measures
+    value added in volume. Productivity moves it. The ``value_added`` of
+    :func:`real_gdp` does not: it is factor use at base-year factor prices, and
+    Hicks-neutral productivity changes the output a factor makes, not the
+    factor. Activity taxes stay inside, as in gross value added at basic
+    prices, so at the base year the sum is ``value_added + activity_tax``.
+    """
+    econ = period.econ
+    coef = econ.io if period.input_coefficients is None else period.input_coefficients
+    unit = 1.0 - (1.0 + econ.ptax) @ coef
+    return pd.Series(unit * period.X, index=list(econ.acts), name="real_value_added")
 
 
 def sectoral_path(path) -> pd.DataFrame:

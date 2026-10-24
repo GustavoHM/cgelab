@@ -41,6 +41,7 @@ class Growth:
     #: A rate, or a mapping from capital factor to rate when there are several.
     depreciation: float | Mapping[str, float] = 0.05
     discount: float = 0.05
+    #: The labour factor that grows, or a group of ``ModelSpec.labour_segments``.
     labour_factor: str = "f_lab"
     #: One capital factor, or several -- sector-specific capital, a vintage, a
     #: public stock. Each is accumulated separately from its own base-year service
@@ -124,6 +125,10 @@ class PathResult:
     #: Foreign-owned part of each capital stock, same shape as `capital_stock`.
     foreign_capital: np.ndarray = field(repr=False, default=None)
     capital_factors: list = field(repr=False, default=None)
+    #: The stock of each pool of a capital factor that has pools
+    #: (``calibrate(factor_pools=)``): ``{factor: DataFrame}``, years by pools.
+    #: Sector-specific capital is a pool per activity. Empty without pools.
+    capital_by_pool: dict = field(repr=False, default_factory=dict)
 
     def __getitem__(self, year) -> PeriodResult:
         return self.periods[self.years.index(year)]
@@ -217,60 +222,154 @@ def run_path(econ: Economy, closure: Closure | None = None, *, years: Sequence,
     """
     closure = closure or Closure()
     growth = growth or Growth()
-    if econ.regional is not None and len(econ.regional.regions) > 1:
-        raise ValueError(
-            "run_path does not move factors between regions. The within-period "
-            "nest is solved by solve_period; a regional capital stock that "
-            "accumulates, and migration, are not in this slice.")
     years = list(years)
-    caps = growth.capital_factors
-    ki = np.array([econ.factor(k) for k in caps])
-    li = econ.factor(growth.labour_factor)
-    dep = np.array([growth.depreciation_of(k) for k in caps])
-    user_cost = growth.discount + dep
-
-    stock = econ.fac_supply[ki] / user_cost
-    row_share0 = econ.zeros_if_none("fac_row_share", econ.n_fac)
-    foreign = stock * row_share0[ki]
-    labour0 = float(econ.fac_supply[li])
-
-    periods, stocks, foreigns = [], [], []
-    warm = None
+    state = _PathState(econ, closure, growth, raise_on_fail=raise_on_fail)
     for t, year in enumerate(years):
+        e_t = state.economy_at(economy, year, t)
+        sc = scenario(year, t) if callable(scenario) else (scenario or Scenario())
+        res, sc_full = state.solve(e_t, sc, t)
+        state.advance(e_t, res, sc_full)
+    return state.result(years)
+
+
+class _PathState:
+    """What carries from one year of a path to the next, and the step between them.
+
+    ``solve`` builds the year's scenario from the growth block and the state and
+    solves the period, without changing the state, so that a calibration can try
+    several productivities for one year; ``advance`` then accumulates capital
+    from the solution that was kept.
+    """
+
+    def __init__(self, econ: Economy, closure: Closure, growth: Growth, *,
+                 raise_on_fail: bool = True):
+        if econ.regional is not None and len(econ.regional.regions) > 1:
+            raise ValueError(
+                "run_path does not move factors between regions. The within-period "
+                "nest is solved by solve_period; a regional capital stock that "
+                "accumulates, and migration, are not in this slice.")
+        self.econ, self.closure, self.growth = econ, closure, growth
+        self.raise_on_fail = raise_on_fail
+        self.caps = growth.capital_factors
+        self.ki = np.array([econ.factor(k) for k in self.caps])
+        # A group of labour segments grows as a whole: every segment, and so its
+        # labour force, at the same rate.
+        self.li = (np.array(econ.segments[growth.labour_factor].index)
+                   if growth.labour_factor in econ.segments
+                   else econ.factor(growth.labour_factor))
+        self.dep = np.array([growth.depreciation_of(k) for k in self.caps])
+        self.user_cost = growth.discount + self.dep
+        # The stocks that accumulate: one per capital factor, or one per pool
+        # of a capital factor that has pools -- sector-specific capital is a
+        # pool per activity. `owner` says which capital factor each belongs to.
+        owner, base = [], []
+        for c, i in enumerate(self.ki):
+            mob = econ.mobility.get(int(i))
+            flows = [econ.fac_supply[i]] if mob is None else list(mob.endowment0)
+            owner += [c] * len(flows)
+            base += flows
+        self.owner = np.array(owner, dtype=int)
+        self.units = np.array(base, dtype=float) / self.user_cost[self.owner]
+        self.pooled = {c: np.where(self.owner == c)[0] for c, i in enumerate(self.ki)
+                       if int(i) in econ.mobility}
+        self.row_share0 = econ.zeros_if_none("fac_row_share", econ.n_fac)
+        self.foreign = self.stock * self.row_share0[self.ki]
+        self.labour0 = np.array(econ.fac_supply[self.li], dtype=float)
+        self.periods, self.stocks, self.foreigns, self.unit_stocks = [], [], [], []
+        self.warm = None
+        # Putty-clay: the old vintage is the capital factor, a stock per
+        # activity; the new vintage is last year's investment, one stock.
+        self.vintage = econ.vintage
+        self.new_stock, self.new_stocks = 0.0, []
+        if self.vintage is not None:
+            v = self.vintage
+            if self.caps != [v.old]:
+                raise ValueError(
+                    f"with vintages, Growth.capital_factor must be the old vintage, "
+                    f"{v.old!r}, alone: the new one, {v.new!r}, is each year's investment, "
+                    f"and a second stock would need a share of it. Got {self.caps}.")
+            if self.row_share0[[v.i_old, v.i_new]].any():
+                raise ValueError("vintages with foreign-owned capital are not available yet: "
+                                 "the SAM pays capital income abroad")
+            self.new_stock = float(econ.fac_supply[v.i_new]) / float(self.user_cost[0])
+
+    @property
+    def stock(self) -> np.ndarray:
+        """The stock of each capital factor, its pools summed."""
+        return np.bincount(self.owner, weights=self.units, minlength=len(self.caps))
+
+    def economy_at(self, economy, year, t) -> Economy:
+        econ = self.econ
         e_t = economy(year, t) if economy is not None else econ
         if e_t.factors != econ.factors or e_t.coms != econ.coms or e_t.acts != econ.acts:
             raise ValueError(f"economy({year!r}, {t}) returned an Economy with different "
                              f"accounts; build it from the base with dataclasses.replace")
-        sc = scenario(year, t) if callable(scenario) else (scenario or Scenario())
-        unknown = [k for k in sc.fdi if k not in caps]
+        if self.vintage is not None and e_t.vintage is not self.vintage:
+            # The old vintage carries the techniques it was installed with.
+            import dataclasses
+            e_t = dataclasses.replace(e_t, vintage=self.vintage)
+        return e_t
+
+    def solve(self, e_t: Economy, sc: Scenario, t: int, *, warm=None,
+              raise_on_fail: bool | None = None):
+        """The period at index ``t`` under ``sc``; returns it and the scenario it solved."""
+        econ, growth = self.econ, self.growth
+        unknown = [k for k in sc.fdi if k not in self.caps]
         if unknown:
             raise ValueError(f"FDI into {unknown}, which Growth does not accumulate as capital "
-                             f"(capital factors: {caps})")
+                             f"(capital factors: {self.caps})")
         level = (1.0 + growth.tfp) ** t
         supply = e_t.fac_supply.copy()
-        supply[li] = labour0 * (1.0 + growth.labour) ** t
-        supply[ki] = stock * user_cost
+        supply[self.li] = self.labour0 * (1.0 + growth.labour) ** t
+        supply[self.ki] = self.stock * self.user_cost
+        if self.vintage is not None:
+            if sc.fdi:
+                raise ValueError("vintages with FDI are not available yet")
+            supply[self.vintage.i_new] = self.new_stock * self.user_cost[0]
         if growth.productivity == "factor_augmenting":
             supply = supply * level
             tfp = np.ones(econ.n_act)
         else:
             tfp = np.full(econ.n_act, level)
+        changes = {}
         if sc.factor_supply is not None:
             supply = np.asarray(sc.factor_supply, dtype=float)
+        elif self.pooled:
+            # Each pool's services come from its own stock. A scenario that sets
+            # a factor's supply, or its pools, overrides them, as it overrides
+            # any accumulated supply.
+            scale = level if growth.productivity == "factor_augmenting" else 1.0
+            pools = dict(sc.pool_supply or {})
+            for c, members in self.pooled.items():
+                if self.caps[c] in pools:
+                    supply[self.ki[c]] = float(np.sum(pools[self.caps[c]]))
+                else:
+                    pools[self.caps[c]] = self.units[members] * self.user_cost[c] * scale
+            changes["pool_supply"] = pools
         if sc.productivity is not None:
             tfp = tfp * np.asarray(sc.productivity, dtype=float)
-        changes = dict(factor_supply=supply, productivity=tfp)
-        if sc.foreign_factor_share is None and (foreign.any() or row_share0.any()):
+        changes.update(factor_supply=supply, productivity=tfp)
+        if sc.foreign_factor_share is None and (self.foreign.any() or self.row_share0.any()):
             share = e_t.zeros_if_none("fac_row_share", econ.n_fac).copy()
-            share[ki] = np.where(stock > 0, foreign / np.maximum(stock, 1e-300), 0.0)
+            share[self.ki] = np.where(self.stock > 0,
+                                      self.foreign / np.maximum(self.stock, 1e-300), 0.0)
             changes["foreign_factor_share"] = share
-        sc = sc.with_(**changes)
+        sc_full = sc.with_(**changes)
+        res = solve_period(e_t, self.closure, sc_full,
+                           warm_start=self.warm if warm is None else warm,
+                           raise_on_fail=(self.raise_on_fail if raise_on_fail is None
+                                          else raise_on_fail))
+        return res, sc_full
 
-        res = solve_period(e_t, closure, sc, warm_start=warm, raise_on_fail=raise_on_fail)
-        periods.append(res)
-        stocks.append(stock.copy())
-        foreigns.append(foreign.copy())
-        warm = res
+    def advance(self, e_t: Economy, res: PeriodResult, sc: Scenario) -> None:
+        """Keep the year's solution and accumulate capital from its investment."""
+        growth, closure = self.growth, self.closure
+        self.periods.append(res)
+        self.stocks.append(self.stock + self.new_stock)
+        self.foreigns.append(self.foreign.copy())
+        self.unit_stocks.append(self.units.copy())
+        self.new_stocks.append(self.new_stock)
+        self.warm = res
 
         # Real investment adds to the stock. The flow-onto-flow error this avoids
         # -- adding nominal saving to the capital SERVICE payment -- is the single
@@ -281,22 +380,58 @@ def run_path(econ: Economy, closure: Closure | None = None, *, years: Sequence,
             inv_real = res.savings / max(p_inv, 1e-12)
         else:
             inv_real = float(res.real["inv_real"])
+        if self.vintage is not None:
+            # The new capital each activity used this year is installed there:
+            # next year it is old capital of that activity, and this year's
+            # investment is next year's new capital.
+            v = self.vintage
+            use = res.factor_demand_by_activity[v.i_new]
+            total = float(use.sum())
+            installed = self.new_stock * use / total if total > 0 else np.zeros_like(use)
+            members = self.pooled[0]
+            where = [self.econ.activity(a) for a in self.econ.mobility[v.i_old].pools]
+            self.units[members] = (1.0 - self.dep[0]) * (self.units[members] + installed[where])
+            self.new_stock = inv_real
+            self.vintage = v.installed(res.factor_prices_by_activity, res.vintage_value_added)
+            return
         # FDI is part of this year's saving; the capital it buys is foreign-owned
         # and goes to the factor it was aimed at. The rest is domestic and is
         # shared by the allocation rule.
         real_per_nominal = inv_real / res.savings if abs(res.savings) > 1e-12 else 0.0
         fdi_real = np.array([float(sc.fdi.get(k, 0.0)) * closure.numeraire * real_per_nominal
-                             for k in caps])
+                             for k in self.caps])
         domestic = inv_real - float(fdi_real.sum())
-        weights = _allocation(growth.allocation, stock, res.factor_prices[ki])
-        stock = (1.0 - dep) * stock + domestic * weights + fdi_real
-        foreign = (1.0 - dep) * foreign + fdi_real
+        # A pool's rent is its price: at one pool per activity, the price the
+        # activity pays for the factor.
+        rent = res.factor_prices[self.ki][self.owner].astype(float)
+        for c, members in self.pooled.items():
+            rent[members] = res.factor_pools[self.caps[c]]["price"]
+        weights = _allocation(growth.allocation, self.units, rent)
+        # FDI aimed at a factor with pools is shared among them as domestic
+        # investment is.
+        within = np.bincount(self.owner, weights=weights, minlength=len(self.caps))
+        fdi_units = fdi_real[self.owner] * np.where(
+            within[self.owner] > 0, weights / np.maximum(within[self.owner], 1e-300),
+            0.0)
+        self.units = ((1.0 - self.dep[self.owner]) * self.units + domestic * weights
+                      + fdi_units)
+        self.foreign = (1.0 - self.dep) * self.foreign + fdi_real
 
-    single = len(caps) == 1
-    shape = (lambda a: np.array(a)[:, 0]) if single else np.array
-    return PathResult(years=years, periods=periods, econ=econ, growth=growth,
-                      capital_stock=shape(stocks), foreign_capital=shape(foreigns),
-                      capital_factors=caps)
+    def result(self, years) -> "PathResult":
+        single = len(self.caps) == 1
+        shape = (lambda a: np.array(a)[:, 0]) if single else np.array
+        units = np.array(self.unit_stocks).reshape(len(self.unit_stocks), -1)
+        by_pool = {self.caps[c]: pd.DataFrame(
+                       units[:, members], index=list(years),
+                       columns=list(self.econ.mobility[int(self.ki[c])].pools))
+                   for c, members in self.pooled.items()}
+        if self.vintage is not None:
+            new = self.vintage.new
+            by_pool[new] = pd.DataFrame({new: self.new_stocks}, index=list(years))
+        return PathResult(years=list(years), periods=self.periods, econ=self.econ,
+                          growth=self.growth, capital_stock=shape(self.stocks),
+                          foreign_capital=shape(self.foreigns), capital_factors=self.caps,
+                          capital_by_pool=by_pool)
 
 
 def _allocation(rule, stock: np.ndarray, rent: np.ndarray) -> np.ndarray:

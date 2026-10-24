@@ -362,6 +362,142 @@ r2.input_coefficients[1]           # fuel per unit of output: 0.089 and 0.276, f
   value added. The carbon on a fuel enters the price that activity pays for it, so the same carbon
   price now changes how things are produced, not only how much. With both elasticities at zero the
   nest is the Leontief model, to machine precision.</p>
+
+  <h3>17. Labour that moves only partway</h3>
+<pre><code>pools = pd.DataFrame([[30.0, 10.0], [10.0, 60.0]], index=["rural", "urban"],
+                     columns=["a_agr", "a_ind"])   # who worked where in the base year
+spec_m = toy.spec(numeraire_factor="f_cap", factor_mobility={"f_lab": 2.0})
+econ_m = cge.calibrate(sam_toy, spec_m, factor_pools={"f_lab": pools})
+dear = cge.Scenario(world_price=np.array([1.0, 1.3]))   # imported manufactures 30% dearer
+r_m = cge.solve_period(econ_m, scenario=dear)
+r_m.factor_prices_by_activity[0]    # the wage in agriculture and in industry: 0.985 and 1.015
+r_m.factor_pools["f_lab"]["price"]  # what each pool earns: 0.993 rural, 1.010 urban</code></pre>
+  <p>With <code>factor_mobility</code>, labour is split among activities by a CET with
+  elasticity 2, and each activity pays its own wage. With every factor mobile the same shock raises
+  the one wage to 1.004. The pools of origin, a proximity matrix, show who gains: the urban
+  pool works mostly in industry, which the shock expands. At elasticity zero the model is labour
+  split into one factor per activity, and <code>factor_mobility_form="logit"</code> keeps the head
+  count instead of the CET frontier.</p>
+
+  <h3>18. A formal wage floor, and where the rationed go</h3>
+<pre><code>_, econ_s = toy.build_with_segmented_labour()   # formal (industry) and informal (farm) labour
+floor = cge.LabourMarket(rigid={"f_for": 1.1}, informal="f_inf")   # formal real wage 10% up
+r_s = cge.solve_period(econ_s, cge.Closure(labour_markets={"labour": floor}))
+m = r_s.labour_markets["labour"]
+m["employment"]               # formal 66.2 and informal 43.8, from 70 and 40
+m["wage"]                     # 1.097 formal, 0.864 informal
+m["household_employment"][0]  # hh_1: 56.8 formal, 13.2 informal, from 60 and 10
+queue = cge.LabourMarket(rigid={"f_for": 1.1}, informal="f_inf",
+                         unemployment="harris_todaro", unemployment_rate=0.08)
+r_q = cge.solve_period(econ_s, cge.Closure(labour_markets={"labour": queue}))
+r_q.labour_markets["labour"]["unemployment_rate"]   # 0.196, from 0.08
+
+spec_b = toy.spec(factors=("f_cap", "f_for", "f_inf"), numeraire_factor="f_cap",
+                  labour_segments={"labour": ["f_for", "f_inf"]},
+                  segment_mobility={"labour": 2.0})   # a CET between the segments
+_, econ_b = toy.build_with_segmented_labour(model_spec=spec_b)
+own_queue = cge.LabourMarket(rigid={"f_for": 1.1}, unemployment_rate=0.08)
+r_b = cge.solve_period(econ_b, cge.Closure(labour_markets={"labour": own_queue}))
+r_b.labour_markets["labour"]["queue"]   # 18.6 queue for formal jobs, from 6.1</code></pre>
+  <p>The two labour accounts share one population. In a dual market everyone the formal sector
+  stops hiring works informally, and the informal wage falls; under Harris–Todaro they queue for
+  formal jobs until the informal wage equals the formal wage they expect. Either way the jobs
+  <code>hh_1</code> loses reappear as its own informal work or unemployment, not as income of the
+  households that were informal already. With <code>segment_mobility</code> the workers are split
+  between the segments by a CET instead, the informal wage clears on its own, and those the
+  formal sector does not hire queue for it.</p>
+
+  <h3>19. Poverty and inequality, in a survey's households</h3>
+<pre><code>survey = toy.survey()                     # twelve synthetic households, written by hand
+ref_s = cge.solve_period(econ_s)
+alt_s = cge.solve_period(econ_s, cge.Closure(labour_markets={"labour": floor}))
+micro = cge.microsimulate(survey, ref_s, alt_s)
+micro.reconciliation                      # hh_1's formal wages scaled by 60/51 to the SAM
+micro.calibration                         # weights that move formal jobs as the model does
+cge.inequality(micro)                     # Gini 0.531 to 0.556, Theil T 0.527 to 0.577
+cge.poverty(micro, 3.0)                   # headcount 0.698 to 0.731, poverty gap 0.459 to 0.490</code></pre>
+  <p>Each survey household belongs to a SAM account: its income from each source moves as its
+  account's does, and its own budget sets its price index. The survey is first scaled to the
+  SAM, source by source, and the factors are reported rather than hidden. Who loses a formal job
+  enters through the weights: within each account they are recalibrated so that the survey's
+  formal and informal employment move as the model's, which is what moves the headcount.</p>
+
+  <h3>20. People who choose: a behavioural microsimulation</h3>
+<pre><code>people = cge.microsimulate(survey, ref_s, alt_s, persons=toy.persons())   # 42 synthetic persons
+people.workers                            # hh_1: formal 7.5 to 7.09, informal 2.5 to 3.31 persons
+cge.inequality(people).loc["gini"]        # 0.526 to 0.542
+drawn = cge.microsimulate(survey, ref_s, alt_s, persons=toy.persons(), method="draws",
+                          replications=200, seed=1)
+cge.inequality(drawn).loc["gini"]         # 0.526 to 0.544, standard error 0.0008</code></pre>
+  <p>An occupational choice (a multinomial logit) and earnings equations are estimated on the
+  persons, and the model reaches them through intercepts moved, account by account, until
+  employment and earnings per worker change as the model says, as in Bourguignon, Robilliard and
+  Robinson (2005). The default uses the exact expectation of their conditional draws; the draws
+  themselves give a Monte Carlo mean and its error.</p>
+
+  <h3>21. The IBGE's surveys</h3>
+<pre><code class="plain">survey, persons = cge.pnadc("PNADC_032023.txt", "input_PNADC_trimestral.txt",
+                            segments={"formal": "f_for", "informal": "f_inf"},
+                            group=my_accounts)
+households = cge.pof("Dados_POF/", "Leitura dos Microdados - SAS.txt",
+                     commodities=correspondence, group=my_accounts)
+sut = cge.read_tru("68_tab1_2021.xls", "68_tab2_2021.xls")   # GDP 2021: R$ 9,012,142 million</code></pre>
+  <p>The PNAD Contínua and the POF are read with the IBGE's own SAS reading programs, so no
+  column position is typed by hand. Workers are formal or informal by the IBGE's proxy, and the
+  POF's spending is annualised and deflated as the IBGE's tabulation programs do. The microdata
+  are downloaded from the IBGE and never enter the repository.</p>
+
+  <h3>22. A SAM from supply and use tables</h3>
+<pre><code>make = pd.DataFrame({"c_x": [100.0]}, index=["a_x"])
+use = pd.DataFrame({"a_x": [0.0]}, index=["c_x"])
+final = pd.DataFrame({"hh": [80.0], "s_i": [20.0]}, index=["c_x"])
+va = pd.DataFrame({"a_x": [60.0, 40.0]}, index=["f_lab", "f_cap"])
+sut = cge.SupplyUse(make=make, use=use, final=final, imports=pd.Series({"c_x": 0.0}),
+                    value_added=va)
+built = cge.sut_to_sam(sut, source="hand-written tables")
+built.provenance[["source", "note", "total"]]   # household saving: residual, 20
+cge.base_year_reproduction(cge.calibrate(built, cge.ModelSpec(households=["hh"])))["ok"]</code></pre>
+  <p>The supply and use tables become the production block and final demand; who receives the
+  income comes from the integrated economic accounts, here assumed, and the provenance says so.
+  Savings are declared residuals, and tables that do not add up are refused where they fail.</p>
+
+  <h3>23. Formal and informal labour, split by activity</h3>
+<pre><code>shares = pd.DataFrame([[0.3, 0.8], [0.7, 0.2]], index=["f_for", "f_inf"],
+                      columns=["a_agr", "a_ind"])     # from a survey: segment_shares(...)
+split = cge.split_factor(sam_toy, "f_lab", shares)
+two = cge.calibrate(split, toy.spec(factors=("f_cap", "f_for", "f_inf"),
+                                    numeraire_factor="f_cap",
+                                    labour_segments={"labour": ["f_for", "f_inf"]}))
+cge.solve_period(two).residual                     # the base year, at machine precision</code></pre>
+  <p>Labour is split into formal and informal in each activity by survey shares, and the two
+  accounts become a group of segments. With one wage for both, the split model has exactly the
+  single factor's equilibrium; a rigid formal wage then makes the difference.
+  <code>split_households</code> does the same for a household account and a survey's groups.</p>
+
+  <h3>24. A baseline that hits a GDP path</h3>
+<pre><code>gdp = pd.Series([0.046, 0.029, 0.032, 0.025], index=range(2022, 2026))   # real growth
+base = cge.calibrate_baseline(econ, years=range(2021, 2026), gdp=gdp,
+                              growth=cge.Growth(labour=0.01))
+base.factor                                        # the productivity that hits each year
+policy = base.run(cge.Scenario(product_tax=econ.ptax * 1.2))
+cge.real_gdp(policy[2025])["expenditure"] / base.achieved[2025] - 1</code></pre>
+  <p>Real GDP is given, observed or projected, and productivity is the unknown, solved year by
+  year because each year's capital comes from the investment before it: one number a year, or one
+  per activity on sectoral value added. A policy then runs at the calibrated productivity, and
+  GDP moves away from the path; with no policy, the baseline comes back exactly.</p>
+
+  <h3>25. Putty-clay capital</h3>
+<pre><code>vint = cge.split_vintages(sam_toy, 0.08)           # 8% of each activity's capital is new
+clay = cge.calibrate(vint, toy.spec(factors=("f_lab", "f_cap", "f_cap_new"),
+                                    vintages={"f_cap": "f_cap_new"}))
+path = cge.run_path(clay, years=range(2021, 2031),
+                    scenario=cge.Scenario(world_price=np.array([1.0, 1.15])))
+path.capital_by_pool["f_cap"].iloc[[0, -1]]          # installed capital, by activity
+path[2021].vintage_value_added                       # old and new bundles</code></pre>
+  <p>Installed capital stays in its sector and keeps the technique it was built with; new capital
+  goes where it earns most. When industry's price rises, only the new vintage follows at first,
+  so output answers less than with mobile capital, and catches up as industry installs more of
+  each year's investment.</p>
 </div></section>
 
 <section id="gates"><div class="wrap">
@@ -451,8 +587,9 @@ cgelab diagnostics -- Economy(3 activities, 3 commodities, 2 households, 2 facto
   <h3>An independent JuMP replica</h3>
   <p><code>to_jump</code> writes the same equilibrium as a JuMP model in which nothing is nested: the
   price fixed point, the wedge series and the saving–revenue relation are plain constraints, and
-  Ipopt solves them from a displaced start. In 34 cases (margins, own-account activities, CET, export demand and import supply curves, tariffs and output taxes inside the prices, Hosoe's closure, government targets, a carbon price, two energy nests, direct
-  taxes, transfers, foreign capital, FDI, LES and alternative closures) the two solvers agree to at
+  Ipopt solves them from a displaced start. In 50 cases (margins, own-account activities, CET, export demand and import supply curves, tariffs and output taxes inside the prices, Hosoe's closure, government targets, a carbon price, two energy nests, direct
+  taxes, transfers, foreign capital, FDI, LES, imperfect factor mobility, segmented labour,
+  capital vintages and alternative closures) the two solvers agree to at
   most <code>1.2e-11</code>. Perturbing the exported data makes the comparison diverge by 1e-3 to
   3e-1, which shows it can see an error.</p>
 </div></section>

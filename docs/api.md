@@ -56,6 +56,13 @@ Constructors: `SAM.from_long(df, row="row", col="col", value="value", name="sam"
 | `sigma_interregional` | `2.0` | CES across regions of origin, under the Armington. Scalar or mapping by local commodity |
 | `tariff_account` | `None` | account that collects the import tariff from commodities (Hosoe's TRF). The tariff goes inside the Armington import price |
 | `indirect_tax_account` | `None` | account that collects the indirect tax on all of output (Hosoe's IDT). The tax goes inside the gross output price the CET splits, so exports carry it |
+| `factor_mobility` | `None` | `{factor: ω}`, ω ≥ 0: the factor's endowment is transformed across the activities that use it, and each activity pays its own price. Zero holds the base-year allocation. A factor left out is perfectly mobile. Not the numeraire; not with `regions` |
+| `labour_segments` | `None` | `{group: [factor, ...]}`: labour accounts that share one population of workers; how they clear is `Closure.labour_markets`. Two or more factors each, not the numeraire, not in `factor_mobility` |
+| `segment_mobility` | `None` | `{group: ω}`: each household's workforce in a group of `labour_segments` split among its segments by a CET or a logit (`factor_mobility_form`, by group name); each flexible segment clears, each rigid one has a queue. A group left out has perfect mobility between its segments |
+| `vintages` | `None` | `{old: new}`, one pair of capital accounts (`split_vintages`): putty-clay capital. Value added is a CES (`vintage_substitution`) of an old bundle, a CES of `vintage_sigma` without new capital, and a new one, the CES of `sigma_va` without old capital. Old capital gets a pool per activity; new capital is mobile. Needs `value_added="ces"`; not with `energy`, `regions`, or either vintage in `factor_mobility` (old) or `labour_segments` |
+| `vintage_sigma` | `0.0` | substitution ex post, in the old bundle; a number or a mapping by activity |
+| `vintage_substitution` | `20.0` | substitution between the two bundles; perfect substitution is the limit |
+| `factor_mobility_form` | `"cet"` | `"cet"` (a CET frontier, GTAP's sluggish endowments) or `"logit"` (shares of a fixed head count); one form, or a mapping by factor |
 
 Methods: `classify(sam) -> AccountLayout`, `prepare(sam)` (expands regional
 accounts), `sigma_va_vector(activities)`, `sigma_armington_vector(commodities)`.
@@ -76,7 +83,7 @@ and non-default closures are refused by name rather than ignored. `to_jump` and
 
 ## Calibration
 
-### `calibrate(sam, spec=None, *, income_elasticities=None, population=None, tariffs=None, output_taxes=None, check_balance=True) -> Economy`
+### `calibrate(sam, spec=None, *, income_elasticities=None, population=None, tariffs=None, output_taxes=None, factor_pools=None, check_balance=True) -> Economy`
 
 `income_elasticities` maps commodity to income elasticity (LES only).
 `population` maps household account to a household count — the weight of a per
@@ -85,6 +92,12 @@ capita transfer, and neither the income nor the expenditure share.
 SAM has no separate account for them. Their revenue leaves the product tax and
 enters the import price and the gross output price; at those rates the base year
 is unchanged.
+`factor_pools` maps a factor in `ModelSpec.factor_mobility` to a DataFrame of
+base-year use, pools of origin by activities: a proximity matrix. Each column must
+add up to what the SAM pays the factor in that activity. Absent, the endowment is
+one pool; `"activities"` gives each activity that uses the factor a pool of its
+own, so the factor is sector-specific. The calibrated transformations are
+`econ.mobility`, by factor index; the vintage nest is `econ.vintage`.
 
 ### `Economy`
 
@@ -125,7 +138,7 @@ Ordered name lists `acts`, `coms`, `hhs`, `factors`; counts `n_act`, `n_com`,
 
 ## Closure and scenario
 
-### `Closure(numeraire=1.0, investment="savings_driven", government="real_fixed", foreign="fixed_saving", foreign_saving_unit="numeraire", government_target=None, government_target_value=None, government_adjusts="direct_tax", exchange_rate=1.0, tolerance=1e-9, labour="full_employment", labour_factor="f_lab", real_wage=None, wage_curve_elasticity=0.1, natural_unemployment=0.0, labour_supply_elasticity=0.0)`
+### `Closure(numeraire=1.0, investment="savings_driven", government="real_fixed", foreign="fixed_saving", foreign_saving_unit="numeraire", government_target=None, government_target_value=None, government_adjusts="direct_tax", exchange_rate=1.0, tolerance=1e-9, labour="full_employment", labour_factor="f_lab", real_wage=None, wage_curve_elasticity=0.1, natural_unemployment=0.0, labour_supply_elasticity=0.0, labour_markets={})`
 
 `investment` ∈ `{"savings_driven", "fixed_real"}`;
 `government` ∈ `{"real_fixed", "nominal_fixed", "saving_rate"}`, the last saving
@@ -146,7 +159,28 @@ numeraire. `real_wage` pins the real wage (1 is the calibrated wage).
 `wage_curve_elasticity` and `natural_unemployment` are the Blanchflower–Oswald
 curve; the base year sits at the natural rate, because the SAM records
 employment. `labour_supply_elasticity` is ε in `L = L0 * (w/P) ** ε`.
+`labour_markets` maps each group of `ModelSpec.labour_segments` to a
+`LabourMarket`; a group left out is one labour market.
 Properties: `solves_exchange_rate`, `describe()`.
+
+### `LabourMarket(rigid={}, informal=None, unemployment="none", unemployment_rate=0.0)`
+
+How one group of labour segments clears. `rigid` maps a segment to its real
+wage (1 or `None` is the calibrated one); a rigid segment hires what demand asks
+for at that wage.
+
+Under perfect mobility between segments, `informal` is the segment that absorbs
+the rest of the labour force (default: the group's last), and the segments that
+are neither share its wage. `unemployment="none"` is a dual market;
+`"harris_todaro"` puts the rationed in a queue until the informal wage equals the
+expected rigid wage, with `unemployment_rate` the base year's (one rate,
+strictly between 0 and 1) and `λ = 1 / (1 − rate)`. Each household keeps a fixed
+workforce: its base-year share of rigid jobs and of the queue, and the rest
+informal.
+
+Under `ModelSpec.segment_mobility`, `informal` and Harris–Todaro are refused:
+every flexible segment clears, and `unemployment_rate` is each rigid segment's
+base-year queue as a share of its supply, one rate or `{factor: rate}`.
 
 ### `Scenario(...)`
 
@@ -154,6 +188,8 @@ Properties: `solves_exchange_rate`, `describe()`.
 |---|---|---|
 | `name` | str | carried into results and summaries |
 | `factor_supply` | `(nf,)` | absolute endowments |
+| `labour_force` | mapping | `{group: workers}` for each group of `ModelSpec.labour_segments`, the queue included; absent, the base year's scaled by the supply of the group's factors |
+| `pool_supply` | mapping | `{factor: endowment of each pool}` for an imperfectly mobile factor; absent, the pools scale with `factor_supply`, and when both are set they must agree on the total |
 | `factor_ownership` | `(nh, nf)` | ownership shares, columns sum to one |
 | `productivity` | `(na,)` | Hicks-neutral multiplier per activity |
 | `activity_scale` | mapping | own-account activity levels, as a multiple of the base year |
@@ -188,7 +224,9 @@ Unknowns: one price per non-numeraire factor, one for the external closure (the
 exchange rate under `foreign="fixed_saving"`, foreign saving under
 `"fixed_rate"`), and under `investment="fixed_real"` the forced household saving
 that finances the fixed investment. Under `ModelSpec.export_demand` or
-`import_supply`, the log world price of each commodity on a curve.
+`import_supply`, the log world price of each commodity on a curve. For a factor
+in `ModelSpec.factor_mobility`, its price in each activity that uses it instead
+of one price, with one market per activity.
 
 ### `PeriodResult`
 
@@ -202,8 +240,12 @@ that finances the fixed investment. Under `ModelSpec.export_demand` or
 | `hh_direct_tax`, `factor_income_abroad`, `foreign_saving` | direct tax by household; factor income paid abroad; the period's foreign saving, FDI included |
 | `Q`, `X`, `absorption`, `imports`, `exports` | the quantity system; `imports` at the border, `exports` at their tax-inclusive value |
 | `hh_quantity`, `hh_income`, `hh_commodity_spend`, `hh_direct_outlay`, `hh_wedge_paid` | the household block |
-| `gov_quantity`, `investment_quantity`, `savings`, `factor_demand` | the rest of final demand |
+| `gov_quantity`, `investment_quantity`, `savings`, `factor_demand` | the rest of final demand; for an imperfectly mobile factor, `factor_demand` is its endowment and `factor_prices` its income over that endowment |
+| `factor_demand_by_activity`, `factor_prices_by_activity` | `(nf, na)` factor use and the price each activity pays. Under a CET the use does not add up to the endowment off the base year |
+| `labour_markets` | `{group: {...}}` for each group of labour segments: `segments`, `informal` (`None` under `segment_mobility`), `wage`, `real_wage`, `employment`, `supply`, `queue`, `labour_force`, `unemployment`, `unemployment_rate`, `harris_todaro`, `household_workforce`, `household_employment` `(nh, n_seg)`, `household_unemployed`; `None` without segments |
+| `factor_pools` | `{factor: {"pools", "price", "endowment", "supply"}}` for each imperfectly mobile factor, `supply` by pool and activity; `None` when every factor is mobile |
 | `wedge_revenue`, `government_cost` | recycled revenue; cost falling on the budget |
+| `vintage_value_added` | `(2, na)`: the old and the new capital vintage's bundle, in the base-year value of the factors each uses; `None` without vintages |
 | `input_coefficients`, `value_added_per_unit` | intermediate input and primary factor use (base-year value) per unit of output as solved; under an energy nest they answer to prices |
 | `government`, `household_saving`, `forced_saving` | the government account at the solution; voluntary household saving; the levy that finances fixed real investment |
 | `real` | `hh_real`, `gov_real`, `inv_real`, `hh_sav_real`, `gov_sav_real`, `for_sav_real`, `hh_price_index`, `hh_real_income`, `hh_committed_value` |
@@ -212,7 +254,8 @@ that finances the fixed investment. Under `ModelSpec.export_demand` or
 
 ### `value_added_price(econ, w)` / `factor_intensity(econ, w, *, vunit=None, aunit=None)`
 
-The value-added nest on its own. `vunit` and `aunit` override the calibrated
+The value-added nest on its own. `w` is one price per factor, or `(nf, na)`
+when a factor earns a different price in each activity. `vunit` and `aunit` override the calibrated
 coefficients, which is how a productivity path enters: the CES branch is
 scale-free and unaffected, the fixed-proportions branch is a ratio of the two and
 must see both.
@@ -248,6 +291,14 @@ The matrix is the one the solver used, productivity included.
 At the base year the gap is `product_tax` plus `activity_tax`. `own_account` is
 included in expenditure; without it the gap is short by that activity. `other`
 is what remains once quantities leave the base year.
+
+### `real_value_added(period) -> Series`
+
+Real value added by activity, by double deflation: output at the base-year
+activity price less intermediate inputs at base-year purchaser prices.
+Productivity moves it, unlike the `value_added` of `real_gdp`, which is factor
+use; activity taxes stay inside, so at the base year it sums to
+`value_added + activity_tax`.
 
 ### `national_accounts(period) -> dict`
 
@@ -339,8 +390,12 @@ Huff–Hertel decomposition of the change in real absorption (Divisia, current
 prices along the path): `absorption` and its four components
 (`absorption_households`, `_own_account`, `_government`, `_investment`);
 `endowment`, `technology`, `allocative_product_tax`, `allocative_consumer_wedge`,
-`allocative_activity_tax`, `allocative_tariff`, `allocative_output_tax`,
-`terms_of_trade`, `external_account`; `sum_of_terms` and `residual`.
+`allocative_activity_tax`, `allocative_carbon_tax`, `allocative_tariff`,
+`allocative_output_tax`, `factor_reallocation`, `terms_of_trade`,
+`external_account`; `sum_of_terms` and `residual`. For an imperfectly mobile
+factor, `endowment` prices each pool's endowment, and `factor_reallocation` is
+the activity prices times the change in use less that: zero under a CET, the
+gain from moving workers under a logit.
 
 ### `path_decomposition(f, x0, x1, groups, *, nodes=6, step=1e-4, solve_at=None) -> DataFrame`
 
@@ -384,12 +439,19 @@ The `(2n, n)` standardised points of the rule.
 
 ## Dynamics
 
+`labour_factor` may name a group of `ModelSpec.labour_segments`, which then
+grows as a whole.
+
 ### `Growth(labour=0.0, tfp=0.0, depreciation=0.05, discount=0.05, labour_factor="f_lab", capital_factor="f_cap", allocation="proportional", productivity="hicks_neutral", investment_deflator="base_price")`
 
 `capital_factor` is one factor or a sequence of them, each accumulated from its
 own service flow; `depreciation` is a rate or a mapping by capital factor.
 `allocation` shares domestic investment among them: `"proportional"` to the
-stocks, or a number `e` making shares proportional to `K_k (r_k / r_mean)^e`.
+stocks, or a number `e` making shares proportional to `K_k (r_k / r_mean)^e`. A
+capital factor with pools (`calibrate(factor_pools=)`) has a stock per pool,
+and the pools take part in the allocation with their prices as rents. With
+`ModelSpec.vintages`, `capital_factor` is the old vintage alone: the new one is
+each year's investment, installed at the end of the year where it was used.
 `user_cost` is `discount + depreciation`, the rate that converts the SAM's
 capital service flow into a stock. `productivity` says how `tfp` enters:
 `"hicks_neutral"` scales every activity's input requirements, `"factor_augmenting"`
@@ -407,10 +469,37 @@ set inside a per-year scenario override the accumulated ones. `economy` is
 coefficients, foreign saving, transfer rules); it must keep the accounts of
 `econ`, e.g. `dataclasses.replace(econ, io=...)`.
 
+### `calibrate_baseline(econ, closure=None, *, years, gdp=None, kind="growth", growth=None, scenario=None, economy=None, pattern=None, sectors=None, measure="expenditure", tol=1e-12) -> Baseline`
+
+The productivity path that makes `run_path` hit a path of real GDP, year by year.
+`gdp` is a `Series` by year of growth rates (`kind="growth"`, the first year
+uncalibrated and its rate unread), an index (`"index"`, normalised by its first
+year, also uncalibrated) or levels at base-year prices (`"level"`, every year
+calibrated). The year's unknown `Λ_t` multiplies the Hicks-neutral productivity
+of activity `a` by `Λ_t ** pattern[a]` (all ones by default; a mapping leaves
+the activities it omits at 0). `sectors`, a `DataFrame` of real value added by
+year and activity read with `kind`, gives each listed activity its own unknown
+instead; not with `gdp` nor `pattern`. `measure` is `"expenditure"`
+(`real_gdp`) or `"production"` (the sum of `real_value_added`). A target that
+no productivity reaches is refused, naming the year.
+
+### `Baseline`
+
+`years`, `productivity` (`DataFrame` year × activity: the multiplier passed as
+`Scenario.productivity`, the baseline scenario's own times the calibrated one;
+`Growth.tfp` comes on top), `factor` (`Λ_t` as a `Series`, or with `sectors` a
+`DataFrame` by activity), `multiplier` (the calibrated part alone), `path` (the
+calibrated `PathResult`), `target`, `achieved`, `measure`; `scenario(policy=None)`
+gives `f(year, t) -> Scenario` for `run_path`, with the policy (a `Scenario` or
+`f(year, t)`, the whole scenario for the year) at the calibrated productivity,
+and `run(policy=None)` runs it.
+
 ### `PathResult`
 
 `years`, `periods`, `capital_stock` (`(T,)`, or `(T, k)` with several capital
-factors), `foreign_capital` (same shape), `capital_factors`, `converged`, `worst_walras`;
+factors; with vintages, old and new together), `foreign_capital` (same shape),
+`capital_factors`, `capital_by_pool` (`{factor: DataFrame}`, years by pools, for
+each capital factor with pools, and for the new vintage), `converged`, `worst_walras`;
 `path[year]` gives the `PeriodResult`;
 `aggregates()`, `households()`, `commodity(name)` return tidy frames.
 
@@ -522,6 +611,179 @@ GEMPACK header array files, the format of the GTAP database. Types `1C`, `2I`,
 
 `name`, `description`, `kind`, `array` (float64, or int64 for `2I`, object for
 `1C`), `sets` and `labels` per dimension, and `to_series()` in long form.
+
+---
+
+## Microsimulation (`cgelab.micro`)
+
+### `Survey(frame, sources, group="group", weight="weight", size="size", budget=None, workers=None)`
+
+One row per household. `sources` maps an income column to a factor, a
+`"factor:activity"`, `"transfers"`, `"remittances"`, `"recycled"` or `"fixed"`;
+several columns may share a source, and a factor is mapped whole or by activity,
+not both. `budget` maps a spending column to a commodity. `workers` maps a
+head-count column to a segment or `"unemployed"`: the unemployed are a target of
+the reweighting, and every column is reported with both sets of weights. Weights and sizes must be positive.
+
+### `microsimulate(survey, reference, alternative, *, reconcile=True, reweight=True, price_index="geometric", persons=None, behaviour=None, method="expected", seed=0, replications=100) -> MicroResult`
+
+Moves each household's income from a source as its account's does between the
+two solved periods, applies the account's direct tax rate, and deflates by the
+household's own price index (`"geometric"` or `"laspeyres"`). With `reconcile`,
+the survey is first scaled to the reference's account incomes by account and
+source; a mismatch in which accounts have which sources is refused. With
+`reweight` and labour segments, the weights are calibrated by raking within each
+account: segment income at base wages moves as the account's employment in the
+segment, unemployed persons as its queue, households and every other source stay
+fixed; segment income per worker then moves with the wage. Targets no positive
+weights reach are refused by name. With `persons`, the behavioural model moves
+each person's status and earnings instead (below), the segment columns of
+`survey` are replaced by the members' earnings, and the weights stay;
+`behaviour` defaults to `Behaviour.estimate(persons, segments)` with the
+household weights; `method` is `"expected"` or `"draws"`.
+
+### `MicroResult`
+
+`frame` (one row per household: `group`, `weight`, `weight_alt`, `size`,
+`gross_ref`, `gross_alt`, `disposable_ref`, `disposable_alt`, `price_index`,
+`real_ref`, `real_alt`), `income_ref` and `income_alt` (by household and
+source), `reconciliation` (`group`, `source`, `survey`, `sam`, `factor`),
+`calibration` (`group`, `constraint`, `base`, `target`, `reached`,
+`iterations`), `workers` (`group`, `column`, `workers`, `ref`, `alt`: persons
+with the old and the new weights), and `welfare(equivalence=1.0)` (real income
+per adult equivalent, and person weights `persons_ref` and `persons_alt`).
+In `"draws"` mode, `replications` holds real income in the alternative,
+households by replications, `real_alt` is its mean, and `inequality` and
+`poverty` add an `alt_se` column.
+
+### `PersonSurvey(frame, household="household", status="status", earnings="earnings", characteristics=(), choice_characteristics=None)`
+
+One row per person: the household's index in `Survey.frame`, a status (a
+segment, `"unemployed"`, `"inactive"`, ...), non-negative labour earnings, and
+the regressors of the earnings equations (`characteristics`) and of the choice
+(`choice_characteristics`, by default the same).
+
+### `Behaviour.estimate(persons, segments, *, weights=None, base=None) -> Behaviour`
+
+Earnings equations by weighted least squares on the segment's earners, and a
+multinomial logit over all statuses by maximum likelihood; `base` (default
+`"inactive"`) has zero coefficients. Fields: `statuses`, `base`, `segments`,
+`choice` (one row per status), `earnings` (`{segment: {"coef", "sigma", "n"}}`),
+`loglik`, `iterations`; methods `utilities(persons)` and
+`predicted_log_earnings(persons)`.
+
+### `transition_probabilities(V, delta) -> ndarray`
+
+`T[i, j, k]`: the probability that person `i` chooses `j` with utilities `V`
+and `k` with `V + delta`, under fixed i.i.d. Gumbel errors. Rows add up to the
+logit probabilities of the first choice, columns to those of the second.
+
+### `account_sources(period) -> DataFrame`
+
+Each household account's gross income by source in a solved period: every
+factor, every `"factor:activity"`, `"transfers"`, `"remittances"`, `"recycled"`.
+
+### `inequality(result, *, equivalence=1.0, epsilons=(0.5, 1.0, 2.0)) -> DataFrame` / `poverty(result, lines, *, alphas=(0, 1, 2), by_group=False, equivalence=1.0) -> DataFrame`
+
+Gini, Theil T and L, GE(2) and Atkinson indices; FGT by line and α. Columns
+`ref`, `alt`, `change`; with `by_group`, `(period, account)` with a `total`.
+
+### `gini(x, weights=None)`, `fgt(x, line, alpha=0, weights=None)`, `generalized_entropy(x, alpha=1.0, weights=None)`, `theil`, `mean_log_deviation`, `atkinson(x, epsilon=1.0, weights=None)`
+
+The measures on any vector. The entropy indices and Atkinson with ε > 0 need
+positive incomes; the Gini needs a positive mean; the poor are strictly below
+the line.
+
+### `ge_decomposition(x, alpha, groups, weights=None)` / `fgt_decomposition(x, line, alpha, groups, weights=None)`
+
+GE(α) within and between groups (rows per group, `within`, `between`,
+`total`); FGT(α) by group, the contributions adding up to the total.
+
+### `read_sas_program(path, encoding="latin-1") -> dict[str, SasLayout]` / `read_ibge(data, program, *, record=None, variables=None, encoding="latin-1", chunksize=None) -> DataFrame`
+
+An IBGE SAS reading program's records by data-step name, each with its
+`infile` and `fields` (`name`, `start`, `width`, `char`, `decimals`); and the
+fixed-width data it describes. `record` picks a data step (by default the one
+whose `INFILE` names the data file).
+
+### `pnadc(data, program, *, segments, group, frame=None, activities=None, missing_cnpj="refuse", chunksize=200000) -> (Survey, PersonSurvey)`
+
+A quarter of the PNAD Contínua. `segments` maps `"formal"` and `"informal"` to
+the model's segments; statuses follow VD4001, VD4002, VD4009 and V4019 (the
+IBGE's informality proxy); earnings are VD4019. `group` is a column of the
+household frame or a function of it. `missing_cnpj` is `"refuse"`, `"formal"` or
+`"informal"` for employers and own-account workers without V4019. Persons
+carry `activity_code` (V4013, CNAE-Domiciliar) and, with `activities` (code
+prefixes to SAM activities), `activity`; an occupied person no prefix maps is
+refused.
+
+### `pof(directory, program, *, commodities, group, income=None, exclude_conditions=(18, 19), records=None) -> Survey`
+
+The POF 2017–2018 by consumption unit: monthly spending by SAM commodity
+(`commodities`, item-code prefixes), `unmapped_spending`, `labour` and other
+income columns (`income`, prefixes; the rest `other_income`), size and
+PESO_FINAL. Its income sources are `"fixed"` until mapped.
+
+## Building a SAM (`cgelab.build`)
+
+### `SupplyUse(make, use, final, imports, value_added, product_taxes=None, production_taxes=None, margins=None, tariffs=None, output_taxes=None, direct_sales=None, final_roles=None)`
+
+Supply and use tables as labelled frames (the labels become accounts): `make`
+activities × commodities at basic prices, `use` commodities × activities and
+`final` commodities × columns at purchaser prices, `imports` by commodity,
+`value_added` factors × activities, taxes on products and on production,
+`margins` margin commodity × commodity (each row adding up to zero), tariffs
+and output taxes kept apart, `direct_sales` activities × households.
+`final_roles` maps a column to `"households"`, `"government"`, `"investment"` or
+`"exports"`; `labels` and `notes` (descriptions, and choices to record in the
+provenance) are optional. Methods: `supply()`, `demand()`, `output()`, `costs()`, `gdp()`
+(`production`, `expenditure`, `income`), `check(tol)`.
+
+### `Institutions(factor_income=None, direct_taxes=None, transfers=None, from_abroad=None, to_abroad=None, flows=[], source="integrated economic accounts")`
+
+Recipients × factors of factor income (households, government, abroad);
+by household, direct taxes, government transfers, transfers from and to
+abroad; other flows as `(receiver, payer, amount, source)`.
+
+### `sut_to_sam(sut, institutions=None, *, names=None, source="supply and use tables", name="sam", tol=1e-9) -> SAM`
+
+The SAM in the layout `calibrate` reads, savings as residuals.
+`names` overrides `government`, `investment`, `rest_of_world`, `tariff` and
+`output_tax`. `SAM.provenance` lists each block: `source`, `note`, `rows`,
+`cols`, `total`, `cells`. Tables that do not add up are refused by name.
+
+### `split_households(sam, survey, *, account, incomes=None, outlays=None, fallback=None, names=None, source="household survey") -> SAM`
+
+One household account split into the survey's groups, cell by cell, by each
+group's share of the weighted survey total; savings residual; `provenance` lists
+how each cell was shared.
+
+### `split_factor(sam, factor, by_activity, *, owners=None, names=None, source="household survey") -> SAM`
+
+A factor split by activity (`by_activity`, new factors × activities) and, for
+households, by `owners` (recipients × new factors); government and abroad keep
+their shares; households' savings are recomputed when `owners` is given.
+
+### `split_vintages(sam, share, *, capital="f_cap", new="f_cap_new", source="assumed") -> SAM`
+
+The capital account split into the installed vintage (keeping the name) and
+`new`, the part `share` of each activity's payment (a number, or a mapping by
+activity with `"__default__"`); every recipient keeps its share of both. On a
+steady path `share` is investment over the capital stock.
+
+### `segment_shares(survey, persons, *, segments, activity="activity") -> (by_activity, owners)` / `group_population(survey) -> dict`
+
+Weighted earnings of each segment by activity and by group, from a survey and
+its persons; persons per group.
+
+### `read_tru(supply_path, use_path, *, activity_prefix="a_", commodity_prefix="c_", households="hh", npish="households", mixed_income="separate", tariffs=False, factors=None) -> SupplyUse`
+
+The IBGE's tables 1 (`oferta`, `producao`, `importacao`) and 2 (`CI`,
+`demanda`, `VA`), as files (needs `xlrd`) or `{sheet: DataFrame}`. `mixed_income`
+is `"separate"`, `"labour"` or `"capital"`; `npish` `"households"` or
+`"government"`; `factors` renames `labour`, `capital`, `mixed`. Margins are
+shared among their providers in proportion; `sut.labels` and `sut.notes` carry
+the descriptions and the reader's choices into the provenance.
 
 ---
 

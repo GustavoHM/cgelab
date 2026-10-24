@@ -289,7 +289,18 @@ def _welfare_state(period) -> dict:
     em_act = carb_act * period.X / price if price else np.zeros(econ.n_act)
     carb_proc = price * econ.emissions.process if price else np.zeros(econ.n_act)
     fin = period.hh_quantity.sum(axis=0) + period.gov_quantity
+    # An imperfectly mobile factor's endowment is its pools; its use is by
+    # activity, at the activity's own price.
+    mobile = np.ones(econ.n_fac, dtype=bool)
+    mobile[list(econ.mobility)] = False
+    pools = period.factor_pools or {}
+    pool_w = np.concatenate([pools[econ.factors[i]]["price"] for i in econ.mobility] or [[]])
+    pool_l = np.concatenate([pools[econ.factors[i]]["endowment"] for i in econ.mobility] or [[]])
+    w_act = (period.factor_prices_by_activity if period.factor_prices_by_activity is not None
+             else np.tile(period.factor_prices[:, None], (1, econ.n_act)))
     return dict(
+        mobile=mobile, Wpool=pool_w, Fpool=pool_l, wa=w_act,
+        Fa=period.factor_demand_by_activity,
         hh_q=period.hh_quantity, own=r["own"], gov_q=period.gov_quantity,
         inv_q=period.investment_quantity, fin=fin, firm=period.absorption - fin,
         X=period.X, Q=period.Q, M=period.imports, E=period.exports,
@@ -313,8 +324,8 @@ def _welfare_state(period) -> dict:
 
 _WELFARE_TERMS = ["endowment", "technology", "allocative_product_tax",
                   "allocative_consumer_wedge", "allocative_activity_tax", "allocative_carbon_tax",
-                  "allocative_tariff", "allocative_output_tax", "terms_of_trade",
-                  "external_account"]
+                  "allocative_tariff", "allocative_output_tax", "factor_reallocation",
+                  "terms_of_trade", "external_account"]
 
 
 def _welfare_integrand(s: dict, d: dict) -> dict:
@@ -329,7 +340,18 @@ def _welfare_integrand(s: dict, d: dict) -> dict:
     out = {
         "absorption": sum(parts.values()),
         **{f"absorption_{k}": v for k, v in parts.items()},
-        "endowment": float(s["w"] @ d["F"]),
+        # A perfectly mobile factor: its price times the change in its use. An
+        # imperfectly mobile one: each pool's price times the change in its
+        # endowment.
+        "endowment": float(s["w"][s["mobile"]] @ d["F"][s["mobile"]]
+                           + s["Wpool"] @ d["Fpool"]),
+        # What moving an imperfectly mobile factor between activities adds
+        # beyond its endowment: the activity prices times the change in use,
+        # less the endowment term. A CET frontier makes it zero (the envelope
+        # theorem on the pool's revenue); a logit allocation does not, because
+        # its wage gaps are not the cost of moving.
+        "factor_reallocation": float((s["wa"][~s["mobile"]] * d["Fa"][~s["mobile"]]).sum()
+                                     - s["Wpool"] @ d["Fpool"]),
         # Every input cost that productivity scales, the carbon tax on the fuel
         # among them; not the activity tax or process carbon, which are per unit
         # of output whatever the inputs.
@@ -363,7 +385,14 @@ def welfare_decomposition(econ, reference: Scenario, alternative: Scenario, *, c
     path, ``integral of sum p dq``. Differentiating the GDP identity and the
     balance of payments splits it into
 
-    * ``endowment`` -- factor prices times the change in factor use;
+    * ``endowment`` -- factor prices times the change in factor use; for an
+      imperfectly mobile factor, each pool's price times the change in its
+      endowment;
+    * ``factor_reallocation`` -- for an imperfectly mobile factor, its price in
+      each activity times the change in its use there, less the endowment
+      term. Zero under a CET frontier, which already prices the cost of moving;
+      under a logit allocation, the gain from moving workers toward the
+      activities that pay more;
     * ``technology`` -- gross cost times the change in log productivity;
     * ``allocative_*`` -- one term per instrument, its rate times the price of
       the taxed flow times the change in that flow: a tax that shrinks a taxed
@@ -422,7 +451,8 @@ def welfare_decomposition(econ, reference: Scenario, alternative: Scenario, *, c
         up, down = _welfare_state(solve(t + step, mid)), _welfare_state(solve(t - step, mid))
         d = {k: (np.asarray(up[k], float) - np.asarray(down[k], float)) / (2 * step)
              for k in ("hh_q", "own", "gov_q", "inv_q", "fin", "firm", "X", "Q", "M", "E",
-                       "F", "pWe", "pWm", "er", "FS", "row", "log_tfp", "em_act")}
+                       "F", "Fa", "Fpool", "pWe", "pWm", "er", "FS", "row", "log_tfp",
+                       "em_act")}
         for k, v in _welfare_integrand(s, d).items():
             total[k] += w * v
     out = pd.Series(total, name="welfare")

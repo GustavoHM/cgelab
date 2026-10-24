@@ -136,6 +136,51 @@ class ModelSpec:
     #: Zero is Leontief: the base-year origin mix does not answer to prices.
     sigma_interregional: float | Mapping[str, float] = 2.0
 
+    #: Factors that are not perfectly mobile across activities, ``{factor: ω}``.
+    #: The factor's endowment is split among the activities that use it by a
+    #: transformation with elasticity ω ≥ 0, and each activity pays its own
+    #: price. Zero holds the base-year allocation; a large ω approaches one
+    #: price. A factor left out is perfectly mobile, as before. The numeraire
+    #: cannot be listed: its market is the Walras check. Pools of origin (a
+    #: proximity matrix) are data and go to ``calibrate(..., factor_pools=)``.
+    factor_mobility: Mapping[str, float] | None = None
+    #: The transformation. ``"cet"``: a CET frontier, the sluggish endowments
+    #: of GTAP; pool income is its price index times its endowment, exactly.
+    #: ``"logit"``: shares of a fixed head count, so the supplies add up to the
+    #: endowment at any prices. One form for every factor, or a mapping by factor
+    #: and by group of ``labour_segments``.
+    factor_mobility_form: str | Mapping[str, str] = "cet"
+    #: Groups of labour accounts that share one population of workers,
+    #: ``{group: [factor, ...]}``: formal and informal labour, say. Each segment
+    #: is still a factor the value-added nest demands on its own; the group says
+    #: the same people supply all of them, and ``Closure.labour_markets`` says
+    #: how each segment's wage is set and where whoever a rigid segment does
+    #: not hire goes.
+    labour_segments: Mapping[str, Sequence[str]] | None = None
+    #: A transformation between the segments of a group, ``{group: ω}``: each
+    #: household's workforce is split among the segments by a CET or a logit
+    #: (``factor_mobility_form``) at the segments' wages, and each rigid segment
+    #: has its own queue. A group left out has perfect mobility between its
+    #: segments.
+    segment_mobility: Mapping[str, float] | None = None
+    #: Putty-clay capital, ``{old: new}``: two capital accounts, the installed
+    #: vintage and the one bought this year (``build.split_vintages`` makes the
+    #: second from the first). Old capital is sector-specific, a pool per
+    #: activity at ω = 0; new capital is mobile. Each activity's value added is
+    #: a CES (``vintage_substitution``) of an old bundle, a CES of
+    #: ``vintage_sigma`` over every factor but new capital, and a new bundle, the
+    #: CES of ``sigma_va`` over every factor but old capital. ``run_path`` turns
+    #: the new capital each activity used into its old capital the year after.
+    vintages: Mapping[str, str] | None = None
+    #: Substitution ex post, inside the old vintage's bundle. Zero: the labour
+    #: installed capital works with is fixed by the technology it was built for.
+    vintage_sigma: float | Mapping[str, float] = 0.0
+    #: Substitution between the two vintages' bundles. LINKAGE has them perfect
+    #: substitutes; a finite value keeps the solver smooth when an activity
+    #: shrinks faster than its old capital wears out, and the distance to perfect
+    #: substitution falls as one over it.
+    vintage_substitution: float | Mapping[str, float] = 20.0
+
     def __post_init__(self):
         self.factors = list(self.factors)
         if self.regions is not None:
@@ -178,11 +223,144 @@ class ModelSpec:
                 raise ValueError(
                     f"{field_name} must be a positive elasticity, got {got!r}. "
                     f"Omit it to keep the economy a price taker.")
+        if self.factor_mobility is not None:
+            self._check_mobility()
+        if self.labour_segments is not None:
+            self._check_segments()
+        if self.segment_mobility is not None:
+            import math
+            groups = dict(self.labour_segments or {})
+            for name, om in dict(self.segment_mobility).items():
+                if name not in groups:
+                    raise ValueError(f"segment_mobility names {name!r}, which is not a group "
+                                     f"of labour_segments ({list(groups)})")
+                if not (math.isfinite(float(om)) and float(om) >= 0):
+                    raise ValueError(
+                        f"segment_mobility[{name!r}] must be a finite elasticity >= 0, got "
+                        f"{om!r}. Perfect mobility between segments is a group left out.")
+        self._check_forms()
+        if self.vintages is not None:
+            self._check_vintages()
         if self.export_demand is not None and self.export_rule != "cet":
             raise ValueError(
                 "export_demand needs export_rule='cet'. With fixed export shares the "
                 "export volume is a fixed fraction of output, so no world price could "
                 "clear a demand curve for it.")
+
+    def _check_mobility(self):
+        import math
+        if not isinstance(self.factor_mobility, Mapping):
+            raise TypeError("factor_mobility must be a mapping {factor: elasticity}")
+        if self.regions:
+            raise ValueError(
+                "factor_mobility is not available in a regional model yet; factor "
+                "markets by region come with the regional closures of 0.7.")
+        for f, om in self.factor_mobility.items():
+            if f not in self.factors:
+                raise ValueError(f"factor_mobility names {f!r}, which is not among "
+                                 f"the factors {self.factors}")
+            if not (math.isfinite(float(om)) and float(om) >= 0):
+                raise ValueError(
+                    f"factor_mobility[{f!r}] must be a finite elasticity >= 0, got {om!r}. "
+                    f"A perfectly mobile factor is one left out of the mapping.")
+        if self.numeraire_factor in self.factor_mobility:
+            raise ValueError(
+                f"the numeraire {self.numeraire_factor!r} cannot be imperfectly mobile: its "
+                f"market is left to Walras' law, and with a price in every activity there "
+                f"would be no single market to leave out. Choose another numeraire_factor.")
+
+    def _check_forms(self):
+        named = set(self.factor_mobility or {}) | set(self.segment_mobility or {})
+        forms = (self.factor_mobility_form if isinstance(self.factor_mobility_form, Mapping)
+                 else {f: self.factor_mobility_form for f in named})
+        for f, form in forms.items():
+            if f not in named:
+                raise ValueError(f"factor_mobility_form names {f!r}, which neither "
+                                 f"factor_mobility nor segment_mobility lists")
+            if form not in ("cet", "logit"):
+                raise ValueError(f"factor_mobility_form must be 'cet' or 'logit', "
+                                 f"got {form!r} for {f!r}")
+
+    def _check_segments(self):
+        if not isinstance(self.labour_segments, Mapping):
+            raise TypeError("labour_segments must be a mapping {group: [factor, ...]}")
+        if self.regions:
+            raise ValueError("labour_segments is not available in a regional model yet")
+        seen = {}
+        for name, members in self.labour_segments.items():
+            members = list(members)
+            if len(members) < 2:
+                raise ValueError(f"labour_segments[{name!r}] needs two or more factors, "
+                                 f"got {members}")
+            if name in self.factors:
+                raise ValueError(f"the group name {name!r} is also a factor; name the group "
+                                 f"differently, so Growth.labour_factor is not ambiguous")
+            for f in members:
+                if f not in self.factors:
+                    raise ValueError(f"labour_segments[{name!r}] names {f!r}, which is not "
+                                     f"among the factors {self.factors}")
+                if f in seen:
+                    raise ValueError(f"factor {f!r} is in two segment groups, {seen[f]!r} "
+                                     f"and {name!r}")
+                seen[f] = name
+                if f == self.numeraire_factor:
+                    raise ValueError(
+                        f"the numeraire {f!r} cannot be a labour segment: its market is the "
+                        f"Walras check, and a segment's market is tied to the others'. "
+                        f"Choose another numeraire_factor.")
+                if self.factor_mobility and f in self.factor_mobility:
+                    raise ValueError(
+                        f"factor {f!r} is both a labour segment and in factor_mobility. "
+                        f"Mobility between segments is the group's, not the factor's.")
+
+    def _check_vintages(self):
+        import math
+        if not isinstance(self.vintages, Mapping) or len(self.vintages) != 1:
+            raise ValueError("vintages must be one pair {old capital: new capital}, "
+                             f"got {self.vintages!r}")
+        (old, new), = self.vintages.items()
+        if self.regions:
+            raise ValueError("vintages are not available in a regional model yet")
+        for f in (old, new):
+            if f not in self.factors:
+                raise ValueError(f"vintages names {f!r}, which is not among the factors "
+                                 f"{self.factors}")
+        if old == new:
+            raise ValueError("vintages needs two capital accounts, old and new")
+        if self.numeraire_factor in (old, new):
+            raise ValueError(f"the numeraire {self.numeraire_factor!r} cannot be a capital "
+                             f"vintage: old capital earns a price in every activity, and new "
+                             f"capital's market is what the path accumulates")
+        if new in (self.factor_mobility or {}):
+            raise ValueError(f"{new!r} is in factor_mobility, but new capital is mobile: it "
+                             f"goes where it earns most, which is what putty means")
+        segmented = [f for members in (self.labour_segments or {}).values() for f in members
+                     if f in (old, new)]
+        if segmented:
+            raise ValueError(f"{segmented} are labour segments and capital vintages at once")
+        if self.value_added != "ces":
+            raise ValueError("vintages need value_added='ces': the bundles are CES nests, "
+                             "Cobb–Douglas being sigma_va=1")
+        if self.energy:
+            raise ValueError("vintages and an energy nest are not available together yet")
+        for name in ("vintage_sigma", "vintage_substitution"):
+            got = getattr(self, name)
+            values = got.values() if isinstance(got, Mapping) else [got]
+            if any(not (math.isfinite(float(v)) and float(v) >= 0) for v in values):
+                raise ValueError(f"{name} must be finite and >= 0, got {got!r}")
+
+    def vintage_sigma_vector(self, activities: Sequence[str]):
+        return _as_vector(self.vintage_sigma, activities, "vintage_sigma")
+
+    def vintage_substitution_vector(self, activities: Sequence[str]):
+        return _as_vector(self.vintage_substitution, activities, "vintage_substitution")
+
+    def mobility_form_of(self, factor: str) -> str:
+        """The transformation form of an imperfectly mobile factor."""
+        form = self.factor_mobility_form
+        if isinstance(form, Mapping):
+            return form.get(factor, "cet")
+        return form
 
     # -- helpers ---------------------------------------------------------
     def classify(self, sam) -> AccountLayout:

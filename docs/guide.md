@@ -18,6 +18,8 @@
 16. [Emissions and a carbon price](#16-emissions-and-a-carbon-price)
 17. [Forward-looking investment, through dsgelab](#17-forward-looking-investment-through-dsgelab)
 18. [Physical units](#18-physical-units)
+19. [Microsimulation: poverty and inequality](#19-microsimulation-poverty-and-inequality)
+20. [Building a SAM from supply and use tables](#20-building-a-sam-from-supply-and-use-tables)
 
 The examples assume `import cgelab as cge` (and `numpy as np` where it appears).
 They are fragments: `econ` is a calibrated economy and `...` marks where your own
@@ -353,6 +355,141 @@ model's and not the solver's.
 it. All five combinations in the test matrix reproduce the base year and hold
 Walras to `~2e-15` under a 20% product-tax shock.
 
+### Factors that move only partway
+
+A perfectly mobile factor earns one price in every activity. A sector-specific
+one is a factor of its own, as `f_kind` is in `toy.build_with_specific_capital`.
+`ModelSpec.factor_mobility` sits between them: the factor's endowment is split
+among the activities that use it by a transformation with elasticity ω, and
+each activity pays its own price.
+
+```python
+spec = toy.spec(numeraire_factor="f_cap", factor_mobility={"f_lab": 2.0})
+econ = cge.calibrate(sam, spec)
+r = cge.solve_period(econ, scenario=cge.Scenario(world_price=np.array([1.0, 1.3])))
+r.factor_prices_by_activity[0]     # the wage in each activity
+```
+
+Two forms, by `factor_mobility_form`:
+
+- `"cet"`, the default, is the frontier of GTAP's sluggish endowments. A pool
+  with endowment `L` and base-year shares `δ_a` has the price index
+  `W = [Σ δ_a w_a^(1+ω)]^(1/(1+ω))` and supplies `δ_a L (w_a / W)^ω` to activity
+  `a`. Its income is `W L` exactly. The supplies do not add up to `L` away from
+  equal prices: moving between activities costs efficiency units.
+- `"logit"` keeps the head count: activity `a` gets the share
+  `δ_a w_a^ω / Σ δ_b w_b^ω` of `L`, whatever the prices. The pool's price is its
+  income over its head count. There is no frontier behind it, so the wage gaps it
+  leaves are a gain from moving that the welfare decomposition reports as
+  `factor_reallocation`; under the CET that term is zero.
+
+The two agree to first order around equal wages and part at second order. ω = 0
+holds the base-year allocation, and the model is then exactly the one with the
+factor split into one account per activity. As ω grows the solution approaches
+perfect mobility at a rate of 1/ω.
+
+**Pools of origin.** One national pool is the default. `calibrate(...,
+factor_pools={"f_lab": table})` takes a proximity matrix instead: a table of
+base-year use with pools of origin (occupations, regions, neighbouring sectors)
+as rows and activities as columns, each column adding up to what the SAM pays
+the factor there. A pool supplies only the activities it reached in the base
+year, so a shock to one sector draws first on its neighbours.
+`Scenario.pool_supply` moves the pools' endowments; absent, they scale with
+the factor's supply, as a growth path needs. `PeriodResult.factor_pools` reports
+each pool's price, endowment and supply by activity.
+
+```python
+pools = pd.DataFrame([[30.0, 10.0], [10.0, 60.0]], index=["rural", "urban"],
+                     columns=["a_agr", "a_ind"])
+econ = cge.calibrate(sam, spec, factor_pools={"f_lab": pools})
+```
+
+For such a factor, `factor_prices` is its income over its endowment and
+`factor_demand` is the endowment, so their product is still its income.
+`factor_demand_by_activity` holds the use by activity. The numeraire cannot be
+imperfectly mobile: its market is the Walras check, and with a price in every
+activity there is no single market to leave out. Labour closures other than
+full employment are refused on such a factor. Regional models refuse
+`factor_mobility`.
+
+### Formal and informal labour
+
+A SAM often pays labour through more than one account: formal and informal,
+covered and uncovered. Each is a factor the value-added nest demands on its
+own. `ModelSpec.labour_segments` says that the same people supply all of them,
+and `Closure.labour_markets` says how each segment's wage is set and where
+whoever a rigid segment does not hire goes.
+
+```python
+_, econ = toy.build_with_segmented_labour()      # f_for (industry), f_inf (farms)
+floor = cge.LabourMarket(rigid={"f_for": 1.1}, informal="f_inf")
+r = cge.solve_period(econ, cge.Closure(labour_markets={"labour": floor}))
+r.labour_markets["labour"]["employment"]          # formal 66.2 and informal 43.8, from 70 and 40
+```
+
+A rigid segment pays a fixed real wage (`1.1` is ten per cent above the
+calibrated one; `None` is the calibrated one) and hires what demand asks for at
+it. The segments that are not rigid share one wage, the informal segment's,
+and the informal segment employs the rest of the labour force:
+
+| `LabourMarket` | Where the rationed go | Equation |
+|---|---|---|
+| no rigid segment | nowhere: one labour market | `Σ D_g(w) = N` |
+| `unemployment="none"` | the informal segment (a dual market) | `E_inf = N − Σ E_g` |
+| `unemployment="harris_todaro"` | a queue for rigid jobs | `w_inf = λ Σ_R w_g E_g / (Σ_R E_g + U)` |
+
+Under Harris–Todaro, workers queue for rigid jobs until the informal wage equals
+the wage they expect from queueing. `unemployment_rate` is the base year's,
+`U / (E_R + U)`, and `λ = 1 / (1 − rate)` makes the base year reproduce the SAM.
+The informal wage can never rise above `λ` times the rigid one; a shock that
+asks for that is refused, because nobody would queue. Harris–Todaro does not
+tend to the dual market as the base rate goes to zero: it holds the informal
+wage at the expected rigid wage, and the dual market lets any gap stand.
+
+**Income follows the workers.** Each household has a fixed workforce in the
+group: its base-year jobs in every segment, plus its share of the queue. It
+holds its base-year share of each rigid segment's jobs and of the queue (the
+queue in proportion to its base-year rigid jobs), and the rest of its workforce
+works in the informal segment. A household that loses formal jobs gains
+informal ones, so the informal income goes to the people who lost formal work,
+not to the households that were already informal. At the base year this
+returns the SAM's ownership. `labour_markets[group]` reports, besides wages,
+employment and unemployment, `household_workforce`, `household_employment`
+(households by segments) and `household_unemployed`.
+
+**A transformation between segments.** `ModelSpec.segment_mobility =
+{"labour": ω}` replaces perfect mobility with the transformation of the
+previous section: each household's workforce is a pool, split among the
+segments by a CET or a logit (`factor_mobility_form`, which takes the group's
+name) at the segments' wages. Each flexible segment then has its own wage,
+which clears it against that supply. A rigid segment hires what demand asks for,
+and the rest of its supply queues in it; `unemployment_rate` is the base-year
+queue as a share of the segment's supply, one rate or `{factor: rate}`. There is
+no informal buffer and no Harris–Todaro rule here, and both are refused.
+
+```python
+spec = toy.spec(factors=("f_cap", "f_for", "f_inf"), numeraire_factor="f_cap",
+                labour_segments={"labour": ["f_for", "f_inf"]},
+                segment_mobility={"labour": 2.0})
+_, econ = toy.build_with_segmented_labour(model_spec=spec)
+queue = cge.LabourMarket(rigid={"f_for": 1.1}, unemployment_rate=0.08)
+r = cge.solve_period(econ, cge.Closure(labour_markets={"labour": queue}))
+r.labour_markets["labour"]["queue"]       # 18.6 queue for formal jobs, from 6.1
+```
+
+A rigid segment hires every household's supply in the same proportion, so the
+income still follows the workers. At ω = 0 with no base-year queue, a group with
+one rigid and one flexible segment is exactly the two factors kept apart under
+`Closure(labour="fixed_real_wage")`; as ω grows it approaches one labour market,
+at a rate of 1/ω. `labour_markets[group]` reports each segment's `supply` and
+`queue` in both modes; under perfect mobility the supply is the employment and
+the queue, if any, is the group's.
+
+`Scenario.labour_force` sets the population of a group, the queue included;
+absent, it is the base year's, scaled with the supply of the group's factors.
+`Growth(labour_factor="labour")` grows a group as a whole. A segment cannot
+also be the numeraire, sit in `factor_mobility`, or take `Closure.labour`.
+
 ---
 
 ## 7. Scenarios
@@ -500,6 +637,102 @@ that part, each year's `foreign_factor_share` is set from it, and its returns
 leave through the current account. Counting FDI only as foreign saving would hand
 residents a capital stock they did not pay for, and every gain it produced would
 be credited to them.
+
+### Capital by sector
+
+```python
+spec = cge.ModelSpec(..., factor_mobility={"f_cap": 0.0})
+econ = cge.calibrate(sam, spec, factor_pools={"f_cap": "activities"})
+path = cge.run_path(econ, years=years, growth=cge.Growth(allocation=2.0))
+path.capital_by_pool["f_cap"]            # the stock of each activity, by year
+```
+
+A pool per activity makes capital sector-specific: each activity has the
+capital it accumulated and pays its own rent for it. `run_path` keeps a stock
+per pool and shares each year's investment among them by `Growth.allocation`,
+as among several capital factors: `"proportional"` keeps the composition, a
+number `e` sends investment toward the activities whose capital earns more, in
+proportion to `K (r / r̄)^e`. Year by year, this is the path of capital written
+out by hand as one factor per activity. Other pools (owners, regions, with
+`ω > 0`) accumulate the same way.
+
+### Putty-clay vintages
+
+```python
+sam = cge.split_vintages(sam, 0.08)       # 8% of each activity's capital is new
+spec = cge.ModelSpec(..., factors=("f_lab", "f_cap", "f_cap_new"),
+                     vintages={"f_cap": "f_cap_new"},
+                     vintage_sigma=0.0,          # no substitution ex post
+                     sigma_va=0.8)               # substitution ex ante
+path = cge.run_path(cge.calibrate(sam, spec), years=years, growth=growth)
+path[2030].vintage_value_added           # old and new bundles, by activity
+```
+
+Installed capital is clay: it stays in the activity that bought it and works
+with the labour its technique was built for. Capital not yet installed is
+putty: it goes where it earns most, with the labour intensity the prices of the
+year make cheapest. Each activity's value added is then a CES
+(`vintage_substitution`) of two bundles. The old bundle is a CES of
+`vintage_sigma` (zero by default: fixed proportions) over every factor but new
+capital; the new bundle is the usual CES of `sigma_va` over every factor but old
+capital. Old capital is sector-specific, a pool per activity; new capital is
+mobile.
+
+In `run_path` the new vintage is each year's investment. At the end of the
+year, the new capital each activity used is installed there: it joins that
+activity's old capital, and the old bundle takes on the technique it was
+installed with, averaged with its own by quantity. Without that, capital
+installed in 2040 would work with the base year's labour, and an economy whose
+capital grows faster than its labour would have old capital no one can man.
+`split_vintages`'s `share` is the new vintage's part of each activity's
+capital: on a steady path, investment over the capital stock.
+
+LINKAGE has the two bundles as perfect substitutes. That case switches regime
+when an activity shrinks faster than its old capital wears out, leaving old
+capital idle, and a smooth solver does not switch regimes. Here they are a CES,
+20 by default, and the distance to one capital stock, with the same elasticity
+in both bundles, falls as one over it. Vintages are not available yet with an
+energy nest, with foreign-owned capital or FDI, or in several regions.
+
+### A baseline calibrated to GDP
+
+A baseline built from assumed rates makes GDP whatever the rates give. The
+applied practice turns this round, as in the historical simulations of MONASH
+and the baselines of LINKAGE: real GDP in each year, observed or projected, is
+given, and productivity is the unknown. A policy run then holds productivity at
+the calibrated values and lets GDP move.
+
+```python
+gdp = pd.Series([0.046, 0.029, 0.032, 0.025], index=range(2022, 2026))   # real growth
+base = cge.calibrate_baseline(econ, years=range(2021, 2026), gdp=gdp,
+                              growth=cge.Growth(labour=0.01))
+base.factor            # Λ_t, the productivity that hits each year
+base.achieved          # the GDP the path reached, against base.target
+policy = base.run(cge.Scenario(product_tax=new_rates))   # productivity held, GDP moves
+```
+
+The years are calibrated in sequence, since each year's capital comes from the
+investment of the years before: one scalar root a year, multiplying the
+Hicks-neutral productivity of every activity on top of what `growth` and
+`scenario` already set. `gdp` is a series of growth rates (`kind="growth"`), an
+index (`"index"`) or levels in the SAM's units at base-year prices (`"level"`);
+with the first two the first year is solved as `run_path` solves it, and with
+levels it is calibrated too. `pattern={"a_agr": 2.0, "a_ind": 1.0}` makes
+farming's productivity grow twice as fast as industry's, the path deciding how
+fast in all. With `sectors=`, a frame of real value added by year and activity,
+each activity has its own unknown and the roots are solved together.
+
+GDP is measured on the expenditure side of `real_gdp` (`measure="expenditure"`)
+or as the sum of `real_value_added` (`"production"`), value added by double
+deflation: output at base-year prices less the inputs it used at base-year
+prices, the volume measure statistical offices publish. The `value_added` of
+`real_gdp` cannot be the target. It is factor use at base-year factor prices,
+and productivity changes what a factor makes, not the factor.
+
+`base.scenario(policy)` is the `f(year, t)` that `run_path` takes. A policy is
+the whole scenario for the year, built from the baseline's as any policy is
+built from its reference; a productivity it sets multiplies the calibrated one.
+With no policy, running it reproduces the baseline exactly.
 
 ### Reading a path
 
@@ -951,3 +1184,280 @@ constant under Leontief inputs and moves with fuel prices under an energy nest.
 coefficient stated in physical units (kilowatt-hours of electricity per kilogram
 of output, say) into the money entry per unit of output value, at purchaser prices.
 Capacity in physical units, as a constraint, needs complementarity and waits for 0.8.
+
+---
+
+## 19. Microsimulation: poverty and inequality
+
+The SAM has a few household accounts; poverty and inequality live in the
+households a survey records. `cgelab.micro` carries a solved counterfactual to
+them top-down. Each survey household belongs to an account, its income from
+each source moves as that account's income from the source moves in the model,
+and its cost of living moves with its own budget at the prices its account pays.
+The survey households have no behaviour of their own here.
+
+```python
+_, econ = toy.build_with_segmented_labour()
+floor = cge.LabourMarket(rigid={"f_for": 1.1}, informal="f_inf")
+ref = cge.solve_period(econ)
+alt = cge.solve_period(econ, cge.Closure(labour_markets={"labour": floor}))
+micro = cge.microsimulate(toy.survey(), ref, alt)
+cge.inequality(micro)          # Gini, Theil T and L, GE(2), Atkinson, in both periods
+cge.poverty(micro, 3.0)        # FGT 0, 1 and 2 at a line of 3 per person
+```
+
+**The survey.** `cge.Survey(frame, sources=..., budget=...)` takes one row per
+household, with its account (`group`), survey weight and size. `sources` maps
+each income column to what moves it: a factor (`"f_cap"`), a factor in one
+activity (`"f_lab:a_agr"`, which follows that activity's price under imperfect
+mobility), `"transfers"`, `"remittances"`, `"recycled"` (wedge revenue returned
+to households) or `"fixed"` (held in nominal terms). `budget` maps spending
+columns to commodities; without it, each household uses its account's budget.
+`toy.survey()` is a synthetic survey of twelve households, written by hand.
+
+**Reconciliation.** A survey never adds up to the SAM. By default each source of
+each account is scaled so that the weighted survey total is the account's, and
+`micro.reconciliation` lists the factors; on the toy survey, formal wages of
+`hh_1` are scaled by 60/51. A survey and a SAM that disagree on whether an
+account has a source at all are refused, by account and source, because no
+scaling reconciles them. `reconcile=False` keeps the survey's levels and applies
+only the relative changes, and the micro totals then no longer add up to the
+model. A source an account did not have in the reference and has in the
+alternative, a new transfer, is shared per person among its households.
+
+**Incomes and prices.** `account_sources(period)` is what each account earns,
+by source, in a solved period; the factor columns and the last three add up to
+`period.hh_income`. Disposable income takes the account's direct tax rate. The
+price index is geometric in the household's own budget shares, the exact index
+for Cobb–Douglas and the one the model uses for its accounts, so a survey with
+one household per account, holding the SAM's incomes, gives back the model's
+real incomes. `price_index="laspeyres"` is the alternative; it is never below
+the geometric one. Real income is at the reference period's prices, and so is
+the poverty line.
+
+**Reweighting.** Under labour segments, scaling every household's wages by its
+account's would spread a lost formal job thinly over everyone who had one. With
+`reweight=True`, the default, who works where changes through the survey weights
+instead. Within each account they are calibrated by raking (Deville and Särndal,
+1992), the weights staying positive: the survey's income in each segment, at
+base-year wages, moves as the account's employment in the segment does; its
+unemployed persons (a `Survey.workers` column mapped to `"unemployed"`) move as
+the account's queue does, when the model has one; the number of households and
+every other source stay where they were. Each segment's income per worker then
+moves with its wage, so the micro totals are still the model's.
+`micro.calibration` lists each constraint's base, target and the total reached;
+`micro.workers` the persons in each `workers` column with the old weights and
+the new; `frame["weight_alt"]` the weights; and every table uses each period's
+own weights. A survey whose households in an account cannot reach the targets
+with positive weights is refused, naming the constraint: Harris–Todaro
+unemployment moves a lot for a small change in the rigid wage, and a small
+survey spans only so much of it. One household per account cannot be reweighted
+at all; `reweight=False` keeps the weights.
+
+### Behavioural microsimulation
+
+The reweighting changes how many households are like each other; it does not
+say which person loses a formal job. Following Bourguignon, Robilliard and
+Robinson (2005), `persons=` lets the people decide. A `PersonSurvey` holds one
+row per person of the households: the household (its row in the household
+survey), a status (a labour segment, `"unemployed"`, `"inactive"`), labour
+earnings and characteristics. A `Behaviour` is estimated on it, unless one is
+given: earnings equations by segment, `ln y = a_k + X b_k + e`, by weighted
+least squares, and the occupational choice by a multinomial logit on the
+characteristics, by maximum likelihood (no dependency beyond scipy).
+
+```python
+people = cge.microsimulate(toy.survey(), ref, alt, persons=toy.persons())
+people.workers                 # persons by status: hh_1 formal 7.5 to 7.09, informal 2.5 to 3.31
+people.calibration             # the intercepts' targets, reached
+```
+
+A counterfactual reaches the persons through two sets of intercepts, by SAM
+account: the choice intercepts move until employment in each segment changes as
+the account's does in the model (and unemployment, where the model has a queue),
+and the earnings intercepts until earnings per worker change as the account's
+income per worker does. The household survey's segment columns are replaced by
+the members' earnings, reconciled with the SAM the same way, and the weights
+stay. The micro labour income of every account is the model's, segment by
+segment.
+
+The choice residuals are what the observed choice reveals. `method="draws"` is
+BRR's procedure: Gumbel errors drawn conditional on each person's observed
+status, so that the base reproduces the survey; a mover into a segment earns the
+equation's prediction plus a normal draw. The results depend on the seed, so
+`seed` and `replications` are arguments, the tables report each measure's mean
+over the replications and its standard error (`alt_se`), and
+`result.replications` keeps every replication's real incomes.
+`method="expected"`, the default, is the limit of those replications in closed
+form: the probability that a person observed in `j` moves to `k` when the
+intercepts shift by `δ`, `transition_probabilities(V, δ)`, which is a logit for
+staying and a piecewise analytic integral for moving. It is deterministic and
+smooth in `δ`, which is what lets the intercepts hit the model's targets
+exactly; draws hit them only up to the granularity of a finite sample.
+
+### Survey data from the IBGE
+
+The IBGE publishes its microdata as fixed-width text with a SAS reading program
+that gives each field's position, width and type. `read_ibge(data, program)`
+reads the data with that program, so no position is written by hand and a new
+layout needs no new code; `read_sas_program` returns the layouts, one per data
+step (the POF has sixteen). Text fields stay text, blanks are missing, a `w.d`
+informat places the decimal point as SAS does, and `variables=` and
+`chunksize=` keep a quarter of the PNAD Contínua within memory.
+
+```python
+survey, persons = cge.pnadc("PNADC_032023.txt", "input_PNADC_trimestral.txt",
+                            segments={"formal": "f_for", "informal": "f_inf"},
+                            group=my_accounts)          # a column, or a function of the households
+households = cge.pof("Dados_POF/", "Leitura dos Microdados - SAS.txt",
+                     commodities=correspondence, group=my_accounts)
+```
+
+`pnadc` gives a household survey and a person survey for the behavioural
+microsimulation. A person under 14 or out of the labour force (VD4001 = 2) is
+inactive, an unoccupied one (VD4002 = 2) unemployed, and an occupied one
+informal by the IBGE's proxy: VD4009 02 (private employee without a signed
+card), 04 (domestic worker without one) or 10 (unpaid family worker), or 08 and
+09 (employer, own-account) without CNPJ (V4019 = 2); formal otherwise. Earnings
+are VD4019, usual monthly earnings from all jobs. V4019 exists from the fourth
+quarter of 2015; for earlier quarters `missing_cnpj` must say how employers and
+own-account workers are classified. The household is UPA + V1008 + V1014 and its
+weight V1028.
+
+`pof` gives a survey of consumption units. Spending comes from the four records
+of the IBGE's general spending table, each value `V8000_DEFLA ×
+FATOR_ANUALIZACAO / 12`, times `V9011` for the quadros the IBGE treats as monthly
+(estimated rent; collective quadros 10 and 19; individual quadros 44, 47 to 50):
+monthly, at January 2018 prices. `commodities` maps a prefix of the five-digit
+item code to a SAM commodity, the longest prefix winning; what it does not map
+stays in `unmapped_spending`, outside the budget. Work income and other income
+(by `income`, a prefix map to columns) come out monthly the same way; their
+sources are `"fixed"` until mapped to the model's. The size leaves out domestic
+employees and their relatives (V0306 18 and 19). The definitions were checked
+against the IBGE's dictionaries, reading programs and calculation memo, and
+`validation/ibge_layouts.py` compares the layouts with the IBGE's R programs.
+The microdata never enter the repository; a check on them runs when
+`CGELAB_IBGE_DIR` points at them.
+
+**Measures.** `gini`, `fgt`, `generalized_entropy` (`theil` is GE(1),
+`mean_log_deviation` GE(0)) and `atkinson` take any vector and weights.
+`ge_decomposition` splits GE(α) into inequality within and between groups,
+exactly, and `fgt_decomposition` gives each group's contribution to FGT(α).
+`inequality` and `poverty` tabulate them per person, weighting by each period's
+survey weight times the household size; `equivalence=θ` divides by `size ** θ`
+instead (0.5 is the square-root scale). `poverty(..., by_group=True)` adds each
+account's contribution.
+
+---
+
+## 20. Building a SAM from supply and use tables
+
+Most of the work in an applied model happens before `calibrate`. The supply and
+use tables give the production block and final demand; who receives the income
+comes from the integrated economic accounts, or is assumed. `sut_to_sam`
+assembles both in the layout `calibrate` reads and records where each block
+came from.
+
+```python
+make = pd.DataFrame({"c_x": [100.0]}, index=["a_x"])            # activities by commodities
+use = pd.DataFrame({"a_x": [0.0]}, index=["c_x"])               # commodities by activities
+final = pd.DataFrame({"hh": [80.0], "s_i": [20.0]}, index=["c_x"])
+va = pd.DataFrame({"a_x": [60.0, 40.0]}, index=["f_lab", "f_cap"])
+sut = cge.SupplyUse(make=make, use=use, final=final, imports=pd.Series({"c_x": 0.0}),
+                    value_added=va)
+sam = cge.sut_to_sam(sut, source="hand-written tables")
+sam.provenance            # every block: its source, what it is, its total
+```
+
+**The tables.** `SupplyUse` holds labelled frames, and the labels become the
+accounts:
+- `make` is output at basic prices; `use` is intermediate use at purchaser
+  prices; `final` is final demand at purchaser prices;
+- `imports` are at border prices; `value_added` is factors by activities;
+- `product_taxes` and `production_taxes` are net of subsidies;
+- `margins` holds a margin commodity's services in every commodity's supply,
+  with minus its total on its own column, so each row adds up to zero;
+- `tariffs` and `output_taxes` go to accounts of their own when the model reads
+  them so;
+- `direct_sales` is own-account production sold straight to households.
+
+`final_roles` says what each final-demand column is: households (each becomes a
+household account), government, investment (summed into one account) or
+exports. A column named like the government, investment or rest-of-world
+account needs no role.
+
+**The institutions.** `Institutions` holds what the tables do not: each factor's
+income by recipient (households, government, abroad), direct taxes, government
+transfers, transfers from and to abroad, and any other flow as
+`(receiver, payer, amount, source)`. Without it, all factor income goes to the
+one household account, and the provenance says that this was assumed.
+
+**What is refused, and what is residual.** Commodities whose supply and use
+disagree, activities whose output and costs disagree, margin rows that do not
+add up to zero, factor income paid out that differs from value added, and an
+institutional flow that leaves an activity, a commodity or a factor unbalanced
+are all refused by name. The savings of each household, of government and of
+the rest of the world are residuals, recorded as such. `SupplyUse.gdp()` gives
+GDP from production, expenditure and income, which agree when the tables do.
+Every SAM of the toy rebuilds from its own tables, cell by cell.
+
+### Disaggregating with household surveys
+
+`split_households(sam, survey, account="hh")` splits one household account into
+the groups of a `Survey` (its `group` column: deciles, formal and informal
+households, regions). Every cell of the account is shared by each group's share
+of the weighted survey total for that cell: income from a factor by the columns
+`Survey.sources` maps to it (`"transfers"` stands for government and
+`"remittances"` for the rest of the world), spending on a commodity by its budget
+columns. `incomes=` and `outlays=` name the columns for other cells, a direct
+tax say, and `fallback=` shares a cell the survey has nothing on by
+`"population"` or `"households"`; a cell with neither is refused by name. Each
+group's saving is the residual, and a negative one is kept: it is data.
+`group_population(survey)` gives the persons in each group, which `calibrate`
+takes as `population`.
+
+`split_factor(sam, "f_lab", by_activity, owners=...)` splits a factor: in each
+activity its payment is shared in proportion to a column of `by_activity` (new
+factors by activities), and its income goes to its recipients, government and
+abroad keeping their shares and households following `owners` (their savings
+recomputed). `segment_shares(survey, persons, segments=[...])` gives both from
+the PNAD Contínua read with `activities=` (V4013, the activity of the main job):
+
+```python
+by_activity, owners = cge.segment_shares(survey, persons, segments=["f_for", "f_inf"])
+split = cge.split_factor(sam, "f_lab", by_activity, owners=owners, source="PNADC 2023q3")
+```
+
+Summing the groups or the new factors gives back the original exactly. Two
+equivalences check that the split changes nothing it should not: households
+split with identical proportions have the aggregate's equilibrium under
+Cobb–Douglas demand, and labour split into segments that share one wage (a
+group of `labour_segments` with no rigid segment) has the single factor's,
+because a CES with two inputs at the same price is the CES with their sum.
+
+### The IBGE's supply and use tables
+
+`read_tru(table1, table2)` reads the IBGE's supply and use tables (Sistema de
+Contas Nacionais, tables 1 and 2 at current prices, any level: 12, 20, 51 or 68
+activities) into a `SupplyUse`, in R$ million, accounts named by the IBGE's
+codes (`a_0191`, `c_01911`) with their descriptions in `sut.labels`. Reading
+the `.xls` files needs `xlrd` (`pip install "cgelab[ibge]"`).
+
+```python
+sut = cge.read_tru("68_tab1_2021.xls", "68_tab2_2021.xls")
+sut.gdp()                  # 9,012,142 by all three sides: the IBGE's published 2021 GDP
+sam = cge.sut_to_sam(sut, institutions)
+```
+
+Labour is *Remunerações*; capital *Excedente operacional bruto*. Mixed income
+is a factor of its own by default (`mixed_income="separate"`, `f_mix`), or joins
+labour or capital, explicitly, because which it is moves the distribution.
+Taxes on products are the import tax, IPI, ICMS and other taxes net of
+subsidies (`tariffs=True` sets the import tax apart); other taxes on
+production, net of subsidies, are taxes on production. The trade and transport
+margin columns are positive on the goods and negative on the products that
+provide them, and each good's margin is shared among its providers in
+proportion to what each provides: an allocation the provenance records as
+assumed. The NPISH join households, or government with `npish=`. The published
+2021 table at 68 activities closes exactly and gives the GDP the IBGE publishes
+for that year.

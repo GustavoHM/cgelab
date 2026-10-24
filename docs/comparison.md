@@ -3,7 +3,7 @@
 *Versão em português: [`comparison.pt-br.md`](comparison.pt-br.md).*
 
 The survey of the other packages was made on 9 September 2026. The `cgelab` column was revised
-on 13 October 2026, for version 0.5. Rows that changed since 0.1 are marked †. The other
+on 22 October 2026, for version 0.6. Rows that changed since 0.1 are marked †. The other
 packages' columns were **not** redone.
 
 The question behind the survey was whether a CGE package in Python already existed. The short
@@ -24,12 +24,12 @@ read. A **📄** cell may be wrong.
 
 ## The table
 
-| Capability | cgelab 0.5 | pycge | PSLmodels/CGE | python-cge | GAMS / GEMPACK (ref.) |
+| Capability | cgelab 0.6 | pycge | PSLmodels/CGE | python-cge | GAMS / GEMPACK (ref.) |
 |---|---|---|---|---|---|
 | **Origin** | written for an applied SAM | ✅ port of `splcge.gams` from the GAMS library | ✅ "the simplest CGE model of Hosoe, Gawana [sic] and Hashimoto (2010)" | ✅ direct transcription of Hosoe's book, p. 72 | general-purpose platforms |
 | **Demonstrated scale** | ✅ the applied SAM it was written for, not public yet; in public, teaching examples | ✅ 3 teaching examples and a regional one | ✅ a **16×18** SAM: 4 sectors, 3 factors | ✅ **2 goods** (`BRD`, `MLK`) | thousands of accounts (GTAP) |
 | Backend | ✅ `scipy.optimize.root` on a few unknowns | ✅ Pyomo + IPOPT | ✅ `scipy` `root` | ✅ its own | dedicated solvers |
-| Lines of Python | ~7,100 † | ✅ 3,267 | ✅ 2,660 | ✅ 533 | n/a |
+| Lines of Python | ~11,800 † | ✅ 3,267 | ✅ 2,660 | ✅ 533 | n/a |
 | **SAM: reading, balance check, balancing** | ✅ long or square form, a hard gate, sign-preserving RAS | ? | ✅ reads `SAM.xlsx` | ✅ has `balance.py` | ✅ |
 | SAM flows the model does not read | ✅ listed at calibration † | ? | ? | ? | the modeller's convention |
 | Configurable value-added nest (CES / CD / Leontief) | ✅ | ? | ✅ CES and Leontief | — | ✅ |
@@ -42,14 +42,18 @@ read. A **📄** cell may be wrong.
 | Creditable / non-creditable split of the product tax | ✅ | — | — | — | ✅ |
 | **Direct taxes, transfers and remittances** | ✅ † | ? | ? | ? | ✅ |
 | **Foreign-owned capital and FDI** | ✅ † profit remittances in the current account | ? | ? | ? | ✅ |
+| **Imperfect factor mobility** | ✅ † CET or logit, pools of origin | ? | ? | ? | ✅ GTAP's sluggish endowments |
+| **Segmented labour and informality** | ✅ † dual market, Harris–Todaro, a transformation between segments | ? | ? | ? | the modeller's convention |
+| **Microsimulation, poverty and inequality** | ✅ † top-down and behavioural (BRR) | ? | ? | ? | separate tools |
+| **A SAM built from supply and use tables** | ✅ † with the provenance of every block; the IBGE's tables | ? | ? | ? | separate tools |
 | **Alternative closures** | ✅ 5 combinations, each with its own adjusting variable | ? | — | — | ✅ |
 | **Walras as a check, not an equation** | ✅ the numeraire market is left out of the system | ? | — | — | the modeller's convention |
 | **Base-year reproduction test** | ✅ automatic | 📄 "compares base and simulation" | — | — | the modeller's convention |
 | **Zero-degree homogeneity test** | ✅ automatic | — | — | — | the modeller's convention |
-| **Recursive dynamics** | ✅ several capital stocks, allocation by return, a per-year economy † | — | ✅ a time-iteration loop | — | ✅ |
+| **Recursive dynamics** | ✅ several capital stocks, capital by sector, putty-clay vintages, allocation by return, a per-year economy, a baseline calibrated to GDP † | — | ✅ a time-iteration loop | — | ✅ |
 | **Welfare: EV and CV** | ✅ | — | — | — | the modeller's convention |
 | Group aggregation immune to composition | ✅ | — | — | — | — |
-| **Independent replica for validation** | ✅ † JuMP/Ipopt, 34 cases | ? | ? | ? | n/a |
+| **Independent replica for validation** | ✅ † JuMP/Ipopt, 50 cases | ? | ? | ? | n/a |
 | Licence | MIT | ? | CC0-1.0 | ? | proprietary / commercial |
 | State declared by the authors | — | — | ✅ "very preliminary… please do not cite" | textbook | mature |
 
@@ -71,7 +75,7 @@ without a commercial licence and with the accounting checks built in, no alterna
 
 `cgelab` was validated in four ways:
 
-- against an independent JuMP/Ipopt replica of the same equilibrium, in 34 cases;
+- against an independent JuMP/Ipopt replica of the same equilibrium, in 50 cases;
 - against a line-by-line JuMP transcription of the GAMS library programs `stdcge` and `lrgcge`
   (Hosoe, Gasawa and Hashimoto, 2004): the tariff abolition agrees in all 49 displayed variables,
   to 2.4e-12;
@@ -111,10 +115,11 @@ the goal is to cover the whole list by 1.0; each item's version is the one in
 | Energy nests (KLEM), emissions, carbon tax | 📄 ENVISAGE, EPPA, GTAP-E | **done**: a value-added-energy or capital-energy nest (GTAP-E's arrangement) with interfuel substitution, emissions by source, the carbon price inside each activity's fuel price, revenue-neutral recycling, physical units | 0.4 |
 | Government closures | 📄 IFPRI | **done**: fixed saving rate (Hosoe's), a saving target and fixed revenue (revenue-neutral replacement), met by the direct tax, the product tax or spending | 0.4 |
 | Bridge to `dsgelab` | — | **done**: a Ramsey CGE with investment set by an Euler equation; steady state, first order, perfect foresight and announced policy; the growth model in a one-good economy | 0.4 |
-| Imperfect factor mobility; informality | 📄 IFPRI, ORANI | missing | 0.6 |
-| Link to microsimulation; Gini and FGT | 📄 common practice | missing | 0.6 |
-| Dynamic calibration of the baseline; sectoral capital and vintages | 📄 MONASH, GDyn, LINKAGE | missing | 0.6 |
-| SAM construction and disaggregation | 📄 IFPRI, PEP | missing | 0.6 |
+| Imperfect factor mobility; proximity matrix | 📄 GTAP, ORANI | **done**: a CET (GTAP's sluggish endowments) or a logit across activities, pools of origin as a proximity matrix; exact against separate sector-specific factors at ω = 0 and against the JuMP replica | 0.6 |
+| Segmentation and informality | 📄 IFPRI; Harris and Todaro | **done**: labour accounts that share one population; one labour market, a dual market and Harris–Todaro, or a CET or logit between segments with a queue in each rigid one; income that follows each household's workers; exact against two factors under a fixed real wage at ω = 0 and against the JuMP replica | 0.6 |
+| Link to microsimulation; Gini and FGT | 📄 common practice | **done**: survey households scaled to the SAM by account and source, their own price indices; Gini, FGT, generalised entropy and Atkinson with exact decompositions; the weights recalibrated by raking to the model's employment by segment and unemployment. A behavioural microsimulation (BRR): earnings equations and a multinomial logit of occupational choice, linked by intercepts, with the conditional draws or their closed-form expectation. readers for the IBGE's PNAD Contínua and POF | 0.6 |
+| Dynamic calibration of the baseline; sectoral capital and vintages | 📄 MONASH, GDyn, LINKAGE | **done**: the productivity that hits a path of real GDP, by year or by activity, with policy runs at it, exact against the Solow recursion in a one-good economy; capital by sector with investment shared by rents; putty-clay vintages, the old one keeping the technique it was installed with, against the JuMP replica | 0.6 |
+| SAM construction and disaggregation | 📄 IFPRI, PEP | **done**: construction from supply and use tables with the provenance of every block, and disaggregation of households and of labour by household surveys | 0.6 |
 | Several regions | 📄 GTAP, TERM, ORANI-G | origin nest done; migration, regional closures and bilateral trade missing | 0.7 |
 | GTAP data | 📄 GTAPAgg, FlexAgg | HAR reading and writing done, exact against harpy3 on GTAP 10A; aggregation and a one-region SAM missing | 0.7 |
 | Complementarity (MCP); alternative solvers | 📄 GAMS/MPSGE with PATH; pycge (Pyomo) | missing | 0.8 |

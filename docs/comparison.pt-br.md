@@ -3,7 +3,7 @@
 *English version: [`comparison.md`](comparison.md).*
 
 O levantamento dos outros pacotes foi feito em 9 de setembro de 2026. As colunas do `cgelab`
-foram revistas em 13 de outubro de 2026, para a versão 0.5. As linhas que mudaram desde a 0.1
+foram revistas em 22 de outubro de 2026, para a versão 0.6. As linhas que mudaram desde a 0.1
 estão marcadas com †. As colunas dos outros pacotes **não** foram refeitas.
 
 A pergunta que originou este levantamento foi se já existia um pacote de EGC em Python. A resposta
@@ -24,12 +24,12 @@ célula **📄** pode estar errada.
 
 ## A tabela
 
-| Capacidade | cgelab 0.5 | pycge | PSLmodels/CGE | python-cge | GAMS / GEMPACK (ref.) |
+| Capacidade | cgelab 0.6 | pycge | PSLmodels/CGE | python-cge | GAMS / GEMPACK (ref.) |
 |---|---|---|---|---|---|
 | **Origem** | escrito para uma MCS aplicada | ✅ porte do `splcge.gams` da biblioteca do GAMS | ✅ "o modelo CGE mais simples de Hosoe, Gawana [sic] e Hashimoto (2010)" | ✅ transcrição direta do livro de Hosoe, p. 72 | plataformas de propósito geral |
 | **Escala demonstrada** | ✅ a MCS aplicada para a qual foi escrito, ainda não pública; em público, exemplos didáticos | ✅ 3 exemplos didáticos e um regional | ✅ MCS de **16×18**: 4 setores, 3 fatores | ✅ **2 bens** (`BRD`, `MLK`) | milhares de contas (GTAP) |
 | Backend | ✅ `scipy.optimize.root` sobre poucas incógnitas | ✅ Pyomo + IPOPT | ✅ `scipy` `root` | ✅ próprio | resolvedores dedicados |
-| Linhas de Python | ~7.100 † | ✅ 3.267 | ✅ 2.660 | ✅ 533 | n/a |
+| Linhas de Python | ~11.800 † | ✅ 3.267 | ✅ 2.660 | ✅ 533 | n/a |
 | **MCS: leitura, verificação de balanço, balanceamento** | ✅ formato longo ou quadrado, porta dura, RAS que preserva sinais | ? | ✅ lê `SAM.xlsx` | ✅ tem `balance.py` | ✅ |
 | Fluxos da MCS que o modelo não lê | ✅ listados na calibração † | ? | ? | ? | convenção do modelador |
 | Ninho de valor adicionado configurável (CES / CD / Leontief) | ✅ | ? | ✅ CES e Leontief | — | ✅ |
@@ -42,14 +42,18 @@ célula **📄** pode estar errada.
 | Split creditável/não creditável do tributo | ✅ | — | — | — | ✅ |
 | **Impostos diretos, transferências e remessas** | ✅ † | ? | ? | ? | ✅ |
 | **Capital de propriedade estrangeira e IED** | ✅ † remessa de lucros na conta corrente | ? | ? | ? | ✅ |
+| **Mobilidade imperfeita de fatores** | ✅ † CET ou logit, pools de origem | ? | ? | ? | ✅ os fatores "sluggish" do GTAP |
+| **Trabalho segmentado e informalidade** | ✅ † mercado dual, Harris–Todaro, transformação entre os segmentos | ? | ? | ? | convenção do modelador |
+| **Microssimulação, pobreza e desigualdade** | ✅ † de cima para baixo e comportamental (BRR) | ? | ? | ? | ferramentas à parte |
+| **MCS montada de tabelas de recursos e usos** | ✅ † com a procedência de cada bloco; as tabelas do IBGE | ? | ? | ? | ferramentas à parte |
 | **Fechamentos alternativos** | ✅ 5 combinações, cada uma com a sua variável de ajuste | ? | — | — | ✅ |
 | **Walras como verificação e não como equação** | ✅ mercado do numerário fora do sistema | ? | — | — | convenção do modelador |
 | **Teste de reprodução do ano-base** | ✅ automático | 📄 "compara base e simulação" | — | — | convenção do modelador |
 | **Teste de homogeneidade de grau zero** | ✅ automático | — | — | — | convenção do modelador |
-| **Dinâmica recursiva** | ✅ vários estoques de capital, alocação pelo retorno, economia por ano † | — | ✅ laço de iteração temporal | — | ✅ |
+| **Dinâmica recursiva** | ✅ vários estoques de capital, capital por setor, safras putty-clay, alocação pelo retorno, economia por ano, linha de base calibrada ao PIB † | — | ✅ laço de iteração temporal | — | ✅ |
 | **Bem-estar: VE e VC** | ✅ | — | — | — | convenção do modelador |
 | Agregação por grupo imune à composição | ✅ | — | — | — | — |
-| **Réplica independente para validação** | ✅ † JuMP/Ipopt, 34 casos | ? | ? | ? | n/a |
+| **Réplica independente para validação** | ✅ † JuMP/Ipopt, 50 casos | ? | ? | ? | n/a |
 | Licença | MIT | ? | CC0-1.0 | ? | proprietária/comercial |
 | Estado declarado pelos autores | — | — | ✅ "muito preliminar… por favor não cite" | livro-texto | maduro |
 
@@ -71,7 +75,7 @@ licença comercial e com as verificações contábeis embutidas, não se achou a
 
 O `cgelab` foi validado de quatro formas:
 
-- contra uma réplica independente em JuMP/Ipopt do mesmo equilíbrio, em 34 casos;
+- contra uma réplica independente em JuMP/Ipopt do mesmo equilíbrio, em 50 casos;
 - contra uma transcrição linha a linha, em JuMP, dos programas `stdcge` e `lrgcge` da
   biblioteca do GAMS (Hosoe, Gasawa e Hashimoto, 2004): a abolição das tarifas coincide nas 49
   variáveis exibidas, a 2,4e-12;
@@ -109,10 +113,11 @@ lista até a 1.0; a versão de cada item é a do [`ROADMAP.md`](../ROADMAP.md).
 | Fechamentos do governo | 📄 IFPRI | **feito**: taxa de poupança fixa (a de Hosoe), meta de poupança e receita fixa (substituição neutra em arrecadação), atingidas pelo imposto direto, pelo imposto sobre produtos ou pelo gasto | 0.4 |
 | Poupança externa fixa em moeda estrangeira | 📄 Hosoe, IFPRI | **feito** | 0.2 |
 | Ponte com o `dsgelab` | — | **feito**: CGE de Ramsey com investimento por Euler; estado estacionário, primeira ordem, previsão perfeita e política anunciada; igual ao modelo de crescimento numa economia de um bem | 0.4 |
-| Mobilidade imperfeita de fatores; informalidade | 📄 IFPRI, ORANI | falta | 0.6 |
-| Elo com microssimulação; Gini e FGT | 📄 prática corrente | falta | 0.6 |
-| Calibração dinâmica da linha de base; capital setorial e safras | 📄 MONASH, GDyn, LINKAGE | falta | 0.6 |
-| Construção e desagregação de MCS | 📄 IFPRI, PEP | falta | 0.6 |
+| Mobilidade imperfeita de fatores; matriz de proximidade | 📄 GTAP, ORANI | **feito**: CET (os fatores "sluggish" do GTAP) ou logit entre as atividades, pools de origem como matriz de proximidade; exato contra fatores específicos separados em ω = 0 e contra a réplica JuMP | 0.6 |
+| Segmentação e informalidade | 📄 IFPRI; Harris e Todaro | **feito**: contas de trabalho que dividem uma população; mercado único, mercado dual e Harris–Todaro, ou CET ou logit entre os segmentos com fila em cada rígido; renda que segue os trabalhadores de cada domicílio; exato contra dois fatores com salário real fixo em ω = 0 e contra a réplica JuMP | 0.6 |
+| Elo com microssimulação; Gini e FGT | 📄 prática corrente | **feito**: domicílios da pesquisa reconciliados com a MCS por conta e fonte, com o próprio índice de preços; Gini, FGT, entropia generalizada e Atkinson com decomposições exatas; pesos recalibrados por raking para o emprego por segmento e o desemprego do modelo. Microssimulação comportamental (BRR): equações de rendimento e logit multinomial da escolha ocupacional, ligados por interceptos, com os sorteios condicionais ou sua expectativa em forma fechada. leitores da PNAD Contínua e da POF do IBGE | 0.6 |
+| Calibração dinâmica da linha de base; capital setorial e safras | 📄 MONASH, GDyn, LINKAGE | **feito**: a produtividade que atinge uma trajetória do PIB real, por ano ou por atividade, com simulações de política a ela, exata contra a recursão de Solow numa economia de um bem; capital por setor com o investimento repartido pelos rendimentos; safras putty-clay, a velha com a técnica com que foi instalada, contra a réplica JuMP | 0.6 |
+| Construção e desagregação de MCS | 📄 IFPRI, PEP | **feito**: construção a partir das tabelas de recursos e usos, com a procedência de cada bloco, e desagregação das famílias e do trabalho por pesquisas domiciliares | 0.6 |
 | Múltiplas regiões | 📄 GTAP, TERM, ORANI-G | ninho de origem feito; migração, fechamentos regionais e comércio bilateral faltam | 0.7 |
 | Dados do GTAP | 📄 GTAPAgg, FlexAgg | leitura e escrita de HAR feitas, conferidas contra o harpy3 no GTAP 10A; agregação e MCS de uma região faltam | 0.7 |
 | Complementaridade (MCP); resolvedores alternativos | 📄 GAMS/MPSGE com PATH; pycge (Pyomo) | falta | 0.8 |

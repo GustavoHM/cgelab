@@ -184,6 +184,32 @@ A matriz registra emprego, não força de trabalho. A força é o emprego de bas
 
 O fator trabalho não pode ser o numerário quando o fechamento fixa ou liga o seu salário. Esse mercado é o teste de Walras. Pinçá-lo transformaria o teste numa identidade, ou numa fuga.
 
+### Mobilidade imperfeita dos fatores
+
+Um fator em `factor_mobility` tem um preço \(w_a\) em cada atividade que o usa. A dotação vem em pools de origem \(o\), cada um com as parcelas \(\delta_{oa}\) do seu uso no ano-base. Na forma CET, os sluggish endowments do GTAP,
+
+\[
+W_o = \Big[\sum_a \delta_{oa}\, w_a^{1+\omega}\Big]^{1/(1+\omega)}, \qquad
+S_{oa} = \delta_{oa} L_o \left(\frac{w_a}{W_o}\right)^{\omega}.
+\]
+
+A fronteira é homogênea de grau um, então a renda do pool é \(W_o L_o\) exatamente. A soma física \(\sum_a S_{oa}\) não é \(L_o\) fora de preços iguais: mudar de atividade custa eficiência. Na forma logit a contagem se mantém, \(S_{oa} = L_o\, \delta_{oa} w_a^{\omega} / \sum_b \delta_{ob} w_b^{\omega}\), e o preço do pool é a renda sobre a contagem. Até a primeira ordem em torno de preços iguais as duas são a mesma oferta. Cada atividade usuária tem um mercado, \(\sum_o S_{oa} = D_a(w)\), e um preço desconhecido. Com \(\omega = 0\), ou com pools que alcançam uma atividade só, o fator é um conjunto de fatores específicos.
+
+### Trabalho segmentado
+
+Contas de trabalho de um grupo (`labour_segments`) dividem uma população \(N\). Com mobilidade perfeita entre os segmentos, todo segmento não rígido ganha o salário que limpa o segmento informal \(b\). Um segmento rígido paga \(w_g = \hat w_g P\) e emprega o que a demanda pede,
+
+\[
+E_b = N - \sum_{g \ne b} E_g - U, \qquad
+w_b = \lambda\, \frac{\sum_{g \in R} w_g E_g}{\sum_{g \in R} E_g + U}, \qquad \lambda = \frac{1}{1-u_0}.
+\]
+
+No mercado dual \(U = 0\) e a segunda equação não existe. Em Harris–Todaro o salário informal iguala o salário esperado na fila por um emprego rígido, e \(\lambda\) faz o ano-base, com taxa de desemprego \(u_0\), reproduzir a matriz. O emprego é resolvido por sondagens afins: \(k+1\) sondagens e um sistema linear \(k \times k\).
+
+Com `segment_mobility`, a força de trabalho de cada família é um pool transformado entre os segmentos pela CET ou pela logit acima. Um segmento flexível limpa, \(\sum_h S_{hg} = D_g\). Um segmento rígido emprega \(D_g\), e a fila nele é \(U_g = \sum_h S_{hg} - D_g\).
+
+A renda segue as pessoas. No primeiro modo cada família tem a força \(n_h = \sum_g s_{hg} L_{g0} + q_h U_0\), a parcela \(s_{hg}\) dos empregos de cada segmento, \(q_h\) da fila, e o resto no segmento informal. No segundo, um segmento rígido emprega a oferta de cada família na mesma proporção, \(D_g / \sum_h S_{hg}\). No ano-base os dois devolvem a propriedade da matriz.
+
 ### Homogeneidade
 
 Nenhuma magnitude real depende do nível do preço do numerário. Magnitudes nominais exógenas denominadas nele, a poupança externa, a meta de saldo comercial e o imposto específico sobre a atividade, escalam com ele. A poupança externa em dólares escala pela taxa de câmbio, que é o que converte dólares em numerário. Deixar alguma delas fixa enquanto o nível de preços se move mudaria a taxa real de câmbio, o investimento real ou a cunha real do imposto, e um teste de homogeneidade falharia por um motivo que não é o modelo.
@@ -216,6 +242,34 @@ O investimento direto compra capital que permanece de propriedade estrangeira e 
 
 O trabalho cresce à taxa declarada. A produtividade de Hicks neutra escala os requisitos de insumo de toda atividade. A produtividade aumentadora de fator escala as dotações. Sob Hicks neutro a mesma dotação produz mais, e os preços dos fatores sobem contra o numerário. Sob a escala da dotação o sistema de preços é homogêneo no vetor de dotações, e os preços relativos dos fatores só se movem quando a composição da oferta muda. Um modelo que cresce de um modo e reporta o outro descreve outra economia.
 
+### Capital por setor
+
+Com `factor_pools={"f_cap": "activities"}` cada atividade tem um pool de capital, e o capital é específico do setor. A lei do estoque vale para cada pool, com o investimento doméstico repartido entre todos os estoques pela regra acima, com o preço do pool como \(r\). Ano a ano, é a trajetória do capital escrito à mão como um fator por atividade.
+
+### Safras (putty-clay)
+
+Com `vintages = {velho: novo}` o valor adicionado de cada atividade é uma CES de dois feixes,
+
+\[
+p^{VA} = \Big[s\, p_V^{1-\sigma_s} + (1-s)\, p_N^{1-\sigma_s}\Big]^{1/(1-\sigma_s)},
+\]
+
+com \(p_V\) a CES de elasticidade \(\sigma_V\) (zero por padrão: proporções fixas ex post) sobre todos os fatores menos o capital novo, e \(p_N\) a CES de \(\sigma_{VA}\) (a substituição ex ante) sobre todos menos o capital velho. Os dois feixes têm as proporções do ano-base, então custam um no ano-base, e \(s\) é a parcela do capital velho. O capital velho é específico do setor; o novo é móvel. O LINKAGE faz os feixes substitutos perfeitos, \(\sigma_s \to \infty\). Com eles, um setor que encolhe mais depressa que a depreciação do seu capital velho deixa capital ocioso, uma troca de regime que um resolvedor suave não faz. Aqui \(\sigma_s\) é finito, 20 por padrão, e a distância ao caso de um capital só cai como \(1/\sigma_s\).
+
+O capital novo de um ano é o investimento do ano anterior. No fim do ano o capital novo que a atividade \(a\) usou se instala nela,
+
+\[
+K^V_{a}{}' = (1-\delta)\big(K^V_a + K^N_a\big), \qquad K^N{}' = I,
+\]
+
+e o feixe velho passa a ter, por unidade, a média dos seus insumos e dos do feixe novo, ponderada pelas quantidades dos dois feixes, aos preços do ano da instalação, \(q' = (B_V q_V + B_N q_N)/(B_V + B_N)\). A CES velha é recalibrada para usar \(q'\) a esses preços, \(\theta'_f = q'_f (w_f / \sum_g q'_g w_g)^{\sigma_V}\). Sem isso, o capital instalado em 2040 trabalharia com o trabalho do ano-base, e uma economia em que o capital cresce mais que o trabalho acumularia capital velho que ninguém opera.
+
+### Linha de base calibrada ao PIB
+
+`calibrate_baseline` inverte a ordem da trajetória. O PIB real de cada ano, \(Y_t^*\), é dado, e a incógnita do ano é um escalar \(\Lambda_t\) que multiplica a produtividade de Hicks neutra de cada atividade \(a\) por \(\Lambda_t^{\pi_a}\), com \(\pi\) o padrão (um por padrão). Os anos são resolvidos em sequência, porque o capital de cada ano vem do investimento dos anteriores: uma raiz de Brent por ano em \(\log Y_t(\Lambda_t) = \log Y_t^*\). Com o valor adicionado setorial como alvo, cada atividade tem a sua incógnita e as raízes são resolvidas juntas. O valor adicionado é medido por dupla deflação, produção a preços do ano-base menos os insumos a preços do ano-base. O `value_added` de `real_gdp` não serve: é o uso de fatores a preços do ano-base, e a produtividade muda o que um fator produz, não o fator. Uma simulação de política mantém a produtividade calibrada e deixa o PIB se mover.
+
+### Trajetórias de política
+
 Uma trajetória de política é uma função do ano que devolve um cenário. O que não é preço, imposto ou dotação, como um coeficiente técnico que muda ao longo do tempo, entra por uma função que devolve a economia daquele ano, com as mesmas contas.
 
 `run_path` não move fatores entre regiões. O ninho regional de um período é resolvido à parte. Acumulação de um estoque de capital por região, e migração, não estão nesta lei de movimento.
@@ -234,7 +288,30 @@ CV &= Y^{\mathrm{alt}} \left(1 - \frac{R^{\mathrm{ref}}}{R^{\mathrm{alt}}}\right
 
 Uma conta não é a mesma população em dois cenários quando famílias mudam de conta, como adotantes e não adotantes. A renda real por conta carrega essa diferença de tamanho e a reporta como bem-estar. A agregação por grupo soma as rendas reais das contas do grupo antes de tomar a razão, de modo que a migração dentro do grupo se cancele. Uma conta sem grupo é um erro. Omiti-la em silêncio subestimaria o grupo, e o erro teria a aparência de um resultado.
 
-## 9. O que este sistema não resolve
+## 9. Microssimulação
+
+Cada família de uma pesquisa pertence a uma conta da matriz. A sua renda de cada fonte \(k\) se move como a da conta,
+
+\[
+y_{hk}' = y_{hk}\, \frac{Y'_{Hk}}{Y_{Hk}}, \qquad
+\log \frac{P_h'}{P_h} = \sum_c b_{hc} \log \frac{p_c'}{p_c},
+\]
+
+com o índice geométrico no orçamento próprio \(b_{hc}\), o índice exato da Cobb–Douglas. Por padrão cada fonte de cada conta é escalada para que o total ponderado da pesquisa seja o da matriz, e os fatores de escala são reportados. Sob trabalho segmentado os pesos são recalibrados por raking (Deville e Särndal), \(w_i' = w_i \exp(\lambda^\top x_i)\), para o emprego por segmento e o desemprego do modelo.
+
+As medidas tomam rendas \(y_i\) e pesos \(w_i\), com média \(\mu\):
+
+\begin{align*}
+P_\alpha &= \frac{1}{W} \sum_i w_i \left(\frac{z - y_i}{z}\right)^{\alpha} \mathbf{1}[y_i < z], \\
+GE(\alpha) &= \frac{1}{\alpha(\alpha-1)} \left[\frac{1}{W}\sum_i w_i \left(\frac{y_i}{\mu}\right)^{\alpha} - 1\right], \\
+A_\varepsilon &= 1 - \frac{1}{\mu} \left[\frac{1}{W}\sum_i w_i\, y_i^{1-\varepsilon}\right]^{1/(1-\varepsilon)},
+\end{align*}
+
+com o Theil \(T = GE(1)\) e o desvio logarítmico médio \(L = GE(0)\) como limites, \(A_1 = 1 - e^{\overline{\log y}}/\mu\), e o Gini da curva de Lorenz ponderada. \(GE\) e \(P_\alpha\) se decompõem exatamente entre grupos.
+
+Na microssimulação comportamental de Bourguignon, Robilliard e Robinson cada pessoa escolhe o status \(k\) por uma logit multinomial, \(U_{ik} = x_i \beta_k + a_{k,H(i)} + \varepsilon_{ik}\), e ganha \(\log y_{ig} = x_i \gamma_g + b_{g,H(i)} + u_{ig}\) no segmento \(g\). Os interceptos \(a\) e \(b\), por conta, se movem até o emprego e o rendimento por trabalhador de cada segmento mudarem como no modelo. Os resíduos da escolha são sorteados condicionais ao status observado, de modo que a base reproduz a pesquisa. A expectativa desses sorteios tem forma fechada, as probabilidades de transição da logit com interceptos deslocados, e é suave nos interceptos, o que deixa os alvos serem atingidos exatamente.
+
+## 10. O que este sistema não resolve
 
 A trajetória da seção 7 é recursiva. Uma política anunciada para uma data futura não move o investimento do primeiro ano, porque nenhum agente a vê. Levar esse efeito a sério é outro objeto. O equilíbrio do período continua sendo o desta nota. O resíduo intertemporal, uma Euler ou um \(q\) de Tobin ao longo de uma trajetória anunciada, seria resolvido pelo `dsgelab`, que já empilha uma função de resíduos e já aceita uma sequência de parâmetros. A matriz não entraria naquele pacote. A dependência seria opcional. O desenho está no `ROADMAP.md`, na seção *Extensions that call dsgelab*.
 
@@ -246,8 +323,16 @@ Armington, P. S. (1969). A theory of demand for products distinguished by place 
 
 Blanchflower, D. G. e Oswald, A. J. (1994). *The Wage Curve*. Cambridge, MA: MIT Press.
 
+Bourguignon, F., Robilliard, A.-S. e Robinson, S. (2005). Representative versus real households in the macroeconomic modeling of inequality. In T. J. Kehoe, T. N. Srinivasan e J. Whalley (orgs.), *Frontiers in Applied General Equilibrium Modeling* (pp. 219–254). Cambridge: Cambridge University Press.
+
+Deville, J.-C. e Särndal, C.-E. (1992). Calibration estimators in survey sampling. *Journal of the American Statistical Association*, 87(418), 376–382.
+
 Dervis, K., de Melo, J. e Robinson, S. (1982). *General Equilibrium Models for Development Policy*. Cambridge: Cambridge University Press.
 
+Harris, J. R. e Todaro, M. P. (1970). Migration, unemployment and development: a two-sector analysis. *The American Economic Review*, 60(1), 126–142.
+
 Hosoe, N., Gasawa, K. e Hashimoto, H. (2010). *Textbook of Computable General Equilibrium Modelling: Programming and Simulations*. Basingstoke: Palgrave Macmillan.
+
+Hertel, T. W. (org.) (1997). *Global Trade Analysis: Modeling and Applications*. Cambridge: Cambridge University Press.
 
 Stone, R. (1954). Linear expenditure systems and demand analysis: an application to the pattern of British demand. *The Economic Journal*, 64(255), 511–527.

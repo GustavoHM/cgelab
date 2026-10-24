@@ -26,7 +26,7 @@ the solver was told to satisfy.
 """
 
 from .calibrate import Economy, calibrate
-from .closure import Closure
+from .closure import Closure, LabourMarket
 from .decompose import path_decomposition, scenario_vector, subtotals, welfare_decomposition
 from .diagnostics import base_year_reproduction, homogeneity_test, report, walras_check
 from .emissions import Emissions, add_emissions, emissions
@@ -34,12 +34,21 @@ from .physical import PhysicalUnits, add_physical_units, physical, physical_coef
 from .export import to_jump
 from .har import read_har, write_har
 from .dynamics import Growth, PathResult, run_path
+from .baseline import Baseline, calibrate_baseline
 from .functions import (armington, ces_intensity, ces_price, cet, cet_domestic_price,
                         cobb_douglas_price)
+from .behaviour import Behaviour, PersonSurvey, transition_probabilities
+from .build import (Institutions, SupplyUse, group_population, read_tru, segment_shares,
+                    split_factor, split_households, split_vintages, sut_to_sam)
+from .ibge import pnadc, pof, read_ibge, read_sas_program
+from .micro import (MicroResult, Survey, account_sources, atkinson, fgt, fgt_decomposition,
+                    ge_decomposition, generalized_entropy, gini, inequality,
+                    mean_log_deviation, microsimulate, poverty, theil)
+from .mobility import FactorMobility
 from .multipliers import (Multipliers, accounting_multipliers, fixed_price_multipliers,
                           leontief_multipliers, linkages, structural_paths)
 from .results import (factor_demand_by_activity, government_account, national_accounts,
-                      price_indices, real_gdp, sectoral_path)
+                      price_indices, real_gdp, real_value_added, sectoral_path)
 from .sam import SAM, BalanceError
 from .scenario import Scenario, consumer_wedge
 from .sensitivity import (Normal, SensitivityResult, Triangular, Uniform, sensitivity,
@@ -54,15 +63,23 @@ __all__ = [
     "SAM", "BalanceError",
     "ModelSpec", "AccountLayout",
     "calibrate", "Economy",
-    "Closure", "Scenario", "consumer_wedge",
+    "Closure", "LabourMarket", "Scenario", "consumer_wedge",
     "solve_period", "PeriodResult", "value_added_price", "factor_intensity",
-    "run_path", "PathResult", "Growth",
+    "run_path", "PathResult", "Growth", "calibrate_baseline", "Baseline",
+    "FactorMobility",
+    "Survey", "MicroResult", "microsimulate", "account_sources", "inequality", "poverty",
+    "PersonSurvey", "Behaviour", "transition_probabilities",
+    "read_ibge", "read_sas_program", "pnadc", "pof",
+    "SupplyUse", "Institutions", "sut_to_sam", "split_households", "split_factor",
+    "segment_shares", "group_population", "read_tru", "split_vintages",
+    "gini", "fgt", "generalized_entropy", "theil", "mean_log_deviation", "atkinson",
+    "ge_decomposition", "fgt_decomposition",
     "equivalent_variation", "ev_by_group", "compensating_variation",
     "base_year_reproduction", "homogeneity_test", "walras_check", "report",
     "to_jump", "read_har", "write_har",
     "Emissions", "add_emissions", "emissions",
     "PhysicalUnits", "add_physical_units", "physical", "physical_coefficient",
-    "factor_demand_by_activity", "real_gdp", "sectoral_path",
+    "factor_demand_by_activity", "real_gdp", "real_value_added", "sectoral_path",
     "national_accounts", "price_indices", "government_account",
     "Multipliers", "accounting_multipliers", "fixed_price_multipliers", "leontief_multipliers",
     "linkages", "structural_paths",

@@ -1,0 +1,103 @@
+/* LEITURA DOS DADOS DA POF 2017-2018 - SAS (fixture) */
+
+/* REGISTRO - MORADOR (fixture, com acentuação: aquisição) */
+
+data morador;
+INFILE ".....\MORADOR.txt";
+INPUT
+@01  COD_UPA               9.
+@10  NUM_DOM               2.
+@12  NUM_UC                1.
+@13  V0306                 2.
+@15  PESO_FINAL            14.8;
+run;
+
+/* REGISTRO - ALUGUEL_ESTIMADO (fixture, com acentuação: aquisição) */
+
+data aluguel_estimado;
+INFILE ".....\ALUGUEL_ESTIMADO.txt";
+INPUT
+@01  COD_UPA               9.
+@10  NUM_DOM               2.
+@12  NUM_UC                1.
+@13  QUADRO                2.
+@15  V9001                 7.
+@22  V9011                 2.
+@24  V8000_DEFLA           10.2
+@34  FATOR_ANUALIZACAO     2.;
+run;
+
+/* REGISTRO - DESPESA_COLETIVA (fixture, com acentuação: aquisição) */
+
+data despesa_coletiva;
+INFILE ".....\DESPESA_COLETIVA.txt";
+INPUT
+@01  COD_UPA               9.
+@10  NUM_DOM               2.
+@12  NUM_UC                1.
+@13  QUADRO                2.
+@15  V9001                 7.
+@22  V9011                 2.
+@24  V8000_DEFLA           10.2
+@34  FATOR_ANUALIZACAO     2.;
+run;
+
+/* REGISTRO - CADERNETA_COLETIVA (fixture, com acentuação: aquisição) */
+
+data caderneta_coletiva;
+INFILE ".....\CADERNETA_COLETIVA.txt";
+INPUT
+@01  COD_UPA               9.
+@10  NUM_DOM               2.
+@12  NUM_UC                1.
+@13  QUADRO                2.
+@15  V9001                 7.
+@22  V9011                 2.
+@24  V8000_DEFLA           10.2
+@34  FATOR_ANUALIZACAO     2.;
+run;
+
+/* REGISTRO - DESPESA_INDIVIDUAL (fixture, com acentuação: aquisição) */
+
+data despesa_individual;
+INFILE ".....\DESPESA_INDIVIDUAL.txt";
+INPUT
+@01  COD_UPA               9.
+@10  NUM_DOM               2.
+@12  NUM_UC                1.
+@13  QUADRO                2.
+@15  V9001                 7.
+@22  V9011                 2.
+@24  V8000_DEFLA           10.2
+@34  FATOR_ANUALIZACAO     2.;
+run;
+
+/* REGISTRO - RENDIMENTO_TRABALHO (fixture, com acentuação: aquisição) */
+
+data rendimento_trabalho;
+INFILE ".....\RENDIMENTO_TRABALHO.txt";
+INPUT
+@01  COD_UPA               9.
+@10  NUM_DOM               2.
+@12  NUM_UC                1.
+@13  QUADRO                2.
+@15  V9001                 7.
+@22  V9011                 2.
+@24  V8500_DEFLA           10.2
+@34  FATOR_ANUALIZACAO     2.;
+run;
+
+/* REGISTRO - OUTROS_RENDIMENTOS (fixture, com acentuação: aquisição) */
+
+data outros_rendimentos;
+INFILE ".....\OUTROS_RENDIMENTOS.txt";
+INPUT
+@01  COD_UPA               9.
+@10  NUM_DOM               2.
+@12  NUM_UC                1.
+@13  QUADRO                2.
+@15  V9001                 7.
+@22  V9011                 2.
+@24  V8500_DEFLA           10.2
+@34  FATOR_ANUALIZACAO     2.;
+run;

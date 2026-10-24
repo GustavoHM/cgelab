@@ -62,7 +62,7 @@ gives `inf`; negative or nonfinite entries and zero total flow are refused.
 | `regions` | `None` | region names. Accounts are then `region:local`. Absent, the one-region model |
 | `regional_government`, `regional_investment` | `None` | optional additional `{region: account}` maps. National accounts remain, and demand is added, never split; factor income and household saving are included |
 | `factor_migration` | `None` | `{local factor: ω}` migration between regional pools, distinct from sectoral `factor_mobility`; zero holds base-year origins. `factor_pools={factor: DataFrame}` gives the proximity matrix, whose rows sum to one and whose columns reproduce endowments |
-| `sigma_interregional` | `2.0` | CES across regions of origin, under the Armington. Scalar or mapping by local commodity |
+| `sigma_interregional` | `2.0` | CES across regions of origin, under the Armington. Scalar or mapping by local commodity. Regional models carry the margin block and accept `export_rule="cet"`; `world_price` and `export_price` then have one value per local commodity |
 | `tariff_account` | `None` | account that collects the import tariff from commodities (Hosoe's TRF). The tariff goes inside the Armington import price |
 | `indirect_tax_account` | `None` | account that collects the indirect tax on all of output (Hosoe's IDT). The tax goes inside the gross output price the CET splits, so exports carry it |
 | `factor_mobility` | `None` | `{factor: ω}`, ω ≥ 0: the factor's endowment is transformed across the activities that use it, and each activity pays its own price. Zero holds the base-year allocation. A factor left out is perfectly mobile. Not the numeraire; not with `regions` |
@@ -80,10 +80,11 @@ With `regions` set, the numeraire is one factor in one region (`"r1:f_lab"`).
 Factors may be passed as local names and are expanded to every region. Buyers
 pay a national composite: a CES of origins, then the usual Armington against
 foreign imports. One region makes the CES a single variety. `PeriodResult.bilateral`
-is `(origin, destination, local commodity)` for households and activities;
-government and investment stay national. Margins, CET exports, LES, migration
-and non-default closures are refused by name rather than ignored. `to_jump` and
-`run_path` refuse more than one region.
+is `(origin, destination, local commodity)` for households, activities and any
+mapped regional institutions. Margins and CET exports are supported; LES, trade
+taxes, energy nests and non-default closures are refused by name rather than
+ignored. `run_path` supports full `region:factor` names; `to_jump` still refuses
+regional models.
 
 `AccountLayout`: `activities`, `commodities`, `households`, `factors`,
 `government`, `investment`, `rest_of_world`.

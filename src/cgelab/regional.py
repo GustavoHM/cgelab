@@ -6,10 +6,12 @@ of the regions of origin, and the Armington then mixes it with the foreign impor
 With a single origin the CES price is that origin's price, so a one-region SAM
 written with a region label solves as the national model.
 
-What is deliberately not here: factor migration, a regional government closure,
-margins, CET exports, and the JuMP replica. Factors clear where they are. There
-is one national numeraire, and its market stays out of the system so the Walras
-residual is still the check that a sale in one region was a purchase in another.
+Delivered trade and transport margins enter both purchaser prices and the
+quantity system. Under ``export_rule="cet"``, each origin splits output between
+home sales and exports in response to the foreign price. A regional government
+closure and the JuMP replica are not here. There is one national numeraire, and
+its market stays out of the system so the Walras residual remains an independent
+check that a sale in one region was a purchase in another.
 
 Bilateral cells of the SAM are not a prediction of the model. The origin mix is
 national, common to every buyer. The base year reproduces each region's output
@@ -26,7 +28,7 @@ from dataclasses import dataclass, field
 import numpy as np
 from scipy.optimize import root
 
-from .functions import armington, ces_intensity, ces_price
+from .functions import armington, ces_intensity, ces_price, cet, cet_domestic_price
 from .mobility import FactorMobility
 from .solve import PeriodResult, factor_intensity, value_added_price
 
@@ -55,6 +57,9 @@ class Regional:
     inv_dem: np.ndarray
     io: np.ndarray                    # (n_local, n_act), basic units
     exp_share: np.ndarray             # (n_reg, n_local)
+    sigma_cet: np.ndarray             # (n_reg, n_local)
+    mq: np.ndarray                    # (n_local, n_local), margin per absorption
+    cet: bool
     activity_region: np.ndarray       # (n_act,) int
     household_region: np.ndarray      # (n_hh,) int
     government_accounts: dict = field(default_factory=dict)
@@ -142,10 +147,6 @@ def build_regional(econ, sam, *, migration_pools=None) -> Regional:
     for name in econ.factors:
         _split(name, regions)
 
-    if np.any(np.abs(econ.mq) > 1e-12):
-        raise ValueError(
-            "a regional SAM with trade and transport margins is not in this slice. "
-            "The commodity-commodity block would mix margins with origin trade.")
     if econ.tm0 is not None or econ.tauz0 is not None:
         raise ValueError(
             "the regional nest does not apply a tariff or an indirect tax on "
@@ -154,11 +155,6 @@ def build_regional(econ, sam, *, migration_pools=None) -> Regional:
         raise ValueError(
             "own-account activities are not in the regional slice. An activity "
             "that sells straight to households has no origin price.")
-    if spec.export_rule != "fixed_shares":
-        raise ValueError(
-            "regional exports in this slice are the base-year share of output. "
-            f"export_rule={spec.export_rule!r} would price origins twice, once on "
-            "the CET frontier and once in the origin CES.")
     if spec.energy:
         raise ValueError(
             "the regional slice keeps intermediate inputs Leontief; an energy nest "
@@ -205,18 +201,30 @@ def build_regional(econ, sam, *, migration_pools=None) -> Regional:
 
     sigma = _sigma(spec, local)
     sigma_arm = np.array([_arm_sigma(spec, econ, origin_index[:, c]) for c in range(n_loc)])
+    sigma_cet = np.array([_arm_sigma(spec, econ, origin_index[:, c], "sigma_cet")
+                          for c in range(n_loc)])
 
     spend = econ.hh_budget * np.asarray(econ.hh_spend0, float)[:, None]
     nat_spend = np.zeros((econ.n_hh, n_loc))
     nat_io = np.zeros((n_loc, econ.n_act))
     nat_gov = np.zeros(n_loc)
     nat_inv = np.zeros(n_loc)
+    nat_a = np.zeros(n_loc)
+    nat_arm = np.zeros(n_loc)
+    nat_mq = np.zeros((n_loc, n_loc))
     for c in range(n_loc):
         cols = origin_index[:, c]
         nat_spend[:, c] = spend[:, cols].sum(axis=1)
         nat_io[c] = econ.io[cols].sum(axis=0)
         nat_gov[c] = econ.gov_dem[cols].sum()
         nat_inv[c] = econ.inv_dem[cols].sum()
+        nat_a[c] = econ.A0[cols].sum()
+        nat_arm[c] = (econ.arm_share[cols] * econ.A0[cols]).sum()
+        for k in range(n_loc):
+            rows = origin_index[:, k]
+            nat_mq[k, c] = (econ.mq[rows][:, cols] * econ.A0[cols]).sum()
+    nat_arm /= np.maximum(nat_a, 1e-12)
+    nat_mq /= np.maximum(nat_a, 1e-12)[None, :]
     nat_budget = nat_spend / np.maximum(nat_spend.sum(axis=1, keepdims=True), 1e-12)
     government_accounts, gov_regional = _institution_demand(
         econ, sam, spec.regional_government, regions, origin_index, "regional_government")
@@ -242,9 +250,10 @@ def build_regional(econ, sam, *, migration_pools=None) -> Regional:
     return Regional(
         regions=regions, local_commodities=local, origin_index=origin_index,
         origin_share=origin_share, sigma=sigma, dom_share=dom_share,
-        arm_share=np.ones(n_loc), ptax=ptax, sigma_arm=sigma_arm,
+        arm_share=nat_arm, ptax=ptax, sigma_arm=sigma_arm,
         hh_budget=nat_budget, gov_dem=nat_gov, inv_dem=nat_inv, io=nat_io,
-        exp_share=exp_share, activity_region=activity_region,
+        exp_share=exp_share, sigma_cet=np.repeat(sigma_cet[None, :], n_reg, axis=0),
+        mq=nat_mq, cet=spec.export_rule == "cet", activity_region=activity_region,
         household_region=household_region, government_accounts=government_accounts,
         investment_accounts=investment_accounts,
         gov_dem_regional=gov_regional, inv_dem_regional=inv_regional,
@@ -305,13 +314,9 @@ def _sigma(spec, local: list[str]) -> np.ndarray:
     return out
 
 
-def _arm_sigma(spec, econ, origin_cols: np.ndarray) -> float:
-    """The Armington elasticity of a local commodity.
-
-    A scalar on the spec is that elasticity. A mapping is keyed by the local
-    name or by any origin account, and the origins of one commodity must agree.
-    """
-    value = spec.sigma_armington
+def _arm_sigma(spec, econ, origin_cols: np.ndarray, field="sigma_armington") -> float:
+    """One elasticity per local commodity, with agreeing regional entries."""
+    value = getattr(spec, field)
     if not isinstance(value, dict):
         return float(value)
     rates = []
@@ -325,10 +330,9 @@ def _arm_sigma(spec, econ, origin_cols: np.ndarray) -> float:
         elif "__default__" in value:
             rates.append(float(value["__default__"]))
         else:
-            raise KeyError(f"sigma_armington has no entry for {name!r} or {local!r}")
+            raise KeyError(f"{field} has no entry for {name!r} or {local!r}")
     if max(rates) - min(rates) > 1e-12:
-        raise ValueError(
-            f"origins of one commodity have different Armington elasticities: {rates}")
+        raise ValueError(f"origins of one commodity have different {field} values: {rates}")
     return rates[0]
 
 
@@ -362,6 +366,14 @@ def solve_regions(econ, closure, scenario, *, warm_start=None, raise_on_fail: bo
         raise ValueError(
             "world_price in a regional model is one foreign price per local "
             f"commodity ({reg.local_commodities}), got shape {world.shape}")
+    export_world = (np.ones(reg.n_local) if scenario.export_price is None
+                    else np.asarray(scenario.export_price, float))
+    if export_world.shape != (reg.n_local,):
+        raise ValueError(
+            "export_price in a regional model is one foreign price per local "
+            f"commodity ({reg.local_commodities}), got shape {export_world.shape}")
+    if scenario.export_price is not None and not reg.cet:
+        raise ValueError("Scenario.export_price requires export_rule='cet' in a regional model")
     facshare = (econ.hh_facshare if scenario.factor_ownership is None
                 else np.asarray(scenario.factor_ownership, float))
     fac_gov = econ.zeros_if_none("fac_gov_share", nf)
@@ -383,7 +395,7 @@ def solve_regions(econ, closure, scenario, *, warm_start=None, raise_on_fail: bo
             w[i] = nu * float(np.exp(z[k]))
         er = float(np.exp(z[i_er]))
         levy = float(z[i_inv]) if fixed_investment else 0.0
-        prices = _prices(econ, reg, w, er, world, tfp, nu)
+        prices = _prices(econ, reg, w, er, world, export_world, tfp, nu)
         qty = _quantities(econ, reg, w, supply, facshare, fac_gov, fac_row, dtax,
                           transfers - levy * econ.pop_share, gov_tr, remit,
                           foreign_target, tfp, prices, nu,
@@ -433,7 +445,6 @@ def _refuse_unsupported(econ, closure, scenario, reg: Regional):
         "government_wedge": scenario.government_wedge,
         "product_tax": scenario.product_tax,
         "product_tax_firm": scenario.product_tax_firm,
-        "export_price": scenario.export_price,
         "investment_mix": scenario.investment_mix,
         "foreign_factor_share": scenario.foreign_factor_share,
     }
@@ -451,11 +462,10 @@ def _refuse_unsupported(econ, closure, scenario, reg: Regional):
         raise ValueError("regional model has no regions")
 
 
-def _prices(econ, reg: Regional, w, er, world, tfp, nu):
-    """Origin prices, the national domestic CES, then Armington against imports."""
+def _prices(econ, reg: Regional, w, er, world, export_world, tfp, nu):
+    """CET origin sales, the domestic CES, Armington, then delivered margins."""
     io = reg.io / tfp[None, :]
     vunit = econ.vunit / tfp
-    # Specific activity tax is denominated in the numeraire, same as the one-region solver.
     atax = econ.atax * nu
     pq = np.ones(reg.n_local)
     p_origin = np.ones(econ.n_com)
@@ -464,11 +474,14 @@ def _prices(econ, reg: Regional, w, er, world, tfp, nu):
     phi = reg.origin_share.copy()
     dsh = reg.dom_share.copy()
     msh = 1.0 - dsh
+    pe = er * export_world
     for _ in range(_PRICE_ITERS):
         pva = value_added_price(econ, w)
         pa = io.T @ pq + pva * vunit + atax
         p_origin = econ.msh.T @ pa
         p_rc = p_origin[reg.origin_index]
+        if reg.cet:
+            p_rc = cet_domestic_price(reg.exp_share, p_rc, pe[None, :], reg.sigma_cet)
         pd_nat = np.zeros(reg.n_local)
         phi = np.zeros_like(reg.origin_share)
         for c in range(reg.n_local):
@@ -477,15 +490,25 @@ def _prices(econ, reg: Regional, w, er, world, tfp, nu):
             phi[:, c] = ces_intensity(
                 sh, p_rc[:, c], np.array([pd_nat[c]]), reg.sigma[c])[:, 0]
         pm = er * world
-        pbase, dsh, msh = armington(reg.dom_share, pd_nat, pm, reg.sigma_arm)
+        arm, dsh, msh = armington(reg.dom_share, pd_nat, pm, reg.sigma_arm)
+        pbase = arm * reg.arm_share + pq @ reg.mq
         new = pbase * (1.0 + reg.ptax)
-        if np.max(np.abs(new - pq)) < 1e-14:
-            pq = new
-            break
+        converged = np.max(np.abs(new - pq)) < 1e-14
         pq = new
+        if converged:
+            break
+    else:
+        raise RuntimeError(f"regional price fixed point did not converge in {_PRICE_ITERS} iterations")
+    p_origin = econ.msh.T @ pa
+    p_rc = p_origin[reg.origin_index]
+    if reg.cet:
+        p_rc = cet_domestic_price(reg.exp_share, p_rc, pe[None, :], reg.sigma_cet)
+        _, dom_frac, exp_frac = cet(reg.exp_share, p_rc, pe[None, :], reg.sigma_cet)
+    else:
+        dom_frac, exp_frac = 1.0 - reg.exp_share, reg.exp_share
     return dict(pa=pa, p_origin=p_origin, pd_nat=pd_nat, phi=phi, pq=pq,
                 pbase=pq / np.maximum(1.0 + reg.ptax, 1e-12), dsh=dsh, msh=msh,
-                pm=er * world)
+                pm=er * world, pe=pe, dom_frac=dom_frac, exp_frac=exp_frac)
 
 
 def _quantities(econ, reg, w, supply, facshare, fac_gov, fac_row, dtax, transfers,
@@ -526,17 +549,15 @@ def _quantities(econ, reg, w, supply, facshare, fac_gov, fac_row, dtax, transfer
              if fixed_investment else v * available0)
     F0 = hh_final + gov_q + inv_q
 
-    scale = phi / np.maximum(1.0 - reg.exp_share, 1e-12)   # Q per unit of national domestic sales
-    link = scale * dsh[None, :]                             # (R, C): Q per unit of A
-    # X = msh @ Q_full, Q_full[origin] = link[r,c] * A[c]
+    link = (phi * (dsh * reg.arm_share)[None, :]
+            / np.maximum(prices["dom_frac"], 1e-12))
     M = np.zeros((econ.n_act, C))
     for r in range(reg.n_reg):
         for c in range(C):
             i = reg.origin_index[r, c]
             M[:, c] += econ.msh[:, i] * link[r, c]
     io = reg.io / tfp[None, :]
-    B = io @ M                                          # A -> intermediate use
-    # Product tax on absorption, activity tax on output. Output is M @ A.
+    B = io @ M + reg.mq
     tax_per = prices["pbase"] * reg.ptax + M.T @ (econ.atax * nu)
     eye = np.eye(C)
     try:
@@ -555,11 +576,11 @@ def _quantities(econ, reg, w, supply, facshare, fac_gov, fac_row, dtax, transfer
             "that loop does not have a finite sum.") from exc
     available = available0 + float(tax_per @ A)
     savings = float(pq @ inv_q) if fixed_investment else available
-    ND = dsh * A
+    ND = dsh * reg.arm_share * A
     Q_rc = link * A[None, :]
     D_rc = phi * ND[None, :]
-    E_rc = reg.exp_share * Q_rc
-    M_c = prices["msh"] * A
+    E_rc = prices["exp_frac"] * Q_rc
+    M_c = prices["msh"] * reg.arm_share * A
     Q = np.zeros(econ.n_com)
     exports = np.zeros(econ.n_com)
     imports = np.zeros(econ.n_com)
@@ -568,8 +589,6 @@ def _quantities(econ, reg, w, supply, facshare, fac_gov, fac_row, dtax, transfer
             i = int(reg.origin_index[r, c])
             Q[i] = Q_rc[r, c]
             exports[i] = E_rc[r, c]
-            # Imports are national. Spread them by the base-year import weights
-            # so the regional import vector still sums to the national one.
     imp0 = np.array([econ.imp0[reg.origin_index[r]] for r in range(reg.n_reg)])
     imp_w = imp0 / np.maximum(imp0.sum(axis=0), 1e-12)
     imp_w = np.where(imp0.sum(axis=0) > 0, imp_w, 0.0)
@@ -577,7 +596,6 @@ def _quantities(econ, reg, w, supply, facshare, fac_gov, fac_row, dtax, transfer
         for c in range(C):
             imports[reg.origin_index[r, c]] = imp_w[r, c] * M_c[c]
     X = econ.msh @ Q
-    # Own-account was refused, so the make matrix recovers every activity.
     fi = factor_intensity(econ, w, vunit=econ.vunit / tfp, aunit=econ.aunit / tfp[None, :])
     fac_by = fi * ((econ.vunit / tfp) * X)[None, :]
     fac_dem = fac_by.sum(axis=1)
@@ -593,7 +611,9 @@ def _quantities(econ, reg, w, supply, facshare, fac_gov, fac_row, dtax, transfer
     dest = hh_by + inter + gov_regional_q + inv_q_reg
     bilateral = phi[:, None, :] * dest[None, :, :]
 
-    trade = float(prices["pm"] @ M_c - prices["p_origin"] @ exports)
+    export_prices = (np.tile(prices["pe"], (reg.n_reg, 1)) if reg.cet
+                     else prices["p_origin"][reg.origin_index])
+    trade = float(prices["pm"] @ M_c - export_prices.ravel() @ exports)
     current = trade + float((fac_inc * fac_row).sum()) - float(remit.sum())
     # Household quantities on the regional grid: the origin mix times the
     # household's composite quantity. They sum back to the composite.

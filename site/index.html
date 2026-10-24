@@ -881,7 +881,7 @@ effect[["treated_change", "control_change", "effect"]]</code></pre>
 <pre class="output" data-label="Output"><code><span class="out-expr">effect[["treated_change", "control_change", "effect"]]</span>
          treated_change  control_change  effect
 outcome
-output               20      -1.421e-14      20</code></pre>
+output               20       1.421e-14      20</code></pre>
   <p>The effect is r1's output change less r2's. A common symmetric shock cancels. Controls can be
   weighted, and measures cover output, real household income, factor demand, bilateral outflows
   or a custom function. This is an auditable contrast of equilibria; the research design stays
@@ -957,6 +957,21 @@ panel</code></pre>
   <p>Each named regional capital stock accumulates from its own solved investment. The panel
   contains the solved regional outcomes by year; the treatment flag is only a label. Optional
   seeded lognormal noise changes reported values, never the equilibrium or the capital stock.</p>
+  <h3>37. CET exports in a regional model</h3>
+<pre><code>econ_cet = regions.build(regions.spec(export_rule="cet", sigma_cet=3.0))[1]
+base_cet = cge.solve_period(econ_cet)
+dear_exports = cge.solve_period(econ_cet, scenario=cge.Scenario(export_price=[1.1]),
+                                warm_start=base_cet)
+base_cet.exports
+dear_exports.exports</code></pre>
+<pre class="output" data-label="Output"><code><span class="out-expr">base_cet.exports</span>
+[10 10]
+<span class="out-expr">dear_exports.exports</span>
+[10.53 10.53]</code></pre>
+  <p>Each origin transforms output between domestic sales and exports. The export-price vector has
+  one entry per local commodity. A higher foreign price shifts both origins abroad; the national
+  current account and Walras still close. Delivered trade and transport margins use the same
+  commodity–commodity block as the national model.</p>
 </div></section>
 
 <section id="gates"><div class="wrap">

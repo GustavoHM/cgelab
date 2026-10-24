@@ -1146,6 +1146,31 @@ standard error. The reader supplies the research design and the estimator. The
 tests cover a no-op, a shock only in the treated region, a common shock that
 cancels, custom measures and bilateral outflows.
 
+### Margins and CET exports in the origin nest
+
+Regional calibration reads the commodity–commodity margin block with the same
+national-accounts convention as the national model. Margin services enter both
+the delivered purchaser price and the quantity system. With
+`regions.spec(margins=True)`, the regional accounts must use that convention;
+the default example keeps `margins=False` because its SAM has no margin block.
+
+`export_rule="cet"` lets every regional origin respond to its export price while
+the origin CES allocates domestic sales:
+
+```python
+econ = regions.build(regions.spec(export_rule="cet", sigma_cet=3.0))[1]
+base = cge.solve_period(econ)
+result = cge.solve_period(econ, scenario=cge.Scenario(export_price=[1.1]),
+                          warm_start=base)
+```
+
+`export_price` and `world_price` each contain one value per local commodity, not
+per regional account. Fixed export shares reject an export-price shock instead
+of ignoring it. Tests compare a labelled one-region model directly with the
+national solver, including margins, productivity and external-price shocks.
+Destination-specific bilateral trade and transport are a separate structure;
+the origin mix remains national here.
+
 ### Fixed-real investment in a regional model
 
 `Closure(investment="fixed_real")` also works in the regional solver:
@@ -1163,9 +1188,8 @@ The investment quantity is held, not scaled by current prices. The forced levy
 is deducted from households in proportion to population, exactly as in the
 one-region model, and `available` equals nominal savings at the solution. With
 no scenario level, the calibrated investment is used. `savings_driven` remains
-the default. The other regional restrictions (migration, alternative government
-closures, margins and bilateral transport) stay explicit rather than being
-silently relaxed.
+the default. Alternative government closures and destination-specific bilateral
+transport stay explicit rather than being silently relaxed.
 
 ### Government and investment accounts by region
 

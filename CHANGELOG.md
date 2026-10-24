@@ -7,6 +7,12 @@ before 1.0, a minor version may add to the API and a patch version only fixes.
 
 ### Added
 
+- The regional origin nest now carries national-accounts trade and transport
+  margins through delivered prices and the quantity system, and supports CET
+  exports under `export_rule="cet"`. Regional `export_price` shocks use one
+  price per local commodity. One-region comparisons against the national solver
+  cover the base year, productivity shocks, margins and external-price shocks;
+  failure of the regional price fixed point is now explicit.
 - `run_path` accumulates a capital stock per region when `Growth` uses full
   `region:factor` names. `simulated_panel` returns a tidy region-by-year panel
   with explicit treatment labels and optional seeded lognormal noise applied

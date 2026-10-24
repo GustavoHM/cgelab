@@ -889,7 +889,7 @@ efeito[["treated_change", "control_change", "effect"]]</code></pre>
 <pre class="output" data-label="Saída"><code><span class="out-expr">efeito[["treated_change", "control_change", "effect"]]</span>
          treated_change  control_change  effect
 outcome
-output               20      -1.421e-14      20</code></pre>
+output               20       1.421e-14      20</code></pre>
   <p>O efeito é a variação do produto de r1 menos a de r2. Um choque comum e simétrico se cancela.
   Os controles podem ter pesos, e as medidas incluem produto, renda real, demanda de fatores,
   fluxos bilaterais ou uma função própria. É um contraste auditável de equilíbrios; o desenho da
@@ -967,6 +967,21 @@ painel</code></pre>
   contém os resultados regionais resolvidos por ano; o indicador de tratamento é apenas um rótulo.
   O ruído lognormal opcional e reprodutível muda os valores reportados, nunca o equilíbrio ou o
   estoque de capital.</p>
+  <h3>37. Exportações CET num modelo regional</h3>
+<pre><code>economia_cet = regions.build(regions.spec(export_rule="cet", sigma_cet=3.0))[1]
+base_cet = cge.solve_period(economia_cet)
+exportacao_cara = cge.solve_period(economia_cet, scenario=cge.Scenario(export_price=[1.1]),
+                                   warm_start=base_cet)
+base_cet.exports
+exportacao_cara.exports</code></pre>
+<pre class="output" data-label="Saída"><code><span class="out-expr">base_cet.exports</span>
+[10 10]
+<span class="out-expr">exportacao_cara.exports</span>
+[10.53 10.53]</code></pre>
+  <p>Cada origem transforma produto entre vendas domésticas e exportações. O vetor de preços de
+  exportação tem uma entrada por bem local. Um preço externo maior desloca ambas as origens para
+  o exterior; a conta corrente nacional e Walras continuam fechando. As margens de comércio e
+  transporte usam o mesmo bloco bem a bem do modelo nacional.</p>
 </div></section>
 
 <section id="verificacoes"><div class="wrap">

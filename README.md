@@ -240,7 +240,7 @@ without knowing which. [`CITATION.cff`](https://github.com/GustavoHM/cgelab/blob
 holds the same metadata in the format GitHub reads.
 
 Moreira, G. H. (2026). cgelab: A general toolkit for SAM-based computable general equilibrium
-models in Python (Version 0.7.0) [Computer software]. Zenodo. https://doi.org/10.5281/zenodo.23624109
+models in Python (Version 0.7.0) [Computer software]. Zenodo. https://doi.org/10.5281/zenodo.23644708
 
 ```bibtex
 @software{cgelab_2026,
@@ -249,12 +249,12 @@ models in Python (Version 0.7.0) [Computer software]. Zenodo. https://doi.org/10
   year    = {2026},
   version = {0.7.0},
   license = {MIT},
-  doi     = {10.5281/zenodo.23624109},
+  doi     = {10.5281/zenodo.23644708},
   url     = {https://github.com/GustavoHM/cgelab},
   note    = {Python package}
 }
 ```
 
 Each release is archived on Zenodo with a DOI of its own; the DOI above is that of version
-0.6.0 (0.5.0 is [10.5281/zenodo.23458852](https://doi.org/10.5281/zenodo.23458852)). The concept DOI
+0.7.0 (0.5.0 is [10.5281/zenodo.23458852](https://doi.org/10.5281/zenodo.23458852)). The concept DOI
 [10.5281/zenodo.23458851](https://doi.org/10.5281/zenodo.23458851) resolves to the latest release.

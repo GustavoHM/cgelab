@@ -864,7 +864,7 @@ sigma_armington   2.2
 <span class="out-expr">fit.achieved</span>
 gdp_pct   -0.161
 <span class="out-expr">fit.distance</span>
-1.522e-19</code></pre>
+4.93e-28</code></pre>
   <p>The target comes from an external coefficient; the parameter is bounded and every evaluation
   recalibrates and solves the model. The fit recovers 2.2. Covariance weighting and singular
   systems use a pseudo-inverse, and <code>evaluations</code> keeps the whole optimisation trail.</p>
@@ -1021,10 +1021,10 @@ gtap_result.exports</code></pre>
 <span class="out-expr">gtap_result.imports</span>
 [20 0]
 <span class="out-expr">gtap_result.exports</span>
-[15 0]</code></pre>
+[20 0]</code></pre>
   <p>The synthetic headers map to a balanced SAM with FOB imports, CIF margins, tariffs and
   production taxes. Output is 120 and 20, imports are 20 of the goods commodity, and exports are
-  15. `gtap_supply_use` and `gtap_sam` apply the same mapping to licensed data; aggregation sums
+  20. `gtap_supply_use` and `gtap_sam` apply the same mapping to licensed data; aggregation sums
   only declared flows and uses explicit weights for parameters.</p>
   <h3>41. Consolidated regional government closures</h3>
 <pre><code>saving_rate = cge.solve_period(reg_econ, cge.Closure(government="saving_rate"))

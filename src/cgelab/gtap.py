@@ -112,35 +112,54 @@ def _take(headers, name, axis, index):
     return np.take(_array(headers, name), index, axis=axis)
 
 
+def _agent(headers, total, domestic, imported, index):
+    """Purchases at agents' prices: the total header, or its domestic and imported parts."""
+    if total in headers:
+        return _take(headers, total, -1, index)
+    if domestic in headers and imported in headers:
+        return _take(headers, domestic, -1, index) + _take(headers, imported, -1, index)
+    raise KeyError(f"GTAP needs {total!r}, or both {domestic!r} and {imported!r}")
+
+
 def gtap_supply_use(headers, region=0) -> SupplyUse:
     """Map one GTAP region to supply-use tables, preserving FOB/CIF and taxes."""
     r = _region(headers, "TVOM", region)
     activities = _labels(headers, "VDFM", 1)
     commodities = _labels(headers, "VDFM", 0)
-    if len(activities) != len(commodities):
+    investment_activity = activities[-1] == "CGDS"
+    if len(activities) != len(commodities) + int(investment_activity):
         raise ValueError("a one-region SAM currently needs one activity per commodity")
+    production_activities = activities[:-1] if investment_activity else activities
     activities = [f"a_{commodity}" for commodity in commodities]
     output = _take(headers, "TVOM", -1, r)
     if output.shape != (len(activities),):
         raise ValueError("TVOM must have activities by region")
     make = pd.DataFrame(np.diag(output), index=activities, columns=commodities)
-    use = (_take(headers, "VDFA", -1, r) + _take(headers, "VIFA", -1, r))
-    use = pd.DataFrame(use, index=commodities, columns=activities)
-    value_added = pd.DataFrame(_take(headers, "EVFA", -1, r),
+    use_all = _take(headers, "VDFA", -1, r) + _take(headers, "VIFA", -1, r)
+    production = [activities.index(f"a_{activity}") for activity in production_activities]
+    use = pd.DataFrame(use_all[:, production], index=commodities, columns=activities)
+    value_added = pd.DataFrame(_take(headers, "EVFA", -1, r)[:, production],
                                index=_labels(headers, "EVFA", 0), columns=activities)
 
     private_market = _take(headers, "VDPM", -1, r) + _take(headers, "VIPM", -1, r)
-    private_agent = _take(headers, "VPA", -1, r)
+    private_agent = _agent(headers, "VPA", "VDPA", "VIPA", r)
     government_market = _take(headers, "VDGM", -1, r) + _take(headers, "VIGM", -1, r)
-    government_agent = _take(headers, "VGA", -1, r)
-    firm_tax = use.to_numpy() - (_take(headers, "VDFM", -1, r)
-                                 + _take(headers, "VIFM", -1, r))
+    government_agent = _agent(headers, "VGA", "VDGA", "VIGA", r)
+    firm_tax = use_all - (_take(headers, "VDFM", -1, r)
+                          + _take(headers, "VIFM", -1, r))
     product_taxes = (private_agent - private_market + government_agent - government_market
                      + firm_tax.sum(axis=1))
-    investment = (_take(headers, "VINV", -1, r) if "VINV" in headers
-                  else np.zeros(len(commodities)))
+    if "VINV" in headers:
+        investment = _take(headers, "VINV", -1, r)
+    elif investment_activity:
+        investment = use_all[:, -1]
+    else:
+        investment = np.zeros(len(commodities))
 
-    fob_imports = _take(headers, "VXWD", 1, r).sum(axis=1)
+    fob_exports = _take(headers, "VXWD", 1, r).sum(axis=1)
+    export_tax = fob_exports - _take(headers, "VXMD", 1, r).sum(axis=1)
+    product_taxes = product_taxes + export_tax
+    fob_imports = _take(headers, "VXWD", -1, r).sum(axis=1)
     cif_imports = _take(headers, "VIWS", -1, r).sum(axis=1)
     market_imports = _take(headers, "VIMS", -1, r).sum(axis=1)
     tariffs = market_imports - cif_imports
@@ -157,7 +176,7 @@ def gtap_supply_use(headers, region=0) -> SupplyUse:
     for service in services:
         margins.loc[service, service] -= used[services.index(service)]
     net_transport_exports = service_supply - used
-    exports = _take(headers, "VXMD", 1, r).sum(axis=1) + net_transport_exports
+    exports = fob_exports + net_transport_exports
     final = pd.DataFrame({"hh": private_agent, "gov": government_agent,
                           "s_i": investment, "row": exports}, index=commodities)
     return SupplyUse(
@@ -165,7 +184,7 @@ def gtap_supply_use(headers, region=0) -> SupplyUse:
         imports=pd.Series(fob_imports, index=commodities),
         value_added=value_added,
         product_taxes=pd.Series(product_taxes, index=commodities),
-        production_taxes=pd.Series(_take(headers, "OSEP", -1, r), index=activities),
+        production_taxes=pd.Series(-_take(headers, "OSEP", -1, r), index=activities),
         margins=margins, tariffs=pd.Series(tariffs, index=commodities),
         final_roles={"hh": "households", "gov": "government",
                      "s_i": "investment", "row": "exports"},

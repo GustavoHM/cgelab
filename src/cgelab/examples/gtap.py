@@ -27,7 +27,7 @@ def synthetic():
                         ["COM", "ACT", "REG"], [["c", "s"], ["c", "s"], ["r0"]]),
         "VIFM": _header("VIFM", np.zeros((2, 2, 1)),
                         ["COM", "ACT", "REG"], [["c", "s"], ["c", "s"], ["r0"]]),
-        "EVFA": _header("EVFA", [[105.0, 15.0]], ["FAC", "ACT", "REG"],
+        "EVFA": _header("EVFA", [[115.0, 15.0]], ["FAC", "ACT", "REG"],
                         [["L"], ["c", "s"], ["r0"]]),
         "VDPM": _header("VDPM", [85.0, 0.0], ["COM", "REG"], [["c", "s"], ["r0"]]),
         "VIPM": _header("VIPM", [30.0, 0.0], ["COM", "REG"], [["c", "s"], ["r0"]]),

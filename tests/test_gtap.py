@@ -28,13 +28,71 @@ def test_one_region_supply_use_and_sam_close_hand_written_accounts():
     sut.check()
     assert sut.imports["c"] == 20.0
     assert sut.tariffs["c"] == 5.0
-    assert sut.product_taxes["c"] == 5.0
-    assert sut.production_taxes["a_c"] == 5.0
+    assert sut.product_taxes["c"] == 10.0
+    assert sut.production_taxes["a_c"] == -5.0
     assert sut.margins.loc["s", "c"] == 20.0
     assert sut.margins.loc["s", "s"] == -20.0
     sam = gtap_sam(synthetic_gtap(), "r0", name="synthetic GTAP")
     sam.check_balance(abs_tol=1e-8)
     assert sam.frame.value.sum() > 0
+
+
+def two_region_gtap():
+    """The synthetic region twice, trading c: r1 ships 30 FOB to r0 and r0 ships 20 to r1."""
+    one = synthetic_gtap()
+    regions = ["r0", "r1"]
+    data = {}
+    for name, h in one.items():
+        if "REG" in h.sets[1:] and h.sets.count("REG") == 1:
+            array = np.concatenate([h.array, h.array], axis=-1)
+            data[name] = header(name, array, h.sets, h.labels[:-1] + [regions])
+    # r0 imports 10 more and its households buy them; r1 imports 10 fewer.
+    data["VIPM"] = header("VIPM", [[40.0, 20.0], [0.0, 0.0]], ["COM", "REG"],
+                          [["c", "s"], regions])
+    data["VPA"] = header("VPA", [[130.0, 110.0], [0.0, 0.0]], ["COM", "REG"],
+                         [["c", "s"], regions])
+    data["VDFA"], data["VIFA"] = data["VDFM"], data["VIFM"]
+    trade = ["COM", "REG", "REG"]
+    trade_labels = [["c", "s"], regions, regions]
+
+    def bilateral(r1_to_r0, r0_to_r1):
+        array = np.zeros((2, 2, 2))
+        array[0, 1, 0], array[0, 0, 1] = r1_to_r0, r0_to_r1
+        return array
+
+    data["VXWD"] = header("VXWD", bilateral(30.0, 20.0), trade, trade_labels)
+    data["VXMD"] = header("VXMD", bilateral(25.0, 15.0), trade, trade_labels)
+    data["VIWS"] = header("VIWS", bilateral(50.0, 40.0), trade, trade_labels)
+    data["VIMS"] = header("VIMS", bilateral(55.0, 45.0), trade, trade_labels)
+    route = np.zeros((1, 2, 2, 2))
+    route[0, 0, 1, 0] = route[0, 0, 0, 1] = 20.0
+    data["VTWR"] = header("VTWR", route, ["MODE"] + trade, [["s"]] + trade_labels)
+    return data
+
+
+@pytest.mark.parametrize("region, imports, exports", [("r0", 30.0, 20.0), ("r1", 20.0, 30.0)])
+def test_fob_imports_are_shipments_into_the_region(region, imports, exports):
+    sut = gtap_supply_use(two_region_gtap(), region)
+    sut.check()
+    assert sut.imports["c"] == imports
+    assert sut.final.loc["c", "row"] == exports
+    assert sut.tariffs["c"] == 5.0
+    assert sut.margins.loc["s", "c"] == 20.0
+    gtap_sam(two_region_gtap(), region).check_balance(abs_tol=1e-8)
+
+
+def test_agent_purchases_add_domestic_and_imported_parts():
+    data = synthetic_gtap()
+    labels = [["c", "s"], ["r0"]]
+    data.pop("VPA")
+    data["VDPA"] = header("VDPA", [90.0, 0.0], ["COM", "REG"], labels)
+    data["VIPA"] = header("VIPA", [30.0, 0.0], ["COM", "REG"], labels)
+    sut = gtap_supply_use(data, "r0")
+    sut.check()
+    assert sut.final.loc["c", "hh"] == 120.0
+    data.pop("VIPA")
+    with pytest.raises(KeyError, match="VIPA"):
+        gtap_supply_use(data, "r0")
 
 
 def test_one_region_gtap_sam_calibrates_and_solves_base_year():

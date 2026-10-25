@@ -129,11 +129,11 @@ released in 0.5.5, ahead of 0.6.0, which also waits for the robustness items (se
 
 **0.7 — several regions, completed.** Factor migration, regional investment and government
 closures, margins and CET inside the origin nest, a capital stock per region in `run_path`;
-bilateral trade with transport margins; reading and aggregating GTAP data. Validation against
-GTAP and ORANI-G/TERM. Reading is in: `read_har` and `write_har`, exact against harpy3 on GTAP
-10A. Declared aggregation with explicit parameter weights and a one-region SAM are in,
-with a hand-balanced synthetic GTAP example and optional licensed-data tests. Comparison
-with GTAPAgg/FlexAgg and ORANI-G/TERM remains open. On top of the regional model, the
+bilateral trade with transport margins; reading and aggregating GTAP data. Reading is in:
+`read_har` and `write_har`, exact against harpy3 on GTAP 10A. Declared aggregation with explicit
+parameter weights and a one-region SAM are in, with a hand-balanced synthetic GTAP example and
+optional licensed-data tests. The comparison with GTAPAgg/FlexAgg and ORANI-G/TERM moved to
+0.8. On top of the regional model, the
 bridge to causal inference (see *General equilibrium and causal inference*):
 
 - [x] **Treated against control** as a result of a regional model (`treated_vs_control`).
@@ -148,7 +148,8 @@ bridge to causal inference (see *General equilibrium and causal inference*):
 **0.8 — complementarity and solvers.** Activities that can switch off, quotas with rents, price
 floors and ceilings, as a mixed complementarity problem; Pyomo with IPOPT and PATH besides
 `scipy`. Validation against GAMS/MPSGE with PATH. Analytic derivatives and sparse algebra for
-large SAMs.
+large SAMs. Moved from 0.7: the regional model validated against GTAP and ORANI-G/TERM, and the
+GTAP aggregation compared with GTAPAgg/FlexAgg.
 
 **0.9 — the frontier.** A generic closure swap in the GEMPACK manner (the historical closure of
 0.6 is its first case); SAM estimation by cross

@@ -221,7 +221,7 @@ where it stands. Things to know before relying on it:
   (`pip install "cgelab[dsge]"`). `run_path` itself has no forward-looking agent.
 - **GTAP data** can be read, aggregated with explicit parameter weights and turned
   into a one-region SAM. Comparison with GTAPAgg/FlexAgg and with GTAP's welfare
-  decomposition remains open.
+  decomposition is planned for 0.8.
 - **Platforms**: an editable install (`pip install -e`) can break silently on
   Python 3.14 on macOS; install from the wheel if `import cgelab` fails.
 

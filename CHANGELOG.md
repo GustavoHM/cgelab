@@ -5,6 +5,14 @@ before 1.0, a minor version may add to the API and a patch version only fixes.
 
 ## Unreleased
 
+## 0.7.0 — 2026-10-25
+
+Several regions and GTAP data. The regional model gains factor migration, regional investment
+and government closures, margins and CET inside the origin nest, bilateral trade with transport
+margins and a capital stock per region; GTAP headers can be aggregated and mapped to a
+one-region SAM; and the regional results feed causal inference through treated-against-control
+comparisons, simulated panels and matching to external targets.
+
 ### Added
 
 - Regional government supports `nominal_fixed`, `saving_rate` and saving/revenue

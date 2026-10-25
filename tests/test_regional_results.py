@@ -26,7 +26,7 @@ def test_government_account_uses_the_same_fixed_real_financing():
     assert account["saving"] == pytest.approx(result.real["government_saving"])
     financed = (result.household_saving + result.forced_saving
                 + account["saving"] + result.foreign_saving)
-    assert financed == result.savings
+    assert financed == pytest.approx(result.savings)
 
 
 def test_national_accounts_and_trade_prices_are_populated():

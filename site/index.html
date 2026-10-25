@@ -27,7 +27,7 @@
       <span class="pill">5 closures</span>
       <span class="pill">CET, FDI, several capital stocks</span>
       <span class="pill">checked against JuMP to 1.2e-11</span>
-      <span class="pill">MIT · v0.6.0</span>
+      <span class="pill">MIT · v0.7.0</span>
     </div>
   </div>
 </header>
@@ -864,7 +864,7 @@ sigma_armington   2.2
 <span class="out-expr">fit.achieved</span>
 gdp_pct   -0.161
 <span class="out-expr">fit.distance</span>
-1.522e-19</code></pre>
+4.93e-28</code></pre>
   <p>The target comes from an external coefficient; the parameter is bounded and every evaluation
   recalibrates and solves the model. The fit recovers 2.2. Covariance weighting and singular
   systems use a pseudo-inverse, and <code>evaluations</code> keeps the whole optimisation trail.</p>
@@ -1021,10 +1021,10 @@ gtap_result.exports</code></pre>
 <span class="out-expr">gtap_result.imports</span>
 [20 0]
 <span class="out-expr">gtap_result.exports</span>
-[15 0]</code></pre>
+[20 0]</code></pre>
   <p>The synthetic headers map to a balanced SAM with FOB imports, CIF margins, tariffs and
   production taxes. Output is 120 and 20, imports are 20 of the goods commodity, and exports are
-  15. `gtap_supply_use` and `gtap_sam` apply the same mapping to licensed data; aggregation sums
+  20. `gtap_supply_use` and `gtap_sam` apply the same mapping to licensed data; aggregation sums
   only declared flows and uses explicit weights for parameters.</p>
   <h3>41. Consolidated regional government closures</h3>
 <pre><code>saving_rate = cge.solve_period(reg_econ, cge.Closure(government="saving_rate"))
@@ -1185,7 +1185,7 @@ cgelab diagnostics -- Economy(3 activities, 3 commodities, 2 households, 2 facto
   author  = {Moreira, Gustavo Hoffmann},
   title   = {{cgelab}: a general toolkit for SAM-based computable general equilibrium models in Python},
   year    = {2026},
-  version = {0.6.0},
+  version = {0.7.0},
   license = {MIT},
   doi     = {10.5281/zenodo.23624109},
   url     = {https://github.com/GustavoHM/cgelab},
@@ -1194,12 +1194,12 @@ cgelab diagnostics -- Economy(3 activities, 3 commodities, 2 households, 2 facto
 
   <h3>APA</h3>
 <pre><code class="plain">Moreira, G. H. (2026). cgelab: A general toolkit for SAM-based computable general equilibrium
-models in Python (Version 0.6.0) [Computer software]. Zenodo. https://doi.org/10.5281/zenodo.23624109</code></pre>
+models in Python (Version 0.7.0) [Computer software]. Zenodo. https://doi.org/10.5281/zenodo.23624109</code></pre>
 
   <h3>In the text</h3>
   <p>Cite the version next to the result, not only the name:</p>
   <blockquote style="border-left:3px solid var(--rule); margin:1rem 0; padding:.2rem 0 .2rem 1.1rem;
-     color:var(--muted)">The model was calibrated and solved with <code>cgelab</code> 0.6.0
+     color:var(--muted)">The model was calibrated and solved with <code>cgelab</code> 0.7.0
      (Moreira, 2026), as a recursive-dynamic path from 2021 to 2045.</blockquote>
 
   <div class="note"><p><strong>Cite the archived version.</strong> A repository URL is not an
@@ -1243,7 +1243,7 @@ models in Python (Version 0.6.0) [Computer software]. Zenodo. https://doi.org/10
 </main>
 
 <footer><div class="wrap">
-  <p>cgelab 0.6.0 — MIT. Code, documentation and issues at
+  <p>cgelab 0.7.0 — MIT. Code, documentation and issues at
   <a href="https://github.com/GustavoHM/cgelab">github.com/GustavoHM/cgelab</a>.</p>
   <p><a href="https://gustavohm.github.io/dsgelab/">dsgelab</a>, by the same author, solves dynamic
   stochastic general equilibrium (DSGE) models. <code>cgelab.bridge</code> uses it for the

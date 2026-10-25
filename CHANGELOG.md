@@ -5,6 +5,14 @@ before 1.0, a minor version may add to the API and a patch version only fixes.
 
 ## Unreleased
 
+## 0.7.0 — 2026-10-25
+
+Several regions and GTAP data. The regional model gains factor migration, regional investment
+and government closures, margins and CET inside the origin nest, bilateral trade with transport
+margins and a capital stock per region; GTAP headers can be aggregated and mapped to a
+one-region SAM; and the regional results feed causal inference through treated-against-control
+comparisons, simulated panels and matching to external targets.
+
 ### Added
 
 - Regional government supports `nominal_fixed`, `saving_rate` and saving/revenue
@@ -20,8 +28,10 @@ before 1.0, a minor version may add to the API and a patch version only fixes.
 - `aggregate_gtap` sums only declared GTAP value headers by axis position and
   computes parameter means with explicit weights. `gtap_supply_use` and
   `gtap_sam` map one region to supply-use tables or a SAM, separating FOB
-  imports, CIF margins, tariffs, product and production taxes, and net transport
-  service exports. `cgelab.examples.gtap` provides a hand-balanced synthetic
+  imports into the region, CIF margins, tariffs, export taxes, product and
+  production taxes (`OSEP` as a subsidy), and net transport service exports;
+  investment comes from `VINV` or a `CGDS` column, and agents' purchases from
+  `VPA`/`VGA` or their domestic and imported parts. `cgelab.examples.gtap` provides a hand-balanced synthetic
   dataset that calibrates and solves. Licensed-data checks remain conditional on
   `CGELAB_GTAP_DIR`; no data are included.
 - `TransportMargins` validates route-level FOB and transport values and global

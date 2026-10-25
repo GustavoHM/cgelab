@@ -1433,9 +1433,14 @@ labels to the new label, so repeated `REG` axes remain independent. Parameters u
 weights may be another `Header` or an array.
 
 `gtap_supply_use(headers, region)` and `gtap_sam(headers, region)` map one region
-to supply-use tables or a SAM. Imports are FOB, CIF minus FOB enters the margin
-block, `VIMS − VIWS` is the tariff, and `OSEP` remains a production tax. Transport
-supply less route margins is net service exports. Activities receive `a_` names
+to supply-use tables or a SAM. Imports are FOB shipments into the region (`VXWD`
+by destination), CIF minus FOB enters the margin block and `VIMS − VIWS` is the
+tariff. Exports are FOB, with `VXWD − VXMD` as an export tax among product taxes.
+`OSEP` is GTAP's output subsidy, so it enters as a production tax with its sign
+reversed. Purchases at agents' prices come from `VPA` and `VGA`, or from their
+domestic and imported parts (`VDPA + VIPA`, `VDGA + VIGA`), and a `CGDS` column
+supplies investment demand when `VINV` is absent. Transport supply less route
+margins is net service exports. Activities receive `a_` names
 so they cannot collide with commodity accounts. The synthetic
 `cgelab.examples.gtap.build()` reproduces this mapping and solves its base year.
 Optional checks use `CGELAB_GTAP_DIR`; comparison with GTAPAgg/FlexAgg remains a

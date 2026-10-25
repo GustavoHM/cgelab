@@ -33,12 +33,14 @@ from .emissions import Emissions, add_emissions, emissions
 from .physical import PhysicalUnits, add_physical_units, physical, physical_coefficient
 from .export import to_jump
 from .har import read_har, write_har
+from .gtap import aggregate_gtap, gtap_sam, gtap_supply_use
 from .dynamics import Growth, PathResult, run_path
 from .baseline import Baseline, calibrate_baseline
 from .historical import Historical, calibrate_historical
 from .functions import (armington, ces_intensity, ces_price, cet, cet_domestic_price,
                         cobb_douglas_price)
 from .behaviour import Behaviour, PersonSurvey, transition_probabilities
+from .causal import simulated_panel, treated_vs_control
 from .build import (Institutions, SupplyUse, group_population, read_tru, segment_shares,
                     split_factor, split_households, split_vintages, sut_to_sam)
 from .ibge import pnadc, pof, read_ibge, read_sas_program
@@ -46,6 +48,7 @@ from .micro import (MicroResult, Survey, account_sources, atkinson, fgt, fgt_dec
                     ge_decomposition, generalized_entropy, gini, inequality,
                     mean_log_deviation, microsimulate, poverty, theil)
 from .mobility import FactorMobility
+from .match import MatchResult, match_targets
 from .multipliers import (Multipliers, accounting_multipliers, fixed_price_multipliers,
                           leontief_multipliers, linkages, structural_paths)
 from .results import (factor_demand_by_activity, government_account, national_accounts,
@@ -59,13 +62,14 @@ from .sensitivity import (Normal, SensitivityResult, SobolResult, Triangular, Un
                           sensitivity, sobol, spec_sweep, stroud_points)
 from .solve import PeriodResult, factor_intensity, solve_period, value_added_price
 from .spec import AccountLayout, ModelSpec
+from .transport import TransportMargins
 from .welfare import compensating_variation, equivalent_variation, ev_by_group
 
 __version__ = "0.6.0"
 
 __all__ = [
     "SAM", "BalanceError", "sam_distance", "SAMDraws", "sam_draws", "sam_sweep",
-    "ModelSpec", "AccountLayout",
+    "ModelSpec", "AccountLayout", "TransportMargins",
     "calibrate", "Economy",
     "Closure", "LabourMarket", "Scenario", "consumer_wedge",
     "solve_period", "PeriodResult", "value_added_price", "factor_intensity",
@@ -81,7 +85,7 @@ __all__ = [
     "ge_decomposition", "fgt_decomposition",
     "equivalent_variation", "ev_by_group", "compensating_variation",
     "base_year_reproduction", "homogeneity_test", "walras_check", "report",
-    "to_jump", "read_har", "write_har",
+    "to_jump", "read_har", "write_har", "aggregate_gtap", "gtap_supply_use", "gtap_sam",
     "Emissions", "add_emissions", "emissions",
     "PhysicalUnits", "add_physical_units", "physical", "physical_coefficient",
     "factor_demand_by_activity", "real_gdp", "real_value_added", "sectoral_path",
@@ -90,6 +94,7 @@ __all__ = [
     "linkages", "structural_paths",
     "subtotals", "path_decomposition", "scenario_vector", "welfare_decomposition",
     "sensitivity", "spec_sweep", "stroud_points", "SensitivityResult", "sobol", "SobolResult",
+    "match_targets", "MatchResult", "treated_vs_control", "simulated_panel",
     "closure_sweep", "closure_grid", "ClosureSweep", "in_money",
     "robustness_report", "RobustnessReport",
     "Uniform", "Normal", "Triangular",

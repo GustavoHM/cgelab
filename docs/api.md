@@ -60,7 +60,9 @@ gives `inf`; negative or nonfinite entries and zero total flow are refused.
 | `negative_value_added` | `"leontief"` | or `"net"` |
 | `margins` | `True` | read the commodity-to-commodity margin block |
 | `regions` | `None` | region names. Accounts are then `region:local`. Absent, the one-region model |
-| `sigma_interregional` | `2.0` | CES across regions of origin, under the Armington. Scalar or mapping by local commodity |
+| `regional_government`, `regional_investment` | `None` | optional additional `{region: account}` maps. National accounts remain, and demand is added, never split; factor income and household saving are included |
+| `factor_migration` | `None` | `{local factor: ω}` migration between regional pools, distinct from sectoral `factor_mobility`; zero holds base-year origins. `factor_pools={factor: DataFrame}` gives the proximity matrix, whose rows sum to one and whose columns reproduce endowments |
+| `sigma_interregional` | `2.0` | CES across regions of origin, under the Armington. Scalar or mapping by local commodity. Regional models carry the margin block and accept `export_rule="cet"`; `world_price` and `export_price` then have one value per local commodity |
 | `tariff_account` | `None` | account that collects the import tariff from commodities (Hosoe's TRF). The tariff goes inside the Armington import price |
 | `indirect_tax_account` | `None` | account that collects the indirect tax on all of output (Hosoe's IDT). The tax goes inside the gross output price the CET splits, so exports carry it |
 | `factor_mobility` | `None` | `{factor: ω}`, ω ≥ 0: the factor's endowment is transformed across the activities that use it, and each activity pays its own price. Zero holds the base-year allocation. A factor left out is perfectly mobile. Not the numeraire; not with `regions` |
@@ -75,22 +77,41 @@ Methods: `classify(sam) -> AccountLayout`, `prepare(sam)` (expands regional
 accounts), `sigma_va_vector(activities)`, `sigma_armington_vector(commodities)`.
 
 With `regions` set, the numeraire is one factor in one region (`"r1:f_lab"`).
-Factors may be passed as local names and are expanded to every region. Buyers
-pay a national composite: a CES of origins, then the usual Armington against
-foreign imports. One region makes the CES a single variety. `PeriodResult.bilateral`
-is `(origin, destination, local commodity)` for households and activities;
-government and investment stay national. Margins, CET exports, LES, migration
-and non-default closures are refused by name rather than ignored. `to_jump` and
-`run_path` refuse more than one region.
+Factors may be passed as local names and are expanded to every region. Each
+destination has a CES of origins, then the usual Armington against foreign
+imports. One region makes the CES a single variety. `PeriodResult.bilateral` is
+`(origin, destination, local commodity)` for households, activities and mapped
+regional institutions; `bilateral_imports` reports imported content on the same
+grid. Their sum reproduces the SAM cells without route margins; with routes, add
+`transport["vtwr"]` for the purchaser-value identity. National government and investment
+use a separate channel. Margins, CET exports and the government closures
+`real_fixed`, `nominal_fixed`, `saving_rate` and saving/revenue targets are
+supported. LES, trade taxes, energy nests and unsupported labour closures are
+refused by name rather than ignored.
+`run_path` supports full `region:factor` names; `to_jump` still refuses regional
+models.
 
 `AccountLayout`: `activities`, `commodities`, `households`, `factors`,
 `government`, `investment`, `rest_of_world`.
+
+`TransportMargins.from_long(routes, supply, regions=..., commodities=..., destinations=...)`
+reads route rows with `origin`, `destination`, `commodity`, `fob` and `transport`,
+and service-supply rows with `origin`, `commodity` and `value`. Global transport
+must equal global service supply. `evaluate(shipments, fob_prices, service_prices)`
+returns route `vxwd`, `vtwr`, `viws` and pool `qt`, `pt`, `qst`: CIF is FOB plus
+transport, route demand is proportional to shipments, and service supply forms a
+Cobb–Douglas pool. `calibrate(..., transport=margins)` reconciles these data with
+the SAM and solves them in the regional equilibrium. Destinations are the regions
+followed by `"national"`. FOB plus service supply must reproduce domestic sales;
+SAM cells minus FOB and transport must reproduce imports; and both sides of every
+margin commodity must match the commodity–commodity block. `PeriodResult.transport`
+contains the solved GTAP flows.
 
 ---
 
 ## Calibration
 
-### `calibrate(sam, spec=None, *, income_elasticities=None, population=None, tariffs=None, output_taxes=None, factor_pools=None, check_balance=True) -> Economy`
+### `calibrate(sam, spec=None, *, income_elasticities=None, population=None, tariffs=None, output_taxes=None, factor_pools=None, transport=None, check_balance=True) -> Economy`
 
 `income_elasticities` maps commodity to income elasticity (LES only).
 `population` maps household account to a household count — the weight of a per
@@ -234,6 +255,12 @@ that finances the fixed investment. Under `ModelSpec.export_demand` or
 `import_supply`, the log world price of each commodity on a curve. For a factor
 in `ModelSpec.factor_mobility`, its price in each activity that uses it instead
 of one price, with one market per activity.
+
+With a regional economy, `investment="fixed_real"` holds investment quantities
+at base-year purchaser prices and solves a per-capita forced-saving levy, which
+is deducted from households. `savings_driven` remains the default.
+`investment_level` defaults to the calibrated level. `household_saving`,
+`forced_saving` and `foreign_saving` are populated on the regional result.
 
 ### `PeriodResult`
 
@@ -536,6 +563,32 @@ distribution figures, and Sobol bars when available; it requires the optional
 `plot` extra (`matplotlib>=3.7`). `RobustnessReport` never requires matplotlib
 when figures are not requested.
 
+### `match_targets(sam, spec, *, targets, parameters, measure, covariance=None, scenario=None, closure=None, calibrate_kwargs=None, options=None) -> MatchResult`
+
+Minimum-distance matching to external coefficients, recalibrating and solving
+at every evaluation through `spec_sweep`. `targets` is `{name: published value}`;
+`parameters` is `{ModelSpec field: (low, high)}`; `measure` has the usual
+`(reference, alternative)` signature. The objective is `r' Σ⁺ r`, where `r` is
+`achieved - target`. `covariance` is a full matrix or diagonal of variances,
+defaulting to the identity; a positive-semidefinite singular matrix uses its
+pseudo-inverse. `options` goes to L-BFGS-B in `scipy.optimize.minimize`.
+
+`MatchResult`: `parameters`, `achieved`, `target`, `residuals`, `distance`,
+`success`, `message`, `nit`, `nfev`, `evaluations` and the fitted `spec`. This
+is deterministic target matching, not an econometric estimator; optimiser
+failure and solver errors remain visible.
+
+### `treated_vs_control(reference, alternative, *, treated, controls, measure="output", weights=None) -> DataFrame`
+
+Two solved regional periods; the treated change minus the weighted control
+change. `controls` is a region or sequence, with equal default weights or
+explicit weights normalised to one. `measure` is `"output"`, `"real_income"`,
+`"factor_demand"`, `"bilateral"`, a callable `f(period, region)`, or a mapping
+of output names to any of them. Columns: `treated_change`, `control_change`,
+`effect`, and the reference and alternative levels of treated and control.
+Regions, account compatibility and weights are validated. This is a contrast of
+outcomes, not an econometric estimator.
+
 ---
 
 ## Dynamics
@@ -546,7 +599,9 @@ grows as a whole.
 ### `Growth(labour=0.0, tfp=0.0, depreciation=0.05, discount=0.05, labour_factor="f_lab", capital_factor="f_cap", allocation="proportional", productivity="hicks_neutral", investment_deflator="base_price")`
 
 `capital_factor` is one factor or a sequence of them, each accumulated from its
-own service flow; `depreciation` is a rate or a mapping by capital factor.
+own service flow. In a regional model, `labour_factor` and every capital factor
+must use full `region:factor` names, and each regional stock accumulates from
+investment by return. `depreciation` is a rate or a mapping by capital factor.
 `allocation` shares domestic investment among them: `"proportional"` to the
 stocks, or a number `e` making shares proportional to `K_k (r_k / r_mean)^e`. A
 capital factor with pools (`calibrate(factor_pools=)`) has a stock per pool,
@@ -614,6 +669,15 @@ scenario multiplier), `multiplier` (the calibrated productivity alone),
 `preferences` (year × commodity frames by household), `scenario(policy=None)`
 and `run(policy=None)`. A policy holds the calibrated shifters. The baseline
 uses the same scalar and joint root routines.
+
+### `simulated_panel(path, *, measure="output", treated=None, noise=0.0, seed=20260724) -> DataFrame`
+
+A tidy region-by-year panel from a regional `PathResult`. `measure` has the
+`treated_vs_control` built-ins and callable forms. `treated` labels rows only;
+it never changes the model. `noise` is the log standard deviation of independent
+lognormal multipliers with mean one, applied only to reported values after all
+equilibria and capital accumulation are complete. Columns: `year`, `region`,
+`outcome`, `value`, `treated`, `noise`.
 
 ### `PathResult`
 
@@ -732,6 +796,19 @@ GEMPACK header array files, the format of the GTAP database. Types `1C`, `2I`,
 
 `name`, `description`, `kind`, `array` (float64, or int64 for `2I`, object for
 `1C`), `sets` and `labels` per dimension, and `to_series()` in long form.
+
+### `aggregate_gtap(headers, groups, *, values, weighted=None)`
+
+Only `values` are summed. `groups` maps axis positions to old-to-new label maps,
+including repeated set names. `weighted={"NAME": (weights, reduce_axes)}` computes
+weighted means with a `Header` or array and positional reduction before grouping.
+
+### `gtap_supply_use(headers, region=0)`, `gtap_sam(headers, region=0, **kwargs)`
+
+Map one GTAP region to `SupplyUse` or a balanced `SAM`: one `a_` activity per
+commodity, FOB imports, CIF margins, tariffs, product and production taxes, and
+net transport service exports. `cgelab.examples.gtap.synthetic()` supplies the
+hand-balanced headers and `build()` the corresponding calibrated economy.
 
 ---
 
@@ -935,6 +1012,7 @@ sam, econ = toy.build_one_good()               # closed, one good: the stochasti
 
 from cgelab.examples import regions
 sam, econ = regions.build()                    # two identical regions under one origin nest
+sam, econ = regions.build_with_transport()     # two goods, route margins and a global service pool
 
 from cgelab.examples import hosoe
 sam, econ = hosoe.build()                      # Hosoe's stdcge; hosoe.CLOSURE is his closure

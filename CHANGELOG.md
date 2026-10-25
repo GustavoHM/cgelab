@@ -5,6 +5,78 @@ before 1.0, a minor version may add to the API and a patch version only fixes.
 
 ## Unreleased
 
+### Added
+
+- Regional government supports `nominal_fixed`, `saving_rate` and saving/revenue
+  targets met by direct tax, product tax or spending. Targets use consolidated
+  base saving and revenue across all mapped accounts. Affine government and
+  investment budget probes match the national solver, including shocks and
+  homogeneity. `Scenario.product_tax` accepts one rate per local commodity and
+  `PeriodResult.tax_scale` records the adjustment.
+- Regional results now populate `government`, `world_export_price`,
+  `world_import_price`, `pe`, `domestic_sales`, `p_domestic`,
+  `factor_income_abroad`, household direct taxes and factor prices by activity.
+  `government_account` and `national_accounts` work on solved regional periods.
+- `aggregate_gtap` sums only declared GTAP value headers by axis position and
+  computes parameter means with explicit weights. `gtap_supply_use` and
+  `gtap_sam` map one region to supply-use tables or a SAM, separating FOB
+  imports, CIF margins, tariffs, product and production taxes, and net transport
+  service exports. `cgelab.examples.gtap` provides a hand-balanced synthetic
+  dataset that calibrates and solves. Licensed-data checks remain conditional on
+  `CGELAB_GTAP_DIR`; no data are included.
+- `TransportMargins` validates route-level FOB and transport values and global
+  service supply. Its evaluation implements the GTAP identities
+  `VIWS = VXWD + VTWR`, route demand proportional to shipments and a
+  Cobb–Douglas global transport pool, returning `qt`, `pt`, `qst`, `vtwr`,
+  `vxwd` and `viws`. `calibrate(transport=)` reconciles routes with the SAM and
+  solves them in the regional equilibrium, with CES/Armington parameters
+  calibrated at non-unit route prices and `PeriodResult.transport` exposing the
+  solved flows. Tests check the hand-written base year, price responses,
+  productivity, homogeneity, Walras, conservation and invalid data.
+- Regional origin CES nests are calibrated by destination from the SAM's
+  household, activity and institutional purchases. `PeriodResult.bilateral`
+  reports domestic sales and `bilateral_imports` the imported content on the
+  same grid; their sum reproduces the base-year regional buyer cells. National
+  institutions use a separate channel. Validation covers one-region equivalence,
+  Walras, homogeneity, CET, migration and regional investment.
+- The regional origin nest now carries national-accounts trade and transport
+  margins through delivered prices and the quantity system, and supports CET
+  exports under `export_rule="cet"`. Regional `export_price` shocks use one
+  price per local commodity. One-region comparisons against the national solver
+  cover the base year, productivity shocks, margins and external-price shocks;
+  failure of the regional price fixed point is now explicit.
+- `run_path` accumulates a capital stock per region when `Growth` uses full
+  `region:factor` names. `simulated_panel` returns a tidy region-by-year panel
+  with explicit treatment labels and optional seeded lognormal noise applied
+  only to reported values, never to equilibrium or capital accumulation.
+- `ModelSpec.factor_migration` moves regional factor pools with CET or logit,
+  preserving origin income and destination supply. `calibrate(factor_pools=)`
+  supplies a proximity matrix validated for row shares and endowment totals.
+  `FactorMobility.allow_new` permits new destinations while preserving the
+  base-year structure. Tests check zero elasticity, logit migration and pool
+  conservation.
+- `ModelSpec.regional_government` and `regional_investment` add optional
+  `{region: account}` maps. Their demand, factor income and household saving
+  enter the equilibrium and the origin mix, rather than splitting national
+  totals. Mappings validate regions, accounts and duplicates and work with
+  fixed-real investment.
+- The regional solver accepts `investment="fixed_real"`, holding quantities at
+  base-year purchaser prices and financing them with a per-capita forced-saving
+  levy, as in the one-region model. `household_saving`, `forced_saving` and
+  `foreign_saving` are populated. Tests check the base year, an alternative
+  level, nominal saving and a zero Walras residual.
+- `treated_vs_control` computes a treated region's change minus the weighted
+  control change between two solved regional periods. Built-in outcomes are
+  output, real household income, factor demand and bilateral outflows; custom
+  measures and control weights are supported. The table exposes levels and both
+  changes, and validation covers no-op, treated-only and common shocks.
+- `match_targets` fits bounded ModelSpec fields to external coefficients by
+  weighted minimum distance, recalibrating and solving at every evaluation.
+  Full or diagonal covariances use a pseudo-inverse for singular systems;
+  `MatchResult` keeps fitted and achieved values, residuals, optimiser evidence
+  and every evaluation. Validation includes the closed-form weighted
+  least-squares solution and recovery of an elasticity in the toy CGE.
+
 ## 0.6.0 — 2026-10-24
 
 Robustness and limited historical calibration. The six original items of the 0.6 milestone

@@ -243,11 +243,11 @@ class _PathState:
 
     def __init__(self, econ: Economy, closure: Closure, growth: Growth, *,
                  raise_on_fail: bool = True):
-        if econ.regional is not None and len(econ.regional.regions) > 1:
-            raise ValueError(
-                "run_path does not move factors between regions. The within-period "
-                "nest is solved by solve_period; a regional capital stock that "
-                "accumulates, and migration, are not in this slice.")
+        if econ.regional is not None:
+            local = [k for k in growth.capital_factors + [growth.labour_factor] if ":" not in k]
+            if local:
+                raise ValueError("regional run_path needs full 'region:factor' names in "
+                                 f"Growth.capital_factor and labour_factor, got {local}")
         self.econ, self.closure, self.growth = econ, closure, growth
         self.raise_on_fail = raise_on_fail
         self.caps = growth.capital_factors

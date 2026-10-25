@@ -186,8 +186,9 @@ def run(page: Path, verbose: bool = True, outputs: dict | None = None) -> int:
 
 
 def render(text: str, label: str) -> str:
-    lines = [f'<span class="out-expr">{html.escape(s[1:], quote=False)}</span>'
-             if s.startswith(EXPR) else html.escape(s, quote=False) for s in text.splitlines()]
+    lines = [f'<span class="out-expr">{html.escape(s[1:].rstrip(), quote=False)}</span>'
+             if s.startswith(EXPR) else html.escape(s.rstrip(), quote=False)
+             for s in text.splitlines()]
     return f'<pre class="output" data-label="{label}"><code>' + "\n".join(lines) + "</code></pre>"
 
 

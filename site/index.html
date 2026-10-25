@@ -173,7 +173,7 @@ ref.worst_walras          # the number to look at first
 ref.capital_stock         # the stock, recovered from the user cost and not from the SAM</code></pre>
 <pre class="output" data-label="Output"><code><span class="out-expr">ref.aggregates()</span>
       exchange_rate  savings     walras  residual  ...  inv_real  hh_sav_real  gov_sav_real  for_sav_real
-year                                               ...                                                   
+year                                               ...
 2021              1       50          0 3.553e-16  ...        50           35             5            10
 2022          0.972    50.83 -2.442e-15 2.292e-16  ...     52.28        36.08          5.92         10.29
 2023         0.9446    51.66 -1.151e-15 7.105e-16  ...     54.67         37.2         6.888         10.58
@@ -588,7 +588,7 @@ atkinson_1   0.3859 0.4194 0.03343
 atkinson_2   0.5538  0.591 0.03719
 <span class="out-expr">cge.poverty(micro, 3.0)</span>
               ref    alt  change
-line alpha                      
+line alpha
 3.0  0     0.6978 0.7309 0.03307
      1     0.4588 0.4899 0.03111
      2      0.325 0.3529 0.02792</code></pre>
@@ -848,6 +848,202 @@ hist.preferences["hh_1"]</code></pre>
   preference for food are the unknowns, solved jointly in logs. The other commodity fixes the
   preference scale. A later <code>hist.run(policy)</code> holds these calibrated shifters and lets
   the targets move. <code>calibrate_baseline</code> uses the same root routines.</p>
+  <h3>31. Matching an external target</h3>
+<pre><code>known_spec = toy.spec(sigma_armington=2.2)
+known_econ = cge.calibrate(sam_toy, known_spec)
+known_base = cge.solve_period(known_econ)
+known_alt = cge.solve_period(known_econ, scenario=shock, warm_start=known_base)
+published = gdp_pct(known_base, known_alt)["gdp_pct"]
+fit = cge.match_targets(sam_toy, toy.spec(), targets={"gdp_pct": published},
+    parameters={"sigma_armington": (1.5, 2.5)}, measure=gdp_pct, scenario=shock)
+fit.parameters
+fit.achieved
+fit.distance</code></pre>
+<pre class="output" data-label="Output"><code><span class="out-expr">fit.parameters</span>
+sigma_armington   2.2
+<span class="out-expr">fit.achieved</span>
+gdp_pct   -0.161
+<span class="out-expr">fit.distance</span>
+1.522e-19</code></pre>
+  <p>The target comes from an external coefficient; the parameter is bounded and every evaluation
+  recalibrates and solves the model. The fit recovers 2.2. Covariance weighting and singular
+  systems use a pseudo-inverse, and <code>evaluations</code> keeps the whole optimisation trail.</p>
+  <h3>32. Treated against control</h3>
+<pre><code>from cgelab.examples import regions
+reg_econ = regions.build()[1]
+reg_base = cge.solve_period(reg_econ)
+tfp = np.ones(reg_econ.n_act)
+tfp[reg_econ.activity("r1:a")] = 1.2
+reg_alt = cge.solve_period(reg_econ, scenario=cge.Scenario(productivity=tfp),
+                           warm_start=reg_base)
+effect = cge.treated_vs_control(reg_base, reg_alt, treated="r1", controls="r2")
+effect[["treated_change", "control_change", "effect"]]</code></pre>
+<pre class="output" data-label="Output"><code><span class="out-expr">effect[["treated_change", "control_change", "effect"]]</span>
+         treated_change  control_change  effect
+outcome
+output               20       1.421e-14      20</code></pre>
+  <p>The effect is r1's output change less r2's. A common symmetric shock cancels. Controls can be
+  weighted, and measures cover output, real household income, factor demand, bilateral outflows
+  or a custom function. This is an auditable contrast of equilibria; the research design stays
+  with the reader.</p>
+  <h3>33. Fixed-real regional investment</h3>
+<pre><code>fixed = cge.solve_period(reg_econ, cge.Closure(investment="fixed_real"),
+                         cge.Scenario(investment_level=80.0))
+fixed.real["inv_real"]
+fixed.savings
+fixed.forced_saving</code></pre>
+<pre class="output" data-label="Output"><code><span class="out-expr">fixed.real["inv_real"]</span>
+80
+<span class="out-expr">fixed.savings</span>
+80
+<span class="out-expr">fixed.forced_saving</span>
+51.43</code></pre>
+  <p>The quantity of investment stays at 80 in base-year prices. Nominal saving moves with prices,
+  and a per-capita levy closes the account. <code>household_saving</code> separates voluntary from
+  forced saving, and Walras remains an independent check.</p>
+  <h3>34. Institutions mapped by region</h3>
+<pre><code>rows = []
+for r, c, value in regions.ENTRIES:
+    origin, destination = r.split(":")[0], c.split(":")[0]
+    if r == "gov": r = f"{destination}:gov"
+    if c == "gov": c = f"{origin}:gov"
+    if r == "s_i": r = f"{destination}:s_i"
+    if c == "s_i": c = f"{origin}:s_i"
+    rows.append((r, c, value))
+sam_regional = cge.SAM.from_long(pd.DataFrame(rows, columns=["row", "col", "value"]))
+spec_regional = regions.spec(government="r1:gov", investment="r1:s_i",
+    regional_government={"r2": "r2:gov"}, regional_investment={"r2": "r2:s_i"})
+econ_regional = cge.calibrate(sam_regional, spec_regional)
+institutional = cge.solve_period(econ_regional)
+econ_regional.regional.government_accounts
+institutional.real["inv_real"]</code></pre>
+<pre class="output" data-label="Output"><code><span class="out-expr">econ_regional.regional.government_accounts</span>
+{'r2': 'r2:gov'}
+<span class="out-expr">institutional.real["inv_real"]</span>
+40</code></pre>
+  <p>The national account is r1 and the additional account is r2. Their demand, factor income and
+  household saving enter the equilibrium; no national total is split by an ad hoc rule. Fixed-real
+  investment works over the same accounts.</p>
+  <h3>35. Factor migration with proximity</h3>
+<pre><code>proximity = pd.DataFrame([[0.9, 0.1], [0.1, 0.9]],
+                         index=["r1", "r2"], columns=["r1", "r2"])
+mig_spec = dataclasses.replace(spec_regional, factor_migration={"f_lab": 5.0},
+                               factor_mobility_form="logit")
+econ_mig = cge.calibrate(sam_regional, mig_spec, factor_pools={"f_lab": proximity})
+mig = cge.solve_period(econ_mig)
+mig.factor_pools["f_lab"]["supply"]</code></pre>
+<pre class="output" data-label="Output"><code><span class="out-expr">mig.factor_pools["f_lab"]["supply"]</span>
+[[54 6]
+ [6 54]]</code></pre>
+  <p>Workers move between regional pools, with origin income and destination supply. The matrix
+  rows sum to one and its columns reproduce each region's endowment. Logit preserves the head
+  count of each origin pool, and Walras remains an independent check.</p>
+  <h3>36. Regional capital and a simulated panel</h3>
+<pre><code>growth = cge.Growth(labour=0.01, depreciation=0.01,
+                    labour_factor="r1:f_lab", capital_factor=["r1:f_cap", "r2:f_cap"])
+path = cge.run_path(reg_econ, years=[2021, 2022], growth=growth)
+panel = cge.simulated_panel(path, treated="r1")
+path.capital_stock
+panel</code></pre>
+<pre class="output" data-label="Output"><code><span class="out-expr">path.capital_stock</span>
+[[666.7 666.7]
+ [680 680]]
+<span class="out-expr">panel</span>
+   year region outcome  value  treated  noise
+0  2021     r1  output    100     True      1
+1  2021     r2  output    100    False      1
+2  2022     r1  output  101.4     True      1
+3  2022     r2  output  100.8    False      1</code></pre>
+  <p>Each named regional capital stock accumulates from its own solved investment. The panel
+  contains the solved regional outcomes by year; the treatment flag is only a label. Optional
+  seeded lognormal noise changes reported values, never the equilibrium or the capital stock.</p>
+  <h3>37. CET exports in a regional model</h3>
+<pre><code>econ_cet = regions.build(regions.spec(export_rule="cet", sigma_cet=3.0))[1]
+base_cet = cge.solve_period(econ_cet)
+dear_exports = cge.solve_period(econ_cet, scenario=cge.Scenario(export_price=[1.1]),
+                                warm_start=base_cet)
+base_cet.exports
+dear_exports.exports</code></pre>
+<pre class="output" data-label="Output"><code><span class="out-expr">base_cet.exports</span>
+[10 10]
+<span class="out-expr">dear_exports.exports</span>
+[10.53 10.53]</code></pre>
+  <p>Each origin transforms output between domestic sales and exports. The export-price vector has
+  one entry per local commodity. A higher foreign price shifts both origins abroad; the national
+  current account and Walras still close. Delivered trade and transport margins use the same
+  commodity–commodity block as the national model.</p>
+  <h3>38. Bilateral cells by destination</h3>
+<pre><code>reg_base.bilateral
+reg_base.bilateral + reg_base.bilateral_imports</code></pre>
+<pre class="output" data-label="Output"><code><span class="out-expr">reg_base.bilateral</span>
+[[[45]
+  [18]]
+
+ [[18]
+  [45]]]
+<span class="out-expr">reg_base.bilateral + reg_base.bilateral_imports</span>
+[[[50]
+  [20]]
+
+ [[20]
+  [50]]]</code></pre>
+  <p>Domestic origin sales are 45/18 and 18/45; imported content brings the cells back to the
+  SAM's 50/20 and 20/50. Each destination has its own origin CES, calibrated from households,
+  activities and mapped institutions. National government and investment use a separate channel.
+  Route-specific transport services are not hidden in these accounting cells.</p>
+  <h3>39. Route transport and the global service pool</h3>
+<pre><code>sam_transport, econ_transport = regions.build_with_transport()
+routes = cge.solve_period(econ_transport)
+routes.transport["qt"]
+routes.transport["qst"]
+routes.transport["viws"][:, :, 0]</code></pre>
+<pre class="output" data-label="Output"><code><span class="out-expr">routes.transport["qt"]</span>
+24
+<span class="out-expr">routes.transport["qst"]</span>
+[[0 12]
+ [0 12]]
+<span class="out-expr">routes.transport["viws"][:, :, 0]</span>
+[[57 18 27]
+ [18 57 27]]</code></pre>
+  <p>Each region supplies 12 units of transport services, so the global pool is 24. Route CIF
+  values include FOB and transport; national government and investment occupy the third column.
+  Calibration checks these flows against the SAM, and the solver preserves Walras and the global
+  margin identity.</p>
+  <h3>40. A one-region SAM from GTAP-shaped data</h3>
+<pre><code>from cgelab.examples import gtap as gtap_example
+sam_gtap, econ_gtap = gtap_example.build()
+gtap_result = cge.solve_period(econ_gtap)
+gtap_result.X
+gtap_result.imports
+gtap_result.exports</code></pre>
+<pre class="output" data-label="Output"><code><span class="out-expr">gtap_result.X</span>
+[120 20]
+<span class="out-expr">gtap_result.imports</span>
+[20 0]
+<span class="out-expr">gtap_result.exports</span>
+[15 0]</code></pre>
+  <p>The synthetic headers map to a balanced SAM with FOB imports, CIF margins, tariffs and
+  production taxes. Output is 120 and 20, imports are 20 of the goods commodity, and exports are
+  15. `gtap_supply_use` and `gtap_sam` apply the same mapping to licensed data; aggregation sums
+  only declared flows and uses explicit weights for parameters.</p>
+  <h3>41. Consolidated regional government closures</h3>
+<pre><code>saving_rate = cge.solve_period(reg_econ, cge.Closure(government="saving_rate"))
+deficit = cge.solve_period(reg_econ, cge.Closure(
+    government_target="saving", government_target_value=12.0,
+    government_adjusts="spending"))
+saving_rate.government["saving"]
+deficit.government["saving"]
+deficit.government["consumption"]</code></pre>
+<pre class="output" data-label="Output"><code><span class="out-expr">saving_rate.government["saving"]</span>
+0
+<span class="out-expr">deficit.government["saving"]</span>
+12
+<span class="out-expr">deficit.government["consumption"]</span>
+8</code></pre>
+  <p>The saving-rate rule shares revenue between consumption and saving. With a saving target of
+  12, spending is the residual 8. Targets and rates consolidate national and mapped regional
+  accounts; direct- and product-tax levers use the same affine budget solution as the national
+  solver.</p>
 </div></section>
 
 <section id="gates"><div class="wrap">

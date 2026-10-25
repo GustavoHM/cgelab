@@ -1088,6 +1088,223 @@ needs `python -m pip install "cgelab[plot]"`; otherwise the error gives that
 installation instruction. The base package does not import or depend on
 matplotlib.
 
+### Matching external targets
+
+An estimated coefficient can discipline an elasticity without writing a second
+model. `match_targets` finds ModelSpec fields whose outcomes are closest to the
+external numbers, recalibrating and solving at every evaluation:
+
+```python
+fit = cge.match_targets(
+    sam, spec,
+    targets={"gdp_pct": published_gdp_change},
+    parameters={"sigma_armington": (1.0, 4.0)},
+    measure=gdp_pct,
+    scenario=policy)
+fit.parameters        # fitted elasticities
+fit.achieved          # coefficients at the fit
+fit.distance          # weighted squared distance
+fit.success           # optimiser status, not merely a number to trust
+fit.evaluations       # every evaluation, including solver errors
+```
+
+The objective is `r' Σ⁺ r`, with `r = achieved - target` and `Σ⁺` the
+pseudo-inverse of the covariance. `targets` maps coefficient names to values;
+`parameters` maps fields accepted by `spec_sweep` to finite `(low, high)` bounds.
+`covariance` can be a full matrix or a diagonal of variances, and defaults to the
+identity. A positive-semidefinite singular matrix is handled by its
+pseudo-inverse; invalid shapes, asymmetry and negative eigenvalues are refused.
+`options` is passed to `scipy.optimize.minimize` with L-BFGS-B.
+
+This is a deterministic match, not an econometric estimator and not a confidence
+interval. `MatchResult` keeps fitted `parameters`, `achieved`, `target`,
+`residuals`, `distance`, `success`, `message`, `nit`, `nfev`, `evaluations` and
+the fitted `spec`. A failed optimiser remains visible in the result. Validation
+includes the closed-form weighted least-squares solution, a singular covariance
+and recovery of an elasticity from a simulated CGE outcome.
+
+### Treated against control
+
+A regional counterfactual can be read as a treatment-effect contrast without
+putting an estimator inside the model:
+
+```python
+effect = cge.treated_vs_control(
+    reference, alternative, treated="r1", controls="r2", measure="output")
+effect[["treated_change", "control_change", "effect"]]
+```
+
+The effect is the treated region's change minus the controls' weighted change.
+Controls are equally weighted by default; `weights={region: value}` is
+normalised to one. `measure` is `"output"`, `"real_income"`,
+`"factor_demand"`, `"bilateral"`, a callable `f(period, region)`, or a mapping
+of result names to any of them. The table also keeps both levels and changes so
+the contrast can be audited.
+
+This is arithmetic on solved equilibria, not an identification strategy or a
+standard error. The reader supplies the research design and the estimator. The
+tests cover a no-op, a shock only in the treated region, a common shock that
+cancels, custom measures and bilateral outflows.
+
+### Margins and CET exports in the origin nest
+
+Regional calibration reads the commodity–commodity margin block with the same
+national-accounts convention as the national model. Margin services enter both
+the delivered purchaser price and the quantity system. With
+`regions.spec(margins=True)`, the regional accounts must use that convention;
+the default example keeps `margins=False` because its SAM has no margin block.
+
+`export_rule="cet"` lets every regional origin respond to its export price while
+the origin CES allocates domestic sales:
+
+```python
+econ = regions.build(regions.spec(export_rule="cet", sigma_cet=3.0))[1]
+base = cge.solve_period(econ)
+result = cge.solve_period(econ, scenario=cge.Scenario(export_price=[1.1]),
+                          warm_start=base)
+```
+
+`export_price` and `world_price` each contain one value per local commodity, not
+per regional account. Fixed export shares reject an export-price shock instead
+of ignoring it. Tests compare a labelled one-region model directly with the
+national solver, including margins, productivity and external-price shocks.
+### Bilateral origin cells by destination
+
+Every destination calibrates its own origin CES from the SAM. Households and
+activities belong to their region; mapped regional government and investment
+accounts join that destination, while the national accounts use a separate
+channel. A productivity shock therefore changes both origin prices and each
+destination's demand, rather than reallocating a fixed national mix.
+
+`PeriodResult.bilateral` contains domestic origin sales. Imported content is in
+`bilateral_imports` on the same `(origin, destination, local commodity)` grid.
+Their sum reproduces the SAM's regional buyer cells in the base year. Domestic
+sales plus national government and investment close against output net of
+exports. Tests also cover Walras, homogeneity, CET and one-region equivalence.
+
+### Route transport and the global service pool
+
+`TransportMargins` supplies FOB shipments and transport values by origin,
+destination and local commodity, plus service supply by origin. Destinations are
+the regions followed by `"national"`. Pass the object to `calibrate(transport=)`;
+`regions.build_with_transport()` is a complete hand-written example:
+
+```python
+sam, econ = regions.build_with_transport()
+result = cge.solve_period(econ)
+result.transport["qt"]       # global transport services
+result.transport["qst"]      # service supply by origin and commodity
+result.transport["viws"]     # CIF = FOB + route transport
+```
+
+Calibration refuses data that do not reproduce domestic sales, imports and both
+sides of the SAM margin block. CES and Armington distribution parameters are
+converted from value shares at non-unit route prices. The solver includes route
+prices, shipment-proportional service demand and a Cobb–Douglas global transport
+pool. FOB, imported content and route transport sum to purchaser cells. Tests
+cover the base year, productivity, homogeneity, Walras and the GTAP identities.
+
+### Fixed-real investment in a regional model
+
+`Closure(investment="fixed_real")` also works in the regional solver:
+
+```python
+fixed = cge.solve_period(econ, cge.Closure(investment="fixed_real"),
+                         cge.Scenario(investment_level=80.0))
+fixed.real["inv_real"]       # 80, at base-year purchaser prices
+fixed.savings                # nominal saving at the solved prices
+fixed.household_saving       # voluntary saving
+fixed.forced_saving          # the per-capita levy that closes the account
+fixed.real["government_saving"]
+```
+
+The investment quantity is held, not scaled by current prices. The forced levy
+is deducted from households in proportion to population, exactly as in the
+one-region model. Household saving, the levy, government saving and foreign
+saving sum to nominal investment at the solved prices. With no scenario level,
+the calibrated investment is used. `savings_driven` remains the default.
+
+### Government closures in a regional model
+
+`real_fixed`, `nominal_fixed` and `saving_rate` work on the consolidated regional
+accounts. `government_target="saving"` or `"revenue"` can be met by direct-tax or
+product-tax scaling, or by spending. The product-tax scenario and target use one
+value per local commodity. Base saving, revenue and the saving rate include all
+mapped regional accounts, not just the national one. One-region comparisons cover
+every rule, shocks and homogeneity; two-region tests cover consolidated revenue
+and a deficit target. Unsupported labour closures and trade taxes are refused.
+
+### Government and investment accounts by region
+
+National government and investment accounts remain the default. Additional
+accounts can be mapped explicitly instead of splitting their totals by an ad hoc
+regional rule:
+
+```python
+spec = regions.spec(
+    government="r1:gov", investment="r1:s_i",
+    regional_government={"r2": "r2:gov"},
+    regional_investment={"r2": "r2:s_i"})
+```
+
+`regional_government` and `regional_investment` add demand and its financing:
+factor income is assigned to each government, household saving includes every
+investment account, and final demand enters the origin mix in `bilateral`. A
+mapping must name a known region and account and may not reuse one account for
+two regions. National accounts remain in place, so a mixed national/regional
+model is valid. `real["gov_real"]` and `real["inv_real"]` include all of them,
+and `fixed_real` holds the total investment at base-year prices.
+
+### Factor migration between regions
+
+`factor_migration` allows a local factor to move between regional pools instead
+of clearing only where it was supplied:
+
+```python
+proximity = pd.DataFrame([[0.9, 0.1], [0.1, 0.9]],
+                         index=["r1", "r2"], columns=["r1", "r2"])
+econ = cge.calibrate(sam, regions.spec(
+    factor_migration={"f_lab": 5.0}, factor_mobility_form="logit"),
+    factor_pools={"f_lab": proximity})
+result = cge.solve_period(econ)
+result.factor_pools["f_lab"]["supply"]     # origin pool × destination region
+```
+
+This is different from `factor_mobility`, which transforms one factor across
+activities. Migration pays the destination wage, keeps origin income in the
+pool, and reports `factor_pools` with `pools`, `price`, `endowment` and `supply`.
+CET and logit are the same two forms as sectoral mobility. Logit preserves the
+head count of each origin pool; CET preserves its income. The proximity frame's
+rows sum to one, and `endowment @ delta` must reproduce each region's endowment.
+Zero elasticity keeps base-year origins. Walras still checks the numeraire's
+regional market, and fixed-real investment and institution maps compose with
+migration.
+
+### Regional capital and a simulated panel
+
+`run_path` accumulates a capital stock per region when `Growth` uses full
+regional factor names:
+
+```python
+growth = cge.Growth(labour=0.01, depreciation=0.01,
+                    labour_factor="r1:f_lab",
+                    capital_factor=["r1:f_cap", "r2:f_cap"])
+path = cge.run_path(econ, years=[2021, 2022], growth=growth)
+panel = cge.simulated_panel(path, treated="r1")
+```
+
+Each stock depreciates and receives investment by return; regional investment,
+institution maps and migration compose with it. `capital_stock` keeps one column
+per regional capital factor. A local name such as `f_cap` is rejected with an
+instruction to use `region:factor`.
+
+`simulated_panel` returns tidy `year`, `region`, `outcome`, `value`, `treated`
+and `noise` columns. `measure` has the same forms as `treated_vs_control`.
+`treated` is only a label. `noise` is the log standard deviation of independent
+lognormal multipliers with mean one, seeded and applied only after all equilibria
+and stocks have been solved. It never changes the equilibrium or the next year's
+capital, and the estimator stays outside the package.
+
 ---
 
 ## 13. Subtotals: which shock did what
@@ -1209,8 +1426,20 @@ demand, cost equals revenue in every activity, and output is sold. Point
 are licensed and stay out of the repository; `.gitignore` refuses `.har`, `.prm`
 and `.pkg` files.
 
-Aggregating GTAP and building a one-region SAM from it are the next steps, with
-the regional work of 0.7.
+`aggregate_gtap(headers, groups, values=[...], weighted={...})` aggregates only
+declared value headers. Each `groups` entry is an axis position and a map from old
+labels to the new label, so repeated `REG` axes remain independent. Parameters use
+`weighted={"NAME": (weights, reduce_axes)}` and become weighted means, never sums;
+weights may be another `Header` or an array.
+
+`gtap_supply_use(headers, region)` and `gtap_sam(headers, region)` map one region
+to supply-use tables or a SAM. Imports are FOB, CIF minus FOB enters the margin
+block, `VIMS − VIWS` is the tariff, and `OSEP` remains a production tax. Transport
+supply less route margins is net service exports. Activities receive `a_` names
+so they cannot collide with commodity accounts. The synthetic
+`cgelab.examples.gtap.build()` reproduces this mapping and solves its base year.
+Optional checks use `CGELAB_GTAP_DIR`; comparison with GTAPAgg/FlexAgg remains a
+separate validation, not a claim made by these tests.
 
 ---
 

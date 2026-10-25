@@ -175,7 +175,7 @@ ref.worst_walras          # o primeiro número a conferir
 ref.capital_stock         # estoque obtido do custo de uso, e não da MCS</code></pre>
 <pre class="output" data-label="Saída"><code><span class="out-expr">ref.aggregates()</span>
       exchange_rate  savings     walras  residual  ...  inv_real  hh_sav_real  gov_sav_real  for_sav_real
-year                                               ...                                                   
+year                                               ...
 2021              1       50          0 3.553e-16  ...        50           35             5            10
 2022          0.972    50.83 -2.442e-15 2.292e-16  ...     52.28        36.08          5.92         10.29
 2023         0.9446    51.66 -1.151e-15 7.105e-16  ...     54.67         37.2         6.888         10.58
@@ -594,7 +594,7 @@ atkinson_1   0.3859 0.4194 0.03343
 atkinson_2   0.5538  0.591 0.03719
 <span class="out-expr">cge.poverty(micro, 3.0)</span>
               ref    alt  change
-line alpha                      
+line alpha
 3.0  0     0.6978 0.7309 0.03307
      1     0.4588 0.4899 0.03111
      2      0.325 0.3529 0.02792</code></pre>
@@ -856,6 +856,203 @@ hist.preferences["hh_1"]</code></pre>
   por alimento são as incógnitas, resolvidas em conjunto em log. A outra mercadoria fixa a escala
   das preferências. Depois, <code>hist.run(policy)</code> mantém esses deslocadores e deixa os
   alvos se moverem. <code>calibrate_baseline</code> usa as mesmas rotinas de raiz.</p>
+  <h3>31. Ajustando um alvo externo</h3>
+<pre><code>spec_conhecida = toy.spec(sigma_armington=2.2)
+economia_conhecida = cge.calibrate(sam_toy, spec_conhecida)
+base_conhecida = cge.solve_period(economia_conhecida)
+alt_conhecida = cge.solve_period(economia_conhecida, scenario=choque, warm_start=base_conhecida)
+publicado = pib_pct(base_conhecida, alt_conhecida)["pib_pct"]
+ajuste = cge.match_targets(sam_toy, toy.spec(), targets={"pib_pct": publicado},
+    parameters={"sigma_armington": (1.5, 2.5)}, measure=pib_pct, scenario=choque)
+ajuste.parameters
+ajuste.achieved
+ajuste.distance</code></pre>
+<pre class="output" data-label="Saída"><code><span class="out-expr">ajuste.parameters</span>
+sigma_armington   2.2
+<span class="out-expr">ajuste.achieved</span>
+pib_pct   -0.161
+<span class="out-expr">ajuste.distance</span>
+1.522e-19</code></pre>
+  <p>O alvo vem de um coeficiente externo; o parâmetro tem limites e cada avaliação recalibra e
+  resolve o modelo. O ajuste recupera 2.2. A ponderação pela covariância usa pseudo-inversa em
+  sistemas singulares, e <code>evaluations</code> conserva toda a trilha da otimização.</p>
+  <h3>32. Região tratada contra controle</h3>
+<pre><code>from cgelab.examples import regions
+economia_regional = regions.build()[1]
+base_regional = cge.solve_period(economia_regional)
+ptf = np.ones(economia_regional.n_act)
+ptf[economia_regional.activity("r1:a")] = 1.2
+alt_regional = cge.solve_period(economia_regional, scenario=cge.Scenario(productivity=ptf),
+                                warm_start=base_regional)
+efeito = cge.treated_vs_control(base_regional, alt_regional, treated="r1", controls="r2")
+efeito[["treated_change", "control_change", "effect"]]</code></pre>
+<pre class="output" data-label="Saída"><code><span class="out-expr">efeito[["treated_change", "control_change", "effect"]]</span>
+         treated_change  control_change  effect
+outcome
+output               20       1.421e-14      20</code></pre>
+  <p>O efeito é a variação do produto de r1 menos a de r2. Um choque comum e simétrico se cancela.
+  Os controles podem ter pesos, e as medidas incluem produto, renda real, demanda de fatores,
+  fluxos bilaterais ou uma função própria. É um contraste auditável de equilíbrios; o desenho da
+  pesquisa fica com o leitor.</p>
+  <h3>33. Investimento regional real fixo</h3>
+<pre><code>fixo = cge.solve_period(economia_regional, cge.Closure(investment="fixed_real"),
+                         cge.Scenario(investment_level=80.0))
+fixo.real["inv_real"]
+fixo.savings
+fixo.forced_saving</code></pre>
+<pre class="output" data-label="Saída"><code><span class="out-expr">fixo.real["inv_real"]</span>
+80
+<span class="out-expr">fixo.savings</span>
+80
+<span class="out-expr">fixo.forced_saving</span>
+51.43</code></pre>
+  <p>A quantidade de investimento fica em 80 a preços do ano-base. A poupança nominal muda com os
+  preços, e um tributo per capita fecha a conta. <code>household_saving</code> separa a poupança
+  voluntária da forçada, e Walras continua sendo uma verificação independente.</p>
+  <h3>34. Instituições mapeadas por região</h3>
+<pre><code>linhas = []
+for r, c, valor in regions.ENTRIES:
+    origem, destino = r.split(":")[0], c.split(":")[0]
+    if r == "gov": r = f"{destino}:gov"
+    if c == "gov": c = f"{origem}:gov"
+    if r == "s_i": r = f"{destino}:s_i"
+    if c == "s_i": c = f"{origem}:s_i"
+    linhas.append((r, c, valor))
+sam_regional = cge.SAM.from_long(pd.DataFrame(linhas, columns=["row", "col", "value"]))
+spec_regional = regions.spec(government="r1:gov", investment="r1:s_i",
+    regional_government={"r2": "r2:gov"}, regional_investment={"r2": "r2:s_i"})
+economia_institucional = cge.calibrate(sam_regional, spec_regional)
+institucional = cge.solve_period(economia_institucional)
+economia_institucional.regional.government_accounts
+institucional.real["inv_real"]</code></pre>
+<pre class="output" data-label="Saída"><code><span class="out-expr">economia_institucional.regional.government_accounts</span>
+{'r2': 'r2:gov'}
+<span class="out-expr">institucional.real["inv_real"]</span>
+40</code></pre>
+  <p>A conta nacional é r1 e a adicional é r2. Sua demanda, renda fatorial e poupança das famílias
+  entram no equilíbrio; nenhum total nacional é dividido por uma regra ad hoc. O investimento real
+  fixo funciona sobre as mesmas contas.</p>
+  <h3>35. Migração de fatores com proximidade</h3>
+<pre><code>proximidade = pd.DataFrame([[0.9, 0.1], [0.1, 0.9]],
+                           index=["r1", "r2"], columns=["r1", "r2"])
+spec_migracao = dataclasses.replace(spec_regional, factor_migration={"f_lab": 5.0},
+                                    factor_mobility_form="logit")
+economia_migracao = cge.calibrate(sam_regional, spec_migracao,
+                                  factor_pools={"f_lab": proximidade})
+migracao = cge.solve_period(economia_migracao)
+migracao.factor_pools["f_lab"]["supply"]</code></pre>
+<pre class="output" data-label="Saída"><code><span class="out-expr">migracao.factor_pools["f_lab"]["supply"]</span>
+[[54 6]
+ [6 54]]</code></pre>
+  <p>Trabalhadores se movem entre pools regionais, com renda na origem e oferta no destino. As
+  linhas da matriz somam um, e suas colunas reproduzem a dotação de cada região. A logit preserva
+  o número de trabalhadores de cada origem, e Walras continua sendo uma verificação independente.</p>
+  <h3>36. Capital regional e painel simulado</h3>
+<pre><code>crescimento = cge.Growth(labour=0.01, depreciation=0.01,
+                         labour_factor="r1:f_lab", capital_factor=["r1:f_cap", "r2:f_cap"])
+trajetoria = cge.run_path(economia_regional, years=[2021, 2022], growth=crescimento)
+painel = cge.simulated_panel(trajetoria, treated="r1")
+trajetoria.capital_stock
+painel</code></pre>
+<pre class="output" data-label="Saída"><code><span class="out-expr">trajetoria.capital_stock</span>
+[[666.7 666.7]
+ [680 680]]
+<span class="out-expr">painel</span>
+   year region outcome  value  treated  noise
+0  2021     r1  output    100     True      1
+1  2021     r2  output    100    False      1
+2  2022     r1  output  101.4     True      1
+3  2022     r2  output  100.8    False      1</code></pre>
+  <p>Cada estoque regional nomeado acumula a partir do próprio investimento resolvido. O painel
+  contém os resultados regionais resolvidos por ano; o indicador de tratamento é apenas um rótulo.
+  O ruído lognormal opcional e reprodutível muda os valores reportados, nunca o equilíbrio ou o
+  estoque de capital.</p>
+  <h3>37. Exportações CET num modelo regional</h3>
+<pre><code>economia_cet = regions.build(regions.spec(export_rule="cet", sigma_cet=3.0))[1]
+base_cet = cge.solve_period(economia_cet)
+exportacao_cara = cge.solve_period(economia_cet, scenario=cge.Scenario(export_price=[1.1]),
+                                   warm_start=base_cet)
+base_cet.exports
+exportacao_cara.exports</code></pre>
+<pre class="output" data-label="Saída"><code><span class="out-expr">base_cet.exports</span>
+[10 10]
+<span class="out-expr">exportacao_cara.exports</span>
+[10.53 10.53]</code></pre>
+  <p>Cada origem transforma produto entre vendas domésticas e exportações. O vetor de preços de
+  exportação tem uma entrada por bem local. Um preço externo maior desloca ambas as origens para
+  o exterior; a conta corrente nacional e Walras continuam fechando. As margens de comércio e
+  transporte usam o mesmo bloco bem a bem do modelo nacional.</p>
+  <h3>38. Células bilaterais por destino</h3>
+<pre><code>base_regional.bilateral
+base_regional.bilateral + base_regional.bilateral_imports</code></pre>
+<pre class="output" data-label="Saída"><code><span class="out-expr">base_regional.bilateral</span>
+[[[45]
+  [18]]
+
+ [[18]
+  [45]]]
+<span class="out-expr">base_regional.bilateral + base_regional.bilateral_imports</span>
+[[[50]
+  [20]]
+
+ [[20]
+  [50]]]</code></pre>
+  <p>As vendas domésticas por origem são 45/18 e 18/45; o conteúdo importado leva as células de
+  volta aos 50/20 e 20/50 da MCS. Cada destino tem seu próprio ninho CES de origens, calibrado
+  pelas famílias, atividades e instituições mapeadas. Governo e investimento nacionais usam um
+  canal separado. Os serviços de transporte por rota não ficam escondidos nessas células.</p>
+  <h3>39. Transporte por rota e pool global de serviços</h3>
+<pre><code>sam_transporte, economia_transporte = regions.build_with_transport()
+rotas = cge.solve_period(economia_transporte)
+rotas.transport["qt"]
+rotas.transport["qst"]
+rotas.transport["viws"][:, :, 0]</code></pre>
+<pre class="output" data-label="Saída"><code><span class="out-expr">rotas.transport["qt"]</span>
+24
+<span class="out-expr">rotas.transport["qst"]</span>
+[[0 12]
+ [0 12]]
+<span class="out-expr">rotas.transport["viws"][:, :, 0]</span>
+[[57 18 27]
+ [18 57 27]]</code></pre>
+  <p>Cada região oferece 12 unidades de serviços de transporte, formando um pool global de 24.
+  Os valores CIF por rota somam FOB e transporte; governo e investimento nacionais ocupam a
+  terceira coluna. A calibração confere esses fluxos com a MCS, e o equilíbrio preserva Walras e
+  a identidade global das margens.</p>
+  <h3>40. MCS de uma região a partir de dados GTAP</h3>
+<pre><code>from cgelab.examples import gtap as exemplo_gtap
+sam_gtap, economia_gtap = exemplo_gtap.build()
+resultado_gtap = cge.solve_period(economia_gtap)
+resultado_gtap.X
+resultado_gtap.imports
+resultado_gtap.exports</code></pre>
+<pre class="output" data-label="Saída"><code><span class="out-expr">resultado_gtap.X</span>
+[120 20]
+<span class="out-expr">resultado_gtap.imports</span>
+[20 0]
+<span class="out-expr">resultado_gtap.exports</span>
+[15 0]</code></pre>
+  <p>Os headers sintéticos viram uma MCS balanceada com importações FOB, margens CIF, tarifas e
+  impostos de produção. A produção é 120 e 20, as importações são 20 do bem e as exportações 15.
+  `gtap_supply_use` e `gtap_sam` aplicam o mesmo mapeamento a dados licenciados; a agregação soma
+  apenas fluxos declarados e usa pesos explícitos para parâmetros.</p>
+  <h3>41. Fechamentos de governo regional consolidado</h3>
+<pre><code>taxa_poupanca = cge.solve_period(economia_regional, cge.Closure(government="saving_rate"))
+deficit = cge.solve_period(economia_regional, cge.Closure(
+    government_target="saving", government_target_value=12.0,
+    government_adjusts="spending"))
+taxa_poupanca.government["saving"]
+deficit.government["saving"]
+deficit.government["consumption"]</code></pre>
+<pre class="output" data-label="Saída"><code><span class="out-expr">taxa_poupanca.government["saving"]</span>
+0
+<span class="out-expr">deficit.government["saving"]</span>
+12
+<span class="out-expr">deficit.government["consumption"]</span>
+8</code></pre>
+  <p>A regra de taxa de poupança divide a receita entre consumo e poupança. Com meta de poupança
+  12, o gasto residual é 8. Metas e taxas consolidam contas nacionais e regionais mapeadas; os
+  ajustes por imposto direto e sobre produto usam a mesma solução afim do solver nacional.</p>
 </div></section>
 
 <section id="verificacoes"><div class="wrap">

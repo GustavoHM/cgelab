@@ -287,6 +287,7 @@ def calibrate(sam: SAM, spec: ModelSpec | None = None, *,
               tariffs=None,
               output_taxes=None,
               factor_pools: Mapping | None = None,
+              transport=None,
               check_balance: bool = True) -> Economy:
     """Build an :class:`Economy` from a balanced SAM.
 
@@ -316,6 +317,10 @@ def calibrate(sam: SAM, spec: ModelSpec | None = None, *,
         gives each activity that uses the factor a pool of its own, named
         after it: at any elasticity the factor is then sector-specific, and
         ``run_path`` accumulates a stock per activity.
+    transport : TransportMargins, optional
+        Route FOB, transport and global service-supply data for a regional model.
+        Calibration reconciles every route with domestic sales, imports and the
+        SAM margin block; the regional solver includes the global transport pool.
     """
     spec = spec or ModelSpec()
     if check_balance:
@@ -436,6 +441,8 @@ def calibrate(sam: SAM, spec: ModelSpec | None = None, *,
     # a chosen list of columns instead silently drops whatever was not listed.
     hh_income0 = np.array([float(receipts.get(h, 0.0)) for h in hhs])
     hh_sav = sam.block([inv], hhs).ravel()
+    for account in (spec.regional_investment or {}).values():
+        hh_sav = hh_sav + sam.block([account], hhs).ravel()
     hh_tax = sam.block([gov], hhs).ravel()              # direct taxes
     gov_tr = sam.block(hhs, [gov]).ravel()              # transfers from government
     remit_in = sam.block(hhs, [row]).ravel()
@@ -525,7 +532,10 @@ def calibrate(sam: SAM, spec: ModelSpec | None = None, *,
     )
     if spec.regions:
         from .regional import build_regional
-        econ.regional = build_regional(econ, sam)
+        econ.regional = build_regional(econ, sam, migration_pools=factor_pools,
+                                       transport=transport)
+    elif transport is not None:
+        raise ValueError("transport margins require ModelSpec.regions")
     return econ
 
 

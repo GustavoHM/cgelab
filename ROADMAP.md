@@ -131,15 +131,17 @@ released in 0.5.5, ahead of 0.6.0, which also waits for the robustness items (se
 closures, margins and CET inside the origin nest, a capital stock per region in `run_path`;
 bilateral trade with transport margins; reading and aggregating GTAP data. Validation against
 GTAP and ORANI-G/TERM. Reading is in: `read_har` and `write_har`, exact against harpy3 on GTAP
-10A. Aggregation and a one-region SAM from GTAP are next. On top of the regional model, the
+10A. Declared aggregation with explicit parameter weights and a one-region SAM are in,
+with a hand-balanced synthetic GTAP example and optional licensed-data tests. Comparison
+with GTAPAgg/FlexAgg and ORANI-G/TERM remains open. On top of the regional model, the
 bridge to causal inference (see *General equilibrium and causal inference*):
 
-- [ ] **Treated against control** as a result of a regional model (`treated_vs_control`).
-- [ ] **A simulated panel**: a tidy region-by-year panel from `run_path`, with optional noise,
+- [x] **Treated against control** as a result of a regional model (`treated_vs_control`).
+- [x] **A simulated panel**: a tidy region-by-year panel from `run_path`, with optional noise,
   on which a reader runs the event-study estimator of their choice (`simulated_panel`).
-- [ ] **Matching external targets**: elasticities chosen by minimum distance to estimated
+- [x] **Matching external targets**: elasticities chosen by minimum distance to estimated
   coefficients, weighted by the inverse of their covariance, on the machinery of `spec_sweep`
-  (`match_targets`).
+  (`match_targets`), checked against closed-form weighted least squares.
 
 **0.8 — complementarity and solvers.** Activities that can switch off, quotas with rents, price
 floors and ceilings, as a mixed complementarity problem; Pyomo with IPOPT and PATH besides
@@ -248,9 +250,17 @@ with income, and a labour–leisure choice for labour supply.
 
 **Several regions, continued.** The origin nest is in: regional accounts, a CES across
 regions of origin under the Armington, factors clearing where they are, one national
-numeraire. Still open, and still what a state study asks for next: factor migration, a
-regional investment and government closure, margins and CET inside the nest,
-`run_path` accumulating a capital stock per region, and a tariff or an indirect tax. The
+numeraire. Fixed-real investment with forced saving is in, alongside savings-driven
+investment, and optional government and investment accounts can be mapped by
+region. CET/logit factor migration with a proximity matrix is in too. Delivered
+margins and CET exports inside the origin nest are in, with one-region checks against
+the national solver. Destination-specific origin nests reproduce bilateral SAM cells,
+with domestic and imported content reported separately. Route transport and the
+Cobb–Douglas global service pool are calibrated and solved, with GTAP FOB/CIF and
+supply identities tested against a hand-written SAM. Regional government closures
+match the national solver, including saving-rate and tax/spending targets. Trade
+taxes remain open.
+Regional capital accumulation and a tidy simulated panel are in. The
 regional solver refuses a calibrated `tm0` or `tauz0`. A GTAP-style global bank is further
 out. Today a single region plus a "rest of the country" account remains the way a
 national model stands in for the regions it does not have.

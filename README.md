@@ -147,6 +147,12 @@ period.
 | Decompositions: subtotals by shock, Huff-Hertel welfare decomposition | `subtotals`, `welfare_decomposition` |
 | SAM multipliers, linkages, structural path analysis | `accounting_multipliers`, `linkages`, `structural_paths` |
 | Systematic sensitivity and one-call robustness reports: quadrature, Monte Carlo, Sobol, SAM draws, closure grids, money and optional figures | `sensitivity`, `spec_sweep`, `sobol`, `sam_draws`, `sam_sweep`, `closure_sweep`, `in_money`, `robustness_report` |
+| Minimum-distance matching of model outcomes to external coefficients, with covariance weighting and bounded elasticities | `match_targets`, `MatchResult` |
+| Treated-minus-control contrasts of solved regional outcomes, with custom measures and control weights | `treated_vs_control` |
+| Regional investment driven by saving or held fixed in real terms, with a per-capita forced-saving levy | `Closure(investment="fixed_real")`, `Scenario.investment_level` |
+| Optional government and investment accounts mapped by region, with factor income and household saving included | `ModelSpec.regional_government`, `ModelSpec.regional_investment` |
+| Factor migration between regional pools, with CET/logit proximity matrices and origin income preserved | `ModelSpec.factor_migration`, `calibrate(factor_pools=)` |
+| Capital stock per region in `run_path`, and a tidy simulated region-by-year panel with optional ex-post noise | `run_path`, `simulated_panel` |
 | Welfare: EV, CV and composition-immune group aggregation | `cgelab.welfare` |
 | Base-year reproduction, homogeneity, Walras | `cgelab.diagnostics` |
 | The same equilibrium as a JuMP model, for independent validation | `to_jump` |
@@ -195,9 +201,12 @@ python validation/replicate_hosoe.py                       # stdcge and lrgcge
 maturity of GAMS or GEMPACK, and [`docs/comparison.md`](https://github.com/GustavoHM/cgelab/blob/main/docs/comparison.md) says
 where it stands. Things to know before relying on it:
 
-- **Several regions** share one origin nest under the Armington. Factors do not
-  migrate, and the regional slice refuses margins, CET, LES, trade taxes, energy
-  nests and most closures by name. GTAP-style bilateral trade is 0.7.
+- **Several regions** use destination-specific origin nests under the Armington,
+  with bilateral domestic and imported flows, delivered margins, CET exports,
+  factor migration, regional capital accumulation, route transport, a global
+  service pool and consolidated government closures. LES, trade taxes, energy
+  nests and unsupported labour closures are refused by name. A GTAP-style global
+  savings bank remains future work.
 - **No complementarity**: activities cannot switch off, and there are no quotas,
   price floors or capacity limits. That is 0.8.
 - **The solver** uses finite-difference Jacobians on a few unknowns. It is fine up
@@ -210,8 +219,9 @@ where it stands. Things to know before relying on it:
   elasticity of one it is badly conditioned.
 - **Forward-looking investment** goes through [dsgelab](https://github.com/GustavoHM/dsgelab)
   (`pip install "cgelab[dsge]"`). `run_path` itself has no forward-looking agent.
-- **GTAP data** can be read, but not yet aggregated or turned into a SAM, and the
-  welfare decomposition has not been compared with GTAP's own.
+- **GTAP data** can be read, aggregated with explicit parameter weights and turned
+  into a one-region SAM. Comparison with GTAPAgg/FlexAgg and with GTAP's welfare
+  decomposition remains open.
 - **Platforms**: an editable install (`pip install -e`) can break silently on
   Python 3.14 on macOS; install from the wheel if `import cgelab` fails.
 

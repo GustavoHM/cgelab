@@ -142,8 +142,8 @@ bridge to causal inference (see *General equilibrium and causal inference*):
 - [x] **Matching external targets**: elasticities chosen by minimum distance to estimated
   coefficients, weighted by the inverse of their covariance, on the machinery of `spec_sweep`
   (`match_targets`), checked against closed-form weighted least squares.
-- [ ] **Release**: the version, the dates and the citations set to 0.7.0, the `validation`
-  workflow, a tag, PyPI and Zenodo.
+- [x] **Release**: 0.7.0 on PyPI and archived on Zenodo
+  ([10.5281/zenodo.23644708](https://doi.org/10.5281/zenodo.23644708)).
 
 **0.8 — complementarity and solvers.** Activities that can switch off, quotas with rents, price
 floors and ceilings, as a mixed complementarity problem; Pyomo with IPOPT and PATH besides

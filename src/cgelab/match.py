@@ -103,9 +103,12 @@ def _match(run, targets, parameters, *, covariance=None, options=None):
         try:
             achieved = _coefficients(run(point), target_names)
             residual = np.array([achieved[name] for name in target_names]) - target
-            distance = float(max(0.0, residual @ pinv @ residual))
+            if not np.isfinite(residual).all():
+                raise ValueError("the measured targets must contain only finite values")
+            distance = float(residual @ pinv @ residual)
             if not np.isfinite(distance):
                 raise ValueError("the weighted distance is not finite")
+            distance = max(0.0, distance)
             error = ""
         except _ERRORS as exc:
             achieved = {name: np.nan for name in target_names}
@@ -131,6 +134,7 @@ def _match(run, targets, parameters, *, covariance=None, options=None):
         if not residual.size or np.max(np.abs(residual)) < 1e-10:
             break
         J = np.zeros((len(target_names), len(names)))
+        valid_probes = True
         for j in range(len(names)):
             step = 1e-6 * max(1.0, abs(x[j]))
             xp, xm = x.copy(), x.copy()
@@ -141,16 +145,27 @@ def _match(run, targets, parameters, *, covariance=None, options=None):
             evaluate(xp)
             evaluate(xm)
             plus, minus = evaluations[-2], evaluations[-1]
+            if plus["error"] or minus["error"]:
+                valid_probes = False
+                break
             J[:, j] = ([plus[f"achieved[{name}]"] - minus[f"achieved[{name}]"]
                         for name in target_names]) / (xp[j] - xm[j])
-        if not np.any(J):
+        if not valid_probes or not np.isfinite(J).all() or not np.any(J):
             break
-        dx = np.linalg.lstsq(J, -residual, rcond=None)[0]
+        try:
+            dx = np.linalg.lstsq(J, -residual, rcond=None)[0]
+        except np.linalg.LinAlgError:
+            # Polishing is optional; keep the best feasible model evaluation.
+            break
+        if not np.isfinite(dx).all():
+            break
         evaluate(np.clip(x + dx, bounds_array[:, 0], bounds_array[:, 1]))
         improved = min(evaluations, key=lambda row: row["distance"])
         if improved["distance"] >= best["distance"]:
             break
         best = improved
+    # A valid probe can improve the fit even if its paired probe failed.
+    best = min(evaluations, key=lambda row: row["distance"])
     opt.success = bool(opt.success or best["distance"] <= options["ftol"])
     achieved = {name: best[f"achieved[{name}]"] for name in target_names}
     residuals = {name: achieved[name] - float(targets[name]) for name in target_names}

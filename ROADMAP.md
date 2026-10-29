@@ -1,6 +1,7 @@
 # Roadmap
 
-Plan revised on 11 October 2026. The goal is to make `cgelab` **as complete as possible**:
+Plan revised on 11 October 2026; milestones brought up to date on 29 October 2026.
+The goal is to make `cgelab` **as complete as possible**:
 **version 1.0** covers what the reference platforms offer — GAMS/MPSGE, GEMPACK, GTAP and the
 IFPRI and PEP standard models — together with the gaps the applied models exposed. The **public
 release** is **version 0.5**. Until 11 October this file said that nothing in it was a promise and
@@ -28,7 +29,9 @@ is that every number was checked against an independent reference.
 
 ## Milestones
 
-Each item is described in the sections further down; this is the order.
+Each item is described in the sections further down; this is the order. Released milestones
+are a record. From 0.7.1 on, each milestone separates three kinds of work: **corrections** to
+what was released, **validation** still owed by what was released, and **new features**.
 
 **0.2 — done.** SAM institutions (direct taxes, transfers, remittances, factor income to
 government and abroad, FDI), several capital stocks, per-year economies, CET exports actually
@@ -74,8 +77,8 @@ several regions, the result helpers, and the JuMP export replicating all of it. 
 
 **0.5 — public release.** No new features. Blocking:
 
-- [x] **Rename**: `cgekit` was taken on PyPI; the package is now `cgelab`, free on PyPI on
-  11 October 2026. The name still has to be reserved with a first upload to TestPyPI and PyPI.
+- [x] **Rename**: `cgekit` was taken on PyPI; the package is now `cgelab`, reserved with the
+  0.5.0 upload.
 - [x] **One canonical repository**: `https://github.com/GustavoHM/cgelab`. The copies in the
   research repository are archived.
 - [x] **Language**: `docs/comparison.md` in English, with the Portuguese version alongside.
@@ -88,9 +91,8 @@ several regions, the result helpers, and the JuMP export replicating all of it. 
 - [x] **Release**: 0.5.0 on PyPI on 18 October 2026, archived on Zenodo
   ([10.5281/zenodo.23458852](https://doi.org/10.5281/zenodo.23458852)), the repository public and the site on Pages.
 
-**0.6 — the distributional side and the labour market.** The six items below are done and were
-released in 0.5.5, ahead of 0.6.0, which also waits for the robustness items (see
-*Robustness*).
+**0.6 — the distributional side and the labour market: done.** The first six items were
+released in 0.5.5, ahead of 0.6.0; the robustness items (see *Robustness*) came with 0.6.0.
 
 - [x] **Imperfect factor mobility and the proximity matrix**: a CET or a logit across the
   activities that use a factor, pools of origin (`ModelSpec.factor_mobility`,
@@ -127,7 +129,7 @@ released in 0.5.5, ahead of 0.6.0, which also waits for the robustness items (se
 - [x] **Release**: 0.6.0 on PyPI and archived on Zenodo
   ([10.5281/zenodo.23624109](https://doi.org/10.5281/zenodo.23624109)).
 
-**0.7 — several regions, completed.** Factor migration, regional investment and government
+**0.7 — several regions: done.** Factor migration, regional investment and government
 closures, margins and CET inside the origin nest, a capital stock per region in `run_path`;
 bilateral trade with transport margins; reading and aggregating GTAP data. Reading is in:
 `read_har` and `write_har`, exact against harpy3 on GTAP 10A. Declared aggregation with explicit
@@ -145,11 +147,49 @@ bridge to causal inference (see *General equilibrium and causal inference*):
 - [x] **Release**: 0.7.0 on PyPI and archived on Zenodo
   ([10.5281/zenodo.23644708](https://doi.org/10.5281/zenodo.23644708)).
 
-**0.8 — complementarity and solvers.** Activities that can switch off, quotas with rents, price
-floors and ceilings, as a mixed complementarity problem; Pyomo with IPOPT and PATH besides
-`scipy`. Validation against GAMS/MPSGE with PATH. Analytic derivatives and sparse algebra for
-large SAMs. Moved from 0.7: the regional model validated against GTAP and ORANI-G/TERM, and the
-GTAP aggregation compared with GTAPAgg/FlexAgg.
+**0.7.1 — corrections.** No new features. A review of 0.7.0 found results that were wrong or
+silently ignored; `CHANGELOG.md` lists them and says which results can change.
+
+- [x] **Regional accounts and welfare**: fixed-real investment no longer recycles tax receipts
+  into demand; national accounts, price indices, `in_money` and `real_gdp` value final demand
+  at the prices each destination pays; world prices in foreign currency; the household price
+  index is the exact Cobb–Douglas index at the national solver's level.
+- [x] **Silent no-ops refused**: regional scenario fields the solver does not implement raise
+  by name.
+- [x] **GTAP**: weighted aggregation and transport-service alignment by label.
+- [x] **Inputs**: a missing or infinite SAM flow is refused, from reading to `calibrate`;
+  `match_targets` keeps its best feasible evaluation when a polishing step fails.
+- [x] **Checked**: accounts and derived measures agree at the base year and under shocks, with
+  a one-region model against the national solver, in the suite.
+- [ ] **Release**: 0.7.1 on PyPI and archived on Zenodo.
+
+**0.8 — regional validation, solvers and complementarity.** In this order; each step is
+validated before the next one builds on it.
+
+*Validation owed by 0.7:*
+
+- [ ] **GTAP aggregation against GTAPAgg/FlexAgg**: the same aggregation of the same database,
+  value headers and weighted parameters compared cell by cell.
+- [ ] **Regional equilibria against GTAP or ORANI-G/TERM**: a reference simulation reproduced,
+  with every difference explained by a stated difference in the model.
+- [ ] **Coverage**: asymmetric destination prices, transport margins, factor migration and
+  regional investment, each in a reproducible case added to `validation/`.
+
+*Solver:*
+
+- [ ] **Measure first**: time, memory and convergence on models of increasing size, as a
+  benchmark script kept in the repository.
+- [ ] **Analytic derivatives and sparse algebra**, compared with the current finite-difference
+  solver on every case of the suite: faster, and no less precise.
+
+*New features: complementarity, by stages:*
+
+- [ ] **An activity that can switch off**, the first mixed complementarity condition, validated
+  against a known solution or an independent reference.
+- [ ] **Then** capacity limits, quotas with rents, and price floors and ceilings, each validated
+  the same way before the next.
+- [ ] **Backends**: Pyomo with IPOPT and PATH besides `scipy`, validated against GAMS/MPSGE with
+  PATH, only after the cases above are fixed points they must reproduce.
 
 **0.9 — the frontier.** A generic closure swap in the GEMPACK manner (the historical closure of
 0.6 is its first case); SAM estimation by cross
@@ -161,8 +201,8 @@ land use allocated by CET; export to GAMS/MPSGE and GEMPACK.
 
 ## Next: gaps an applied model hit
 
-Nothing from 0.2 to 0.5 is open; the first six items of 0.6 are released in 0.5.5, and 0.6.0
-waits for the robustness items and its release.
+Nothing from 0.2 to 0.7 is open as a feature; what 0.7 still owes is validation, listed under
+0.8.
 
 Done, and no longer gaps:
 
@@ -261,8 +301,9 @@ the national solver. Destination-specific origin nests reproduce bilateral SAM c
 with domestic and imported content reported separately. Route transport and the
 Cobb–Douglas global service pool are calibrated and solved, with GTAP FOB/CIF and
 supply identities tested against a hand-written SAM. Regional government closures
-match the national solver, including saving-rate and tax/spending targets. Trade
-taxes remain open.
+match the national solver, including saving-rate and tax/spending targets, with fixed-real
+investment as well (0.7.1). Trade taxes, output taxes, carbon prices and government
+absorption remain open; the regional solver refuses them by name.
 Regional capital accumulation and a tidy simulated panel are in. The
 regional solver refuses a calibrated `tm0` or `tauz0`. A GTAP-style global bank is further
 out. Today a single region plus a "rest of the country" account remains the way a
@@ -374,13 +415,13 @@ input–output matrix and regional accounts. Useful helpers:
   `split_factor`, `segment_shares`).
 
 **Speed on large SAMs.** The solver uses finite-difference Jacobians on few unknowns, which is
-fine up to a few hundred accounts. A multi-region model would need analytic derivatives and
-sparse linear algebra.
+fine up to a few hundred accounts. A multi-region model needs analytic derivatives and sparse
+linear algebra: in 0.8, after a benchmark measures where the time goes.
 
 ## Infrastructure
 
-- **Release:** done for 0.5.0, on PyPI and archived on Zenodo; the steps for the next ones are
-  in `CONTRIBUTING.md`, "Releasing".
+- **Release:** every release since 0.5.0 is on PyPI and archived on Zenodo; the steps are in
+  `CONTRIBUTING.md`, "Releasing".
 - **Site:** on Pages since 0.5.0. Still open: render the Markdown docs on the site instead of
   linking to GitHub.
 - **Validation in CI:** done, the `validation` workflow.
@@ -395,7 +436,7 @@ sparse linear algebra.
   (`sim101`, a 50% tariff cut, Zimbabwe and Eswatini data, no solved listing) is the same class
   of gap. Galindev and Decaluwé (2022) is the nearest journal package with a printed result;
   the utilization-rate variant is open. Cicowiez and Lofgren (2022) wait on asymmetric
-  Armington, Lofgren and Cicowiez (2017) on the proximity matrix, Jia and Lin (2022) on the
-  energy nest and a carbon tax, and Mukashov and Thurlow (2026) on several regions together
-  with margins and recursive dynamics. A GTAP paper waits on several regions and on a licence
-  for the database.
+  Armington. The features Lofgren and Cicowiez (2017) need (the proximity matrix), Jia and Lin
+  (2022) need (the energy nest and a carbon tax) and Mukashov and Thurlow (2026) need (several
+  regions with margins and recursive dynamics) are in; their replications are open. A GTAP
+  paper waits on a licence for the database, with the regional validation of 0.8.

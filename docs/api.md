@@ -28,6 +28,12 @@ Constructors: `SAM.from_long(df, row="row", col="col", value="value", name="sam"
 | `balance(rel_tol=1e-9, abs_tol=1.0, max_iter=200, name=None)` | sign-preserving RAS; raises `BalanceError` rather than returning a SAM that only looks balanced |
 
 `BalanceError` is raised by both.
+Nonfinite flows are refused before applying a balance tolerance. With
+`raise_on_fail=False`, they produce `ok=False`, `worst=inf`, `limit=nan` and the
+affected accounts in `offenders`; RAS cannot repair them. Reading keeps a
+missing long-form flow as NaN, so this gate sees it; an empty cell of
+`from_square` is a zero flow. `calibrate` refuses nonfinite flows even with
+`check_balance=False`.
 
 ### `sam_distance(sam, other) -> float`
 
@@ -88,6 +94,10 @@ use a separate channel. Margins, CET exports and the government closures
 `real_fixed`, `nominal_fixed`, `saving_rate` and saving/revenue targets are
 supported. LES, trade taxes, energy nests and unsupported labour closures are
 refused by name rather than ignored.
+Regional scenarios also refuse `tariff`, `output_tax`, `carbon_price`,
+`pool_supply`, `labour_force` and nonzero `government_absorbs`. Household price
+indices are the exact Cobb–Douglas index of destination purchaser prices, at the
+level the national solver reports. Trade-price fields named `world_*` remain in foreign currency.
 `run_path` supports full `region:factor` names; `to_jump` still refuses regional
 models.
 
@@ -340,6 +350,10 @@ GDP at current market prices: `consumption`, `government`, `investment`,
 `exports`, `imports`, `gdp_expenditure`; `factor_income`, `taxes_on_products`
 (product tax, tariff, output tax, both consumer wedges), `taxes_on_production`
 (activity tax), `gdp_income`; their `gap`; `factor_income_abroad` and `gni`.
+For regional models, final demand is valued by destination channel at the
+purchaser prices each destination pays; the national average price is not an
+accounting valuation of those flows. `price_indices`, `in_money` and `real_gdp`
+use the same prices and quantities, so they agree with these accounts.
 
 ### `price_indices(period, reference=None) -> DataFrame`
 
@@ -577,6 +591,9 @@ pseudo-inverse. `options` goes to L-BFGS-B in `scipy.optimize.minimize`.
 `success`, `message`, `nit`, `nfev`, `evaluations` and the fitted `spec`. This
 is deterministic target matching, not an econometric estimator; optimiser
 failure and solver errors remain visible.
+Nonfinite measurements are failed evaluations. If an optional polishing probe
+fails, the best feasible evaluation is retained and its error remains in
+`evaluations`; failure at the initial midpoint still raises.
 
 ### `treated_vs_control(reference, alternative, *, treated, controls, measure="output", weights=None) -> DataFrame`
 
@@ -802,6 +819,8 @@ GEMPACK header array files, the format of the GTAP database. Types `1C`, `2I`,
 Only `values` are summed. `groups` maps axis positions to old-to-new label maps,
 including repeated set names. `weighted={"NAME": (weights, reduce_axes)}` computes
 weighted means with a `Header` or array and positional reduction before grouping.
+`reduce_axes` refers to axes of the weights: they are summed before multiplying
+by the parameter array, and the reduced weight shape must match the parameters.
 
 ### `gtap_supply_use(headers, region=0)`, `gtap_sam(headers, region=0, **kwargs)`
 
@@ -809,6 +828,8 @@ Map one GTAP region to `SupplyUse` or a balanced `SAM`: one `a_` activity per
 commodity, FOB imports, CIF margins, tariffs, product and production taxes, and
 net transport service exports. `cgelab.examples.gtap.synthetic()` supplies the
 hand-balanced headers and `build()` the corresponding calibrated economy.
+`VST` service labels are aligned to commodity labels; commodities outside the
+service set receive zero net transport exports.
 
 ---
 

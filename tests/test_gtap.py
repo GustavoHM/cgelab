@@ -145,6 +145,47 @@ def test_aggregation_and_region_validation_are_explicit():
         gtap_supply_use(synthetic_gtap(), "r9")
 
 
+@pytest.mark.parametrize("weights", [
+    np.array([[1.0, 2.0], [3.0, 4.0]]),
+    np.array([[1.0, 2.0, 3.0], [4.0, 5.0, 6.0]]),
+])
+def test_parameter_weights_are_reduced_before_multiplication(weights):
+    value = header("ELAS", [1.0, 3.0], ["COM"], [["c1", "c2"]])
+    result = aggregate_gtap({"ELAS": value}, {0: {"c1": "all", "c2": "all"}},
+                            values=[], weighted={"ELAS": (weights, (1,))})
+    expected = (weights[0].sum() + 3.0 * weights[1].sum()) / weights.sum()
+    assert result["ELAS"].array.item() == pytest.approx(expected)
+    assert result["ELAS"].labels == [["all"]]
+
+
+def test_reduced_weights_must_match_parameter_dimensions():
+    value = header("ELAS", [1.0, 3.0], ["COM"], [["c1", "c2"]])
+    with pytest.raises(ValueError, match="reduced weight shape"):
+        aggregate_gtap({"ELAS": value}, {}, values=[],
+                       weighted={"ELAS": (np.ones((2, 3)), (0,))})
+
+
+@pytest.mark.parametrize("services", [["s"], ["s", "c"]])
+def test_transport_service_exports_follow_labels_not_array_position(services):
+    data = synthetic_gtap()
+    data["VST"] = header("VST", [25.0 if name == "s" else 0.0 for name in services],
+                         ["MARG", "REG"], [services, ["r0"]])
+    # Five extra units of transport output and value added are exported as s.
+    data["TVOM"].array[1, 0] += 5.0
+    data["EVFA"].array[0, 1, 0] += 5.0
+    sut = gtap_supply_use(data)
+    np.testing.assert_allclose(sut.final["row"], [20.0, 5.0])
+    sut.check()
+    gtap_sam(data).check_balance(abs_tol=1e-8)
+
+
+def test_transport_service_outside_commodity_set_is_refused():
+    data = synthetic_gtap()
+    data["VST"] = header("VST", [20.0], ["MARG", "REG"], [["missing"], ["r0"]])
+    with pytest.raises(ValueError, match="VST.*missing"):
+        gtap_supply_use(data)
+
+
 @pytest.mark.skipif(not os.environ.get("CGELAB_GTAP_DIR")
                     or not (Path(os.environ.get("CGELAB_GTAP_DIR", ".")) / "basedata.har").exists(),
                     reason="set CGELAB_GTAP_DIR to a GTAP 10 year folder")

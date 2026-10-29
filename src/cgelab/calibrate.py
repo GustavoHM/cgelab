@@ -323,7 +323,9 @@ def calibrate(sam: SAM, spec: ModelSpec | None = None, *,
         SAM margin block; the regional solver includes the global transport pool.
     """
     spec = spec or ModelSpec()
-    if check_balance:
+    finite = np.isfinite(sam.frame.value.to_numpy(dtype=float)).all()
+    if check_balance or not finite:
+        # Nonfinite flows are refused even when the balance is not checked.
         sam.check_balance()
     spec = spec.prepare(sam)
     layout = spec.classify(sam)

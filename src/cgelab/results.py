@@ -55,16 +55,12 @@ def real_gdp(period: PeriodResult) -> dict:
     the calibrated point. It is reported rather than folded into the tax.
     """
     econ = period.econ
-    yard = 1.0 + econ.ptax
-    final = (period.hh_quantity.sum(axis=0) + period.gov_quantity
-             + period.investment_quantity)
-    scale = np.ones(econ.n_act)
-    for name, mult in period.scenario.activity_scale.items():
-        j = econ.activity(name) if isinstance(name, str) else int(name)
-        scale[j] = float(mult)
-    own_account = float((econ.hh_direct * scale[None, :]).sum())
-    expenditure = float(yard @ final + period.exports.sum() - period.imports.sum()
-                        + own_account)
+    own_account = float((econ.hh_direct * _activity_scale(period)[None, :]).sum())
+    # Current quantities at base-year prices: the Laspeyres volume of
+    # `price_indices`. A regional destination's base price includes its margins.
+    base = _base_components(econ)
+    expenditure = sum((-1.0 if k == "imports" else 1.0) * float(base[k][0] @ q)
+                      for k, (_, q) in _components(period).items())
     # The factor services activities use, each at its base-year price of one.
     # For an imperfectly mobile factor under a CET this is not its endowment,
     # which `factor_demand` reports: moving between activities costs services.
@@ -159,9 +155,22 @@ def _components(period) -> dict:
 
     Household consumption is priced per household and commodity at what the
     household pays, wedges included, and own-account purchases at the activity
-    price. Imports are at the border.
+    price. Imports are at the border. In a regional model each destination
+    pays its own composite price, so domestic final demand is priced by
+    destination channel rather than at the national average.
     """
     econ = period.econ
+    if econ.regional is not None:
+        real = period.real
+        prices = real["destination_price"]
+        hh_prices = prices[econ.regional.household_region]
+        return {
+            "consumption": (hh_prices.ravel(), real["hh_destination_quantity"].ravel()),
+            "government": (prices.ravel(), real["gov_destination_quantity"].ravel()),
+            "investment": (prices.ravel(), real["inv_destination_quantity"].ravel()),
+            "exports": (period.pe, period.exports),
+            "imports": (period.exchange_rate * period.world_import_price, period.imports),
+        }
     W, Wg = _wedges(period)
     eff = period.pq[None, :] * (1.0 + W + Wg) + _carbon(period)[1][None, :]
     own_q = econ.hh_direct.sum(axis=0) * _activity_scale(period)
@@ -178,6 +187,22 @@ def _components(period) -> dict:
 
 def _base_components(econ) -> dict:
     """The same components at the calibrated base year: what the SAM records."""
+    if econ.regional is not None:
+        reg = econ.regional
+        p0 = reg.base_price
+        hh_p0 = p0[reg.household_region]
+        hh = reg.hh_budget * np.asarray(econ.hh_spend0, float)[:, None] / hh_p0
+        gov = np.zeros_like(p0)
+        gov[-1], gov[:reg.n_reg] = reg.gov_dem, reg.gov_dem_regional
+        inv = np.zeros_like(p0)
+        inv[-1], inv[:reg.n_reg] = reg.inv_dem, reg.inv_dem_regional
+        return {
+            "consumption": (hh_p0.ravel(), hh.ravel()),
+            "government": (p0.ravel(), (gov / p0).ravel()),
+            "investment": (p0.ravel(), (inv / p0).ravel()),
+            "exports": (np.ones(econ.n_com), econ.exp0),
+            "imports": (np.ones(econ.n_com), econ.imp0),
+        }
     p0 = 1.0 + econ.ptax
     hh = econ.hh_budget * np.asarray(econ.hh_spend0, float)[:, None] / p0[None, :]
     own_q = econ.hh_direct.sum(axis=0)

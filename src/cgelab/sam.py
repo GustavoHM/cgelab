@@ -82,16 +82,25 @@ class SAM:
         out = df[[row, col, value]].copy()
         out.columns = ["row", "col", "value"]
         out["value"] = out["value"].astype(float)
-        out = out.groupby(["row", "col"], as_index=False, sort=False)["value"].sum()
+        # A missing or infinite flow stays visible to `check_balance` rather
+        # than being summed away as a zero.
+        out["missing"] = out["value"].isna()
+        out = out.groupby(["row", "col"], as_index=False, sort=False).agg(
+            value=("value", "sum"), missing=("missing", "any"))
+        out.loc[out.pop("missing"), "value"] = np.nan
         return cls(frame=out, name=name)
 
     @classmethod
     def from_square(cls, df: pd.DataFrame, name: str = "sam") -> "SAM":
-        """Build from a square frame indexed by account name on both axes."""
+        """Build from a square frame indexed by account name on both axes.
+
+        An empty (NaN) cell of a square matrix is a zero flow, as in a
+        spreadsheet; an infinite one is kept for `check_balance` to refuse.
+        """
         stacked = df.stack()
         long = stacked.reset_index()
         long.columns = ["row", "col", "value"]
-        return cls.from_long(long[long.value != 0.0], name=name)
+        return cls.from_long(long[long.value.notna() & (long.value != 0.0)], name=name)
 
     @classmethod
     def read(cls, path, name: str | None = None, **kwargs) -> "SAM":
@@ -155,6 +164,15 @@ class SAM:
         large one cannot hide a large gap behind a small ratio.
         """
         gap = self.imbalance()
+        invalid = self.frame.loc[~np.isfinite(self.frame.value.to_numpy(dtype=float))]
+        if not invalid.empty:
+            accounts = sorted(set(invalid.row) | set(invalid.col))
+            if raise_on_fail:
+                raise BalanceError(f"non-finite SAM entries involve accounts {accounts}; "
+                                   "replace missing or infinite flows before checking balance")
+            gap.loc[accounts] = np.nan
+            return dict(ok=False, worst=float("inf"), limit=float("nan"),
+                        offenders=gap.loc[accounts], imbalance=gap)
         limit = max(rel_tol * self.total, abs_tol)
         worst = gap.abs().max() if len(gap) else 0.0
         offenders = gap[gap.abs() > limit].sort_values(key=np.abs, ascending=False)
@@ -181,6 +199,8 @@ class SAM:
         Use this only after the residual has been diagnosed. It is the last
         resort, not the first response.
         """
+        if not np.isfinite(self.frame.value.to_numpy(dtype=float)).all():
+            self.check_balance()  # RAS cannot repair a missing or infinite flow.
         df = self.frame.copy()
         acc = self.accounts
         limit = max(rel_tol * self.total, abs_tol)

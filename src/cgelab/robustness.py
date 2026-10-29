@@ -28,6 +28,7 @@ import numpy as np
 import pandas as pd
 
 from .closure import Closure
+from .functions import cobb_douglas_price
 from .results import _base_components, _components
 from .scenario import Scenario
 from .sensitivity import _as_dict
@@ -207,6 +208,9 @@ def _base_price_index(econ) -> np.ndarray:
     product tax the household pays, not one.
     """
     from .solve import _marginal_budget_shares, _price_index
+    if econ.regional is not None:
+        reg = econ.regional
+        return cobb_douglas_price(reg.hh_budget.T, reg.base_price[reg.household_region].T)
     p0 = np.broadcast_to(1.0 + econ.ptax, (econ.n_hh, econ.n_com))
     return _price_index(econ, p0, _marginal_budget_shares(econ))
 

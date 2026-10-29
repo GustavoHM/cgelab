@@ -5,6 +5,56 @@ before 1.0, a minor version may add to the API and a patch version only fixes.
 
 ## Unreleased
 
+## 0.7.1 — 2026-10-29
+
+Corrections to the regional model, the GTAP readers, target matching and the SAM
+gate. National models solve to the same equilibrium as in 0.7.0; a SAM with a
+missing or infinite flow is now refused instead of read as zero. Regional
+results can change: the equilibrium itself under fixed-real investment with
+taxes; GDP by expenditure, price and volume indices, `in_money` and `real_gdp`
+whenever destinations pay different prices (transport margins, or any shock);
+household price indices, real income and every welfare measure built on them
+(`equivalent_variation`, `treated_vs_control` on `real_income`); and reported
+world prices whenever the exchange rate moves. `aggregate_gtap` weighted means
+with reduced weight axes, the net transport exports of `gtap_supply_use` and
+the fit returned by `match_targets` can change too. Unsupported regional
+scenario fields that used to be ignored now raise.
+
+### Fixed
+
+- Fixed-real regional investment no longer feeds tax receipts back into demand.
+  The calibrated base year and shocked periods match the national solver with
+  taxes under real-fixed, nominal-fixed and saving-rate government closures.
+- Regional `world_import_price` and `world_export_price` are reported in foreign
+  currency, with export prices aligned by origin. National accounts no longer
+  apply the exchange rate twice to imports and use actual destination outlays
+  instead of valuing final demand at a national average price.
+- Unsupported regional scenario fields now raise by name: tariffs, output
+  taxes, carbon prices, government absorption, sectoral pool supplies and labour
+  forces can no longer be accepted as silent no-ops.
+- Regional household real income uses the exact Cobb–Douglas price index of
+  destination purchaser prices instead of an arithmetic price average normalised
+  to the base year. A one-region model now reports the national index and real
+  income in level, not only in change.
+- `price_indices`, `in_money` and `real_gdp` value regional final demand by
+  destination channel, at the purchaser prices each destination pays, as
+  `national_accounts` does. They had used the national average price, so with
+  transport margins `in_money` disagreed with the accounts, `real_gdp` left a
+  residual equal to the margins at the base year, and the household rows of
+  `in_money` differed from their current-price levels at the base year whenever
+  products were taxed.
+- `aggregate_gtap` reduces weight-only axes before multiplying by parameters and
+  refuses incompatible reduced shapes, preventing silently misweighted means.
+- `gtap_supply_use` aligns net transport service exports by commodity label,
+  including when `VST` lists only transport services or uses a different order.
+- `match_targets` retains its best feasible evaluation if a polishing probe or
+  linear solve fails; nonfinite measured targets are recorded as failures.
+- `SAM.check_balance` rejects nonfinite flows and identifies their accounts;
+  `balance` refuses to run RAS on those flows. `SAM.from_long` and `SAM.read`
+  no longer turn a missing flow into zero when summing duplicate cells, and
+  `calibrate` refuses nonfinite flows even with `check_balance=False`. An empty
+  cell of `SAM.from_square` remains a zero flow.
+
 ## 0.7.0 — 2026-10-25
 
 Several regions and GTAP data. The regional model gains factor migration, regional investment

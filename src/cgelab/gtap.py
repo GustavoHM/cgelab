@@ -61,13 +61,12 @@ def aggregate_gtap(headers, groups, *, values, weighted=None) -> dict:
             reduce_axes = tuple(sorted(reduce_axes, reverse=True))
             if any(axis >= weight.ndim or axis < 0 for axis in reduce_axes):
                 raise ValueError(f"{name}: weight reduction axis is invalid")
-            numerator = array * weight
             if reduce_axes:
-                numerator = numerator.sum(axis=reduce_axes)
                 weight = weight.sum(axis=reduce_axes)
-            if numerator.shape != weight.shape:
-                raise ValueError(f"{name}: weighted value and weight shapes differ")
-            array, denominator = numerator, weight
+            if array.shape != weight.shape:
+                raise ValueError(f"{name}: reduced weight shape {weight.shape} "
+                                 f"does not match parameter shape {array.shape}")
+            array, denominator = array * weight, weight
         else:
             denominator = None
         new_labels = list(labels)
@@ -166,6 +165,9 @@ def gtap_supply_use(headers, region=0) -> SupplyUse:
     route = _take(headers, "VTWR", -1, r).sum(axis=2)
     services = _labels(headers, "VST", 0)
     modes = _labels(headers, "VTWR", 0)
+    missing_services = [service for service in services if service not in commodities]
+    if missing_services:
+        raise ValueError(f"VST names transport services outside commodities: {missing_services}")
     service_supply = _take(headers, "VST", -1, r)
     margins = pd.DataFrame(0.0, index=services, columns=commodities)
     used = np.zeros(len(services))
@@ -175,7 +177,8 @@ def gtap_supply_use(headers, region=0) -> SupplyUse:
         used[i if mode not in services else services.index(mode)] += route[i].sum()
     for service in services:
         margins.loc[service, service] -= used[services.index(service)]
-    net_transport_exports = service_supply - used
+    net_transport_exports = pd.Series(service_supply - used, index=services).reindex(
+        commodities, fill_value=0.0).to_numpy()
     exports = fob_exports + net_transport_exports
     final = pd.DataFrame({"hh": private_agent, "gov": government_agent,
                           "s_i": investment, "row": exports}, index=commodities)

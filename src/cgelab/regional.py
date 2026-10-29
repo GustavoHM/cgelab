@@ -26,7 +26,8 @@ from dataclasses import dataclass, field
 import numpy as np
 from scipy.optimize import root
 
-from .functions import armington, ces_intensity, ces_price, cet, cet_domestic_price
+from .functions import (armington, ces_intensity, ces_price, cet, cet_domestic_price,
+                        cobb_douglas_price)
 from .mobility import FactorMobility
 from .solve import PeriodResult, factor_intensity, value_added_price
 from .transport import TransportMargins
@@ -619,8 +620,15 @@ def _refuse_unsupported(econ, closure, scenario, reg: Regional):
         "product_tax_firm": scenario.product_tax_firm,
         "investment_mix": scenario.investment_mix,
         "foreign_factor_share": scenario.foreign_factor_share,
+        "tariff": scenario.tariff,
+        "output_tax": scenario.output_tax,
+        "carbon_price": scenario.carbon_price,
+        "pool_supply": scenario.pool_supply,
+        "labour_force": scenario.labour_force,
     }
     named = [k for k, v in blocked.items() if v is not None]
+    if scenario.government_absorbs != 0.0:
+        named.append("government_absorbs")
     if named or scenario.activity_scale or scenario.fdi:
         extra = list(named)
         if scenario.activity_scale:
@@ -837,7 +845,10 @@ def _quantities(econ, reg, w, supply, facshare, fac_gov, fac_row, dtax, transfer
         inv_q = inv_channel_q.sum(axis=0)
         savings = float((pq * inv_channel_q).sum()) if fixed_investment else available
     else:
-        leak = L @ np.outer(v_channel.ravel(), tax_per.ravel())
+        # Tax receipts fund extra investment only in the savings-driven closure.
+        # With fixed quantities they change the financing levy, not demand.
+        leak = (np.zeros_like(eye) if fixed_investment else
+                L @ np.outer(v_channel.ravel(), tax_per.ravel()))
         try:
             A = np.linalg.solve(eye - leak, L @ F0.ravel()).reshape(K, C)
         except np.linalg.LinAlgError as exc:
@@ -974,11 +985,14 @@ def _pack(econ, reg, closure, scenario, state, z, residual, label, message, tole
             i = int(reg.origin_index[r, c])
             pq_full[i] = pq_nat[c]
             pbase_full[i] = pbase_nat[c]
-            world_export[i] = state["pe"][c]
-            world_import[i] = state["pm"][c]
-    base_cost = (reg.hh_budget * reg.base_price[reg.household_region]).sum(axis=1)
-    now_cost = (reg.hh_budget * state["pq"][reg.household_region]).sum(axis=1)
-    hh_index = np.where(base_cost > 0, now_cost / np.maximum(base_cost, 1e-12), 1.0)
+            # pe is already expanded by origin; pm still has one price per
+            # local commodity. Both are in domestic currency inside the solve.
+            world_export[i] = state["pe"][i] / state["er"]
+            world_import[i] = state["pm"][c] / state["er"]
+    # The exact Cobb–Douglas index of the destination purchaser prices, the
+    # same object the national solver reports: a one-region model gives the
+    # national level, not only the national change.
+    hh_index = cobb_douglas_price(reg.hh_budget.T, state["pq"][reg.household_region].T)
     ok = residual < tolerance
     return PeriodResult(
         econ=econ, closure=closure, scenario=scenario, z=z,
@@ -1009,6 +1023,11 @@ def _pack(econ, reg, closure, scenario, state, z, residual, label, message, tole
             hh_price_index=hh_index,
             national_absorption=state["A"],
             national_price=pq_nat,
+            # Final demand by destination channel, at the prices each one pays.
+            destination_price=state["pq"],
+            hh_destination_quantity=state["hh_nat"],
+            gov_destination_quantity=state["gov_channel_q"],
+            inv_destination_quantity=state["inv_channel_q"],
             government_saving=state["government_saving"],
         ),
         gaps={f: float(g) for f, g in zip(econ.factors, state["gaps"])},

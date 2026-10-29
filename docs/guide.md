@@ -1115,6 +1115,9 @@ pseudo-inverse of the covariance. `targets` maps coefficient names to values;
 identity. A positive-semidefinite singular matrix is handled by its
 pseudo-inverse; invalid shapes, asymmetry and negative eigenvalues are refused.
 `options` is passed to `scipy.optimize.minimize` with L-BFGS-B.
+Nonfinite measurements are recorded as failed evaluations. If a finite-difference
+probe in the optional refinement is infeasible, matching keeps the best feasible
+evaluation and records the failed probe; an infeasible initial midpoint raises.
 
 This is a deterministic match, not an econometric estimator and not a confidence
 interval. `MatchResult` keeps fitted `parameters`, `achieved`, `target`,
@@ -1168,6 +1171,13 @@ result = cge.solve_period(econ, scenario=cge.Scenario(export_price=[1.1]),
 per regional account. Fixed export shares reject an export-price shock instead
 of ignoring it. Tests compare a labelled one-region model directly with the
 national solver, including margins, productivity and external-price shocks.
+The regional solver refuses unsupported `tariff`, `output_tax`, `carbon_price`,
+`pool_supply`, `labour_force` and nonzero `government_absorbs` scenarios by name.
+Its household price indices are exact Cobb–Douglas indices of destination
+purchaser prices, at the national solver's level, and reported world prices are
+in foreign currency. Accounts, price indices, `in_money` and `real_gdp` value
+final demand at the prices each destination pays.
+
 ### Bilateral origin cells by destination
 
 Every destination calibrates its own origin CES from the SAM. Households and

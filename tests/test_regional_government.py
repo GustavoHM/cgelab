@@ -93,3 +93,21 @@ def test_zero_tax_levers_are_refused():
     with pytest.raises(ValueError, match="every product tax rate is zero"):
         cge.solve_period(econ, cge.Closure(government_target="revenue",
                                            government_adjusts="product_tax"))
+
+
+@pytest.mark.parametrize("government", ["real_fixed", "nominal_fixed", "saving_rate"])
+@pytest.mark.parametrize("shock", [False, True])
+def test_fixed_investment_with_taxes_matches_national_model(government, shock):
+    national, regional = labelled_institutions()
+    closure = cge.Closure(investment="fixed_real", government=government)
+    scenario = (cge.Scenario(productivity=np.full(national.n_act, 1.1),
+                             product_tax=national.ptax * 0.5, investment_level=60.0)
+                if shock else cge.Scenario())
+    expected = cge.solve_period(national, closure, scenario)
+    actual = cge.solve_period(regional, closure, scenario)
+    assert_same(regional, expected, actual)
+    np.testing.assert_allclose(actual.investment_quantity, expected.investment_quantity,
+                               rtol=1e-8)
+    assert actual.real["inv_real"] == pytest.approx(60.0 if shock else 50.0)
+    if not shock:
+        np.testing.assert_allclose(actual.X, regional.X0, rtol=1e-8)

@@ -71,3 +71,11 @@ def test_les_calibration_gives_positive_subsistence():
 def test_impossible_frisch_parameter_is_refused():
     with pytest.raises(ValueError, match="NEGATIVE subsistence"):
         toy.build(model_spec=toy.spec(household_demand="les", frisch=-0.5))
+
+
+def test_nonfinite_flows_are_refused_even_without_the_balance_check():
+    sam, _ = toy.build()
+    frame = sam.frame.copy()
+    frame.loc[frame.index[0], "value"] = np.nan
+    with pytest.raises(cge.BalanceError, match="non-finite"):
+        cge.calibrate(cge.SAM(frame), toy.spec(), check_balance=False)

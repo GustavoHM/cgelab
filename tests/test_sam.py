@@ -45,3 +45,35 @@ def test_square_and_long_forms_agree():
     again = SAM.from_square(square)
     assert again.imbalance().abs().max() < 1e-12
     assert again.total == pytest.approx(sam.total)
+
+
+@pytest.mark.parametrize("value", [np.inf, -np.inf, np.nan])
+def test_nonfinite_flows_fail_the_balance_gate_and_ras(value):
+    sam = SAM(pd.DataFrame([("a", "b", value), ("b", "a", 3.0)],
+                            columns=["row", "col", "value"]))
+    with pytest.raises(BalanceError, match="non-finite.*a.*b"):
+        sam.check_balance()
+    report = sam.check_balance(raise_on_fail=False)
+    assert not report["ok"]
+    assert report["worst"] == np.inf
+    assert set(report["offenders"].index) == {"a", "b"}
+    with pytest.raises(BalanceError, match="non-finite"):
+        sam.balance()
+
+
+def test_reading_keeps_missing_flows_for_the_balance_gate():
+    long = pd.DataFrame([("a", "b", 1.0), ("a", "b", np.nan), ("b", "a", 3.0)],
+                        columns=["row", "col", "value"])
+    sam = SAM.from_long(long)
+    assert np.isnan(sam.frame.set_index(["row", "col"]).value[("a", "b")])
+    with pytest.raises(BalanceError, match="non-finite"):
+        sam.check_balance()
+
+
+def test_an_empty_square_cell_is_a_zero_flow_and_an_infinite_one_is_kept():
+    square = pd.DataFrame([[np.nan, 2.0], [2.0, np.nan]], index=["a", "b"],
+                          columns=["a", "b"])
+    assert SAM.from_square(square).check_balance()["ok"]
+    square.loc["a", "a"] = np.inf
+    with pytest.raises(BalanceError, match="non-finite"):
+        SAM.from_square(square).check_balance()

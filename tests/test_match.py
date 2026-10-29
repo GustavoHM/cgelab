@@ -97,3 +97,27 @@ def test_missing_measure_target_fails_at_the_initial_point():
     with pytest.raises(RuntimeError, match="initial parameter midpoint"):
         cge.match_targets(sam, toy.spec(), targets={"missing": 1.0},
                           parameters={"sigma_va": (0.2, 1.2)}, measure=lambda b, a: {})
+
+
+def test_failed_polishing_probe_preserves_best_feasible_evaluation():
+    def run(point):
+        if point["x"] < 0.5:
+            raise ValueError("infeasible model")
+        return point["x"]
+
+    _, best, achieved, residuals, evaluations = _match(
+        run, {"target": 0.0}, {"x": (0.0, 1.0)})
+    assert best["x"] == pytest.approx(0.5)
+    assert achieved["target"] == pytest.approx(0.5)
+    assert residuals["target"] == pytest.approx(0.5)
+    assert best["distance"] == pytest.approx(0.25)
+    assert evaluations.error.str.contains("infeasible model").any()
+
+
+@pytest.mark.parametrize("value", [np.nan, np.inf, -np.inf])
+def test_nonfinite_measures_are_reported_as_failed_evaluations(value):
+    sam, _ = toy.build()
+    with pytest.raises(RuntimeError, match="initial parameter midpoint.*finite"):
+        cge.match_targets(sam, toy.spec(), targets={"target": 1.0},
+                          parameters={"sigma_va": (0.2, 1.2)},
+                          measure=lambda b, a: value)

@@ -1138,6 +1138,16 @@ cgelab diagnostics -- Economy(3 activities, 3 commodities, 2 households, 2 facto
   capital vintages and alternative closures) the two solvers agree to at
   most <code>1.2e-11</code>. Perturbing the exported data makes the comparison diverge by 1e-3 to
   3e-1, which shows it can see an error.</p>
+
+  <h3>The regional model, rewritten</h3>
+  <p><code>validation/regional.jl</code> writes the multi-region model again in JuMP and calibrates
+  it in Julia from the SAM, with none of the package's calibrated parameters. In 12 cases (imports
+  in different shares by region, transport margins with intermediates, a good without routes,
+  regional investment, an exported transport service, CET and logit migration, regional
+  government and investment accounts), at the base year and under shocks, the two agree to
+  <code>2.7e-15</code>. Run on the solver as it was before these cases were written, five of them
+  fail by 2e-2 to 6e-1: that is how four base-year errors in the regional calibration were found
+  and fixed.</p>
 </div></section>
 
 <section id="comparison"><div class="wrap">

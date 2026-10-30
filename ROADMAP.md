@@ -173,8 +173,14 @@ validated before the next one builds on it.
   value headers and weighted parameters compared cell by cell.
 - [ ] **Regional equilibria against GTAP or ORANI-G/TERM**: a reference simulation reproduced,
   with every difference explained by a stated difference in the model.
-- [ ] **Coverage**: asymmetric destination prices, transport margins, factor migration and
-  regional investment, each in a reproducible case added to `validation/`.
+- [x] **Coverage**: asymmetric destination prices, transport margins, factor migration and
+  regional investment, each in a reproducible case: `validation/replicate_regional.py` against
+  `validation/regional.jl`, an independent JuMP rewrite calibrated from the SAM, 12 cases to
+  2.7e-15. Building the cases found four ways the regional solver missed the base year
+  (imports in different shares by region, investment channels at different base prices, an
+  exported transport service, intermediates at margin-inclusive prices) and a good without
+  routes calibrated from purchase shares; all are fixed, and the reference fails on the solver
+  before the fixes.
 
 *Solver:*
 

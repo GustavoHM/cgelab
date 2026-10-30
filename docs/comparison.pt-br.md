@@ -55,7 +55,7 @@ célula **📄** pode estar errada.
 | **Dinâmica recursiva** | ✅ vários estoques de capital, capital por setor, safras putty-clay, alocação pelo retorno, economia por ano, linha de base calibrada ao PIB † | — | — o laço em `execute.py` é um ponto fixo amortecido dentro de um período, sem índice de tempo | — | ✅ |
 | **Bem-estar: VE e VC** | ✅ | — | — | — | convenção do modelador |
 | Agregação por grupo imune à composição | ✅ | — | — | — | — |
-| **Réplica independente para validação** | ✅ † JuMP/Ipopt, 50 casos | ? | ? | ? | n/a |
+| **Réplica independente para validação** | ✅ † JuMP/Ipopt, 50 casos, e 12 casos regionais | ? | ? | ? | n/a |
 | Licença | MIT | ? | CC0-1.0 | ? | proprietária/comercial |
 | Estado declarado pelos autores | — | — | ✅ "muito preliminar… por favor não cite" | livro-texto | maduro |
 
@@ -75,19 +75,24 @@ licença comercial e com as verificações contábeis embutidas, não se achou a
 
 ## Uma advertência
 
-O `cgelab` foi validado de quatro formas:
+O `cgelab` foi validado de cinco formas:
 
 - contra uma réplica independente em JuMP/Ipopt do mesmo equilíbrio, em 50 casos;
 - contra uma transcrição linha a linha, em JuMP, dos programas `stdcge` e `lrgcge` da
   biblioteca do GAMS (Hosoe, Gasawa e Hashimoto, 2004): a abolição das tarifas coincide nas 49
   variáveis exibidas, a 2,4e-12;
+- contra uma reescrita independente em JuMP do modelo regional, calibrada no Julia a partir da
+  MCS, em 12 casos no ano-base e sob choques (importações em proporções diferentes por região,
+  margens de transporte com insumos, investimento regional, um serviço de transporte exportado e
+  um bem sem rotas, migração CET e logit, contas regionais de governo e de investimento): os
+  dois concordam a 2,7e-15;
 - contra o pipeline de pesquisa que o originou, na versão 0.1.0;
 - pela reprodução do ano-base, pela homogeneidade e pela lei de Walras à precisão de máquina, na
   MCS aplicada para a qual foi escrito, que ainda não é pública.
 
 Isso é evidência de que o que ele faz, faz certo. **Não** é evidência de que cubra o que um GAMS
-cobre. O ninho de várias regiões não tem migração de fatores nem comércio bilateral, não há
-complementaridade, o pacote não estima elasticidades, as expectativas racionais passam pela ponte
+cobre. O modelo de várias regiões não tem impostos de comércio e ainda não foi comparado com o
+GTAP ou o ORANI-G/TERM, não há complementaridade, o pacote não estima elasticidades, as expectativas racionais passam pela ponte
 com o `dsgelab`, e não há a maturidade de uma plataforma com trinta anos de uso.
 
 ---

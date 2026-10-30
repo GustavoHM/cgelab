@@ -109,3 +109,20 @@ def test_non_default_closures_are_refused_by_name():
         cge.to_jump(econ)
     with pytest.raises(ValueError, match="run_path"):
         cge.run_path(econ, years=[1])
+
+
+@pytest.mark.parametrize("export_rule", ["fixed_shares", "cet"])
+def test_regions_importing_different_shares_reproduce_the_base_year(export_rule):
+    sam, econ = regions.build(regions.spec(export_rule=export_rule, sigma_cet=3.0),
+                              asymmetric_imports=True)
+    result = cge.solve_period(econ)
+    assert abs(result.walras) < 1e-8
+    np.testing.assert_allclose(result.factor_prices, 1.0, atol=1e-9)
+    assert result.exchange_rate == pytest.approx(1.0)
+    np.testing.assert_allclose(result.imports, [15.0, 5.0], atol=1e-8)
+    np.testing.assert_allclose(result.hh_commodity_spend,
+                               sam.block(list(econ.coms), list(econ.hhs)).sum(axis=0),
+                               atol=1e-8)
+    home = econ.regional.dom_share_dest[:2, 0]
+    np.testing.assert_allclose(home, [(55 * 90 / 105 + 20 * 90 / 95) / 75,
+                                      (20 * 90 / 105 + 50 * 90 / 95) / 70])

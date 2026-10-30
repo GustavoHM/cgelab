@@ -187,12 +187,19 @@ compute itself:
 - **An independent replica**: `to_jump` writes the same equilibrium as a JuMP model
   in which nothing is nested. `validation/roundtrip_jump.py` runs 50 cases; the
   nested solver and Ipopt agree to 1.2e-11.
+- **The regional model, rewritten**: `validation/regional.jl` calibrates the
+  multi-region model in Julia from the SAM and solves it in JuMP.
+  `validation/replicate_regional.py` runs 12 cases (asymmetric imports, transport
+  margins, regional investment, migration, regional institutions); they agree to
+  2.7e-15, and the comparison fails on the solver before the errors it found were
+  fixed.
 
 ```
 pytest                                                     # the suite, without external tools
 cd validation && julia --project=. -e 'using Pkg; Pkg.instantiate()' && cd ..
 python validation/roundtrip_jump.py                        # the JuMP replica
 python validation/replicate_hosoe.py                       # stdcge and lrgcge
+python validation/replicate_regional.py                    # the regional model
 ```
 
 ## Scope and known limitations

@@ -1171,6 +1171,10 @@ result = cge.solve_period(econ, scenario=cge.Scenario(export_price=[1.1]),
 per regional account. Fixed export shares reject an export-price shock instead
 of ignoring it. Tests compare a labelled one-region model directly with the
 national solver, including margins, productivity and external-price shocks.
+`validation/replicate_regional.py` compares the multi-region model with an
+independent JuMP rewrite that calibrates itself from the SAM, in twelve cases
+covering asymmetric imports, transport margins, regional investment, migration
+and regional institutions.
 The regional solver refuses unsupported `tariff`, `output_tax`, `carbon_price`,
 `pool_supply`, `labour_force` and nonzero `government_absorbs` scenarios by name.
 Its household price indices are exact Cobb–Douglas indices of destination

@@ -5,6 +5,44 @@ before 1.0, a minor version may add to the API and a patch version only fixes.
 
 ## Unreleased
 
+### Added
+
+- `validation/regional.jl`, the multi-region model rewritten in JuMP and
+  calibrated in Julia from the SAM, and `validation/replicate_regional.py`,
+  which compares it with `solve_period` in 12 cases at the base year and under
+  shocks: imports in different shares by region (with a CET), transport margins
+  with intermediates, a good without routes, regional investment under both
+  closures and an exported transport service, CET and logit migration, and
+  regional government and investment accounts. They agree to 2.7e-15. It runs
+  in the `validation` workflow.
+- `examples.regions.build(asymmetric_imports=True)` and the
+  `build_with_transport` options `regional_investment`, `service_exports`,
+  `intermediates` and `unrouted_good`, the base years those cases start from.
+
+### Fixed
+
+- Regional models reproduce the base year when regions import different shares
+  of the same good. Each origin account's cells are split by that origin's own
+  home and import shares, so each destination gets its own import share; one
+  national share had moved wages and the exchange rate away from one at the
+  base year, with the solver still reporting convergence. Results are unchanged
+  when every origin imports the same share.
+- Savings-driven regional investment keeps each channel's base-year quantities
+  within a commodity. It weighted channels by base values, which missed the
+  base year when investment accounts in different regions paid different base
+  prices (transport margins with a regional investment account).
+- A transport service that a region also exports: its supply to the transport
+  pool counts as home sales, grossed up by the home share of output, and is
+  priced at the home-sales price under a CET. The base year had missed that
+  output and the Walras residual was not zero.
+- Regional intermediate coefficients are in units of the purchaser price the
+  activity pays in its region. With route margins that base price is not one,
+  and the base-year unit cost of an activity buying a transported good was above
+  one.
+- In a model with transport routes, a good without margins takes its domestic
+  deliveries from the route FOB values, like a routed good, instead of from
+  purchase shares and a national import share.
+
 ## 0.7.1 — 2026-10-29
 
 Corrections to the regional model, the GTAP readers, target matching and the SAM

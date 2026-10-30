@@ -155,7 +155,27 @@ def _transport_calibration(econ, transport, regions, local, origin_index, use,
     K, C = use.shape[1:]
     yard = 1.0 + ptax
     if transport is None:
-        return (destination_share, destination_share, absorption0, np.tile(dom_share, (K, 1)),
+        # An origin account sells its region's output and the imports booked
+        # through it. Splitting each cell by that origin's own home share gives
+        # each destination its own import share; one national share misses the
+        # base year whenever regions import different shares of a good.
+        dom0 = econ.dom0[origin_index]
+        through = dom0 + econ.imp0[origin_index]
+        home = np.divide(dom0, through, out=np.ones_like(dom0), where=through > 0)
+        arm = use / yard[None, None, :] * arm_share[None, None, :]
+        domestic = arm * home[:, None, :]
+        imported = arm - domestic
+        dom_total, arm_total, imp_total = (domestic.sum(axis=0), arm.sum(axis=0),
+                                           imported.sum(axis=0))
+        destination_share = np.where(dom_total[None] > 0,
+                                     domestic / np.maximum(dom_total[None], 1e-300),
+                                     destination_share)
+        import_share = np.where(imp_total[None] > 0,
+                                imported / np.maximum(imp_total[None], 1e-300),
+                                destination_share)
+        dom_share_dest = np.where(arm_total > 0, dom_total / np.maximum(arm_total, 1e-300),
+                                  dom_share[None, :])
+        return (destination_share, import_share, absorption0, dom_share_dest,
                 arm_share, mq, np.tile(yard, (K, 1)), None)
     if not isinstance(transport, TransportMargins):
         raise TypeError("transport must be a TransportMargins object")
@@ -197,10 +217,18 @@ def _transport_calibration(econ, transport, regions, local, origin_index, use,
     arm_share[routed] = 1.0
     mq[:, routed] = 0.0
     arm_price = np.ones((K, C))
-    for c in np.where(routed)[0]:
+    # A good without routes has no margins (the checks above tie margins to
+    # routes), so the same calibration applies with a zero coefficient: its
+    # FOB values, not its purchase shares, say how much each origin delivers.
+    for c in np.where(routed | (raw_total.sum(axis=0) > 0))[0]:
         for d in range(K):
             total = delivered_total[d, c]
             if total <= 0:
+                if not routed[c]:
+                    if raw_total[d, c] > 0:  # bought only from abroad
+                        dom_share_dest[d, c] = 0.0
+                        import_share[:, d, c] = imported[:, d, c] / imported[:, d, c].sum()
+                    continue
                 raise ValueError(f"destination {d} has no absorption for transported "
                                  f"commodity {local[c]!r}")
             value_share = delivered[:, d, c] / total
@@ -377,6 +405,11 @@ def build_regional(econ, sam, *, migration_pools=None, transport=None) -> Region
      base_price, transport) = _transport_calibration(
         econ, transport, regions, local, origin_index, use, destination_share,
         absorption0, dom_share, nat_arm, nat_mq, ptax, sigma, sigma_arm)
+    # Activities buy at their own region's purchaser price. With route margins
+    # that base price is not the tax-inclusive one, and the coefficient is in
+    # units of what the activity pays.
+    basic_price = base_price / (1.0 + ptax)[None, :]
+    nat_io = nat_io / basic_price[activity_region].T
     migration = _build_migration(spec, econ, regions, migration_pools)
     dtax = econ.zeros_if_none("hh_dtax", econ.n_hh)
     direct = float((np.asarray(econ.hh_gross0, float) * dtax).sum())
@@ -669,7 +702,8 @@ def _prices(econ, reg: Regional, w, er, world, export_world, tfp, nu, ptax):
             transport_price = 0.0
             p_deliver = np.tile(p_rc[:, None, :], (1, K, 1))
         else:
-            transport_price = reg.transport.pool_price(p_origin[reg.origin_index])
+            # Services reach the pool as home sales, at the home-sales price.
+            transport_price = reg.transport.pool_price(p_rc)
             p_deliver = p_rc[:, None, :] + reg.transport.coefficient * transport_price
         for d in range(K):
             for c in range(C):
@@ -759,8 +793,11 @@ def _quantities(econ, reg, w, supply, facshare, fac_gov, fac_row, dtax, transfer
     inv_channel[:reg.n_reg] = reg.inv_dem_regional
     inv_base_q = inv_channel / np.maximum(reg.base_price, 1e-12)
     inv_base_cost = float(inv_total.sum())
-    inv_share_channel = inv_channel / inv_base_cost if inv_base_cost > 0 else inv_channel
-    inv_price = np.divide((inv_channel * pq).sum(axis=0), inv_total,
+    # Commodity value shares are fixed; within a commodity the channels keep
+    # their base-year quantities. Weighting channels by base values instead
+    # misses the base year whenever destinations pay different base prices.
+    inv_share_channel = inv_base_q / inv_base_cost if inv_base_cost > 0 else inv_base_q
+    inv_price = np.divide((inv_base_q * pq).sum(axis=0), inv_total,
                           out=np.ones(C), where=inv_total > 0)
     v_channel = inv_share_channel / np.maximum(inv_price[None, :], 1e-12)
     inv_channel_q = (inv_base_q * investment_level / inv_base_cost
@@ -775,12 +812,14 @@ def _quantities(econ, reg, w, supply, facshare, fac_gov, fac_row, dtax, transfer
         service_share = np.zeros((reg.n_reg, C))
     else:
         coefficient = reg.transport.coefficient
-        service_prices = prices["p_origin"][reg.origin_index]
+        service_prices = prices["p_ship"]
         service_share = (reg.transport.supply / reg.transport.supply.sum()
                          * prices["transport_price"] / service_prices)
     transport_link = (coefficient * link).sum(axis=0)
-    output_link = (link / np.maximum(prices["dom_frac"][:, None, :], 1e-12)
-                   + service_share[:, None, :] * transport_link[None, :, :])
+    # Service supply to the pool is part of home sales, so it is grossed up by
+    # the home share of output like the bilateral sales are.
+    output_link = ((link + service_share[:, None, :] * transport_link[None, :, :])
+                   / np.maximum(prices["dom_frac"][:, None, :], 1e-12))
     M = np.zeros((econ.n_act, K, C))
     for r in range(reg.n_reg):
         for d in range(K):
@@ -861,8 +900,8 @@ def _quantities(econ, reg, w, supply, facshare, fac_gov, fac_row, dtax, transfer
             inv_q = inv_channel_q.sum(axis=0)
         savings = float((pq * inv_channel_q).sum()) if fixed_investment else available
     D_rc = phi * (dsh * reg.arm_share * A)[None, :, :]
-    Q_rc = (D_rc.sum(axis=1) / np.maximum(prices["dom_frac"], 1e-12)
-            + service_share * (coefficient * D_rc).sum())
+    Q_rc = ((D_rc.sum(axis=1) + service_share * (coefficient * D_rc).sum())
+            / np.maximum(prices["dom_frac"], 1e-12))
     E_rc = prices["exp_frac"] * Q_rc
     M_c = prices["msh"] * reg.arm_share * A
     origin_mix = (phi if reg.transport is None else
@@ -920,8 +959,7 @@ def _quantities(econ, reg, w, supply, facshare, fac_gov, fac_row, dtax, transfer
     transport_result = None
     if reg.transport is not None:
         transport_result = reg.transport.evaluate(
-            D_rc, np.tile(prices["p_ship"][:, None, :], (1, K, 1)),
-            prices["p_origin"][reg.origin_index])
+            D_rc, np.tile(prices["p_ship"][:, None, :], (1, K, 1)), prices["p_ship"])
     return dict(
         A=A.sum(axis=0), A_dest=A, Q=Q, X=X, D=D_rc, exports=exports, imports=imports,
         hh_q=hh_origin, hh_income=hh_income, spend=spend, gov_q=gov_origin, inv_q=inv_origin,

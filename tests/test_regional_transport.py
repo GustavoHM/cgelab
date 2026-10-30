@@ -62,3 +62,54 @@ def test_transport_reconciliation_errors_are_named():
         cge.calibrate(sam, econ.spec, transport=bad)
     with pytest.raises(ValueError, match="require ModelSpec.regions"):
         cge.calibrate(toy.build()[0], toy.spec(), transport=margins)
+
+
+@pytest.mark.parametrize("closure", [cge.Closure(), cge.Closure(investment="fixed_real")])
+def test_regional_investment_at_different_base_prices_reproduces_the_sam(closure):
+    sam, econ = regions.build_with_transport(regional_investment=True)
+    assert not np.allclose(econ.regional.base_price[1], econ.regional.base_price[2])
+    result = cge.solve_period(econ, closure)
+    assert result.converged and abs(result.walras) < 1e-8
+    np.testing.assert_allclose(result.X, econ.X0, atol=1e-7)
+    spent = result.real["destination_price"] * result.real["inv_destination_quantity"]
+    np.testing.assert_allclose(spent[:, 0], [0.0, 20.0, 20.0], atol=1e-7)
+    assert sam.block(econ.coms, ["r2:s_i"]).sum() == pytest.approx(spent[1].sum())
+
+
+@pytest.mark.parametrize("rule", ["fixed_shares", "cet"])
+def test_an_exported_transport_service_reproduces_the_sam_and_closes(rule):
+    _, econ = regions.build_with_transport(service_exports=True, export_rule=rule,
+                                           sigma_cet=3.0)
+    base = cge.solve_period(econ)
+    assert abs(base.walras) < 1e-8
+    np.testing.assert_allclose(base.Q, [100.0, 14.0, 100.0, 12.0], atol=1e-7)
+    np.testing.assert_allclose(base.exports, [10.0, 2.0, 10.0, 0.0], atol=1e-7)
+    np.testing.assert_allclose(base.transport["qst"], [[0.0, 12.0], [0.0, 12.0]], atol=1e-7)
+    tfp = np.ones(econ.n_act)
+    tfp[1] = 1.1
+    shocked = cge.solve_period(econ, scenario=cge.Scenario(
+        productivity=tfp, world_price=np.array([1.2, 1.0]),
+        export_price=np.array([1.0, 1.3]) if rule == "cet" else None))
+    assert abs(shocked.walras) < 1e-8
+    assert abs(cge.national_accounts(shocked)["gap"]) < 1e-8
+
+
+def test_intermediates_bought_at_margin_inclusive_prices_reproduce_the_sam():
+    _, econ = regions.build_with_transport(intermediates=True)
+    result = cge.solve_period(econ)
+    assert abs(result.walras) < 1e-8
+    np.testing.assert_allclose(result.factor_prices, 1.0, atol=1e-9)
+    np.testing.assert_allclose(result.pa, 1.0, atol=1e-9)
+    np.testing.assert_allclose(result.X, econ.X0, atol=1e-7)
+
+
+def test_a_good_without_routes_follows_its_fob_values():
+    sam, econ = regions.build_with_transport(unrouted_good=True)
+    result = cge.solve_period(econ)
+    assert abs(result.walras) < 1e-8
+    np.testing.assert_allclose(result.factor_prices, 1.0, atol=1e-9)
+    np.testing.assert_allclose(result.X, econ.X0, atol=1e-7)
+    g = econ.regional.local_commodities.index("g")
+    np.testing.assert_allclose(result.bilateral[:, :, g], [[15.0, 5.0], [2.0, 18.0]], atol=1e-7)
+    np.testing.assert_allclose(result.imports[econ.regional.origin_index[:, g]], [6.0, 0.0],
+                               atol=1e-7)

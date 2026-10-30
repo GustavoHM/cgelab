@@ -54,7 +54,7 @@ read. A **📄** cell may be wrong.
 | **Recursive dynamics** | ✅ several capital stocks, capital by sector, putty-clay vintages, allocation by return, a per-year economy, a baseline calibrated to GDP † | — | — the loop in `execute.py` is a damped fixed point within one period, with no time index | — | ✅ |
 | **Welfare: EV and CV** | ✅ | — | — | — | the modeller's convention |
 | Group aggregation immune to composition | ✅ | — | — | — | — |
-| **Independent replica for validation** | ✅ † JuMP/Ipopt, 50 cases | ? | ? | ? | n/a |
+| **Independent replica for validation** | ✅ † JuMP/Ipopt, 50 cases, and 12 regional cases | ? | ? | ? | n/a |
 | Licence | MIT | ? | CC0-1.0 | ? | proprietary / commercial |
 | State declared by the authors | — | — | ✅ "very preliminary… please do not cite" | textbook | mature |
 
@@ -74,19 +74,24 @@ without a commercial licence and with the accounting checks built in, no alterna
 
 ## A caution
 
-`cgelab` was validated in four ways:
+`cgelab` was validated in five ways:
 
 - against an independent JuMP/Ipopt replica of the same equilibrium, in 50 cases;
 - against a line-by-line JuMP transcription of the GAMS library programs `stdcge` and `lrgcge`
   (Hosoe, Gasawa and Hashimoto, 2004): the tariff abolition agrees in all 49 displayed variables,
   to 2.4e-12;
+- against an independent JuMP rewrite of the regional model, calibrated in Julia from the SAM,
+  in 12 cases at the base year and under shocks (imports in different shares by region,
+  transport margins with intermediates, regional investment, an exported transport service and
+  a good without routes, CET and logit migration, regional government and investment
+  accounts): they agree to 2.7e-15;
 - against the research pipeline it came from, at version 0.1.0;
 - by base-year reproduction, homogeneity and Walras' law to machine precision, on the applied
   SAM it was written for, which is not public yet.
 
 That is evidence that what it does, it does right. It is **not** evidence that it covers what
-GAMS covers. The multi-region nest has neither factor migration nor bilateral trade, there is no
-complementarity, the package does not estimate elasticities, rational expectations go through
+GAMS covers. The multi-region model has no trade taxes and has not yet been compared with GTAP
+or ORANI-G/TERM, there is no complementarity, the package does not estimate elasticities, rational expectations go through
 the bridge to `dsgelab`, and it does not have the maturity of a platform with thirty years of
 use.
 

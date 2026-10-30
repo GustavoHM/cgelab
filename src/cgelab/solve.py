@@ -47,6 +47,10 @@ from .scenario import Scenario, investment_shares
 __all__ = ["PeriodResult", "solve_period", "value_added_price", "factor_intensity"]
 
 _PRICE_ITERS = 200
+#: A start whose residual is the rounding a calibration leaves (1e-13 to 5e-13 on the
+#: benchmark SAMs) is the solution; anything larger is refined, so a near miss never
+#: stops at the closure tolerance.
+_AT_START = 1e-12
 _RECYCLE_TOL = 1e-13
 
 
@@ -1080,6 +1084,14 @@ def solve_period(econ: Economy, closure: Closure | None = None,
     best = None
     for label, start, method in attempts:
         try:
+            # A start that already solves the system (the base year, or a warm
+            # start on an unchanged period) is the answer; hybr would spend a
+            # Jacobian per unknown on it.
+            first = np.asarray(residuals(start), dtype=float)
+            if first.size == 0 or float(np.max(np.abs(first))) < min(closure.tolerance, _AT_START):
+                best = (float(np.max(np.abs(first))) if first.size else 0.0,
+                        np.asarray(start, dtype=float), label, "the start point solves the system")
+                break
             sol = root(residuals, start, method=method,
                        options={"xtol": 1e-14} if method == "hybr"
                        else {"xtol": 1e-14, "ftol": 1e-14})

@@ -178,10 +178,19 @@ validated before the next one builds on it.
 
 *Solver:*
 
-- [ ] **Measure first**: time, memory and convergence on models of increasing size, as a
-  benchmark script kept in the repository.
+- [x] **Measure first**: `tools/benchmark_solver.py`, time, memory and convergence on seeded
+  synthetic SAMs, national up to 320 sectors (647 accounts) and regional up to 16 regions of 24
+  goods (819 accounts). National solves stay under 0.3 s at every size. The regional solver
+  spent 98% of its time in Python loops over destinations and goods: vectorizing the price and
+  quantity blocks made it 8 to 30 times faster with the same equilibria (to 3e-15), and a start
+  point that already solves the system (the base year) is now accepted without the root finder.
+  A shocked 16×24 regional solve takes about 4 s, 117 residual evaluations of 32 ms.
 - [ ] **Analytic derivatives and sparse algebra**, compared with the current finite-difference
-  solver on every case of the suite: faster, and no less precise.
+  solver on every case of the suite: faster, and no less precise. The benchmark says where:
+  the finite-difference Jacobian costs one residual evaluation per unknown (33 at 16×24, about
+  a hundred per solve), and each evaluation iterates the price fixed point about twenty times
+  and solves two dense systems of one equation per destination and good. Sparse algebra pays
+  only above that size.
 
 *New features: complementarity, by stages:*
 
@@ -415,9 +424,9 @@ input–output matrix and regional accounts. Useful helpers:
 - disaggregate households and labour with household surveys (in 0.6: `split_households`,
   `split_factor`, `segment_shares`).
 
-**Speed on large SAMs.** The solver uses finite-difference Jacobians on few unknowns, which is
-fine up to a few hundred accounts. A multi-region model needs analytic derivatives and sparse
-linear algebra: in 0.8, after a benchmark measures where the time goes.
+**Speed on large SAMs.** The solver uses finite-difference Jacobians on few unknowns.
+`tools/benchmark_solver.py` measures it: a national model of 647 accounts solves a shock in
+0.3 s, a regional one of 819 accounts in about 4 s. Analytic derivatives come next in 0.8.
 
 ## Infrastructure
 

@@ -209,9 +209,11 @@ where it stands. Things to know before relying on it:
   savings bank remains future work.
 - **No complementarity**: activities cannot switch off, and there are no quotas,
   price floors or capacity limits. That is 0.8.
-- **The solver** uses finite-difference Jacobians on a few unknowns. It is fine up
-  to a few hundred accounts; each commodity put on a trade curve adds an unknown,
-  and so does each activity that uses an imperfectly mobile factor.
+- **The solver** uses finite-difference Jacobians on a few unknowns. On the
+  synthetic SAMs of `tools/benchmark_solver.py`, a national model of 647 accounts
+  solves a shock in 0.3 s and a regional one of 819 accounts (16 regions of 24
+  goods) in about 4 s. Each commodity put on a trade curve adds an unknown, and so
+  does each activity that uses an imperfectly mobile factor or each regional factor.
 - **Fixed proportions everywhere** (`sigma_va = 0` in every activity) can leave
   the model without a solution under full employment of every factor.
 - **Under fixed export shares** with a Cobb-Douglas Armington, the exchange rate is

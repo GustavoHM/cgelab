@@ -1034,6 +1034,9 @@ sam, econ = toy.build_one_good()               # closed, one good: the stochasti
 from cgelab.examples import regions
 sam, econ = regions.build()                    # two identical regions under one origin nest
 sam, econ = regions.build_with_transport()     # two goods, route margins and a global service pool
+sam, econ = regions.build(asymmetric_imports=True)  # regions import different shares of the good
+# build_with_transport(regional_investment=, service_exports=, intermediates=,
+#                      unrouted_good=) add the cases validation/replicate_regional.py checks
 
 from cgelab.examples import hosoe
 sam, econ = hosoe.build()                      # Hosoe's stdcge; hosoe.CLOSURE is his closure

@@ -5,6 +5,20 @@ before 1.0, a minor version may add to the API and a patch version only fixes.
 
 ## Unreleased
 
+### Added
+
+- `validation/regional.jl`, the multi-region model rewritten in JuMP and
+  calibrated in Julia from the SAM, and `validation/replicate_regional.py`,
+  which compares it with `solve_period` in 12 cases at the base year and under
+  shocks: imports in different shares by region (with a CET), transport margins
+  with intermediates, a good without routes, regional investment under both
+  closures and an exported transport service, CET and logit migration, and
+  regional government and investment accounts. They agree to 2.7e-15. It runs
+  in the `validation` workflow.
+- `examples.regions.build(asymmetric_imports=True)` and the
+  `build_with_transport` options `regional_investment`, `service_exports`,
+  `intermediates` and `unrouted_good`, the base years those cases start from.
+
 ### Fixed
 
 - Regional models reproduce the base year when regions import different shares

@@ -1155,6 +1155,16 @@ cgelab diagnostics -- Economy(3 activities, 3 commodities, 2 households, 2 facto
   e fechamentos alternativos), os dois solucionadores diferem em no máximo
   <code>1.2e-11</code>. Quando os dados exportados são perturbados, a diferença sobe para valores
   entre 1e-3 e 3e-1, o que mostra que a comparação detecta erros.</p>
+
+  <h3>O modelo regional, reescrito</h3>
+  <p><code>validation/regional.jl</code> escreve de novo o modelo de várias regiões em JuMP e o
+  calibra no Julia a partir da MCS, sem nenhum parâmetro calibrado pelo pacote. Em 12 casos
+  (importações em proporções diferentes por região, margens de transporte com insumos, um bem sem
+  rotas, investimento regional, um serviço de transporte exportado, migração CET e logit, contas
+  regionais de governo e de investimento), no ano-base e sob choques, os dois concordam a
+  <code>2.7e-15</code>. Rodados contra o solucionador de antes desses casos, cinco deles falham por
+  2e-2 a 6e-1: foi assim que quatro erros de ano-base na calibração regional foram achados e
+  corrigidos.</p>
 </div></section>
 
 <section id="comparacao"><div class="wrap">

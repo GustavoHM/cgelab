@@ -82,13 +82,15 @@ def build(model_spec: ModelSpec | None = None, *, rename=None,
 
 
 def build_with_transport(*, regional_investment: bool = False, service_exports: bool = False,
-                         **spec_overrides):
+                         intermediates: bool = False, **spec_overrides):
     """Two goods and two regions with hand-written route and service margins.
 
     ``regional_investment`` gives each region its own investment account, so
     investment buys at destination prices that differ in the base year.
     ``service_exports`` has region r1 export 2 of its transport service as
     well as supplying the pool, paid for by 2 more imports of r1's good.
+    ``intermediates`` has r1's activity buy 10 of r1's good, at the
+    margin-inclusive price, in place of 10 of labour and of household purchases.
     ``spec_overrides`` go to :func:`spec` (``export_rule``, ``sigma_cet``...).
     """
     entries = list(ENTRIES)
@@ -106,6 +108,9 @@ def build_with_transport(*, regional_investment: bool = False, service_exports: 
     if service_exports:
         entries += [("r1:f_lab", "r1:a_m", 2.0), ("r1:a_m", "r1:m", 2.0), ("r1:m", "row", 2.0),
                     ("row", "r1:c", 2.0), ("r1:c", "r1:hh", 2.0), ("r1:hh", "r1:f_lab", 2.0)]
+    if intermediates:
+        entries += [("r1:c", "r1:a", 10.0), ("r1:f_lab", "r1:a", -10.0),
+                    ("r1:hh", "r1:f_lab", -10.0), ("r1:c", "r1:hh", -10.0)]
     investment = {}
     if regional_investment:
         def split(name, other):

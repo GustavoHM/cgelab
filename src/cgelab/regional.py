@@ -397,6 +397,11 @@ def build_regional(econ, sam, *, migration_pools=None, transport=None) -> Region
      base_price, transport) = _transport_calibration(
         econ, transport, regions, local, origin_index, use, destination_share,
         absorption0, dom_share, nat_arm, nat_mq, ptax, sigma, sigma_arm)
+    # Activities buy at their own region's purchaser price. With route margins
+    # that base price is not the tax-inclusive one, and the coefficient is in
+    # units of what the activity pays.
+    basic_price = base_price / (1.0 + ptax)[None, :]
+    nat_io = nat_io / basic_price[activity_region].T
     migration = _build_migration(spec, econ, regions, migration_pools)
     dtax = econ.zeros_if_none("hh_dtax", econ.n_hh)
     direct = float((np.asarray(econ.hh_gross0, float) * dtax).sum())

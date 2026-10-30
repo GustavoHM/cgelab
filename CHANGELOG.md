@@ -21,6 +21,10 @@ before 1.0, a minor version may add to the API and a patch version only fixes.
   pool counts as home sales, grossed up by the home share of output, and is
   priced at the home-sales price under a CET. The base year had missed that
   output and the Walras residual was not zero.
+- Regional intermediate coefficients are in units of the purchaser price the
+  activity pays in its region. With route margins that base price is not one,
+  and the base-year unit cost of an activity buying a transported good was above
+  one.
 
 ## 0.7.1 — 2026-10-29
 

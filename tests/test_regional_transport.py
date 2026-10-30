@@ -92,3 +92,12 @@ def test_an_exported_transport_service_reproduces_the_sam_and_closes(rule):
         export_price=np.array([1.0, 1.3]) if rule == "cet" else None))
     assert abs(shocked.walras) < 1e-8
     assert abs(cge.national_accounts(shocked)["gap"]) < 1e-8
+
+
+def test_intermediates_bought_at_margin_inclusive_prices_reproduce_the_sam():
+    _, econ = regions.build_with_transport(intermediates=True)
+    result = cge.solve_period(econ)
+    assert abs(result.walras) < 1e-8
+    np.testing.assert_allclose(result.factor_prices, 1.0, atol=1e-9)
+    np.testing.assert_allclose(result.pa, 1.0, atol=1e-9)
+    np.testing.assert_allclose(result.X, econ.X0, atol=1e-7)

@@ -73,6 +73,11 @@ def to_jump(econ: Economy, closure: Closure | None = None, scenario: Scenario | 
     """
     closure = closure or Closure()
     sc = scenario or Scenario()
+    if econ.least_cost:
+        raise ValueError(
+            "to_jump does not write least-cost producers (ModelSpec.least_cost). Their "
+            "complementarity conditions need a complementarity solver; exporting fixed "
+            "market shares instead would describe another model.")
     if econ.regional is not None and len(econ.regional.regions) > 1:
         raise ValueError(
             "to_jump does not write the interregional nest. Exporting the "

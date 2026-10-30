@@ -91,7 +91,7 @@ without a commercial licence and with the accounting checks built in, no alterna
 
 That is evidence that what it does, it does right. It is **not** evidence that it covers what
 GAMS covers. The multi-region model has no trade taxes and has not yet been compared with GTAP
-or ORANI-G/TERM, there is no complementarity, the package does not estimate elasticities, rational expectations go through
+or ORANI-G/TERM, complementarity covers only producers that compete at least cost, the package does not estimate elasticities, rational expectations go through
 the bridge to `dsgelab`, and it does not have the maturity of a platform with thirty years of
 use.
 
@@ -130,7 +130,7 @@ the goal is to cover the whole list by 1.0; each item's version is the one in
 | SAM construction and disaggregation | 📄 IFPRI, PEP | **done**: construction from supply and use tables with the provenance of every block, and disaggregation of households and of labour by household surveys | 0.6 |
 | Several regions | 📄 GTAP, TERM, ORANI-G | destination-specific origin nests and bilateral SAM cells, delivered margins and CET exports, route transport and a global service pool, institution maps and consolidated government closures, fixed-real investment, factor migration, regional capital and a simulated panel done; trade taxes missing | 0.7 |
 | GTAP data | 📄 GTAPAgg, FlexAgg | HAR reading and writing exact against harpy3; declared aggregation with explicit parameter weights and a one-region SAM done and solved on synthetic data; independent GTAPAgg/FlexAgg comparison planned for 0.8 | 0.7 |
-| Complementarity (MCP); alternative solvers | 📄 GAMS/MPSGE with PATH; pycge (Pyomo) | missing | 0.8 |
+| Complementarity (MCP); alternative solvers | 📄 GAMS/MPSGE with PATH; pycge (Pyomo) | **started**: producers that compete at least cost and shut down (`least_cost`), against PATH; capacity, quotas, price bounds and other backends missing | 0.8 |
 | Generic closure swap; cross entropy; intertemporal CGE; imperfect competition; land use; export to GAMS and GEMPACK | 📄 GEMPACK, MPSGE, GTAP-AEZ | missing | 0.9 |
 
 ## Sources

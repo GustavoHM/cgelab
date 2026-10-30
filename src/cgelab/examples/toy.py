@@ -19,6 +19,8 @@ where a real SAM breaks a naive calibration:
   account and an indirect tax on output, the TRF and IDT of Hosoe's ``stdcge``.
 * :func:`build_with_segmented_labour` -- labour split into a formal and an
   informal account that share one population of workers.
+* :func:`build_with_technologies` -- industry made by two technologies, one
+  capital-intensive and one labour-intensive, that compete at least cost.
 """
 
 from __future__ import annotations
@@ -31,7 +33,7 @@ from ..spec import ModelSpec
 
 __all__ = ["build", "build_with_margins", "build_with_own_production", "build_with_twin_accounts",
            "build_with_institutions", "build_with_specific_capital", "build_with_trade_taxes",
-           "build_with_segmented_labour", "survey", "persons",
+           "build_with_segmented_labour", "build_with_technologies", "survey", "persons",
            "build_one_good", "spec"]
 
 
@@ -81,6 +83,31 @@ def build(model_spec: ModelSpec | None = None, **kwargs):
     """Return ``(sam, economy)`` for the plain two-sector case."""
     sam = _frame(_BASE)
     econ = calibrate(sam, model_spec or spec(), **kwargs)
+    return sam, econ
+
+
+#: The industrial activity split into two technologies for ``c_ind``: ``a_ind``
+#: capital-intensive (120) and ``a_alt`` labour-intensive (80). Their columns
+#: add up to the original activity's, so the rest of the SAM is unchanged.
+TECHNOLOGIES = [
+    ("c_agr", "a_ind", 18.0), ("c_ind", "a_ind", 36.0),
+    ("f_lab", "a_ind", 30.0), ("f_cap", "a_ind", 33.0), ("gov", "a_ind", 3.0),
+    ("a_ind", "c_ind", 120.0),
+    ("c_agr", "a_alt", 12.0), ("c_ind", "a_alt", 24.0),
+    ("f_lab", "a_alt", 40.0), ("f_cap", "a_alt", 2.0), ("gov", "a_alt", 2.0),
+    ("a_alt", "c_ind", 80.0),
+]
+
+
+def build_with_technologies(model_spec: ModelSpec | None = None, **kwargs):
+    """Industry made by two technologies that compete at least cost.
+
+    ``ModelSpec.least_cost = ["c_ind"]`` unless ``model_spec`` says otherwise:
+    under a shock that makes one technology cheaper the other shuts down.
+    """
+    entries = [e for e in _BASE if "a_ind" not in (e[0], e[1])] + TECHNOLOGIES
+    sam = _frame(entries)
+    econ = calibrate(sam, model_spec or spec(least_cost=["c_ind"]), **kwargs)
     return sam, econ
 
 

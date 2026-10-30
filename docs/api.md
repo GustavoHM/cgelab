@@ -77,6 +77,7 @@ gives `inf`; negative or nonfinite entries and zero total flow are refused.
 | `vintages` | `None` | `{old: new}`, one pair of capital accounts (`split_vintages`): putty-clay capital. Value added is a CES (`vintage_substitution`) of an old bundle, a CES of `vintage_sigma` without new capital, and a new one, the CES of `sigma_va` without old capital. Old capital gets a pool per activity; new capital is mobile. Needs `value_added="ces"`; not with `energy`, `regions`, or either vintage in `factor_mobility` (old) or `labour_segments` |
 | `vintage_sigma` | `0.0` | substitution ex post, in the old bundle; a number or a mapping by activity |
 | `vintage_substitution` | `20.0` | substitution between the two bundles; perfect substitution is the limit |
+| `least_cost` | `None` | commodities whose producers are perfect substitutes chosen at least cost: unit cost − price ≥ 0 ⊥ output share ≥ 0, shares adding to one. Two producers or more, each making only that commodity; not with `regions` or `vintages`, and `to_jump` refuses it |
 | `factor_mobility_form` | `"cet"` | `"cet"` (a CET frontier, GTAP's sluggish endowments) or `"logit"` (shares of a fixed head count); one form, or a mapping by factor |
 
 Methods: `classify(sam) -> AccountLayout`, `prepare(sam)` (expands regional
@@ -264,7 +265,9 @@ exchange rate under `foreign="fixed_saving"`, foreign saving under
 that finances the fixed investment. Under `ModelSpec.export_demand` or
 `import_supply`, the log world price of each commodity on a curve. For a factor
 in `ModelSpec.factor_mobility`, its price in each activity that uses it instead
-of one price, with one market per activity.
+of one price, with one market per activity. For each `ModelSpec.least_cost`
+commodity, its log price and each producer's output share, with one
+Fischer–Burmeister residual per producer and one for the shares adding to one.
 
 With a regional economy, `investment="fixed_real"` holds investment quantities
 at base-year purchaser prices and solves a per-capita forced-saving levy, which
@@ -288,6 +291,7 @@ is deducted from households. `savings_driven` remains the default.
 | `factor_demand_by_activity`, `factor_prices_by_activity` | `(nf, na)` factor use and the price each activity pays. Under a CET the use does not add up to the endowment off the base year |
 | `labour_markets` | `{group: {...}}` for each group of labour segments: `segments`, `informal` (`None` under `segment_mobility`), `wage`, `real_wage`, `employment`, `supply`, `queue`, `labour_force`, `unemployment`, `unemployment_rate`, `harris_todaro`, `household_workforce`, `household_employment` `(nh, n_seg)`, `household_unemployed`; `None` without segments |
 | `factor_pools` | `{factor: {"pools", "price", "endowment", "supply"}}` for each imperfectly mobile factor, `supply` by pool and activity; `None` when every factor is mobile |
+| `least_cost` | `{commodity: {"activities", "share", "unit_cost", "price", "margin"}}` for each `ModelSpec.least_cost` commodity: each producer's share of its output and unit cost, the commodity's price, and `margin`, unit cost minus price, zero for a producer that produces; `None` without least cost |
 | `wedge_revenue`, `government_cost` | recycled revenue; cost falling on the budget |
 | `vintage_value_added` | `(2, na)`: the old and the new capital vintage's bundle, in the base-year value of the factors each uses; `None` without vintages |
 | `input_coefficients`, `value_added_per_unit` | intermediate input and primary factor use (base-year value) per unit of output as solved; under an energy nest they answer to prices |

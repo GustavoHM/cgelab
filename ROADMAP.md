@@ -191,12 +191,16 @@ validated before the next one builds on it.
   quantity blocks made it 8 to 30 times faster with the same equilibria (to 3e-15), and a start
   point that already solves the system (the base year) is now accepted without the root finder.
   A shocked 16×24 regional solve takes about 4 s, 117 residual evaluations of 32 ms.
-- [ ] **Analytic derivatives and sparse algebra**, compared with the current finite-difference
-  solver on every case of the suite: faster, and no less precise. The benchmark says where:
-  the finite-difference Jacobian costs one residual evaluation per unknown (33 at 16×24, about
-  a hundred per solve), and each evaluation iterates the price fixed point about twenty times
-  and solves two dense systems of one equation per destination and good. Sparse algebra pays
-  only above that size.
+- [x] **Analytic derivatives**, compared with the finite-difference solver: the regional
+  residual has an exact Jacobian (`cgelab.regional_jacobian`), forward-mode through the price
+  fixed point and the absorption system. It matches central differences to 1e-10 in every
+  covered configuration, the equilibria agree to 3e-15, and a shocked solve needs 14 to 20
+  evaluations instead of 26 to 120: 3.5 times faster at 16×24 (3.5 s to 1.0 s). Not done,
+  because the benchmark does not ask for them: derivatives for the national solver (two
+  unknowns, under 0.3 s at 647 accounts) and for the regional government closures that spend
+  a share of revenue or meet a target with a tax rate, which keep finite differences.
+- [ ] **Sparse algebra**, when a model is large enough to need it: at 819 accounts the dense
+  systems of one equation per destination and good are a small part of a solve.
 
 *New features: complementarity, by stages:*
 
@@ -432,7 +436,7 @@ input–output matrix and regional accounts. Useful helpers:
 
 **Speed on large SAMs.** The solver uses finite-difference Jacobians on few unknowns.
 `tools/benchmark_solver.py` measures it: a national model of 647 accounts solves a shock in
-0.3 s, a regional one of 819 accounts in about 4 s. Analytic derivatives come next in 0.8.
+0.3 s, a regional one of 819 accounts in about 1 s with the exact regional Jacobian.
 
 ## Infrastructure
 

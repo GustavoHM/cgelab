@@ -25,6 +25,14 @@ before 1.0, a minor version may add to the API and a patch version only fixes.
 
 ### Changed
 
+- The regional solver gives MINPACK the exact Jacobian of its residual
+  (`cgelab.regional_jacobian`), propagated forward through the price fixed
+  point and the absorption system, and finishes with up to two Newton steps
+  that are kept only if they lower the residual. It matches central differences
+  to 1e-10; equilibria are unchanged to 3e-15; a shocked solve needs 14 to 20
+  residual evaluations instead of 26 to 120 and is up to 3.5 times faster (16
+  regions of 24 goods: 3.5 s to 1.0 s). A government that spends a share of its
+  revenue or meets a target with a tax rate keeps finite differences.
 - The regional solver evaluates its price and quantity blocks as array
   operations over every destination and good instead of Python loops over each
   cell. The equilibria are the same to 3e-15; a shocked solve is 8 to 30 times

@@ -28,6 +28,7 @@ from scipy.optimize import root
 
 from .functions import (armington, ces_intensity, ces_price, cet, cet_domestic_price,
                         cobb_douglas_price)
+from . import regional_jacobian
 from .mobility import FactorMobility
 from .solve import PeriodResult, factor_intensity, value_added_price
 from .transport import TransportMargins
@@ -619,11 +620,25 @@ def solve_regions(econ, closure, scenario, *, warm_start=None, raise_on_fail: bo
         state.update(prices)
         state.update(qty)
         state.update(w=w, er=er, gaps=gaps, walras=float(gaps[num]),
-                     levy=levy, foreign_sav=foreign_target, tax_scale=tax_scale)
+                     levy=levy, foreign_sav=foreign_target, tax_scale=tax_scale,
+                     at=z.copy(), blocks=(prices, qty))
         return np.asarray(out, dtype=float)
 
+    def jacobian(z):
+        z = np.atleast_1d(np.asarray(z, dtype=float))
+        if "at" not in state or not np.array_equal(state["at"], z):
+            residuals(z)
+        ctx = dict(n_unknown=n_unknown, others=others, i_er=i_er, i_inv=i_inv,
+                   fixed_investment=fixed_investment, closure=closure, nu=nu,
+                   w=state["w"], er=state["er"], levy=state["levy"], tfp=tfp,
+                   supply=supply, world=world, export_world=export_world, ptax=ptax_set,
+                   facshare=facshare, fac_gov=fac_gov, fac_row=fac_row, dtax=dtax,
+                   gov_tr=gov_tr, foreign_target=foreign_target)
+        return regional_jacobian.jacobian(econ, ctx, *state["blocks"])
+
+    exact = jacobian if regional_jacobian.supported(closure) else None
     z_hat, residual, label, message = _solve(residuals, n_unknown, closure.tolerance,
-                                             warm_start, raise_on_fail)
+                                             warm_start, raise_on_fail, jac=exact)
     residuals(z_hat)
     return _pack(econ, reg, closure, scenario, state, z_hat, residual, label, message,
                  closure.tolerance)
@@ -968,7 +983,7 @@ def _quantities(econ, reg, w, supply, facshare, fac_gov, fac_row, dtax, transfer
         migration=migration_results, transport=transport_result)
 
 
-def _solve(residuals, n_unknown, tolerance, warm_start, raise_on_fail):
+def _solve(residuals, n_unknown, tolerance, warm_start, raise_on_fail, jac=None):
     attempts = []
     if warm_start is not None:
         z0 = getattr(warm_start, "z", warm_start)
@@ -989,14 +1004,17 @@ def _solve(residuals, n_unknown, tolerance, warm_start, raise_on_fail):
                 best = (float(np.max(np.abs(first))) if first.size else 0.0,
                         np.asarray(start, dtype=float), label, "the start point solves the system")
                 break
-            sol = root(residuals, start, method=method,
+            sol = root(residuals, start, method=method, jac=jac,
                        options={"xtol": 1e-14} if method == "hybr"
                        else {"xtol": 1e-14, "ftol": 1e-14})
         except (ValueError, RuntimeError):
             continue
-        res = float(np.max(np.abs(residuals(sol.x))))
+        z = np.asarray(sol.x, dtype=float)
+        res = float(np.max(np.abs(residuals(z))))
+        if jac is not None:
+            z, res = _polish(residuals, jac, z, res)
         if best is None or res < best[0]:
-            best = (res, np.asarray(sol.x, dtype=float), label, str(sol.message))
+            best = (res, z, label, str(sol.message))
         if res < tolerance:
             break
     if best is None:
@@ -1007,6 +1025,26 @@ def _solve(residuals, n_unknown, tolerance, warm_start, raise_on_fail):
             f"solve_period: residual {res:.3e} above tolerance {tolerance:.1e} "
             f"({label}). Solver message: {message}")
     return z, res, label, message
+
+
+def _polish(residuals, jac, z, res, steps=2):
+    """Newton steps with the exact Jacobian, kept only while they lower the residual.
+
+    hybr stops on the size of its step, which can leave a residual a hundred
+    times above rounding. With the exact Jacobian one more step costs one
+    evaluation and lands on rounding.
+    """
+    for _ in range(steps):
+        try:
+            trial = z - np.linalg.solve(jac(z), residuals(z))
+            new = float(np.max(np.abs(residuals(trial))))
+        except (ValueError, RuntimeError, np.linalg.LinAlgError):
+            break
+        if not new < res:
+            break
+        z, res = trial, new
+    residuals(z)
+    return z, res
 
 
 def _pack(econ, reg, closure, scenario, state, z, residual, label, message, tolerance):

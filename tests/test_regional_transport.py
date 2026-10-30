@@ -101,3 +101,15 @@ def test_intermediates_bought_at_margin_inclusive_prices_reproduce_the_sam():
     np.testing.assert_allclose(result.factor_prices, 1.0, atol=1e-9)
     np.testing.assert_allclose(result.pa, 1.0, atol=1e-9)
     np.testing.assert_allclose(result.X, econ.X0, atol=1e-7)
+
+
+def test_a_good_without_routes_follows_its_fob_values():
+    sam, econ = regions.build_with_transport(unrouted_good=True)
+    result = cge.solve_period(econ)
+    assert abs(result.walras) < 1e-8
+    np.testing.assert_allclose(result.factor_prices, 1.0, atol=1e-9)
+    np.testing.assert_allclose(result.X, econ.X0, atol=1e-7)
+    g = econ.regional.local_commodities.index("g")
+    np.testing.assert_allclose(result.bilateral[:, :, g], [[15.0, 5.0], [2.0, 18.0]], atol=1e-7)
+    np.testing.assert_allclose(result.imports[econ.regional.origin_index[:, g]], [6.0, 0.0],
+                               atol=1e-7)

@@ -25,6 +25,9 @@ before 1.0, a minor version may add to the API and a patch version only fixes.
   activity pays in its region. With route margins that base price is not one,
   and the base-year unit cost of an activity buying a transported good was above
   one.
+- In a model with transport routes, a good without margins takes its domestic
+  deliveries from the route FOB values, like a routed good, instead of from
+  purchase shares and a national import share.
 
 ## 0.7.1 — 2026-10-29
 

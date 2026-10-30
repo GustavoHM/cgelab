@@ -217,10 +217,18 @@ def _transport_calibration(econ, transport, regions, local, origin_index, use,
     arm_share[routed] = 1.0
     mq[:, routed] = 0.0
     arm_price = np.ones((K, C))
-    for c in np.where(routed)[0]:
+    # A good without routes has no margins (the checks above tie margins to
+    # routes), so the same calibration applies with a zero coefficient: its
+    # FOB values, not its purchase shares, say how much each origin delivers.
+    for c in np.where(routed | (raw_total.sum(axis=0) > 0))[0]:
         for d in range(K):
             total = delivered_total[d, c]
             if total <= 0:
+                if not routed[c]:
+                    if raw_total[d, c] > 0:  # bought only from abroad
+                        dom_share_dest[d, c] = 0.0
+                        import_share[:, d, c] = imported[:, d, c] / imported[:, d, c].sum()
+                    continue
                 raise ValueError(f"destination {d} has no absorption for transported "
                                  f"commodity {local[c]!r}")
             value_share = delivered[:, d, c] / total

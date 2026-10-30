@@ -82,7 +82,8 @@ def build(model_spec: ModelSpec | None = None, *, rename=None,
 
 
 def build_with_transport(*, regional_investment: bool = False, service_exports: bool = False,
-                         intermediates: bool = False, **spec_overrides):
+                         intermediates: bool = False, unrouted_good: bool = False,
+                         **spec_overrides):
     """Two goods and two regions with hand-written route and service margins.
 
     ``regional_investment`` gives each region its own investment account, so
@@ -91,6 +92,8 @@ def build_with_transport(*, regional_investment: bool = False, service_exports: 
     well as supplying the pool, paid for by 2 more imports of r1's good.
     ``intermediates`` has r1's activity buy 10 of r1's good, at the
     margin-inclusive price, in place of 10 of labour and of household purchases.
+    ``unrouted_good`` adds a good ``g`` with no transport margins, which r1
+    imports and r2 exports, so its regions import different shares of it.
     ``spec_overrides`` go to :func:`spec` (``export_rule``, ``sigma_cet``...).
     """
     entries = list(ENTRIES)
@@ -111,6 +114,16 @@ def build_with_transport(*, regional_investment: bool = False, service_exports: 
     if intermediates:
         entries += [("r1:c", "r1:a", 10.0), ("r1:f_lab", "r1:a", -10.0),
                     ("r1:hh", "r1:f_lab", -10.0), ("r1:c", "r1:hh", -10.0)]
+    if unrouted_good:
+        entries += [("r1:f_lab", "r1:a_g", 20.0), ("r1:a_g", "r1:g", 20.0),
+                    ("r2:f_lab", "r2:a_g", 26.0), ("r2:a_g", "r2:g", 26.0),
+                    ("row", "r1:g", 6.0), ("r2:g", "row", 6.0),
+                    ("r1:g", "r1:hh", 21.0), ("r1:g", "r2:hh", 5.0),
+                    ("r2:g", "r2:hh", 18.0), ("r2:g", "r1:hh", 2.0),
+                    ("r1:hh", "r1:f_lab", 20.0), ("r2:hh", "r2:f_lab", 26.0),
+                    ("s_i", "r1:hh", -3.0), ("s_i", "r2:hh", 3.0)]
+    goods = ("c", "m", "g") if unrouted_good else ("c", "m")
+    acts = ("a", "a_m", "a_g") if unrouted_good else ("a", "a_m")
     investment = {}
     if regional_investment:
         def split(name, other):
@@ -121,10 +134,10 @@ def build_with_transport(*, regional_investment: bool = False, service_exports: 
                         name="two-region transport")
     sam.check_balance(abs_tol=1e-9)
     model_spec = spec(
-        activities=[f"{r}:{a}" for r in ("r1", "r2") for a in ("a", "a_m")],
-        commodities=[f"{r}:{c}" for r in ("r1", "r2") for c in ("c", "m")],
+        activities=[f"{r}:{a}" for r in ("r1", "r2") for a in acts],
+        commodities=[f"{r}:{c}" for r in ("r1", "r2") for c in goods],
         margins=True, **investment, **spec_overrides)
-    fob = np.zeros((2, 3, 2))
+    fob = np.zeros((2, 3, len(goods)))
     fob[0, :, 0] = [45.0, 18.0, 27.0]
     # With its own account, r2's investment in its own good leaves the
     # national channel for destination r2.
@@ -132,7 +145,12 @@ def build_with_transport(*, regional_investment: bool = False, service_exports: 
     transport = np.zeros_like(fob)
     transport[0, 0, 0] = 12.0
     transport[1, 1, 0] = 12.0
-    supply = np.array([[0.0, 12.0], [0.0, 12.0]])
-    margins = TransportMargins(("r1", "r2"), ("c", "m"),
+    if unrouted_good:
+        # r1's imports of g all go to its own household.
+        fob[0, :, 2] = [15.0, 5.0, 0.0]
+        fob[1, :, 2] = [2.0, 18.0, 0.0]
+    supply = np.zeros((2, len(goods)))
+    supply[:, 1] = 12.0
+    margins = TransportMargins(("r1", "r2"), goods,
                                ("r1", "r2", "national"), fob, transport, supply)
     return sam, calibrate(sam, model_spec, transport=margins)

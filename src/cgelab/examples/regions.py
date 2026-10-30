@@ -15,7 +15,7 @@ from ..sam import SAM
 from ..spec import ModelSpec
 from ..transport import TransportMargins
 
-__all__ = ["build", "build_with_transport", "spec", "ENTRIES"]
+__all__ = ["build", "build_with_transport", "spec", "ENTRIES", "ASYMMETRIC_IMPORTS"]
 
 
 def spec(**overrides) -> ModelSpec:
@@ -48,13 +48,22 @@ ENTRIES = [
 ]
 
 
-def build(model_spec: ModelSpec | None = None, *, rename=None):
+#: Moves 5 of imports from r2's account to r1's: r1's household buys 5 more of
+#: r1's good and saves 5 less, and investment buys 5 less of r2's good. The two
+#: regions then import different shares of the same good.
+ASYMMETRIC_IMPORTS = [("row", "r1:c", 5.0), ("r1:c", "r1:hh", 5.0), ("s_i", "r1:hh", -5.0),
+                      ("row", "r2:c", -5.0), ("r2:c", "s_i", -5.0)]
+
+
+def build(model_spec: ModelSpec | None = None, *, rename=None,
+          asymmetric_imports: bool = False):
     """Balanced two-region SAM and its calibrated economy.
 
     ``rename`` is a pair ``(old, new)`` applied to both region labels, so the
-    same matrix can be solved under swapped names.
+    same matrix can be solved under swapped names. ``asymmetric_imports``
+    applies :data:`ASYMMETRIC_IMPORTS`.
     """
-    rows = ENTRIES
+    rows = ENTRIES + (ASYMMETRIC_IMPORTS if asymmetric_imports else [])
     if rename is not None:
         a, b = rename
 
@@ -65,15 +74,23 @@ def build(model_spec: ModelSpec | None = None, *, rename=None):
                 return a + ":" + name[len(b) + 1:]
             return name
 
-        rows = [(swap(r), swap(c), v) for r, c, v in ENTRIES]
+        rows = [(swap(r), swap(c), v) for r, c, v in rows]
     sam = SAM.from_long(pd.DataFrame(rows, columns=["row", "col", "value"]), name="two-region")
     sam.check_balance(abs_tol=1e-9)
     econ = calibrate(sam, model_spec or spec())
     return sam, econ
 
 
-def build_with_transport():
-    """Two goods and two regions with hand-written route and service margins."""
+def build_with_transport(*, regional_investment: bool = False, service_exports: bool = False,
+                         **spec_overrides):
+    """Two goods and two regions with hand-written route and service margins.
+
+    ``regional_investment`` gives each region its own investment account, so
+    investment buys at destination prices that differ in the base year.
+    ``service_exports`` has region r1 export 2 of its transport service as
+    well as supplying the pool, paid for by 2 more imports of r1's good.
+    ``spec_overrides`` go to :func:`spec` (``export_rule``, ``sigma_cet``...).
+    """
     entries = list(ENTRIES)
     for region in ("r1", "r2"):
         entries += [
@@ -86,15 +103,27 @@ def build_with_transport():
             (f"{region}:hh", f"{region}:f_lab", 8.0),
             (f"{region}:hh", f"{region}:f_cap", 4.0),
         ]
+    if service_exports:
+        entries += [("r1:f_lab", "r1:a_m", 2.0), ("r1:a_m", "r1:m", 2.0), ("r1:m", "row", 2.0),
+                    ("row", "r1:c", 2.0), ("r1:c", "r1:hh", 2.0), ("r1:hh", "r1:f_lab", 2.0)]
+    investment = {}
+    if regional_investment:
+        def split(name, other):
+            return f"{other.split(':')[0]}:s_i" if name == "s_i" else name
+        entries = [(split(r, c), split(c, r), v) for r, c, v in entries]
+        investment = dict(investment="r1:s_i", regional_investment={"r2": "r2:s_i"})
     sam = SAM.from_long(pd.DataFrame(entries, columns=["row", "col", "value"]),
                         name="two-region transport")
+    sam.check_balance(abs_tol=1e-9)
     model_spec = spec(
         activities=[f"{r}:{a}" for r in ("r1", "r2") for a in ("a", "a_m")],
         commodities=[f"{r}:{c}" for r in ("r1", "r2") for c in ("c", "m")],
-        margins=True)
+        margins=True, **investment, **spec_overrides)
     fob = np.zeros((2, 3, 2))
     fob[0, :, 0] = [45.0, 18.0, 27.0]
-    fob[1, :, 0] = [18.0, 45.0, 27.0]
+    # With its own account, r2's investment in its own good leaves the
+    # national channel for destination r2.
+    fob[1, :, 0] = [18.0, 65.0, 7.0] if regional_investment else [18.0, 45.0, 27.0]
     transport = np.zeros_like(fob)
     transport[0, 0, 0] = 12.0
     transport[1, 1, 0] = 12.0

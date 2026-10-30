@@ -5,6 +5,23 @@ before 1.0, a minor version may add to the API and a patch version only fixes.
 
 ## Unreleased
 
+### Fixed
+
+- Regional models reproduce the base year when regions import different shares
+  of the same good. Each origin account's cells are split by that origin's own
+  home and import shares, so each destination gets its own import share; one
+  national share had moved wages and the exchange rate away from one at the
+  base year, with the solver still reporting convergence. Results are unchanged
+  when every origin imports the same share.
+- Savings-driven regional investment keeps each channel's base-year quantities
+  within a commodity. It weighted channels by base values, which missed the
+  base year when investment accounts in different regions paid different base
+  prices (transport margins with a regional investment account).
+- A transport service that a region also exports: its supply to the transport
+  pool counts as home sales, grossed up by the home share of output, and is
+  priced at the home-sales price under a CET. The base year had missed that
+  output and the Walras residual was not zero.
+
 ## 0.7.1 — 2026-10-29
 
 Corrections to the regional model, the GTAP readers, target matching and the SAM

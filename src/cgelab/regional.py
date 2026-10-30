@@ -35,6 +35,10 @@ from .transport import TransportMargins
 __all__ = ["Regional", "build_regional", "solve_regions"]
 
 _PRICE_ITERS = 200
+#: A start whose residual is the rounding a calibration leaves (1e-13 to 5e-13 on the
+#: benchmark SAMs) is the solution; anything larger is refined, so a near miss never
+#: stops at the closure tolerance.
+_AT_START = 1e-12
 
 
 @dataclass
@@ -691,6 +695,9 @@ def _prices(econ, reg: Regional, w, er, world, export_world, tfp, nu, ptax):
     msh = 1.0 - dsh
     pe = er * export_world
     pm = er * world
+    shares = reg.destination_share.reshape(reg.n_reg, K * C)
+    sigma_col = np.tile(reg.sigma, K)
+    sigma_arm = np.broadcast_to(reg.sigma_arm, (K, C))
     for _ in range(_PRICE_ITERS):
         pva = value_added_price(econ, w)
         pa = (io.T * pq[reg.activity_region]).sum(axis=1) + pva * vunit + atax
@@ -705,17 +712,13 @@ def _prices(econ, reg: Regional, w, er, world, export_world, tfp, nu, ptax):
             # Services reach the pool as home sales, at the home-sales price.
             transport_price = reg.transport.pool_price(p_rc)
             p_deliver = p_rc[:, None, :] + reg.transport.coefficient * transport_price
-        for d in range(K):
-            for c in range(C):
-                sh = reg.destination_share[:, d, c:c + 1]
-                pd_dest[d, c] = float(ces_price(sh, p_deliver[:, d, c], reg.sigma[c])[0])
-                phi[:, d, c] = ces_intensity(
-                    sh, p_deliver[:, d, c], np.array([pd_dest[d, c]]), reg.sigma[c])[:, 0]
-                arm, ds, ms = armington(
-                    np.array([reg.dom_share_dest[d, c]]), np.array([pd_dest[d, c]]),
-                    np.array([pm[c]]), np.array([reg.sigma_arm[c]]))
-                arm_price[d, c] = float(arm[0])
-                dsh[d, c], msh[d, c] = float(ds[0]), float(ms[0])
+        # Every destination and good at once: one CES column per (d, c), in
+        # the row-major order of the (K, C) grid.
+        prices = p_deliver.reshape(reg.n_reg, K * C)
+        pd_dest = ces_price(shares, prices, sigma_col).reshape(K, C)
+        phi = ces_intensity(shares, prices, pd_dest.ravel(), sigma_col).reshape(phi.shape)
+        arm_price, dsh, msh = armington(reg.dom_share_dest, pd_dest,
+                                        np.broadcast_to(pm, (K, C)), sigma_arm)
         pbase = arm_price * reg.arm_share + pq @ reg.mq
         new = pbase * (1.0 + ptax)
         converged = np.max(np.abs(new - pq)) < 1e-14
@@ -820,16 +823,12 @@ def _quantities(econ, reg, w, supply, facshare, fac_gov, fac_row, dtax, transfer
     # the home share of output like the bilateral sales are.
     output_link = ((link + service_share[:, None, :] * transport_link[None, :, :])
                    / np.maximum(prices["dom_frac"][:, None, :], 1e-12))
-    M = np.zeros((econ.n_act, K, C))
-    for r in range(reg.n_reg):
-        for d in range(K):
-            for c in range(C):
-                i = reg.origin_index[r, c]
-                M[:, d, c] += econ.msh[:, i] * output_link[r, d, c]
+    # Output of each activity per unit of absorption in (d, c), through the
+    # origins that supply it.
+    M = np.einsum("arc,rdc->adc", econ.msh[:, reg.origin_index], output_link)
     io = reg.io / tfp[None, :]
     IO = np.zeros((K, C, econ.n_act))
-    for j in range(econ.n_act):
-        IO[reg.activity_region[j], :, j] = io[:, j]
+    IO[reg.activity_region, :, np.arange(econ.n_act)] = io.T
     B = IO.reshape(K * C, econ.n_act) @ M.reshape(econ.n_act, K * C)
     B += np.kron(np.eye(K), reg.mq)
     ptax = reg.ptax if ptax is None else ptax
@@ -909,14 +908,9 @@ def _quantities(econ, reg, w, supply, facshare, fac_gov, fac_row, dtax, transfer
     Q = np.zeros(econ.n_com)
     exports = np.zeros(econ.n_com)
     imports = np.zeros(econ.n_com)
-    for r in range(reg.n_reg):
-        for c in range(C):
-            i = int(reg.origin_index[r, c])
-            Q[i] = Q_rc[r, c]
-            exports[i] = E_rc[r, c]
-    for r in range(reg.n_reg):
-        for c in range(C):
-            imports[reg.origin_index[r, c]] = (reg.import_share[r, :, c] * M_c[:, c]).sum()
+    Q[reg.origin_index] = Q_rc
+    exports[reg.origin_index] = E_rc
+    imports[reg.origin_index] = (reg.import_share * M_c[None, :, :]).sum(axis=1)
     X = econ.msh @ Q
     fi = factor_intensity(econ, w, vunit=econ.vunit / tfp, aunit=econ.aunit / tfp[None, :])
     fac_by = fi * ((econ.vunit / tfp) * X)[None, :]
@@ -929,15 +923,12 @@ def _quantities(econ, reg, w, supply, facshare, fac_gov, fac_row, dtax, transfer
     hh_origin = np.zeros((econ.n_hh, econ.n_com))
     gov_origin = np.zeros(econ.n_com)
     inv_origin = np.zeros(econ.n_com)
-    for r in range(reg.n_reg):
-        for c in range(C):
-            i = int(reg.origin_index[r, c])
-            for h in range(econ.n_hh):
-                d = reg.household_region[h]
-                hh_origin[h, i] = origin_mix[r, d, c] * hh_q[h, c]
-            gov_origin[i] = (origin_mix[r, -1, c] * gov_channel_q[-1, c]
-                             + (origin_mix[r, :reg.n_reg, c] * gov_regional_q[:, c]).sum())
-            inv_origin[i] = (origin_mix[r, :, c] * inv_channel_q[:, c]).sum()
+    hh_origin[:, reg.origin_index] = (origin_mix[:, reg.household_region, :]
+                                      * hh_q[None, :, :]).transpose(1, 0, 2)
+    gov_origin[reg.origin_index] = (origin_mix[:, -1, :] * gov_channel_q[-1][None, :]
+                                    + (origin_mix[:, :reg.n_reg, :]
+                                       * gov_regional_q[None, :, :]).sum(axis=1))
+    inv_origin[reg.origin_index] = (origin_mix * inv_channel_q[None, :, :]).sum(axis=1)
     government_saving = available - float(hh_sav.sum()) - levy - foreign_target
     gov_account = dict(
         product_tax=float((prices["pbase"] * ptax * A).sum()),
@@ -990,6 +981,14 @@ def _solve(residuals, n_unknown, tolerance, warm_start, raise_on_fail):
     best = None
     for label, start, method in attempts:
         try:
+            # A start that already solves the system (the base year, or a warm
+            # start on an unchanged period) is the answer; hybr would spend a
+            # Jacobian per unknown on it.
+            first = np.asarray(residuals(start), dtype=float)
+            if first.size == 0 or float(np.max(np.abs(first))) < min(tolerance, _AT_START):
+                best = (float(np.max(np.abs(first))) if first.size else 0.0,
+                        np.asarray(start, dtype=float), label, "the start point solves the system")
+                break
             sol = root(residuals, start, method=method,
                        options={"xtol": 1e-14} if method == "hybr"
                        else {"xtol": 1e-14, "ftol": 1e-14})

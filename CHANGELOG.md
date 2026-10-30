@@ -7,6 +7,10 @@ before 1.0, a minor version may add to the API and a patch version only fixes.
 
 ### Added
 
+- `tools/benchmark_solver.py`: time, residual evaluations, convergence, base-year
+  gap and peak memory of `solve_period` on seeded, balanced synthetic SAMs of
+  increasing size, national and regional, with an optional profile of where the
+  time goes.
 - `validation/regional.jl`, the multi-region model rewritten in JuMP and
   calibrated in Julia from the SAM, and `validation/replicate_regional.py`,
   which compares it with `solve_period` in 12 cases at the base year and under
@@ -18,6 +22,17 @@ before 1.0, a minor version may add to the API and a patch version only fixes.
 - `examples.regions.build(asymmetric_imports=True)` and the
   `build_with_transport` options `regional_investment`, `service_exports`,
   `intermediates` and `unrouted_good`, the base years those cases start from.
+
+### Changed
+
+- The regional solver evaluates its price and quantity blocks as array
+  operations over every destination and good instead of Python loops over each
+  cell. The equilibria are the same to 3e-15; a shocked solve is 8 to 30 times
+  faster on the benchmark SAMs (10.6 s to 0.5 s at 8 regions of 12 goods).
+- `solve_period` accepts a start point whose residual is already the rounding a
+  calibration leaves (below 1e-12), such as the base year, without calling the
+  root finder, which spent a finite-difference Jacobian per unknown on it (3 s at
+  16 regions of 24 goods). Any larger residual is refined as before.
 
 ### Fixed
 

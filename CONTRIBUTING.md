@@ -32,6 +32,7 @@ git clone https://github.com/GustavoHM/cgelab && cd cgelab
 python -m venv .venv && .venv/bin/pip install -e ".[test,parquet]"
 .venv/bin/python -m pytest
 .venv/bin/python tools/check_site_examples.py      # every example on the site runs
+.venv/bin/python tools/benchmark_solver.py         # time, memory and convergence by model size
 ```
 
 The suite tests `src/` by default. `CGELAB_TEST_INSTALLED=1` tests the installed

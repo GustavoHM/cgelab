@@ -161,7 +161,8 @@ silently ignored; `CHANGELOG.md` lists them and says which results can change.
   `match_targets` keeps its best feasible evaluation when a polishing step fails.
 - [x] **Checked**: accounts and derived measures agree at the base year and under shocks, with
   a one-region model against the national solver, in the suite.
-- [ ] **Release**: 0.7.1 on PyPI and archived on Zenodo.
+- [x] **Release**: 0.7.1 on PyPI and archived on Zenodo
+  ([10.5281/zenodo.23804984](https://doi.org/10.5281/zenodo.23804984)).
 
 **0.8 — regional validation, solvers and complementarity.** In this order; each step is
 validated before the next one builds on it.

@@ -5,6 +5,18 @@ before 1.0, a minor version may add to the API and a patch version only fixes.
 
 ## Unreleased
 
+## 0.7.2 — 2026-10-30
+
+Corrections to the regional model found by an independent JuMP rewrite of it, and a faster
+regional solver. National models solve to the same equilibria. Regional results change where the regional
+calibration had missed the SAM's base year, which it did while reporting convergence:
+regions importing different shares of the same good; savings-driven investment through
+regional accounts that pay different base prices (transport margins); a transport service
+that is also exported; intermediates bought at margin-inclusive prices; and, in a model with
+routes, a good without margins. Everywhere else the regional equilibria are the same to
+3e-15, and shocked regional solves are 2 to 30 times faster. The additions are example
+options and validation and benchmark scripts; the model's API is unchanged.
+
 ### Added
 
 - `tools/benchmark_solver.py`: time, residual evaluations, convergence, base-year

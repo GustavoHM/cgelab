@@ -164,6 +164,12 @@ silently ignored; `CHANGELOG.md` lists them and says which results can change.
 - [x] **Release**: 0.7.1 on PyPI and archived on Zenodo
   ([10.5281/zenodo.23804984](https://doi.org/10.5281/zenodo.23804984)).
 
+**0.7.2 — corrections and speed.** What the first 0.8 items produced, released before
+complementarity: the regional base-year corrections found by the coverage item and the
+solver work below. No new model features.
+
+- [ ] **Release**: 0.7.2 on PyPI and archived on Zenodo.
+
 **0.8 — regional validation, solvers and complementarity.** In this order; each step is
 validated before the next one builds on it.
 

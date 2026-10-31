@@ -89,13 +89,17 @@ class Closure:
     #: in the wage. ``"fixed_real_wage"`` -- the real wage is pinned and
     #: employment adjusts (Keynesian). ``"wage_curve"`` -- the real wage falls
     #: as unemployment rises above ``natural_unemployment``. ``"elastic_supply"``
-    #: -- labour supply rises with the real wage. The last three refuse to use
-    #: the labour factor as numeraire: that market is the Walras check, and a
-    #: closure that also pins its wage turns the check into an identity.
+    #: -- labour supply rises with the real wage. ``"wage_floor"`` -- the real
+    #: wage cannot fall below ``real_wage``: real wage − floor ≥ 0 ⊥
+    #: unemployment ≥ 0, full employment while the floor is slack. The last
+    #: four refuse to use the labour factor as numeraire: that market is the
+    #: Walras check, and a closure that also pins its wage turns the check into
+    #: an identity.
     labour: str = "full_employment"
     labour_factor: str = "f_lab"
-    #: Real wage under ``fixed_real_wage``, in base-year units (1 is the
-    #: calibrated wage). Absent, the calibrated real wage.
+    #: Real wage under ``fixed_real_wage``, and the floor under ``wage_floor``,
+    #: in base-year units (1 is the calibrated wage). Absent, the calibrated
+    #: real wage.
     real_wage: float | None = None
     #: Blanchflower–Oswald β > 0. Read only under ``wage_curve``.
     wage_curve_elasticity: float = 0.1
@@ -119,7 +123,7 @@ class Closure:
                               ("foreign", ("fixed_saving", "fixed_rate")),
                               ("foreign_saving_unit", ("numeraire", "foreign_currency")),
                               ("labour", ("full_employment", "fixed_real_wage",
-                                          "wage_curve", "elastic_supply"))):
+                                          "wage_curve", "elastic_supply", "wage_floor"))):
             got = getattr(self, name)
             if got not in allowed:
                 raise ValueError(f"closure.{name} must be one of {allowed}, got {got!r}")

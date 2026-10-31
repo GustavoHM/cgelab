@@ -217,9 +217,12 @@ where it stands. Things to know before relying on it:
   savings bank remains future work.
 - **Complementarity has only started**: producers of a commodity can compete at
   least cost and shut down (`ModelSpec.least_cost`) and activities can face
-  capacity limits with scarcity rents (`Scenario.capacity`) and import quotas
-  with rents (`Scenario.import_quota`), in national models; there are no price
-  floors or ceilings yet. Those are the next stage of 0.8.
+  capacity limits with scarcity rents (`Scenario.capacity`), import quotas
+  with rents (`Scenario.import_quota`), price ceilings and floors held by a
+  subsidy or by government purchases (`Scenario.price_ceiling`, `price_floor`)
+  and a wage floor (`Closure(labour="wage_floor")`), in national models. A
+  floor on the producer price is not in it, and the only solver is `scipy`;
+  other backends are the last stage of 0.8.
 - **The solver** works on a few unknowns, with an exact Jacobian in the regional
   model and finite differences elsewhere. On the synthetic SAMs of
   `tools/benchmark_solver.py`, a national model of 647 accounts solves a shock in

@@ -229,6 +229,18 @@ class PeriodResult:
     #: price, the rent is premium × border price × imports, and the holder is
     #: ``Scenario.quota_rent_to``. None without quotas.
     quota: dict | None = None
+    #: Each bound in ``Scenario.price_ceiling`` and ``price_floor``,
+    #: ``{"ceiling": {commodity: {"bound", "price", "subsidy", "cost"}},
+    #: "floor": {commodity: {"bound", "price", "purchases", "cost"}}}``. The
+    #: bound is in current prices: the scenario's multiple of the base-year
+    #: purchaser price, times the purchaser price index. A ceiling's subsidy is
+    #: ad valorem on the price before product tax; a floor's purchases are
+    #: quantities the government buys, in absorption units. Both cost the
+    #: government. None without bounds.
+    price_bounds: dict | None = None
+    #: What the government buys to hold its price floors, by commodity, in
+    #: absorption units; ``gov_quantity`` is without it. None without floors.
+    stock_quantity: np.ndarray | None = None
     #: Each capital vintage's bundle (``ModelSpec.vintages``), ``(2, n_act)``:
     #: the old, then the new, in the base-year value of the factors it uses, as
     #: the ``value_added`` of ``real_gdp`` is; productivity is not in it. None
@@ -472,6 +484,36 @@ def solve_period(econ: Economy, closure: Closure | None = None,
         quota_factor = econ.factor(sc.quota_rent_to)
     i_quota = n_unknown
     n_unknown += quota_idx.size
+    # Price bounds, both on the purchaser price and both real: a multiple of the
+    # base-year purchaser price, indexed to the purchaser price index, as a
+    # fixed real wage is. A ceiling holds by a subsidy, ad valorem on the price
+    # before product tax; a floor by government purchases.
+    def bounds(field_name, given):
+        idx, level = [], []
+        for name, bound in given.items():
+            if name not in econ.coms:
+                raise KeyError(f"Scenario.{field_name} names {name!r}, which is not a "
+                               f"commodity: {list(econ.coms)}")
+            bound = float(bound)
+            if not np.isfinite(bound) or bound <= 0:
+                raise ValueError(f"{field_name} of {name!r} must be finite and positive, "
+                                 f"got {bound}")
+            idx.append(econ.commodity(name))
+            level.append(bound)
+        return np.array(idx, dtype=int), np.array(level, dtype=float)
+    ceil_idx, ceilings = bounds("price_ceiling", sc.price_ceiling)
+    floor_idx, floors = bounds("price_floor", sc.price_floor)
+    for name in sorted(set(sc.price_ceiling) & set(sc.price_floor)):
+        if float(sc.price_floor[name]) >= float(sc.price_ceiling[name]):
+            raise ValueError(
+                f"the price floor of {name!r} is not below its ceiling. With the two equal, "
+                f"a subsidy and purchases could both hold the price and neither is determined.")
+    # Purchases in units of the commodity's base absorption.
+    floor_scale = np.maximum(econ.A0[floor_idx], 1.0)
+    i_ceil = n_unknown
+    n_unknown += ceil_idx.size
+    i_floor = n_unknown
+    n_unknown += floor_idx.size
     # Every wage pinned to the price index: the labour closure's and each rigid
     # segment's.
     rigid_wages = ([(lab, 1.0 if closure.real_wage is None else float(closure.real_wage))]
@@ -479,7 +521,8 @@ def solve_period(econ: Economy, closure: Closure | None = None,
     for g in groups:
         rigid_wages += list(zip(g.rigid, g.target))
     # Employment that is labour demand, solved in closed form below.
-    slack_idx = (([lab] if closure.labour in ("fixed_real_wage", "wage_curve") else [])
+    slack_idx = (([lab] if closure.labour in ("fixed_real_wage", "wage_curve", "wage_floor")
+                  else [])
                  + [i for g in groups for i in g.hired])
     if target == "saving":
         target_value = (econ.gov_saving0 if closure.government_target_value is None
@@ -675,6 +718,12 @@ def solve_period(econ: Economy, closure: Closure | None = None,
         ptax_a = ptax_a_set * (tax_scale if adjusts == "product_tax" and tax_lever else 1.0)
         ptax_f = ptax_f_set * (tax_scale if adjusts == "product_tax" and tax_lever else 1.0)
         dtax = dtax_set * (tax_scale if adjusts == "direct_tax" and tax_lever else 1.0)
+        subsidy = np.zeros(nc)
+        subsidy[ceil_idx] = z[i_ceil:i_ceil + ceil_idx.size]
+        ptax_a = ptax_a - subsidy
+        ptax_f = ptax_f - subsidy
+        stock_q = np.zeros(nc)
+        stock_q[floor_idx] = z[i_floor:i_floor + floor_idx.size] * floor_scale
         log_px = z[i_curve:i_curve + curve_x.size]
         log_pm = z[i_curve + curve_x.size:i_curve + curve_x.size + curve_m.size]
         world_p_now = world_p.copy()
@@ -784,6 +833,7 @@ def solve_period(econ: Economy, closure: Closure | None = None,
         # two probes give it in closed form. Iterating it instead leaves a residual
         # that the outer finite-difference Jacobian reads as a kink.
         P_level = _laspeyres_purchaser(econ, pq)
+        support = float(pq @ stock_q)
 
         def quantities(paid):
             # --- household budgets, with the wedge recycled in closed form
@@ -909,11 +959,12 @@ def solve_period(econ: Economy, closure: Closure | None = None,
                 # prices. A mix changes the basket and keeps the base-year real total.
                 inv_q = (inv_share * saving / np.maximum(pqf, 1e-12)
                          if closure.investment == "savings_driven" else inv_fixed)
-                fin_c = hh_final + gov_q
+                fin_c = hh_final + gov_q + stock_q
                 A = M @ (fin_c + other_fixed + inv_q)
                 gov_income = tax_of(A, fin_c) + gov_inst - gov_cost
                 gov_spend = float(pq @ gov_q)
-                available = hh_sav + levy + gov_income - gov_spend + foreign_sav
+                # Purchases that hold a price floor come out of government saving.
+                available = hh_sav + levy + gov_income - gov_spend - support + foreign_sav
                 return gov_q, inv_q, A, gov_income, gov_spend, available
 
             # Saving funds investment, investment drives output, output drives
@@ -937,7 +988,7 @@ def solve_period(econ: Economy, closure: Closure | None = None,
                     if closure.government == "saving_rate":
                         out_g.append(g - (1.0 - gov_savrate) * inc)
                     else:                                  # spend all but the target saving
-                        out_g.append(g - (inc - target_value))
+                        out_g.append(g - (inc - support - target_value))
                 if "sav" in free:
                     out_g.append(sv - avail)
                 return np.array(out_g)
@@ -965,9 +1016,13 @@ def solve_period(econ: Economy, closure: Closure | None = None,
             X = msh_eff @ Q + X_exog
             # The government account at the solution, instrument by instrument,
             # from the same formulas the closure solved with.
-            fin_c = hh_final + gov_q
+            fin_c = hh_final + gov_q + stock_q
+            # The product tax is booked before the subsidy that holds a ceiling,
+            # and the subsidy as an outlay.
+            subsidy_cost = float((subsidy * pbase * A).sum())
             gov_account = dict(
-                product_tax=float((pbase * ((A - fin_c) * ptax_f + fin_c * ptax_a)).sum()),
+                product_tax=float((pbase * ((A - fin_c) * ptax_f + fin_c * ptax_a)).sum())
+                + subsidy_cost,
                 activity_tax=float((atax_set * X).sum()),
                 carbon_production=float(carb_act @ X + (carb_fuel * coef * X[None, :]).sum()),
                 carbon_households=float(hh_q.sum(axis=0) @ carb_hh),
@@ -978,12 +1033,14 @@ def solve_period(econ: Economy, closure: Closure | None = None,
                 wedge=float((hh_q * Wg_set * pq[None, :]).sum()),   # negative for a refund
                 transfers=float(gov_tr.sum()), consumption=gov_spend,
                 absorbed=float(sc.government_absorbs),
-                quota_rent=quota_rent if quota_idx.size and quota_factor is None else 0.0)
+                quota_rent=quota_rent if quota_idx.size and quota_factor is None else 0.0,
+                price_subsidy=subsidy_cost, price_support=support)
             gov_account["revenue"] = sum(gov_account[k] for k in (
                 "product_tax", "activity_tax", "carbon_production", "carbon_households",
                 "tariff", "output_tax", "direct_tax", "factor_income", "wedge", "quota_rent"))
             gov_account["saving"] = (gov_account["revenue"] - gov_account["transfers"]
-                                     - gov_account["consumption"] - gov_account["absorbed"])
+                                     - gov_account["consumption"] - gov_account["absorbed"]
+                                     - subsidy_cost - support)
 
             arm_q = econ.arm_share * A
             imports = msh_ * arm_q / tf0                  # at the border
@@ -1030,6 +1087,13 @@ def solve_period(econ: Economy, closure: Closure | None = None,
                     u = float(np.clip(u, 1e-8, 1.0 - 1e-8))
                     out.append(np.log(w[lab] / P_level)
                                + closure.wage_curve_elasticity * np.log(u / closure.natural_unemployment))
+                elif closure.labour == "wage_floor" and i == lab:
+                    # Real wage − floor >= 0 ⊥ unemployment >= 0, in logs and as
+                    # a share of the labour force.
+                    floor_w = 1.0 if closure.real_wage is None else float(closure.real_wage)
+                    above = float(np.log(w[lab] / (floor_w * P_level)))
+                    idle = -float(gaps[lab])
+                    out.append(above + idle - np.sqrt(above ** 2 + idle ** 2))
                 else:
                     out.append(float(gaps[i]))
             if closure.solves_exchange_rate:
@@ -1087,6 +1151,31 @@ def solve_period(econ: Economy, closure: Closure | None = None,
                                                   rent=float(premium[i] * pm_border[i] * imports[i]),
                                                   holder=sc.quota_rent_to)
                                for i, q in zip(quota_idx, quotas)} or None)
+            # Price bounds: ceiling − price >= 0 ⊥ subsidy >= 0, and price −
+            # floor >= 0 ⊥ purchases >= 0, each relative to its bound.
+            bound_c = ceilings * P_level * (1.0 + econ.ptax[ceil_idx])
+            room_c = (bound_c - pq[ceil_idx]) / bound_c
+            sub = subsidy[ceil_idx]
+            out.extend(room_c + sub - np.sqrt(room_c ** 2 + sub ** 2))
+            bound_f = floors * P_level * (1.0 + econ.ptax[floor_idx])
+            above_f = (pq[floor_idx] - bound_f) / bound_f
+            bought = stock_q[floor_idx] / floor_scale
+            out.extend(above_f + bought - np.sqrt(above_f ** 2 + bought ** 2))
+            bounds_now = {}
+            if ceil_idx.size:
+                bounds_now["ceiling"] = {
+                    econ.coms[i]: dict(bound=float(b), price=float(pq[i]),
+                                       subsidy=float(subsidy[i]),
+                                       cost=float(subsidy[i] * pbase[i] * A[i]))
+                    for i, b in zip(ceil_idx, bound_c)}
+            if floor_idx.size:
+                bounds_now["floor"] = {
+                    econ.coms[i]: dict(bound=float(b), price=float(pq[i]),
+                                       purchases=float(stock_q[i]),
+                                       cost=float(pq[i] * stock_q[i]))
+                    for i, b in zip(floor_idx, bound_f)}
+            state["price_bounds"] = bounds_now or None
+            state["stock_q"] = stock_q.copy() if floor_idx.size else None
             state["capacity"] = ({econ.acts[j]: dict(limit=float(limit), output=float(X[j]),
                                                      rent=float(rent[j]),
                                                      unused=float(limit - X[j]))
@@ -1130,7 +1219,7 @@ def solve_period(econ: Economy, closure: Closure | None = None,
                 if closure.labour == "wage_curve":
                     force = float(supply[lab]) / (1.0 - closure.natural_unemployment)
                     unemployment = force - employment
-                elif closure.labour == "fixed_real_wage":
+                elif closure.labour in ("fixed_real_wage", "wage_floor"):
                     unemployment = float(supply[lab]) - employment
                 else:
                     unemployment = 0.0
@@ -1313,7 +1402,8 @@ def solve_period(econ: Economy, closure: Closure | None = None,
         labour_markets=state["markets"],
         value_added_per_unit=state["va_per"], vintage_value_added=state["vintage_va"],
         least_cost=state.get("least_cost"), capacity=state.get("capacity"),
-        quota=state.get("quota"))
+        quota=state.get("quota"), price_bounds=state.get("price_bounds"),
+        stock_quantity=state.get("stock_q"))
 
 
 # ---------------------------------------------------------------------------

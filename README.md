@@ -225,8 +225,10 @@ where it stands. Things to know before relying on it:
   subsidy or by government purchases (`Scenario.price_ceiling`, `price_floor`)
   a wage floor (`Closure(labour="wage_floor")`) and backstop technologies with
   costs from outside the SAM (`calibrate(..., backstops=)`), in national models.
-  A floor on the producer price is not in it, and the only solver is `scipy`;
-  other backends are planned for 0.9.
+  A floor on the producer price is not in it, and the only solver for these
+  conditions is `scipy`; a PATH backend is planned for 0.9. Models without them,
+  in `to_jump`'s scope, can also be solved by IPOPT
+  (`solve_period(..., backend="ipopt")`, `pip install "cgelab[pyomo]"`).
 - **The solver** works on a few unknowns, with an exact Jacobian in the regional
   model and finite differences elsewhere. On the synthetic SAMs of
   `tools/benchmark_solver.py`, a national model of 647 accounts solves a shock in
@@ -260,14 +262,14 @@ without knowing which. [`CITATION.cff`](https://github.com/GustavoHM/cgelab/blob
 holds the same metadata in the format GitHub reads.
 
 Moreira, G. H. (2026). cgelab: A general toolkit for SAM-based computable general equilibrium
-models in Python (Version 0.8.0) [Computer software]. Zenodo. https://doi.org/10.5281/zenodo.23835069
+models in Python (Version 0.8.1) [Computer software]. Zenodo. https://doi.org/10.5281/zenodo.23835069
 
 ```bibtex
 @software{cgelab_2026,
   author  = {Moreira, Gustavo Hoffmann},
   title   = {{cgelab}: a general toolkit for SAM-based computable general equilibrium models in Python},
   year    = {2026},
-  version = {0.8.0},
+  version = {0.8.1},
   license = {MIT},
   doi     = {10.5281/zenodo.23835069},
   url     = {https://github.com/GustavoHM/cgelab},

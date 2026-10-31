@@ -5,6 +5,19 @@ before 1.0, a minor version may add to the API and a patch version only fixes.
 
 ## Unreleased
 
+## 0.8.1 — 2026-10-31
+
+Two items of 0.9 released ahead of the rest of the milestone. Backstop technologies are
+activities with no base-year output whose costs come from outside the SAM, either another
+activity's scaled by a markup or engineering data; each competes at least cost with the
+producers of its commodity and is validated against a known solution to 1e-12 and against
+PATH in five cases to 6.2e-14. The first backend besides `scipy`,
+`solve_period(..., backend="ipopt")`, solves the period as `to_jump`'s simultaneous replica in
+Pyomo with IPOPT and agrees with the nested solver to 1.1e-13 in the 50 round-trip cases;
+it installs with the new extra `cgelab[pyomo]`. Both add API, which would ordinarily make a
+minor version; they come out as a patch because 0.9 stays open for the PATH backend, the
+comparisons with GTAP data and sparse algebra.
+
 ### Added
 
 - `solve_period(..., backend="ipopt")` and `cgelab.backends`: the period as one

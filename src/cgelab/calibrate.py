@@ -32,7 +32,28 @@ from .segments import build_segments
 from .sam import SAM
 from .spec import AccountLayout, ModelSpec
 
-__all__ = ["Economy", "calibrate"]
+__all__ = ["Backstop", "Economy", "calibrate"]
+
+
+@dataclass(frozen=True)
+class Backstop:
+    """A technology with no base-year output, whose costs come from outside the SAM.
+
+    It makes ``commodity`` and competes with its producers at least cost: idle
+    while its unit cost is above the commodity's price, producing when it is
+    the cheapest. Its costs per unit of output are either another activity's
+    (``like``), its inputs and factors scaled by ``markup`` and its activity
+    tax per unit as it is, or ``costs``: the base-year
+    value of each commodity input (at purchaser prices, as the SAM records
+    intermediates) and of each factor, per unit of output, without activity
+    tax. Either way its unit cost at base-year prices must exceed the
+    commodity's base price, one, or the base year would not be an equilibrium.
+    """
+
+    commodity: str
+    like: str | None = None
+    markup: float | None = None
+    costs: Mapping[str, float] | None = None
 
 
 @dataclass
@@ -171,6 +192,10 @@ class Economy:
     #: Producers that compete at least cost (``ModelSpec.least_cost``), by
     #: commodity index: the indices of the activities that make it.
     least_cost: dict = field(default_factory=dict, repr=False)
+    #: Backstop technologies (``calibrate(..., backstops=)``), by activity
+    #: index: ``{"commodity", "like", "markup", "costs"}``, ``like`` an activity
+    #: index or None. Their base-year output is zero.
+    backstops: dict = field(default_factory=dict, repr=False)
 
     def zeros_if_none(self, name: str, n: int) -> np.ndarray:
         v = getattr(self, name)
@@ -284,9 +309,17 @@ def _rates_from_revenue(revenue, base, names, label, empty):
     return rates
 
 
-def _least_cost(spec, coms, acts, msh, vintage) -> dict:
-    """Producers of each ``ModelSpec.least_cost`` commodity, checked."""
+def _least_cost(spec, coms, acts, msh, vintage, backstops=None) -> dict:
+    """Producers of each ``ModelSpec.least_cost`` commodity, checked.
+
+    A backstop's commodity competes at least cost whether or not the spec
+    names it, and the backstop is one of its producers.
+    """
+    backstops = backstops or {}
     names = list(spec.least_cost or [])
+    for b in backstops.values():
+        if coms[b["commodity"]] not in names:
+            names.append(coms[b["commodity"]])
     if not names:
         return {}
     if spec.regions:
@@ -304,6 +337,8 @@ def _least_cost(spec, coms, acts, msh, vintage) -> dict:
             raise KeyError(f"least_cost names {name!r}, which is not a commodity: {list(coms)}")
         i = coms.index(name)
         makers = np.where(msh[:, i] > 0)[0]
+        makers = np.concatenate([makers, [j for j, b in backstops.items()
+                                          if b["commodity"] == i]]).astype(int)
         if makers.size < 2:
             raise ValueError(
                 f"least_cost names {name!r}, which only {[acts[j] for j in makers]} makes in "
@@ -326,6 +361,7 @@ def calibrate(sam: SAM, spec: ModelSpec | None = None, *,
               output_taxes=None,
               factor_pools: Mapping | None = None,
               transport=None,
+              backstops: Mapping[str, Backstop] | None = None,
               check_balance: bool = True) -> Economy:
     """Build an :class:`Economy` from a balanced SAM.
 
@@ -355,6 +391,12 @@ def calibrate(sam: SAM, spec: ModelSpec | None = None, *,
         gives each activity that uses the factor a pool of its own, named
         after it: at any elasticity the factor is then sector-specific, and
         ``run_path`` accumulates a stock per activity.
+    backstops : mapping, optional
+        New activity name -> :class:`Backstop`: technologies the base year does
+        not use, with costs from outside the SAM. Each joins the activities
+        with zero base output and competes at least cost with the producers of
+        its commodity, which joins ``least_cost``. National only, without
+        vintages or an energy nest.
     transport : TransportMargins, optional
         Route FOB, transport and global service-supply data for a regional model.
         Calibration reconciles every route with domestic sales, imports and the
@@ -570,7 +612,10 @@ def calibrate(sam: SAM, spec: ModelSpec | None = None, *,
                              [a for a in (spec.tariff_account,
                                           spec.indirect_tax_account) if a])),
     )
-    econ.least_cost = _least_cost(spec, coms, acts, msh, vintage)
+    if backstops:
+        econ = _add_backstops(econ, backstops)
+    econ.least_cost = _least_cost(spec, econ.coms, econ.acts, econ.msh, vintage,
+                                  econ.backstops)
     if spec.regions:
         from .regional import build_regional
         econ.regional = build_regional(econ, sam, migration_pools=factor_pools,
@@ -578,6 +623,112 @@ def calibrate(sam: SAM, spec: ModelSpec | None = None, *,
     elif transport is not None:
         raise ValueError("transport margins require ModelSpec.regions")
     return econ
+
+
+def _add_backstops(econ: Economy, backstops: Mapping[str, Backstop]) -> Economy:
+    """Append each backstop as an activity with zero base output, calibrated from its costs."""
+    import dataclasses
+    spec = econ.spec
+    if spec.regions:
+        raise ValueError("backstops are national for now, as least_cost is")
+    if econ.vintage is not None:
+        raise ValueError("backstops with vintages are not in this version")
+    if econ.energy_nest is not None:
+        raise ValueError("backstops with an energy nest are not in this version: the nest "
+                         "needs base-year energy shares a backstop does not have")
+    acts, coms, facs = econ.acts, econ.coms, econ.factors
+    nc, nf = econ.n_com, econ.n_fac
+    leontief_all = spec.value_added == "leontief"
+    cols, info = [], {}
+    for name, b in backstops.items():
+        if not isinstance(b, Backstop):
+            raise TypeError(f"backstops[{name!r}] must be a Backstop, got {type(b).__name__}")
+        if name in acts or name in coms or name in facs or name in [c[0] for c in cols]:
+            raise ValueError(f"backstop {name!r} is already the name of an account")
+        if b.commodity not in coms:
+            raise KeyError(f"backstop {name!r} makes {b.commodity!r}, which is not a "
+                           f"commodity: {list(coms)}")
+        if (b.like is None) == (b.costs is None):
+            raise ValueError(f"backstop {name!r}: give either like= with markup= or costs=")
+        io = np.zeros(nc)
+        fac = np.zeros(nf)
+        atax, like = 0.0, None
+        if b.like is not None:
+            if b.like not in acts:
+                raise KeyError(f"backstop {name!r} is like {b.like!r}, which is not an "
+                               f"activity: {list(acts)}")
+            like = acts.index(b.like)
+            if econ.own_account[like]:
+                raise ValueError(f"backstop {name!r} is like {b.like!r}, an own-account "
+                                 f"activity with no commodity market to compete in")
+            if b.markup is None or not np.isfinite(b.markup):
+                raise ValueError(f"backstop {name!r}: like= needs a finite markup=")
+            m = float(b.markup)
+            io = econ.io[:, like] * m
+            fac = econ.aunit[:, like] * m
+            atax = float(econ.atax[like])         # a tax per unit, not a cost to mark up
+            leontief = bool(econ.leontief[like])
+        else:
+            if b.markup is not None:
+                raise ValueError(f"backstop {name!r}: markup= goes with like=; costs= "
+                                 f"already state the unit cost")
+            for account, value in b.costs.items():
+                value = float(value)
+                if not np.isfinite(value) or value < 0:
+                    raise ValueError(f"backstop {name!r}: cost of {account!r} must be finite "
+                                     f"and nonnegative, got {value}")
+                if account in coms:
+                    io[coms.index(account)] = value / (1.0 + econ.ptax[coms.index(account)])
+                elif account in facs:
+                    fac[facs.index(account)] = value
+                else:
+                    raise KeyError(f"backstop {name!r}: {account!r} is neither a commodity nor "
+                                   f"a factor")
+            leontief = leontief_all
+        unit_cost = float((1.0 + econ.ptax) @ io + fac.sum() + atax)
+        if unit_cost <= 1.0 + 1e-12:
+            raise ValueError(
+                f"backstop {name!r} costs {unit_cost:.6g} per unit at base-year prices, not "
+                f"more than its commodity's price, 1: it would produce in the base year, "
+                f"which the SAM says it does not")
+        for i in econ.mobility:
+            if fac[i] > 0:
+                raise ValueError(f"backstop {name!r} uses {facs[i]!r}, which is imperfectly "
+                                 f"mobile: a backstop has no base-year pool to draw it from")
+        vunit = float(fac.sum())
+        theta = (fac / vunit if vunit > 0 and not leontief else np.zeros(nf))
+        cols.append((name, io, fac, theta, vunit, atax, leontief))
+        info[name] = dict(commodity=coms.index(b.commodity), like=like,
+                          markup=None if b.markup is None else float(b.markup),
+                          costs=None if b.costs is None else dict(b.costs))
+    names = [c[0] for c in cols]
+    k = len(cols)
+    sigma = np.array([econ.sigma_va[info[n]["like"]] if info[n]["like"] is not None
+                      else spec.sigma_va_vector([n])[0] for n in names])
+    if np.any(~np.isfinite(sigma)):
+        raise ValueError(f"no sigma_va for backstops "
+                         f"{[n for n, s in zip(names, sigma) if not np.isfinite(s)]}: "
+                         f"add them to ModelSpec.sigma_va or give it a '__default__'")
+    mobility = {i: dataclasses.replace(m, users=np.concatenate([m.users, np.zeros(k, bool)]),
+                                       delta=np.hstack([m.delta, np.zeros((m.delta.shape[0], k))]))
+                for i, m in econ.mobility.items()}
+    na = econ.n_act
+    return dataclasses.replace(
+        econ,
+        layout=dataclasses.replace(econ.layout, activities=list(acts) + names),
+        X0=np.concatenate([econ.X0, np.zeros(k)]),
+        io=np.hstack([econ.io, np.column_stack([c[1] for c in cols])]),
+        msh=np.vstack([econ.msh, np.zeros((k, nc))]),
+        theta=np.hstack([econ.theta, np.column_stack([c[3] for c in cols])]),
+        vunit=np.concatenate([econ.vunit, [c[4] for c in cols]]),
+        aunit=np.hstack([econ.aunit, np.column_stack([c[2] for c in cols])]),
+        leontief=np.concatenate([econ.leontief, [c[6] for c in cols]]),
+        own_account=np.concatenate([econ.own_account, np.zeros(k, bool)]),
+        sigma_va=np.concatenate([econ.sigma_va, sigma]),
+        atax=np.concatenate([econ.atax, [c[5] for c in cols]]),
+        hh_direct=np.hstack([econ.hh_direct, np.zeros((econ.n_hh, k))]),
+        mobility=mobility,
+        backstops={na + n: info[name] for n, name in enumerate(names)})
 
 
 def _energy_nest(spec, coms, acts, io, ptax, vunit, leontief, aunit, facs):

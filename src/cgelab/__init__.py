@@ -25,7 +25,7 @@ its residual is an independent check on the accounting rather than an identity
 the solver was told to satisfy.
 """
 
-from .calibrate import Economy, calibrate
+from .calibrate import Backstop, Economy, calibrate
 from .closure import Closure, LabourMarket
 from .decompose import path_decomposition, scenario_vector, subtotals, welfare_decomposition
 from .diagnostics import base_year_reproduction, homogeneity_test, report, walras_check
@@ -70,7 +70,7 @@ __version__ = "0.8.0"
 __all__ = [
     "SAM", "BalanceError", "sam_distance", "SAMDraws", "sam_draws", "sam_sweep",
     "ModelSpec", "AccountLayout", "TransportMargins",
-    "calibrate", "Economy",
+    "calibrate", "Economy", "Backstop",
     "Closure", "LabourMarket", "Scenario", "consumer_wedge",
     "solve_period", "PeriodResult", "value_added_price", "factor_intensity",
     "run_path", "PathResult", "Growth", "calibrate_baseline", "Baseline",

@@ -220,8 +220,9 @@ where it stands. Things to know before relying on it:
   capacity limits with scarcity rents (`Scenario.capacity`), import quotas
   with rents (`Scenario.import_quota`), price ceilings and floors held by a
   subsidy or by government purchases (`Scenario.price_ceiling`, `price_floor`)
-  and a wage floor (`Closure(labour="wage_floor")`), in national models. A
-  floor on the producer price is not in it, and the only solver is `scipy`;
+  a wage floor (`Closure(labour="wage_floor")`) and backstop technologies with
+  costs from outside the SAM (`calibrate(..., backstops=)`), in national models.
+  A floor on the producer price is not in it, and the only solver is `scipy`;
   other backends are planned for 0.9.
 - **The solver** works on a few unknowns, with an exact Jacobian in the regional
   model and finite differences elsewhere. On the synthetic SAMs of

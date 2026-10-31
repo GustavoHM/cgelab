@@ -9,7 +9,7 @@ authors:
     given-names: "Gustavo Hoffmann"
     email: "gustavo@gakusai.net"
     orcid: "https://orcid.org/0000-0003-0827-2521"
-version: "0.8.0"
+version: "0.8.1"
 date-released: "2026-10-31"
 license: MIT
 # The concept DOI on Zenodo resolves to the latest archived release; each release also has a DOI

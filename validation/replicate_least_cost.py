@@ -1,4 +1,4 @@
-"""replicate_least_cost.py — menor custo e capacidade contra um problema de complementaridade no PATH.
+"""replicate_least_cost.py — menor custo, capacidade e cotas contra um problema de complementaridade no PATH.
 
 `least_cost.jl` lê a MCS e o enunciado do modelo, calibra o modelo nacional por conta própria e
 escreve os produtores de menor custo como um problema de complementaridade misto, resolvido
@@ -11,7 +11,9 @@ preços ao produtor e ao comprador, custos unitários, renda das famílias e pou
 Os casos cobrem os dois lados da troca de tecnologia (o ano-base, choques em que as duas
 continuam ativas, em que uma delas para e em que a outra para) e os limites de capacidade: um
 limite folgado, um que prende o único produtor de um bem, a ordem de mérito (a tecnologia mais
-barata no limite e a mais cara de volta) e um limite que só prende depois de um choque.
+barata no limite e a mais cara de volta) e um limite que só prende depois de um choque) e as
+cotas de importação: folgada, que prende com a renda ao governo e com a renda aos donos do
+capital.
 
     cd validation && julia --project=. -e 'using Pkg; Pkg.instantiate()' && cd ..
     python validation/replicate_least_cost.py
@@ -73,7 +75,9 @@ def enunciado(sam, econ, scenario) -> dict:
         productivity=dict(zip(econ.acts, map(float, tfp))),
         world_price=dict(zip(econ.coms, map(float, world))),
         capacity={a: float(v) for a, v in scenario.capacity.items()},
-        capacity_owner=scenario.capacity_owner)
+        capacity_owner=scenario.capacity_owner,
+        import_quota={c: float(v) for c, v in scenario.import_quota.items()},
+        quota_rent_to=scenario.quota_rent_to)
 
 
 def roda_julia(dados: Path, saida: Path):
@@ -99,6 +103,8 @@ def caso(nome, sam, econ, scenario) -> dict:
         "savings": _rel(jl["savings"], res.savings),
         "rent": _rel(jl["rent"], [(res.capacity or {}).get(a, {}).get("rent", 0.0)
                                   for a in econ.acts]),
+        "premium": _rel(jl["premium"], [(res.quota or {}).get(c, {}).get("premium", 0.0)
+                                        for c in econ.coms]),
     }
     pior = max(desvios.values())
     campo = max(desvios, key=desvios.get)
@@ -118,7 +124,7 @@ def main() -> int:
         out[alt] = value
         return cge.Scenario(productivity=out, capacity=capacity)
 
-    print("cgelab contra o PATH, produtores de c_ind ao menor custo, com e sem limites")
+    print("cgelab contra o PATH: menor custo, limites de capacidade e cotas de importação")
     casos = {
         "ano_base": caso("ano_base", sam, econ, cge.Scenario()),
         "as_duas_ativas": caso("as_duas_ativas", sam, econ, tfp(1.2)),
@@ -132,6 +138,13 @@ def main() -> int:
         "ordem_de_merito": caso("ordem_de_merito", sam, econ, tfp(1.5, a_alt=200.0)),
         "limite_depois_do_choque": caso("limite_depois_do_choque", sam, econ,
                                         tfp(0.9, a_ind=125.0)),
+        "cota_folgada": caso("cota_folgada", sam, econ,
+                             cge.Scenario(import_quota={"c_ind": 40.0})),
+        "cota_ao_governo": caso("cota_ao_governo", sam, econ,
+                                cge.Scenario(import_quota={"c_agr": 13.5})),
+        "cota_ao_capital": caso("cota_ao_capital", sam, econ,
+                                cge.Scenario(import_quota={"c_agr": 13.5},
+                                             quota_rent_to="f_cap")),
     }
     pior = max(r["pior"] for r in casos.values())
     if all(r["ok"] for r in casos.values()):

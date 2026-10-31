@@ -1,4 +1,5 @@
-# hosoe.jl — transcrição em JuMP de stdcge.gms e lrgcge.gms, da biblioteca de modelos do GAMS.
+# hosoe.jl — transcrição em JuMP de stdcge.gms, lrgcge.gms e quocge.gms, da biblioteca de modelos
+# do GAMS.
 #
 # Hosoe, Gasawa e Hashimoto (2004), Handbook of Computable General Equilibrium Modeling,
 # caps. 6 e 10.2. O GAMS não está instalado aqui, então o código publicado foi transcrito linha a
@@ -6,7 +7,8 @@
 # cgelab. O GAMS maximiza uma utilidade fictícia sujeita a um sistema quadrado; aqui o sistema é
 # resolvido por viabilidade, que é o mesmo ponto.
 #
-# Resolve o ano-base e a abolição das tarifas (taum = 0) dos dois modelos e escreve os níveis.
+# Resolve o ano-base e a abolição das tarifas (taum = 0) de stdcge e lrgcge, e o ano-base e a cota
+# de importação de pão (90% de M0) de quocge (cap. 10.5), e escreve os níveis.
 #
 #   uso:  julia --project=validation validation/hosoe.jl [saida.json]
 
@@ -199,11 +201,123 @@ function resolve(taum, grande::Bool)
     )
 end
 
+# * quocge.gms: stdcge com cotas de importação. chi é a quase-renda marginal, um prêmio ad
+# valorem sobre o preço de importação ao lado da tarifa; RT = chi*pm*M é renda da família,
+# tributada pelo imposto direto e poupada. As duas equações de complementaridade são as do
+# original, escritas como igualdade e desigualdade num NLP.
+function quocge(Mquota)
+    m = Model(Ipopt.Optimizer)
+    set_silent(m)
+    set_optimizer_attribute(m, "tol", 1e-12)
+    set_optimizer_attribute(m, "constr_viol_tol", 1e-12)
+    lo = 0.00001
+    @variable(m, Y[j in I] >= lo, start = Y0[j])
+    @variable(m, F[h in H, j in I] >= lo, start = F0[(h, j)])
+    @variable(m, X[i in I, j in I] >= lo, start = X0[(i, j)])
+    @variable(m, Z[j in I] >= lo, start = Z0[j])
+    @variable(m, Xp[i in I] >= lo, start = Xp0[i])
+    @variable(m, Xg[i in I] >= lo, start = Xg0[i])
+    @variable(m, Xv[i in I] >= lo, start = Xv0[i])
+    @variable(m, E[i in I] >= lo, start = E0[i])
+    @variable(m, M[i in I] >= lo, start = M0[i])
+    @variable(m, Q[i in I] >= lo, start = Q0[i])
+    @variable(m, D[i in I] >= lo, start = D0[i])
+    @variable(m, pf[h in H] >= lo, start = 1)
+    @variable(m, py[j in I] >= lo, start = 1)
+    @variable(m, pz[j in I] >= lo, start = 1)
+    @variable(m, pq[i in I] >= lo, start = 1)
+    @variable(m, pe[i in I] >= lo, start = 1)
+    @variable(m, pm[i in I] >= lo, start = 1)
+    @variable(m, pd[i in I] >= lo, start = 1)
+    @variable(m, epsilon >= lo, start = 1)
+    @variable(m, Sp >= lo, start = Sp0)
+    @variable(m, Sg >= lo, start = Sg0)
+    @variable(m, Td >= lo, start = Td0)
+    @variable(m, Tz[j in I] >= 0, start = Tz0[j])
+    @variable(m, Tm[i in I] >= 0, start = Tm0[i])
+    @variable(m, RT[i in I], start = 0)
+    @variable(m, chi[i in I] >= 0, start = 0)
+    pWe = Dict(i => 1.0 for i in I)
+    pWm = Dict(i => 1.0 for i in I)
+    taum = taum0
+    renda = @expression(m, sum(pf[h] * FF[h] for h in H) + sum(RT[j] for j in I))
+
+    # * domestic production
+    @constraint(m, eqpy[j in I], Y[j] == b[j] * prod(F[h, j]^beta[(h, j)] for h in H))
+    @constraint(m, eqX[i in I, j in I], X[i, j] == ax[(i, j)] * Z[j])
+    @constraint(m, eqY[j in I], Y[j] == ay[j] * Z[j])
+    @constraint(m, eqF[h in H, j in I], F[h, j] == beta[(h, j)] * py[j] * Y[j] / pf[h])
+    @constraint(m, eqpzs[j in I], pz[j] == ay[j] * py[j] + sum(ax[(i, j)] * pq[i] for i in I))
+    # * government behavior
+    @constraint(m, eqTd, Td == taud * renda)
+    @constraint(m, eqTz[j in I], Tz[j] == tauz0[j] * pz[j] * Z[j])
+    @constraint(m, eqTm[i in I], Tm[i] == taum[i] * pm[i] * M[i])
+    @constraint(m, eqXg[i in I],
+                Xg[i] == mu[i] * (Td + sum(Tz[j] for j in I) + sum(Tm[j] for j in I) - Sg) / pq[i])
+    # * investment behavior
+    @constraint(m, eqXv[i in I], Xv[i] == lambda[i] * (Sp + Sg + epsilon * Sf) / pq[i])
+    # * savings
+    @constraint(m, eqSp, Sp == ssp * renda)
+    @constraint(m, eqSg, Sg == ssg * (Td + sum(Tz[j] for j in I) + sum(Tm[j] for j in I)))
+    # * household consumption
+    @constraint(m, eqXp[i in I], Xp[i] == alpha[i] * (renda - Sp - Td) / pq[i])
+    @constraint(m, eqRT[i in I], RT[i] == chi[i] * pm[i] * M[i])
+    # * international trade
+    @constraint(m, eqpe[i in I], pe[i] == epsilon * pWe[i])
+    @constraint(m, eqpm[i in I], pm[i] == epsilon * pWm[i])
+    @constraint(m, eqepsilon, sum(pWe[i] * E[i] for i in I) + Sf == sum(pWm[i] * M[i] for i in I))
+    # * Armington function
+    @constraint(m, eqpqs[i in I],
+                Q[i] == gamma[i] * (deltam[i] * M[i]^eta[i] + deltad[i] * D[i]^eta[i])^(1 / eta[i]))
+    @constraint(m, eqM[i in I],
+                M[i] == (gamma[i]^eta[i] * deltam[i] * pq[i]
+                         / ((1 + chi[i] + taum[i]) * pm[i]))^(1 / (1 - eta[i])) * Q[i])
+    @constraint(m, eqD[i in I],
+                D[i] == (gamma[i]^eta[i] * deltad[i] * pq[i] / pd[i])^(1 / (1 - eta[i])) * Q[i])
+    @constraint(m, eqchi1[i in I], chi[i] * (Mquota[i] - M[i]) == 0)
+    @constraint(m, eqchi2[i in I], Mquota[i] - M[i] >= 0)
+    # * transformation function
+    @constraint(m, eqpzd[i in I],
+                Z[i] == theta[i] * (xie[i] * E[i]^phi[i] + xid[i] * D[i]^phi[i])^(1 / phi[i]))
+    @constraint(m, eqE[i in I],
+                E[i] == (theta[i]^phi[i] * xie[i] * (1 + tauz0[i]) * pz[i] / pe[i])^(1 / (1 - phi[i])) * Z[i])
+    @constraint(m, eqDs[i in I],
+                D[i] == (theta[i]^phi[i] * xid[i] * (1 + tauz0[i]) * pz[i] / pd[i])^(1 / (1 - phi[i])) * Z[i])
+    # * market clearing condition
+    @constraint(m, eqpqd[i in I], Q[i] == Xp[i] + Xg[i] + Xv[i] + sum(X[i, j] for j in I))
+    @constraint(m, eqpf[h in H], FF[h] == sum(F[h, j] for j in I))
+    # * numeraire
+    fix(pf["LAB"], 1.0; force = true)
+
+    @objective(m, Max, prod(Xp[i]^alpha[i] for i in I))
+    optimize!(m)
+    st = termination_status(m)
+    viol = maximum(abs(value(c) - MOI.constant(constraint_object(c).set))
+                   for (Fn, S) in list_of_constraint_types(m) if S <: MOI.EqualTo
+                   for c in all_constraints(m, Fn, S))
+    @printf("%-7s Mquota=%s  %s  violação %.2e\n", "quocge",
+            string(round.([Mquota[i] for i in I]; digits = 4)), st, viol)
+    v(x) = Dict(i => value(x[i]) for i in I)
+    return Dict(
+        "status" => string(st), "violacao" => viol,
+        "Y" => v(Y), "Z" => v(Z), "Xp" => v(Xp), "Xg" => v(Xg), "Xv" => v(Xv),
+        "E" => v(E), "M" => v(M), "Q" => v(Q), "D" => v(D),
+        "F" => Dict("$(h),$(j)" => value(F[h, j]) for h in H, j in I),
+        "pf" => Dict(h => value(pf[h]) for h in H), "py" => v(py), "pz" => v(pz),
+        "pq" => v(pq), "pe" => v(pe), "pm" => v(pm), "pd" => v(pd),
+        "epsilon" => value(epsilon), "Sp" => value(Sp), "Sg" => value(Sg), "Td" => value(Td),
+        "Tz" => v(Tz), "Tm" => v(Tm), "RT" => v(RT), "chi" => v(chi), "UU" => objective_value(m),
+    )
+end
+
 saida = Dict{String,Any}()
 for (nome, grande) in (("stdcge", false), ("lrgcge", true))
     saida[nome] = Dict("base" => resolve(taum0, grande),
                        "abolicao" => resolve(Dict(i => 0.0 for i in I), grande))
 end
+# Mquota(i) = M0(i)*100 no ano-base; a simulação de Hosoe: Mquota("BRD") = M0("BRD")*0.9.
+saida["quocge"] = Dict("base" => quocge(Dict(i => M0[i] * 100 for i in I)),
+                       "cota" => quocge(Dict("BRD" => M0["BRD"] * 0.9, "MLK" => M0["MLK"] * 100)))
 open(SAIDA, "w") do f
     JSON3.write(f, saida)
 end

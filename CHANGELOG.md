@@ -7,6 +7,19 @@ before 1.0, a minor version may add to the API and a patch version only fixes.
 
 ### Added
 
+- `Scenario.import_quota` and `Scenario.quota_rent_to`: import quotas with rents,
+  quota − imports ≥ 0 ⊥ premium ≥ 0. The premium is ad valorem on the border
+  price, beside the tariff, as in Hosoe, Gasawa and Hashimoto's `quocge`; its
+  rent goes to the government (booked as `quota_rent` in `government_account`)
+  or to a factor's owners, and `national_accounts` reports it as `quota_rent`.
+  `PeriodResult.quota` reports imports, premium and rent. The solver adds starts
+  at larger premia, since a binding premium can jump. National models only, not
+  on a commodity with an import-supply curve; the regional solver and `to_jump`
+  refuse it.
+- `validation/hosoe.jl` transcribes `quocge` too, and `replicate_hosoe.py`
+  reproduces its bread import quota in all 49 variables to 1.2e-12
+  (`tests/data/hosoe_quocge.json` for the suite); `validation/least_cost.jl`
+  checks quotas against PATH with the rent to the government and to capital.
 - `Scenario.capacity` and `Scenario.capacity_owner`: upper limits on activity
   output, limit − output ≥ 0 ⊥ rent ≥ 0. A binding limit holds output at the
   limit and adds a scarcity rent to the activity's unit cost; the rent is paid

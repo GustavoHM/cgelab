@@ -226,7 +226,8 @@ def national_accounts(period: PeriodResult) -> dict:
     exports, less imports at the border. Income: factor income, taxes on
     products (the product tax, tariff, output tax and both consumer wedges) and
     the activity tax, and the scarcity rent of any binding capacity limit
-    (``capacity_rent``). The two agree in every equilibrium, not only at the base
+    (``capacity_rent``) and the premium of any binding import quota (``quota_rent``),
+    whoever holds the licences. The two agree in every equilibrium, not only at the base
     year; ``gap`` reports what separates them, and a gap above rounding is an
     accounting error. ``gni`` deducts factor income paid abroad.
     """
@@ -245,12 +246,16 @@ def national_accounts(period: PeriodResult) -> dict:
     # paid to the owners of a factor: value added that no factor's price shows.
     capacity_rent = float(sum(c["rent"] * c["output"]
                               for c in (getattr(period, "capacity", None) or {}).values()))
-    income = factor_income + capacity_rent + product_taxes + production_taxes
+    # So is an import quota's premium: in the price paid at home, not at the border.
+    quota_rent = float(sum(q["rent"] for q in (getattr(period, "quota", None) or {}).values()))
+    income = (factor_income + capacity_rent + quota_rent + product_taxes
+              + production_taxes)
     return {
         **value,
         "gdp_expenditure": expenditure,
         "factor_income": factor_income,
         "capacity_rent": capacity_rent,
+        "quota_rent": quota_rent,
         "taxes_on_products": product_taxes,
         "taxes_on_production": production_taxes,
         "gdp_income": income,
@@ -310,6 +315,7 @@ def government_account(period: PeriodResult) -> pd.Series:
     """
     order = ["product_tax", "activity_tax", "carbon_production", "carbon_households",
              "tariff", "output_tax", "direct_tax",
-             "factor_income", "wedge", "revenue", "transfers", "consumption",
+             "factor_income", "wedge", "quota_rent", "revenue", "transfers", "consumption",
              "absorbed", "saving"]
-    return pd.Series({k: period.government[k] for k in order}, name="government")
+    # The regional solver has no quotas and books no quota rent.
+    return pd.Series({k: period.government.get(k, 0.0) for k in order}, name="government")

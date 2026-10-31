@@ -59,3 +59,23 @@ def test_abolition_removes_the_whole_tariff():
     assert sum(out["M"].values()) > sum(base["M"].values())
     assert out["M"]["MLK"] / out["M"]["BRD"] > base["M"]["MLK"] / base["M"]["BRD"]
     assert out["epsilon"] > 1.0           # the currency depreciates to pay for the imports
+
+
+QUOCGE = json.loads(
+    (Path(__file__).parent / "data" / "hosoe_quocge.json").read_text(encoding="utf-8"))["quocge"]
+
+
+@pytest.mark.parametrize("case, cut", [("base", 100.0), ("cota", 0.9)])
+def test_the_bread_import_quota_matches_the_quocge_transcription(case, cut):
+    """quocge (ch. 10.5): bread imports at 90% of the base year, the rent to the household."""
+    _, econ = hosoe.build()
+    brd, mlk = (econ.imp0[econ.commodity(c)] for c in ("c_brd", "c_mlk"))
+    scenario = cge.Scenario(import_quota={"c_brd": cut * brd, "c_mlk": 100.0 * mlk},
+                            quota_rent_to="f_cap")
+    res = cge.solve_period(econ, hosoe.CLOSURE, scenario)
+    assert res.converged and abs(res.walras) < 1e-10
+    ours = dict(_flat(hosoe.variables(econ, res)))
+    ref = dict(_flat(QUOCGE[case]))
+    assert set(ref) <= set(ours)
+    for name, value in ref.items():
+        assert ours[name] == pytest.approx(value, rel=1e-9, abs=1e-9), name

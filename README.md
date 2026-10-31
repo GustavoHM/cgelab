@@ -183,7 +183,8 @@ compute itself:
   (GDP from both sides, the welfare decomposition, subtotals that add up).
 - **A published model**: the tariff abolition of Hosoe, Gasawa and Hashimoto's
   `stdcge` and `lrgcge` against a line-by-line JuMP transcription of the GAMS
-  programs, in all 49 displayed variables, to 2.4e-12.
+  programs, in all 49 displayed variables, to 2.4e-12; and the bread import quota
+  of `quocge` against its transcription, premium and rent included, to 1.2e-12.
 - **An independent replica**: `to_jump` writes the same equilibrium as a JuMP model
   in which nothing is nested. `validation/roundtrip_jump.py` runs 50 cases; the
   nested solver and Ipopt agree to 1.2e-11.
@@ -198,7 +199,7 @@ compute itself:
 pytest                                                     # the suite, without external tools
 cd validation && julia --project=. -e 'using Pkg; Pkg.instantiate()' && cd ..
 python validation/roundtrip_jump.py                        # the JuMP replica
-python validation/replicate_hosoe.py                       # stdcge and lrgcge
+python validation/replicate_hosoe.py                       # stdcge, lrgcge and quocge
 python validation/replicate_regional.py                    # the regional model
 ```
 
@@ -216,8 +217,9 @@ where it stands. Things to know before relying on it:
   savings bank remains future work.
 - **Complementarity has only started**: producers of a commodity can compete at
   least cost and shut down (`ModelSpec.least_cost`) and activities can face
-  capacity limits with scarcity rents (`Scenario.capacity`), in national models;
-  there are no quotas or price floors yet. Those are the next stages of 0.8.
+  capacity limits with scarcity rents (`Scenario.capacity`) and import quotas
+  with rents (`Scenario.import_quota`), in national models; there are no price
+  floors or ceilings yet. Those are the next stage of 0.8.
 - **The solver** works on a few unknowns, with an exact Jacobian in the regional
   model and finite differences elsewhere. On the synthetic SAMs of
   `tools/benchmark_solver.py`, a national model of 647 accounts solves a shock in

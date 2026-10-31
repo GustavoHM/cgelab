@@ -683,6 +683,8 @@ def _refuse_unsupported(econ, closure, scenario, reg: Regional):
         named.append("government_absorbs")
     if scenario.capacity:
         named.append("capacity")
+    if scenario.import_quota:
+        named.append("import_quota")
     if named or scenario.activity_scale or scenario.fdi:
         extra = list(named)
         if scenario.activity_scale:

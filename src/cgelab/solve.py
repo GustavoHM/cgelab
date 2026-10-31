@@ -224,6 +224,11 @@ class PeriodResult:
     #: "rent", "unused"}}``: the rent is per unit of output, in numeraire units,
     #: zero while output is below the limit. None without limits.
     capacity: dict | None = None
+    #: Each ``Scenario.import_quota``, ``{commodity: {"quota", "imports",
+    #: "premium", "rent", "holder"}}``: the premium is ad valorem on the border
+    #: price, the rent is premium × border price × imports, and the holder is
+    #: ``Scenario.quota_rent_to``. None without quotas.
+    quota: dict | None = None
     #: Each capital vintage's bundle (``ModelSpec.vintages``), ``(2, n_act)``:
     #: the old, then the new, in the base-year value of the factors it uses, as
     #: the ``value_added`` of ``real_gdp`` is; productivity is not in it. None
@@ -441,6 +446,32 @@ def solve_period(econ: Economy, closure: Closure | None = None,
         rent_owner = econ.factor(sc.capacity_owner)
     i_cap = n_unknown
     n_unknown += capped.size
+    # Import quotas: per commodity, the premium on its border price.
+    quota_idx, quotas = [], []
+    for name, quota in sc.import_quota.items():
+        if name not in econ.coms:
+            raise KeyError(f"Scenario.import_quota names {name!r}, which is not a commodity: "
+                           f"{list(econ.coms)}")
+        i = econ.commodity(name)
+        quota = float(quota)
+        if not np.isfinite(quota) or quota < 0:
+            raise ValueError(f"import quota of {name!r} must be finite and nonnegative, "
+                             f"got {quota}")
+        if i in curve_m:
+            raise ValueError(f"commodity {name!r} is on an import-supply curve; a quota on it "
+                             f"is not in this version")
+        quota_idx.append(i)
+        quotas.append(quota)
+    quota_idx = np.array(quota_idx, dtype=int)
+    quotas = np.array(quotas, dtype=float)
+    quota_factor = None
+    if quota_idx.size and sc.quota_rent_to != "government":
+        if sc.quota_rent_to not in econ.factors:
+            raise KeyError(f"Scenario.quota_rent_to is {sc.quota_rent_to!r}: 'government' or a "
+                           f"factor of {list(econ.factors)}")
+        quota_factor = econ.factor(sc.quota_rent_to)
+    i_quota = n_unknown
+    n_unknown += quota_idx.size
     # Every wage pinned to the price index: the labour closure's and each rigid
     # segment's.
     rigid_wages = ([(lab, 1.0 if closure.real_wage is None else float(closure.real_wage))]
@@ -657,7 +688,12 @@ def solve_period(econ: Economy, closure: Closure | None = None,
         # tax-inclusive value, and its gross price is the producer price times
         # (1 + tauz) / (1 + tauz0).
         pm_border = er * world_p_now
-        pm = pm_border if tm is None else pm_border * (1.0 + tm) / tf0
+        premium = np.zeros(nc)
+        premium[quota_idx] = z[i_quota:i_quota + quota_idx.size]
+        # The quota premium is ad valorem on the border price, beside the tariff.
+        pm = pm_border * ((1.0 if tm is None else 1.0 + tm) + premium) / tf0
+        # Premium times the quota: at the solution it is premium times imports.
+        quota_rent = float((premium[quota_idx] * pm_border[quota_idx]) @ quotas)
         msh_eff = econ.msh
         p_lc = {}
         if least_cost:
@@ -760,6 +796,8 @@ def solve_period(econ: Economy, closure: Closure | None = None,
                 # since a positive rent means output is at its limit, and it keeps
                 # income independent of the output it pays for.
                 fac_inc[rent_owner] += float(rent[capped] @ limits)
+            if quota_factor is not None:
+                fac_inc[quota_factor] += quota_rent
             gov_fac = float(fac_inc @ fac_gov_sh)
             row_fac = float(fac_inc @ fac_row_sh)
             base_income = (facshare_eff @ (fac_inc * (1.0 - fac_gov_sh - fac_row_sh))
@@ -821,6 +859,8 @@ def solve_period(econ: Economy, closure: Closure | None = None,
             # Government income the tax block does not see: direct taxes and its own
             # factor income, net of what it transfers to households.
             gov_inst = float(hh_dtax_paid.sum()) + gov_fac - float(gov_tr.sum())
+            if quota_idx.size and quota_factor is None:
+                gov_inst += quota_rent                    # auctioned licences
 
             # --- quantity system. Home demand for the domestic variety, over the
             # CET's home share, is output at its tax-inclusive value; over
@@ -937,10 +977,11 @@ def solve_period(econ: Economy, closure: Closure | None = None,
                 direct_tax=float(hh_dtax_paid.sum()), factor_income=gov_fac,
                 wedge=float((hh_q * Wg_set * pq[None, :]).sum()),   # negative for a refund
                 transfers=float(gov_tr.sum()), consumption=gov_spend,
-                absorbed=float(sc.government_absorbs))
+                absorbed=float(sc.government_absorbs),
+                quota_rent=quota_rent if quota_idx.size and quota_factor is None else 0.0)
             gov_account["revenue"] = sum(gov_account[k] for k in (
                 "product_tax", "activity_tax", "carbon_production", "carbon_households",
-                "tariff", "output_tax", "direct_tax", "factor_income", "wedge"))
+                "tariff", "output_tax", "direct_tax", "factor_income", "wedge", "quota_rent"))
             gov_account["saving"] = (gov_account["revenue"] - gov_account["transfers"]
                                      - gov_account["consumption"] - gov_account["absorbed"])
 
@@ -1037,6 +1078,15 @@ def solve_period(econ: Economy, closure: Closure | None = None,
             spare = (limits - X[capped]) / np.maximum(limits, 1.0)
             unit_rent = rent[capped] / nu
             out.extend(spare + unit_rent - np.sqrt(spare ** 2 + unit_rent ** 2))
+            # Quotas: quota − imports >= 0 ⊥ premium >= 0.
+            room = (quotas - imports[quota_idx]) / np.maximum(quotas, 1.0)
+            prem = premium[quota_idx]
+            out.extend(room + prem - np.sqrt(room ** 2 + prem ** 2))
+            state["quota"] = ({econ.coms[i]: dict(quota=float(q), imports=float(imports[i]),
+                                                  premium=float(premium[i]),
+                                                  rent=float(premium[i] * pm_border[i] * imports[i]),
+                                                  holder=sc.quota_rent_to)
+                               for i, q in zip(quota_idx, quotas)} or None)
             state["capacity"] = ({econ.acts[j]: dict(limit=float(limit), output=float(X[j]),
                                                      rent=float(rent[j]),
                                                      unused=float(limit - X[j]))
@@ -1171,8 +1221,16 @@ def solve_period(econ: Economy, closure: Closure | None = None,
         if z0.size == n_unknown:
             attempts.append(("warm", z0, "hybr"))
     attempts += [("cold", np.zeros(n_unknown), "hybr"),
-                 ("perturbed", np.full(n_unknown, 1e-4), "hybr"),
-                 ("lm", np.zeros(n_unknown), "lm")]
+                 ("perturbed", np.full(n_unknown, 1e-4), "hybr")]
+    # A binding quota's premium can be far from zero even for a small cut: the
+    # rent it pays and the exchange rate it moves can raise demand for the very
+    # import it limits, so imports first rise with the premium. Newton from a
+    # zero premium then heads the wrong way; starts at larger premia do not.
+    for level in ((0.3, 1.0, 3.0, 10.0) if quota_idx.size else ()):
+        start = np.zeros(n_unknown)
+        start[i_quota:i_quota + quota_idx.size] = level
+        attempts.append((f"quota premium {level:g}", start, "hybr"))
+    attempts.append(("lm", np.zeros(n_unknown), "lm"))
 
     best = None
     for label, start, method in attempts:
@@ -1254,7 +1312,8 @@ def solve_period(econ: Economy, closure: Closure | None = None,
         factor_prices_by_activity=state["w_by_act"], factor_pools=state["pools"],
         labour_markets=state["markets"],
         value_added_per_unit=state["va_per"], vintage_value_added=state["vintage_va"],
-        least_cost=state.get("least_cost"), capacity=state.get("capacity"))
+        least_cost=state.get("least_cost"), capacity=state.get("capacity"),
+        quota=state.get("quota"))
 
 
 # ---------------------------------------------------------------------------

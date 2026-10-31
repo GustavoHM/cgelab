@@ -148,6 +148,15 @@ class Scenario:
     #: unit of the fuel they buy. Absent, zero.
     carbon_price: float | None = None
 
+    #: Upper limits on activity output, ``{activity: limit}``, in base-year
+    #: output units: capacity − output ≥ 0 ⊥ rent ≥ 0. While output is below
+    #: its limit the rent is zero; when the limit binds, a scarcity rent per unit
+    #: of output joins the activity's unit cost.
+    capacity: Mapping[str, float] = field(default_factory=dict)
+    #: The factor whose owners receive capacity rents, shared like its other
+    #: income among households, government and the rest of the world.
+    capacity_owner: str = "f_cap"
+
     def with_(self, **changes) -> "Scenario":
         """Return a copy with fields replaced -- for building a sweep from a base case."""
         import dataclasses

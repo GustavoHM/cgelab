@@ -723,8 +723,35 @@ unknowns and writes the complementarity with the Fischer–Burmeister function.
 in Julia and solved as a mixed complementarity problem by PATH, on both sides
 of each switch: they agree to 3e-14. Each producer must make only that
 commodity; the regional model, vintages and `to_jump` refuse `least_cost` for
-now. Capacity limits and a technology with no base-year output are the next
-stages.
+now. A technology with no base-year output is a later stage.
+
+### Capacity limits
+
+```python
+scenario = cge.Scenario(productivity=tfp, capacity={"a_alt": 200.0},
+                        capacity_owner="f_cap")
+result = cge.solve_period(econ, scenario=scenario)
+result.capacity["a_alt"]       # limit, output, rent, unused
+```
+
+`Scenario.capacity` puts an upper limit on an activity's output, in base-year
+output units: limit − output ≥ 0 ⊥ rent ≥ 0. While output is below the limit
+the rent is zero and nothing changes. When it binds, output stays at the limit
+and a scarcity rent per unit of output joins the activity's unit cost, so its
+commodity's price rises. The rent is income: the owners of
+`Scenario.capacity_owner` (capital by default) receive it, shared like that
+factor's other income, and `national_accounts` reports it as `capacity_rent`
+so GDP still closes. With `least_cost`, a limit on the cheaper technology
+brings the dearer one back: both produce at the commodity's price, and the
+capped one earns the difference. That is a merit order.
+
+A limit is not a factor whose price falls to zero: with a CES value added the
+demand for a factor at a near-zero price grows without bound, so it is never
+idle. The limit is on output, as GAMS/MPSGE writes an activity bound.
+`validation/replicate_least_cost.py` checks it against PATH too: a slack limit,
+one on the only producer of a good, the merit order and a limit that binds only
+after a shock. National models only; the regional solver and `to_jump` refuse
+it.
 
 ### A baseline calibrated to GDP
 
@@ -1660,7 +1687,7 @@ constant under Leontief inputs and moves with fuel prices under an energy nest.
 `physical_coefficient` runs the other way, for building a SAM. It turns a technical
 coefficient stated in physical units (kilowatt-hours of electricity per kilogram
 of output, say) into the money entry per unit of output value, at purchaser prices.
-Capacity in physical units, as a constraint, needs complementarity and waits for 0.8.
+A capacity in physical units is a limit on the activity's output (`Scenario.capacity`) once divided by its base-year physical intensity.
 
 ---
 

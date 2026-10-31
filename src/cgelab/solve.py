@@ -220,6 +220,10 @@ class PeriodResult:
     #: unit cost exceeds it, zero for a producer that produces and the distance
     #: to restarting for one that has shut down. None without least cost.
     least_cost: dict | None = None
+    #: Each limit in ``Scenario.capacity``, ``{activity: {"limit", "output",
+    #: "rent", "unused"}}``: the rent is per unit of output, in numeraire units,
+    #: zero while output is below the limit. None without limits.
+    capacity: dict | None = None
     #: Each capital vintage's bundle (``ModelSpec.vintages``), ``(2, n_act)``:
     #: the old, then the new, in the base-year value of the factors it uses, as
     #: the ``value_added`` of ``real_gdp`` is; productivity is not in it. None
@@ -411,6 +415,32 @@ def solve_period(econ: Economy, closure: Closure | None = None,
     for i, makers in least_cost.items():
         i_lc[i] = n_unknown
         n_unknown += 1 + makers.size
+    # Capacity limits: per capped activity, its scarcity rent per unit of output,
+    # in numeraire units. Complementarity holds the rent at zero while output is
+    # below the limit.
+    capped, limits = [], []
+    for name, limit in sc.capacity.items():
+        if name not in econ.acts:
+            raise KeyError(f"Scenario.capacity names {name!r}, which is not an activity: "
+                           f"{list(econ.acts)}")
+        j = econ.activity(name)
+        limit = float(limit)
+        if not np.isfinite(limit) or limit < 0:
+            raise ValueError(f"capacity of {name!r} must be finite and nonnegative, got {limit}")
+        if econ.own_account[j]:
+            raise ValueError(f"activity {name!r} sells only to households at an exogenous "
+                             f"level; a capacity limit on it would never bind")
+        capped.append(j)
+        limits.append(limit)
+    capped = np.array(capped, dtype=int)
+    limits = np.array(limits, dtype=float)
+    if capped.size:
+        if sc.capacity_owner not in econ.factors:
+            raise KeyError(f"Scenario.capacity_owner is {sc.capacity_owner!r}, which is not a "
+                           f"factor: {list(econ.factors)}")
+        rent_owner = econ.factor(sc.capacity_owner)
+    i_cap = n_unknown
+    n_unknown += capped.size
     # Every wage pinned to the price index: the labour closure's and each rigid
     # segment's.
     rigid_wages = ([(lab, 1.0 if closure.real_wage is None else float(closure.real_wage))]
@@ -637,6 +667,9 @@ def solve_period(econ: Economy, closure: Closure | None = None,
                 p_lc[i] = nu * float(np.exp(z[k0]))
                 msh_eff[makers, i] = econ.msh[makers, i] + z[k0 + 1:k0 + 1 + makers.size]
 
+        rent = np.zeros(na)
+        rent[capped] = nu * z[i_cap:i_cap + capped.size]
+
         def commodity_price(pa):
             # A least-cost commodity's price is its own unknown: averaging its
             # producers' costs would price it at a technology nobody uses.
@@ -657,6 +690,7 @@ def solve_period(econ: Economy, closure: Closure | None = None,
         pqf = 1.0 + ptax_f
         for _ in range(_PRICE_ITERS):
             pa, _, _ = production(pqf, Wm, quantities=False, pva=pva)
+            pa = pa + rent
             pd_ = commodity_price(pa)
             arm, dsh, msh_ = armington(
                 econ.dom_share, domestic_price(pd_ * out_wedge, pe), pm, econ.sigma_arm)
@@ -676,6 +710,7 @@ def solve_period(econ: Economy, closure: Closure | None = None,
                 break
             pqf = new
         pa, coef, fac_per = production(pqf, Wm, pva=pva)
+        pa = pa + rent
         # Supply of each imperfectly mobile factor to each activity, and its
         # income: the pools' prices times their endowments, which is also the
         # activity prices times the supplies.
@@ -720,6 +755,11 @@ def solve_period(econ: Economy, closure: Closure | None = None,
             fac_inc = w * paid
             for i in mob:
                 fac_inc[i] = mob_income[i]
+            if capped.size:
+                # Rent times the limit: at the solution it is rent times output,
+                # since a positive rent means output is at its limit, and it keeps
+                # income independent of the output it pays for.
+                fac_inc[rent_owner] += float(rent[capped] @ limits)
             gov_fac = float(fac_inc @ fac_gov_sh)
             row_fac = float(fac_inc @ fac_row_sh)
             base_income = (facshare_eff @ (fac_inc * (1.0 - fac_gov_sh - fac_row_sh))
@@ -993,6 +1033,14 @@ def solve_period(econ: Economy, closure: Closure | None = None,
                     unit_cost=pa[makers].copy(), price=p_lc[i],
                     margin=pa[makers] - p_lc[i])
             state["least_cost"] = technologies or None
+            # Capacity: limit − output >= 0 ⊥ rent >= 0, the same way.
+            spare = (limits - X[capped]) / np.maximum(limits, 1.0)
+            unit_rent = rent[capped] / nu
+            out.extend(spare + unit_rent - np.sqrt(spare ** 2 + unit_rent ** 2))
+            state["capacity"] = ({econ.acts[j]: dict(limit=float(limit), output=float(X[j]),
+                                                     rent=float(rent[j]),
+                                                     unused=float(limit - X[j]))
+                                  for j, limit in zip(capped, limits)} or None)
             markets = {}
             for k, g in enumerate(groups):
                 idx = g.group.index
@@ -1206,7 +1254,7 @@ def solve_period(econ: Economy, closure: Closure | None = None,
         factor_prices_by_activity=state["w_by_act"], factor_pools=state["pools"],
         labour_markets=state["markets"],
         value_added_per_unit=state["va_per"], vintage_value_added=state["vintage_va"],
-        least_cost=state.get("least_cost"))
+        least_cost=state.get("least_cost"), capacity=state.get("capacity"))
 
 
 # ---------------------------------------------------------------------------

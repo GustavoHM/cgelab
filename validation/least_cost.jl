@@ -1,5 +1,5 @@
-# least_cost.jl — produtores que competem ao menor custo, como problema de complementaridade
-# misto resolvido pelo PATH.
+# least_cost.jl — produtores que competem ao menor custo e limites de capacidade, como problema
+# de complementaridade misto resolvido pelo PATH.
 #
 # Nada vem do cgelab. O script lê a MCS e o enunciado (papéis das contas, elasticidades, as
 # commodities de menor custo, o choque), calibra o modelo nacional aqui e escreve cada
@@ -7,6 +7,10 @@
 #
 #     custo unitário_j − preço_i ≥ 0   ⟂   X_j ≥ 0     (cada produtor de i)
 #     Σ_j X_j − Q_i = 0                ⟂   preço_i      (o mercado do bem)
+#     capacidade_j − X_j ≥ 0           ⟂   renda_j ≥ 0  (cada atividade com limite)
+#
+# A renda de escassez entra no custo unitário da atividade e é paga aos donos do fator indicado,
+# como renda × produção.
 #
 # e as demais equações do equilíbrio como igualdades pareadas com variáveis livres. O PATH
 # resolve o sistema inteiro de uma vez. O cgelab resolve o mesmo modelo por aninhamento e
@@ -81,6 +85,8 @@ sva = Float64(E.sigma_va)
 sarm = [Float64(E.sigma_armington[Symbol(c)]) for c in COM]
 num = findfirst(==(String(E.numeraire_factor)), FAT)
 tfp = [Float64(E.productivity[Symbol(a)]) for a in ATV]
+limite = Dict(findfirst(==(String(a)), ATV) => Float64(v) for (a, v) in E.capacity)
+dono_renda = findfirst(==(String(E.capacity_owner)), FAT)
 mundo = [Float64(E.world_price[Symbol(c)]) for c in COM]
 
 # ---------------------------------------------------------------------------------------------
@@ -99,12 +105,17 @@ lo = 1e-8
 @variable(m, X[j in 1:NA] >= 0, start = X0[j])
 @variable(m, Y[h in 1:NH], start = Y0[h])
 @variable(m, poup, start = sum(sam(COM[i], inv) for i in 1:NC))
+@variable(m, renda[j in 1:NA] >= 0, start = 0.0)
+for j in 1:NA
+    haskey(limite, j) || fix(renda[j], 0.0; force = true)
+end
 fix(w[num], 1.0; force = true)
 
 @expression(m, pva[j in 1:NA],
             sum(theta[f, j] * w[f]^(1 - sva) for f in 1:NF if theta[f, j] > 0)^(1 / (1 - sva)))
 @expression(m, pa[j in 1:NA],
-            sum(io[i, j] / tfp[j] * pq[i] for i in 1:NC) + vunit[j] / tfp[j] * pva[j] + atax[j])
+            sum(io[i, j] / tfp[j] * pq[i] for i in 1:NC) + vunit[j] / tfp[j] * pva[j] + atax[j]
+            + renda[j])
 @expression(m, fd[f in 1:NF, j in 1:NA],
             theta[f, j] > 0 ? vunit[j] / tfp[j] * X[j] * theta[f, j] * (pva[j] / w[f])^sva : 0.0)
 pm(i) = er * mundo[i]
@@ -137,7 +148,12 @@ end
                     + vs[i] * poup / pq[i] + sum(io[i, j] / tfp[j] * X[j] for j in 1:NA)) ⟂ A[i])
 @constraint(m, [i in 1:NC], Q[i] - DD[i] / (1 - es[i]) ⟂ Q[i])
 # Renda, poupança, fatores, conta corrente.
-@constraint(m, [h in 1:NH], Y[h] - sum(dono[h, f] * w[f] * L0[f] for f in 1:NF) ⟂ Y[h])
+@expression(m, renda_total, sum(renda[j] * X[j] for j in keys(limite); init = 0.0))
+@constraint(m, [h in 1:NH], Y[h] - sum(dono[h, f] * w[f] * L0[f] for f in 1:NF)
+                            - dono[h, dono_renda] * renda_total ⟂ Y[h])
+for (j, cap) in limite
+    @constraint(m, cap - X[j] ⟂ renda[j])                   # capacidade − X ≥ 0 ⟂ renda ≥ 0
+end
 @constraint(m, poup - (sum(pou[h] * Y[h] for h in 1:NH) + receita - gasto_gov + FS0) ⟂ poup)
 for f in 1:NF
     f == num && continue
@@ -153,7 +169,7 @@ walras = value(sum(fd[num, j] for j in 1:NA)) - L0[num]
 out = Dict("status" => string(st), "walras" => walras,
            "w" => value.(w)[:], "er" => value(er), "X" => value.(X)[:], "pd" => value.(pd)[:],
            "pq" => value.(pq)[:], "pa" => [value(pa[j]) for j in 1:NA],
-           "hh_income" => value.(Y)[:], "savings" => value(poup))
+           "hh_income" => value.(Y)[:], "savings" => value(poup), "rent" => value.(renda)[:])
 open(SAIDA, "w") do f
     JSON3.write(f, out)
 end

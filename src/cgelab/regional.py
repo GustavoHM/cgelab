@@ -681,6 +681,8 @@ def _refuse_unsupported(econ, closure, scenario, reg: Regional):
     named = [k for k, v in blocked.items() if v is not None]
     if scenario.government_absorbs != 0.0:
         named.append("government_absorbs")
+    if scenario.capacity:
+        named.append("capacity")
     if named or scenario.activity_scale or scenario.fdi:
         extra = list(named)
         if scenario.activity_scale:

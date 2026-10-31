@@ -156,6 +156,15 @@ class Scenario:
     #: The factor whose owners receive capacity rents, shared like its other
     #: income among households, government and the rest of the world.
     capacity_owner: str = "f_cap"
+    #: Upper limits on imports, ``{commodity: quota}``, in base-year import
+    #: units: quota − imports ≥ 0 ⊥ premium ≥ 0. The premium is ad valorem on
+    #: the border price, added to the tariff, as in Hosoe's ``quocge``; while
+    #: imports are below the quota it is zero.
+    import_quota: Mapping[str, float] = field(default_factory=dict)
+    #: Who holds the quota licences: ``"government"`` (auctioned, booked in
+    #: the government account) or a factor, whose owners receive the rent like
+    #: that factor's other income.
+    quota_rent_to: str = "government"
 
     def with_(self, **changes) -> "Scenario":
         """Return a copy with fields replaced -- for building a sweep from a base case."""

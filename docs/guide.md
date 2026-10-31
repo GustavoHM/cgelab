@@ -753,6 +753,39 @@ one on the only producer of a good, the merit order and a limit that binds only
 after a shock. National models only; the regional solver and `to_jump` refuse
 it.
 
+### Import quotas
+
+```python
+scenario = cge.Scenario(import_quota={"c_agr": 13.5},     # base-year import units
+                        quota_rent_to="government")       # or a factor's owners
+result = cge.solve_period(econ, scenario=scenario)
+result.quota["c_agr"]           # quota, imports, premium, rent, holder
+```
+
+`Scenario.import_quota` caps a commodity's imports: quota − imports ≥ 0 ⊥
+premium ≥ 0. The premium is ad valorem on the border price, added to the
+tariff, as the quasi-rent `chi` of Hosoe, Gasawa and Hashimoto's `quocge`. While
+imports are below the quota it is zero; when the quota binds, imports stay at it
+and the premium raises the price paid at home. The rent, premium × border price
+× imports, goes to `quota_rent_to`: the government, as auctioned licences, booked
+as `quota_rent` in `government_account`; or the owners of a factor, as income.
+`national_accounts` reports it as `quota_rent` either way, since the expenditure
+side values imports at the border.
+
+A binding premium need not be small for a small cut. The rent and the exchange
+rate it moves can raise demand for the very import it limits: under fixed export
+shares the import bill is pinned by the current account, so cutting one import
+lowers the exchange rate, which makes every import cheaper. In the toy economy a
+quota 0.4% below industrial imports needs a premium of 244%. The solver adds
+starts at larger premia for that reason.
+
+`validation/replicate_hosoe.py` reproduces `quocge`'s experiment, bread imports
+at 90% of the base year with the rent to the household, in all 49 variables to
+1.2e-12; `validation/replicate_least_cost.py` checks quotas against PATH with
+the rent to the government and to capital. National models only, and not on a
+commodity with an import-supply curve; the regional solver and `to_jump` refuse
+it.
+
 ### A baseline calibrated to GDP
 
 A baseline built from assumed rates makes GDP whatever the rates give. The

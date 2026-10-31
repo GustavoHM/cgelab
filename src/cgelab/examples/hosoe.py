@@ -114,7 +114,7 @@ def variables(econ, res) -> dict:
     xp = res.hh_quantity.sum(axis=0)
     alpha = econ.hh_budget[0]
     fac = {f.removeprefix("f_").upper(): i for i, f in enumerate(econ.factors)}
-    return {
+    out = {
         "Y": by_good(econ.vunit * res.X),
         "F": {f"{h},{g}": float(res.factor_demand_by_activity[fac[h], j])
               for h in facs for j, g in enumerate(goods)},
@@ -133,3 +133,9 @@ def variables(econ, res) -> dict:
         "Tz": by_good(tauz * res.pd * res.Q), "Tm": by_good(tm * pm * res.imports),
         "UU": float(np.prod(xp ** alpha)),
     }
+    if res.scenario.import_quota:
+        # quocge's quasi-rent chi and its rent RT, zero on a good without a quota.
+        quota = res.quota or {}
+        out["chi"] = by_good([quota.get(c, {}).get("premium", 0.0) for c in econ.coms])
+        out["RT"] = by_good([quota.get(c, {}).get("rent", 0.0) for c in econ.coms])
+    return out

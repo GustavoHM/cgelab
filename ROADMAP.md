@@ -223,8 +223,12 @@ validated before the next one builds on it.
   factor (`capacity_owner`), reported by `national_accounts` as `capacity_rent`. With
   `least_cost` it gives a merit order. Validated against PATH in `validation/least_cost.jl`
   (a slack limit, a sole producer, the merit order, a limit that binds after a shock), to 3e-14.
-- [ ] **Then** quotas with rents, and price floors and ceilings, each validated the same way
-  before the next.
+- [x] **Quotas with rents**: `Scenario.import_quota`, quota − imports ≥ 0 ⊥ premium ≥ 0, the
+  premium ad valorem on the border price beside the tariff and its rent to the government or
+  to a factor's owners (`quota_rent_to`), reported as `quota_rent`. Validated against Hosoe,
+  Gasawa and Hashimoto's `quocge` (GAMS library, ch. 10.5), whose bread quota is reproduced in
+  all 49 variables to 1.2e-12, and against PATH. Quotas on exports or on output are not in it.
+- [ ] **Then** price floors and ceilings, validated the same way.
 - [ ] **Backends**: Pyomo with IPOPT and PATH besides `scipy`, validated against GAMS/MPSGE with
   PATH, only after the cases above are fixed points they must reproduce.
 

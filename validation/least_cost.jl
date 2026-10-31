@@ -1,5 +1,5 @@
-# least_cost.jl — produtores que competem ao menor custo e limites de capacidade, como problema
-# de complementaridade misto resolvido pelo PATH.
+# least_cost.jl — produtores que competem ao menor custo, limites de capacidade e cotas de
+# importação, como problema de complementaridade misto resolvido pelo PATH.
 #
 # Nada vem do cgelab. O script lê a MCS e o enunciado (papéis das contas, elasticidades, as
 # commodities de menor custo, o choque), calibra o modelo nacional aqui e escreve cada
@@ -8,6 +8,10 @@
 #     custo unitário_j − preço_i ≥ 0   ⟂   X_j ≥ 0     (cada produtor de i)
 #     Σ_j X_j − Q_i = 0                ⟂   preço_i      (o mercado do bem)
 #     capacidade_j − X_j ≥ 0           ⟂   renda_j ≥ 0  (cada atividade com limite)
+#     cota_i − M_i ≥ 0                 ⟂   chi_i ≥ 0    (cada bem com cota de importação)
+#
+# chi é um prêmio ad valorem sobre o preço de importação na fronteira; a renda chi·pm·M vai ao
+# governo ou aos donos do fator indicado.
 #
 # A renda de escassez entra no custo unitário da atividade e é paga aos donos do fator indicado,
 # como renda × produção.
@@ -86,6 +90,9 @@ sarm = [Float64(E.sigma_armington[Symbol(c)]) for c in COM]
 num = findfirst(==(String(E.numeraire_factor)), FAT)
 tfp = [Float64(E.productivity[Symbol(a)]) for a in ATV]
 limite = Dict(findfirst(==(String(a)), ATV) => Float64(v) for (a, v) in E.capacity)
+cota = Dict(findfirst(==(String(c)), COM) => Float64(v) for (c, v) in E.import_quota)
+cota_ao_governo = String(E.quota_rent_to) == "government"
+dono_cota = cota_ao_governo ? 0 : findfirst(==(String(E.quota_rent_to)), FAT)
 dono_renda = findfirst(==(String(E.capacity_owner)), FAT)
 mundo = [Float64(E.world_price[Symbol(c)]) for c in COM]
 
@@ -106,6 +113,10 @@ lo = 1e-8
 @variable(m, Y[h in 1:NH], start = Y0[h])
 @variable(m, poup, start = sum(sam(COM[i], inv) for i in 1:NC))
 @variable(m, renda[j in 1:NA] >= 0, start = 0.0)
+@variable(m, chi[i in 1:NC] >= 0, start = 0.0)
+for i in 1:NC
+    haskey(cota, i) || fix(chi[i], 0.0; force = true)
+end
 for j in 1:NA
     haskey(limite, j) || fix(renda[j], 0.0; force = true)
 end
@@ -118,17 +129,20 @@ fix(w[num], 1.0; force = true)
             + renda[j])
 @expression(m, fd[f in 1:NF, j in 1:NA],
             theta[f, j] > 0 ? vunit[j] / tfp[j] * X[j] * theta[f, j] * (pva[j] / w[f])^sva : 0.0)
-pm(i) = er * mundo[i]
+pm(i) = er * mundo[i]                                         # na fronteira
+pmc(i) = pm(i) * (1 + chi[i])                                 # com o prêmio da cota
 pb(i) = pq[i] / (1 + ptax[i])                                 # preço Armington, básico
 @expression(m, DD[i in 1:NC], delta[i] * (pb(i) / pd[i])^sarm[i] * A[i])
-@expression(m, MM[i in 1:NC], (1 - delta[i]) * (pb(i) / pm(i))^sarm[i] * A[i])
-@expression(m, receita, sum(pb(i) * ptax[i] * A[i] for i in 1:NC) + sum(atax[j] * X[j] for j in 1:NA))
+@expression(m, MM[i in 1:NC], (1 - delta[i]) * (pb(i) / pmc(i))^sarm[i] * A[i])
+@expression(m, renda_cota, sum(chi[i] * pm(i) * MM[i] for i in keys(cota); init = 0.0))
+@expression(m, receita, sum(pb(i) * ptax[i] * A[i] for i in 1:NC) + sum(atax[j] * X[j] for j in 1:NA)
+                        + (cota_ao_governo ? renda_cota : 0.0))
 @expression(m, gasto_gov, sum(pq[i] * gq[i] for i in 1:NC))
 
 # Preço ao comprador: o composto de Armington, com o imposto.
 @constraint(m, [i in 1:NC],
             pq[i] - (1 + ptax[i]) * (delta[i] * pd[i]^(1 - sarm[i])
-                                     + (1 - delta[i]) * pm(i)^(1 - sarm[i]))^(1 / (1 - sarm[i])) ⟂ pq[i])
+                                     + (1 - delta[i]) * pmc(i)^(1 - sarm[i]))^(1 / (1 - sarm[i])) ⟂ pq[i])
 # Produção: lucro zero e quantidades.
 for i in 1:NC
     if i in menor_custo
@@ -150,9 +164,13 @@ end
 # Renda, poupança, fatores, conta corrente.
 @expression(m, renda_total, sum(renda[j] * X[j] for j in keys(limite); init = 0.0))
 @constraint(m, [h in 1:NH], Y[h] - sum(dono[h, f] * w[f] * L0[f] for f in 1:NF)
-                            - dono[h, dono_renda] * renda_total ⟂ Y[h])
+                            - dono[h, dono_renda] * renda_total
+                            - (cota_ao_governo ? 0.0 : dono[h, dono_cota] * renda_cota) ⟂ Y[h])
 for (j, cap) in limite
     @constraint(m, cap - X[j] ⟂ renda[j])                   # capacidade − X ≥ 0 ⟂ renda ≥ 0
+end
+for (i, q) in cota
+    @constraint(m, q - MM[i] ⟂ chi[i])                      # cota − M ≥ 0 ⟂ chi ≥ 0
 end
 @constraint(m, poup - (sum(pou[h] * Y[h] for h in 1:NH) + receita - gasto_gov + FS0) ⟂ poup)
 for f in 1:NF
@@ -169,7 +187,8 @@ walras = value(sum(fd[num, j] for j in 1:NA)) - L0[num]
 out = Dict("status" => string(st), "walras" => walras,
            "w" => value.(w)[:], "er" => value(er), "X" => value.(X)[:], "pd" => value.(pd)[:],
            "pq" => value.(pq)[:], "pa" => [value(pa[j]) for j in 1:NA],
-           "hh_income" => value.(Y)[:], "savings" => value(poup), "rent" => value.(renda)[:])
+           "hh_income" => value.(Y)[:], "savings" => value(poup), "rent" => value.(renda)[:],
+           "premium" => value.(chi)[:])
 open(SAIDA, "w") do f
     JSON3.write(f, out)
 end

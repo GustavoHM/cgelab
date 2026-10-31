@@ -214,6 +214,12 @@ class PeriodResult:
     #: equilibrium used.
     input_coefficients: np.ndarray | None = None
     value_added_per_unit: np.ndarray | None = None
+    #: Each ``ModelSpec.least_cost`` commodity, ``{commodity: {"activities",
+    #: "share", "unit_cost", "price", "margin"}}``: each producer's share of its
+    #: output, its unit cost, the commodity's price, and the margin by which the
+    #: unit cost exceeds it, zero for a producer that produces and the distance
+    #: to restarting for one that has shut down. None without least cost.
+    least_cost: dict | None = None
     #: Each capital vintage's bundle (``ModelSpec.vintages``), ``(2, n_act)``:
     #: the old, then the new, in the base-year value of the factors it uses, as
     #: the ``value_added`` of ``real_gdp`` is; productivity is not in it. None
@@ -396,6 +402,15 @@ def solve_period(econ: Economy, closure: Closure | None = None,
         if g.harris_todaro:
             i_ht[k] = n_unknown
             n_unknown += 1
+    # Producers that compete at least cost: per commodity, its price (in logs)
+    # and each producer's share of its output, the departure from the base
+    # year's. Complementarity holds each share at zero when that producer's unit
+    # cost is above the price, and the shares add up to one.
+    least_cost = econ.least_cost
+    i_lc = {}
+    for i, makers in least_cost.items():
+        i_lc[i] = n_unknown
+        n_unknown += 1 + makers.size
     # Every wage pinned to the price index: the labour closure's and each rigid
     # segment's.
     rigid_wages = ([(lab, 1.0 if closure.real_wage is None else float(closure.real_wage))]
@@ -613,6 +628,22 @@ def solve_period(econ: Economy, closure: Closure | None = None,
         # (1 + tauz) / (1 + tauz0).
         pm_border = er * world_p_now
         pm = pm_border if tm is None else pm_border * (1.0 + tm) / tf0
+        msh_eff = econ.msh
+        p_lc = {}
+        if least_cost:
+            msh_eff = econ.msh.copy()
+            for i, makers in least_cost.items():
+                k0 = i_lc[i]
+                p_lc[i] = nu * float(np.exp(z[k0]))
+                msh_eff[makers, i] = econ.msh[makers, i] + z[k0 + 1:k0 + 1 + makers.size]
+
+        def commodity_price(pa):
+            # A least-cost commodity's price is its own unknown: averaging its
+            # producers' costs would price it at a technology nobody uses.
+            pd_ = msh_eff.T @ pa
+            for i in least_cost:
+                pd_[i] = p_lc[i]
+            return pd_
         out_wedge = 1.0 if tauz is None else (1.0 + tauz) / tz0
         pe = er * world_pe_now
 
@@ -626,7 +657,7 @@ def solve_period(econ: Economy, closure: Closure | None = None,
         pqf = 1.0 + ptax_f
         for _ in range(_PRICE_ITERS):
             pa, _, _ = production(pqf, Wm, quantities=False, pva=pva)
-            pd_ = econ.msh.T @ pa
+            pd_ = commodity_price(pa)
             arm, dsh, msh_ = armington(
                 econ.dom_share, domestic_price(pd_ * out_wedge, pe), pm, econ.sigma_arm)
             pbase = arm * econ.arm_share + pqf @ econ.mq
@@ -657,7 +688,7 @@ def solve_period(econ: Economy, closure: Closure | None = None,
         # each segment at this period's wages.
         seg_supply = {k: g.supplies(w) for k, g in enumerate(groups)
                       if g.transform is not None}
-        pd_ = econ.msh.T @ pa
+        pd_ = commodity_price(pa)
         p_dom = domestic_price(pd_ * out_wedge, pe)
         arm, dsh, msh_ = armington(econ.dom_share, p_dom, pm, econ.sigma_arm)
         # How output splits between the home market and exports. Under CET the
@@ -756,7 +787,7 @@ def solve_period(econ: Economy, closure: Closure | None = None,
             # (1 + tauz0) it is commodity output at producer value.
             with np.errstate(divide="ignore", invalid="ignore"):
                 Gp = np.diag(dsh * econ.arm_share / np.maximum(dom_frac * tz0, 1e-12))
-            Bm = coef @ econ.msh
+            Bm = coef @ msh_eff
             fuel_carbon_per_unit = (carb_fuel * coef).sum(axis=0)
             M = np.linalg.inv(np.eye(nc) - Bm @ Gp - econ.mq)
             other_fixed = coef @ X_exog                   # own-account inputs, firm rate
@@ -775,7 +806,7 @@ def solve_period(econ: Economy, closure: Closure | None = None,
                 firm_part = a_vec - fin_c                 # final demand at the CONSUMER rate
                 # The activity tax falls on own-account output too: households pay
                 # it in the price of what they buy straight from the activity.
-                x_vec = econ.msh @ (Gp @ a_vec) + X_exog
+                x_vec = msh_eff @ (Gp @ a_vec) + X_exog
                 return (float((pbase * (firm_part * ptax_f + fin_c * ptax_a)).sum())
                         + float((atax * x_vec).sum())
                         + fuel_carbon_per_unit @ x_vec      # carbon paid in the fuel price
@@ -851,7 +882,7 @@ def solve_period(econ: Economy, closure: Closure | None = None,
                 sav_gap = (available - savings) / sav_scale
 
             Q = Gp @ A
-            X = econ.msh @ Q + X_exog
+            X = msh_eff @ Q + X_exog
             # The government account at the solution, instrument by instrument,
             # from the same formulas the closure solved with.
             fin_c = hh_final + gov_q
@@ -948,6 +979,20 @@ def solve_period(econ: Economy, closure: Closure | None = None,
                 E_R = fac_dem[g.rigid]
                 expected = g.lam * float(w[g.rigid] @ E_R) / (float(E_R.sum()) + U_now[k])
                 out.append(float(np.log(w[g.informal]) - np.log(max(expected, 1e-300))))
+            # Least cost: unit cost - price >= 0 ⊥ share >= 0, through the
+            # Fischer-Burmeister function, which is zero exactly when both hold
+            # and one of the two is zero; and the shares make the whole output.
+            technologies = {}
+            for i, makers in least_cost.items():
+                share = msh_eff[makers, i]
+                margin = (pa[makers] - p_lc[i]) / nu
+                out.extend(margin + share - np.sqrt(margin ** 2 + share ** 2))
+                out.append(float(share.sum()) - 1.0)
+                technologies[econ.coms[i]] = dict(
+                    activities=[econ.acts[j] for j in makers], share=share.copy(),
+                    unit_cost=pa[makers].copy(), price=p_lc[i],
+                    margin=pa[makers] - p_lc[i])
+            state["least_cost"] = technologies or None
             markets = {}
             for k, g in enumerate(groups):
                 idx = g.group.index
@@ -1160,7 +1205,8 @@ def solve_period(econ: Economy, closure: Closure | None = None,
         tax_scale=state["tax_scale"], input_coefficients=state["io_used"],
         factor_prices_by_activity=state["w_by_act"], factor_pools=state["pools"],
         labour_markets=state["markets"],
-        value_added_per_unit=state["va_per"], vintage_value_added=state["vintage_va"])
+        value_added_per_unit=state["va_per"], vintage_value_added=state["vintage_va"],
+        least_cost=state.get("least_cost"))
 
 
 # ---------------------------------------------------------------------------

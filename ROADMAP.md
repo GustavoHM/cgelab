@@ -211,8 +211,13 @@ validated before the next one builds on it.
 
 *New features: complementarity, by stages:*
 
-- [ ] **An activity that can switch off**, the first mixed complementarity condition, validated
-  against a known solution or an independent reference.
+- [x] **An activity that can switch off**, the first mixed complementarity condition:
+  `ModelSpec.least_cost`, producers of a commodity that compete at least cost (unit cost −
+  price ≥ 0 ⊥ output share ≥ 0), solved through the Fischer–Burmeister function. Validated
+  against a known solution (with one factor, any cost advantage takes the whole market) and
+  against `validation/least_cost.jl`, the model calibrated in Julia and solved as a mixed
+  complementarity problem by PATH, on both sides of each switch, to 3e-14. National only for
+  now; a technology with no base-year output needs costs from outside the SAM.
 - [ ] **Then** capacity limits, quotas with rents, and price floors and ceilings, each validated
   the same way before the next.
 - [ ] **Backends**: Pyomo with IPOPT and PATH besides `scipy`, validated against GAMS/MPSGE with

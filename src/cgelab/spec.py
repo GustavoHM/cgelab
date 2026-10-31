@@ -187,6 +187,13 @@ class ModelSpec:
     #: shrinks faster than its old capital wears out, and the distance to perfect
     #: substitution falls as one over it.
     vintage_substitution: float | Mapping[str, float] = 20.0
+    #: Commodities whose producers are perfect substitutes, chosen at least
+    #: cost. Each activity that makes one of them makes nothing else. At the base
+    #: year they are all active at the same unit cost; away from it an activity
+    #: whose unit cost is above the commodity's price produces nothing, and one
+    #: that produces earns that price: unit cost ≥ price ⊥ output share ≥ 0.
+    #: A commodity left out takes its producers' output in base-year shares.
+    least_cost: Sequence[str] | None = None
 
     def __post_init__(self):
         self.factors = list(self.factors)

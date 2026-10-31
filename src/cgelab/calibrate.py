@@ -168,6 +168,9 @@ class Economy:
     #: Putty-clay capital (``ModelSpec.vintages``): the two-bundle value added.
     #: None without vintages.
     vintage: VintageNest | None = field(default=None, repr=False)
+    #: Producers that compete at least cost (``ModelSpec.least_cost``), by
+    #: commodity index: the indices of the activities that make it.
+    least_cost: dict = field(default_factory=dict, repr=False)
 
     def zeros_if_none(self, name: str, n: int) -> np.ndarray:
         v = getattr(self, name)
@@ -279,6 +282,41 @@ def _rates_from_revenue(revenue, base, names, label, empty):
     if np.any(rates <= -1.0):
         raise ValueError(f"a {label} rate must be greater than -1")
     return rates
+
+
+def _least_cost(spec, coms, acts, msh, vintage) -> dict:
+    """Producers of each ``ModelSpec.least_cost`` commodity, checked."""
+    names = list(spec.least_cost or [])
+    if not names:
+        return {}
+    if spec.regions:
+        raise ValueError("least_cost is national for now: the regional solver prices each "
+                         "origin from the activities of its region in base-year shares")
+    if vintage is not None:
+        raise ValueError("least_cost with vintages is not in this version: an activity that "
+                         "shuts down would leave its installed capital without a use")
+    repeated = sorted({n for n in names if names.count(n) > 1})
+    if repeated:
+        raise ValueError(f"least_cost repeats {repeated}")
+    out = {}
+    for name in names:
+        if name not in coms:
+            raise KeyError(f"least_cost names {name!r}, which is not a commodity: {list(coms)}")
+        i = coms.index(name)
+        makers = np.where(msh[:, i] > 0)[0]
+        if makers.size < 2:
+            raise ValueError(
+                f"least_cost names {name!r}, which only {[acts[j] for j in makers]} makes in "
+                f"the base year: there is no other technology to choose between")
+        for j in makers:
+            other = [coms[k] for k in np.where(msh[j] > 0)[0] if k != i]
+            if other:
+                raise ValueError(
+                    f"activity {acts[j]!r} makes {other} as well as {name!r}. A least-cost "
+                    f"producer makes one commodity, or shutting it down would also stop the "
+                    f"others.")
+        out[i] = makers
+    return out
 
 
 def calibrate(sam: SAM, spec: ModelSpec | None = None, *,
@@ -532,6 +570,7 @@ def calibrate(sam: SAM, spec: ModelSpec | None = None, *,
                              [a for a in (spec.tariff_account,
                                           spec.indirect_tax_account) if a])),
     )
+    econ.least_cost = _least_cost(spec, coms, acts, msh, vintage)
     if spec.regions:
         from .regional import build_regional
         econ.regional = build_regional(econ, sam, migration_pools=factor_pools,

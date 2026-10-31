@@ -5,6 +5,22 @@ before 1.0, a minor version may add to the API and a patch version only fixes.
 
 ## Unreleased
 
+### Added
+
+- `ModelSpec.least_cost`: commodities whose producers are perfect substitutes
+  chosen at least cost, the first complementarity condition. A producer whose
+  unit cost is above the commodity's price produces nothing (unit cost − price ≥
+  0 ⊥ output share ≥ 0); the solver adds the price and the shares to its
+  unknowns and writes the condition with the Fischer–Burmeister function.
+  `PeriodResult.least_cost` reports each producer's share, unit cost and margin.
+  National models only; the regional model, vintages and `to_jump` refuse it.
+- `examples.toy.build_with_technologies()`: industry made by a
+  capital-intensive and a labour-intensive technology that compete at least cost.
+- `validation/least_cost.jl` and `validation/replicate_least_cost.py`: the same
+  model calibrated in Julia and solved as a mixed complementarity problem by
+  PATH (`PATHSolver.jl`, added to the validation environment), compared at the
+  base year and on both sides of each switch; they agree to 3e-14.
+
 ## 0.7.2 — 2026-10-30
 
 Corrections to the regional model found by an independent JuMP rewrite of it, and a faster

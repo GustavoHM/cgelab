@@ -694,6 +694,38 @@ capital idle, and a smooth solver does not switch regimes. Here they are a CES,
 in both bundles, falls as one over it. Vintages are not available yet with an
 energy nest, with foreign-owned capital or FDI, or in several regions.
 
+### Technologies that compete at least cost
+
+```python
+from cgelab.examples import toy
+sam, econ = toy.build_with_technologies()      # ModelSpec(least_cost=["c_ind"])
+tfp = np.ones(econ.n_act)
+tfp[econ.activity("a_alt")] = 1.5
+result = cge.solve_period(econ, scenario=cge.Scenario(productivity=tfp))
+result.least_cost["c_ind"]     # activities, share, unit_cost, price, margin
+```
+
+A commodity made by several activities takes their output in base-year shares
+unless it is in `ModelSpec.least_cost`. Then its producers are perfect
+substitutes: each one's unit cost is at least the commodity's price, and a
+producer whose cost is above it produces nothing (unit cost − price ≥ 0 ⊥
+output share ≥ 0, with the shares adding to one). At the base year every one is
+active at the same cost. With two factors and technologies of different factor
+intensities both can stay active under a moderate shock, as factor prices move
+until both break even and output moves to the one the shock favours; past that
+point the other shuts down, and its `margin` says by how much it would lose
+money at the prices of the period. An idle technology's productivity changes
+nothing else. With a single factor any cost advantage takes the whole market.
+
+The solver adds the commodity's price and each producer's share to its
+unknowns and writes the complementarity with the Fischer–Burmeister function.
+`validation/replicate_least_cost.py` compares it with the same model calibrated
+in Julia and solved as a mixed complementarity problem by PATH, on both sides
+of each switch: they agree to 3e-14. Each producer must make only that
+commodity; the regional model, vintages and `to_jump` refuse `least_cost` for
+now. Capacity limits and a technology with no base-year output are the next
+stages.
+
 ### A baseline calibrated to GDP
 
 A baseline built from assumed rates makes GDP whatever the rates give. The

@@ -190,11 +190,13 @@ Ordered name lists `acts`, `coms`, `hhs`, `factors`; counts `n_act`, `n_com`,
 `government_adjusts` ∈ `{"direct_tax", "product_tax", "spending"}` (spending for a
 saving target only); the common factor on the adjusting rates is
 `PeriodResult.tax_scale`;
-`labour` ∈ `{"full_employment", "fixed_real_wage", "wage_curve", "elastic_supply"}`.
+`labour` ∈ `{"full_employment", "fixed_real_wage", "wage_curve", "elastic_supply", "wage_floor"}`.
 
-`full_employment` is the default and clears every factor market. The other three
+`full_employment` is the default and clears every factor market. The other four
 apply to `labour_factor` (default `f_lab`) and refuse to use that factor as the
-numeraire. `real_wage` pins the real wage (1 is the calibrated wage).
+numeraire. `real_wage` pins the real wage (1 is the calibrated wage) under
+`fixed_real_wage` and is the floor under `wage_floor`: real wage − floor ≥ 0 ⊥
+unemployment ≥ 0, full employment while the floor is slack.
 `wage_curve_elasticity` and `natural_unemployment` are the Blanchflower–Oswald
 curve; the base year sits at the natural rate, because the SAM records
 employment. `labour_supply_elasticity` is ε in `L = L0 * (w/P) ** ε`.
@@ -249,6 +251,8 @@ base-year queue as a share of its supply, one rate or `{factor: rate}`.
 | `capacity_owner` | str | the factor whose owners receive capacity rents, shared like its other income; default `"f_cap"` |
 | `import_quota` | mapping | `{commodity: quota}` in base-year import units: quota − imports ≥ 0 ⊥ premium ≥ 0, the premium ad valorem on the border price beside the tariff (`quocge`'s `chi`). National models only; not on a commodity with an import-supply curve |
 | `quota_rent_to` | str | who holds the licences: `"government"` (default; booked as `quota_rent`) or a factor, whose owners receive the rent as income |
+| `price_ceiling` | mapping | `{commodity: bound}`, real (base-year purchaser price = 1, indexed to the purchaser price index): ceiling − price ≥ 0 ⊥ subsidy ≥ 0, the subsidy ad valorem on the price before product tax, paid by the government. National models only |
+| `price_floor` | mapping | `{commodity: bound}`, same units: price − floor ≥ 0 ⊥ purchases ≥ 0, the government buying the commodity out of its saving. Must lie below a ceiling on the same commodity. National models only |
 
 `sc.with_(**changes)` returns a copy with fields replaced.
 
@@ -275,7 +279,10 @@ Fischer–Burmeister residual per producer and one for the shares adding to one.
 For each activity in `Scenario.capacity`, its rent per unit of output, with one
 Fischer–Burmeister residual for limit − output ≥ 0 ⊥ rent ≥ 0. For each
 commodity in `Scenario.import_quota`, its premium, with one residual for
-quota − imports ≥ 0 ⊥ premium ≥ 0.
+quota − imports ≥ 0 ⊥ premium ≥ 0. For each `Scenario.price_ceiling`, its
+subsidy rate, and for each `price_floor`, the purchases in units of base
+absorption, each with one residual. Under `labour="wage_floor"` the labour
+market's residual is real wage − floor ≥ 0 ⊥ unemployment ≥ 0.
 
 With a regional economy, `investment="fixed_real"` holds investment quantities
 at base-year purchaser prices and solves a per-capita forced-saving levy, which
@@ -299,6 +306,8 @@ is deducted from households. `savings_driven` remains the default.
 | `factor_demand_by_activity`, `factor_prices_by_activity` | `(nf, na)` factor use and the price each activity pays. Under a CET the use does not add up to the endowment off the base year |
 | `labour_markets` | `{group: {...}}` for each group of labour segments: `segments`, `informal` (`None` under `segment_mobility`), `wage`, `real_wage`, `employment`, `supply`, `queue`, `labour_force`, `unemployment`, `unemployment_rate`, `harris_todaro`, `household_workforce`, `household_employment` `(nh, n_seg)`, `household_unemployed`; `None` without segments |
 | `factor_pools` | `{factor: {"pools", "price", "endowment", "supply"}}` for each imperfectly mobile factor, `supply` by pool and activity; `None` when every factor is mobile |
+| `price_bounds` | `{"ceiling": {commodity: {"bound", "price", "subsidy", "cost"}}, "floor": {commodity: {"bound", "price", "purchases", "cost"}}}`, the bound in current prices; `None` without bounds |
+| `stock_quantity` | `(nc,)` government purchases that hold price floors, in absorption units, outside `gov_quantity`; `None` without floors |
 | `quota` | `{commodity: {"quota", "imports", "premium", "rent", "holder"}}` for each `Scenario.import_quota`: the premium ad valorem on the border price, the rent premium × border price × imports; `None` without quotas |
 | `capacity` | `{activity: {"limit", "output", "rent", "unused"}}` for each limit in `Scenario.capacity`, the rent per unit of output in numeraire units, zero while the limit is slack; `None` without limits |
 | `least_cost` | `{commodity: {"activities", "share", "unit_cost", "price", "margin"}}` for each `ModelSpec.least_cost` commodity: each producer's share of its output and unit cost, the commodity's price, and `margin`, unit cost minus price, zero for a producer that produces; `None` without least cost |
@@ -366,6 +375,9 @@ GDP at current market prices: `consumption`, `government`, `investment`,
 (activity tax), `capacity_rent` (the scarcity rent of binding capacity limits),
 `quota_rent` (the premium of binding import quotas, whoever holds the
 licences), `gdp_income`; their `gap`; `factor_income_abroad` and `gni`.
+Taxes on products are net of `price_subsidy`, the subsidy that holds price
+ceilings; `government` includes `price_support`, the purchases that hold price
+floors, also reported on its own.
 For regional models, final demand is valued by destination channel at the
 purchaser prices each destination pays; the national average price is not an
 accounting valuation of those flows. `price_indices`, `in_money` and `real_gdp`

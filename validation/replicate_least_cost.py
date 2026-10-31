@@ -1,4 +1,4 @@
-"""replicate_least_cost.py — menor custo, capacidade e cotas contra um problema de complementaridade no PATH.
+"""replicate_least_cost.py — menor custo, capacidade, cotas e limites de preço contra o PATH.
 
 `least_cost.jl` lê a MCS e o enunciado do modelo, calibra o modelo nacional por conta própria e
 escreve os produtores de menor custo como um problema de complementaridade misto, resolvido
@@ -13,7 +13,8 @@ continuam ativas, em que uma delas para e em que a outra para) e os limites de c
 limite folgado, um que prende o único produtor de um bem, a ordem de mérito (a tecnologia mais
 barata no limite e a mais cara de volta) e um limite que só prende depois de um choque) e as
 cotas de importação: folgada, que prende com a renda ao governo e com a renda aos donos do
-capital.
+capital; e os limites de preço: teto e piso folgados e que prendem, e o piso salarial folgado,
+no ano-base e que prende depois de um choque.
 
     cd validation && julia --project=. -e 'using Pkg; Pkg.instantiate()' && cd ..
     python validation/replicate_least_cost.py
@@ -42,7 +43,7 @@ def _rel(a, b, piso=1.0):
     return float(np.max(np.abs(a - b) / np.maximum(np.abs(b), piso)))
 
 
-def enunciado(sam, econ, scenario) -> dict:
+def enunciado(sam, econ, scenario, closure) -> dict:
     """A MCS e o enunciado do modelo, recusando o que least_cost.jl não escreve."""
     spec = econ.spec
     zero = lambda x: x is None or not np.any(np.asarray(x, float) != 0)  # noqa: E731
@@ -57,6 +58,8 @@ def enunciado(sam, econ, scenario) -> dict:
         "famílias Cobb–Douglas": spec.household_demand == "cobb_douglas",
         "sigma_va único": np.ndim(spec.sigma_va) == 0,
         "sem atividade de conta própria": not econ.own_account.any(),
+        "mercado de trabalho com pleno emprego ou piso salarial":
+            closure.labour in ("full_employment", "wage_floor"),
     }
     ruins = [k for k, ok in fora.items() if not ok]
     if ruins:
@@ -64,6 +67,7 @@ def enunciado(sam, econ, scenario) -> dict:
     tfp = (np.ones(econ.n_act) if scenario.productivity is None
            else np.asarray(scenario.productivity, float))
     world = np.ones(econ.n_com) if scenario.world_price is None else scenario.world_price
+    supply = econ.fac_supply if scenario.factor_supply is None else scenario.factor_supply
     return dict(
         sam=[[r, c, float(v)] for r, c, v in sam.frame.itertuples(index=False)],
         activities=list(econ.acts), commodities=list(econ.coms), factors=list(econ.factors),
@@ -74,10 +78,15 @@ def enunciado(sam, econ, scenario) -> dict:
         numeraire_factor=econ.factors[econ.numeraire_index],
         productivity=dict(zip(econ.acts, map(float, tfp))),
         world_price=dict(zip(econ.coms, map(float, world))),
+        factor_supply=dict(zip(econ.factors, map(float, supply))),
         capacity={a: float(v) for a, v in scenario.capacity.items()},
         capacity_owner=scenario.capacity_owner,
         import_quota={c: float(v) for c, v in scenario.import_quota.items()},
-        quota_rent_to=scenario.quota_rent_to)
+        quota_rent_to=scenario.quota_rent_to,
+        price_ceiling={c: float(v) for c, v in scenario.price_ceiling.items()},
+        price_floor={c: float(v) for c, v in scenario.price_floor.items()},
+        labour=closure.labour, labour_factor=closure.labour_factor,
+        real_wage=1.0 if closure.real_wage is None else float(closure.real_wage))
 
 
 def roda_julia(dados: Path, saida: Path):
@@ -90,12 +99,14 @@ def roda_julia(dados: Path, saida: Path):
     return json.loads(saida.read_text()), linhas
 
 
-def caso(nome, sam, econ, scenario) -> dict:
+def caso(nome, sam, econ, scenario, closure=None) -> dict:
+    closure = closure or cge.Closure()
     OUT.mkdir(exist_ok=True)
     dados = OUT / f"least_cost_{nome}.json"
-    dados.write_text(json.dumps(enunciado(sam, econ, scenario)))
+    dados.write_text(json.dumps(enunciado(sam, econ, scenario, closure)))
     jl, linhas = roda_julia(dados, OUT / f"least_cost_{nome}_out.json")
-    res = cge.solve_period(econ, scenario=scenario)
+    res = cge.solve_period(econ, closure, scenario)
+    bounds = res.price_bounds or {}
     desvios = {
         "w": _rel(jl["w"], res.factor_prices), "er": _rel(jl["er"], res.exchange_rate),
         "X": _rel(jl["X"], res.X), "pd": _rel(jl["pd"], res.pd), "pq": _rel(jl["pq"], res.pq),
@@ -105,6 +116,11 @@ def caso(nome, sam, econ, scenario) -> dict:
                                   for a in econ.acts]),
         "premium": _rel(jl["premium"], [(res.quota or {}).get(c, {}).get("premium", 0.0)
                                         for c in econ.coms]),
+        "subsidy": _rel(jl["subsidy"], [bounds.get("ceiling", {}).get(c, {}).get("subsidy", 0.0)
+                                        for c in econ.coms]),
+        "purchases": _rel(jl["purchases"], [bounds.get("floor", {}).get(c, {}).get("purchases", 0.0)
+                                            for c in econ.coms]),
+        "unemployment": _rel(jl["unemployment"], res.unemployment),
     }
     pior = max(desvios.values())
     campo = max(desvios, key=desvios.get)
@@ -124,7 +140,7 @@ def main() -> int:
         out[alt] = value
         return cge.Scenario(productivity=out, capacity=capacity)
 
-    print("cgelab contra o PATH: menor custo, limites de capacidade e cotas de importação")
+    print("cgelab contra o PATH: menor custo, capacidade, cotas, limites de preço e piso salarial")
     casos = {
         "ano_base": caso("ano_base", sam, econ, cge.Scenario()),
         "as_duas_ativas": caso("as_duas_ativas", sam, econ, tfp(1.2)),
@@ -145,6 +161,31 @@ def main() -> int:
         "cota_ao_capital": caso("cota_ao_capital", sam, econ,
                                 cge.Scenario(import_quota={"c_agr": 13.5},
                                              quota_rent_to="f_cap")),
+    }
+    # Limites de preço, na economia de um produtor por bem.
+    sam1, econ1 = toy.build()
+    caro = cge.Scenario(productivity=np.array([0.8, 1.0]))
+    barato = cge.Scenario(productivity=np.array([1.3, 1.0]))
+    casos |= {
+        "teto_folgado": caso("teto_folgado", sam1, econ1, caro.with_(price_ceiling={"c_agr": 2.0})),
+        "teto_prende": caso("teto_prende", sam1, econ1, caro.with_(price_ceiling={"c_agr": 1.1})),
+        "piso_folgado": caso("piso_folgado", sam1, econ1, barato.with_(price_floor={"c_agr": 0.8})),
+        "piso_prende": caso("piso_prende", sam1, econ1, barato.with_(price_floor={"c_agr": 0.871})),
+        "teto_e_piso": caso("teto_e_piso", sam1, econ1,
+                            caro.with_(price_ceiling={"c_agr": 1.1}, price_floor={"c_ind": 0.9})),
+    }
+    # Piso salarial: o capital é o numerário, para que o mercado de trabalho seja uma equação.
+    sam2, econ2 = toy.build(toy.spec(numeraire_factor="f_cap"))
+    menos_capital = econ2.fac_supply.copy()
+    menos_capital[econ2.factor("f_cap")] *= 0.8
+    choque = cge.Scenario(factor_supply=menos_capital)
+    casos |= {
+        "salario_ano_base": caso("salario_ano_base", sam2, econ2, cge.Scenario(),
+                                 cge.Closure(labour="wage_floor")),
+        "salario_folgado": caso("salario_folgado", sam2, econ2, choque,
+                                cge.Closure(labour="wage_floor", real_wage=0.85)),
+        "salario_prende": caso("salario_prende", sam2, econ2, choque,
+                               cge.Closure(labour="wage_floor", real_wage=0.95)),
     }
     pior = max(r["pior"] for r in casos.values())
     if all(r["ok"] for r in casos.values()):

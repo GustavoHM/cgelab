@@ -93,7 +93,7 @@ O `cgelab` foi validado de cinco formas:
 
 Isso é evidência de que o que ele faz, faz certo. **Não** é evidência de que cubra o que um GAMS
 cobre. O modelo de várias regiões não tem impostos de comércio e ainda não foi comparado com o
-GTAP ou o ORANI-G/TERM, a complementaridade cobre produtores que competem ao menor custo, limites de capacidade e cotas de importação, mas não limites de preço, o pacote não estima elasticidades, as expectativas racionais passam pela ponte
+GTAP ou o ORANI-G/TERM, a complementaridade cobre produtores que competem ao menor custo, limites de capacidade, cotas de importação, limites de preço e piso salarial, mas só no `scipy`, o pacote não estima elasticidades, as expectativas racionais passam pela ponte
 com o `dsgelab`, e não há a maturidade de uma plataforma com trinta anos de uso.
 
 ---
@@ -130,7 +130,7 @@ lista até a 1.0; a versão de cada item é a do [`ROADMAP.md`](../ROADMAP.md).
 | Construção e desagregação de MCS | 📄 IFPRI, PEP | **feito**: construção a partir das tabelas de recursos e usos, com a procedência de cada bloco, e desagregação das famílias e do trabalho por pesquisas domiciliares | 0.6 |
 | Múltiplas regiões | 📄 GTAP, TERM, ORANI-G | ninhos de origem por destino e células bilaterais da MCS, margens e exportações CET, transporte por rota e pool global de serviços, mapas de instituições e fechamentos de governo consolidados, investimento real fixo, migração de fatores, capital regional e painel simulado feitos; impostos de comércio faltam | 0.7 |
 | Dados do GTAP | 📄 GTAPAgg, FlexAgg | leitura e escrita de HAR conferidas contra o harpy3; agregação declarada com pesos explícitos e MCS de uma região feitas e resolvidas em dados sintéticos; comparação independente com GTAPAgg/FlexAgg prevista para a 0.8 | 0.7 |
-| Complementaridade (MCP); resolvedores alternativos | 📄 GAMS/MPSGE com PATH; pycge (Pyomo) | **iniciada**: produtores que competem ao menor custo e param (`least_cost`) limites de capacidade com renda de escassez (`Scenario.capacity`) e cotas de importação com renda (`Scenario.import_quota`, `quocge` reproduzido), contra o PATH; limites de preço e outros resolvedores faltam | 0.8 |
+| Complementaridade (MCP); resolvedores alternativos | 📄 GAMS/MPSGE com PATH; pycge (Pyomo) | **iniciada**: produtores que competem ao menor custo e param (`least_cost`) limites de capacidade com renda de escassez (`Scenario.capacity`) cotas de importação com renda (`Scenario.import_quota`, `quocge` reproduzido), tetos e pisos de preço (`Scenario.price_ceiling`, `price_floor`) e piso salarial, contra o PATH; outros resolvedores faltam | 0.8 |
 | Troca de fechamento genérica; entropia cruzada; EGC intertemporal; concorrência imperfeita; uso da terra; exportar para GAMS e GEMPACK | 📄 GEMPACK, MPSGE, GTAP-AEZ | falta | 0.9 |
 
 

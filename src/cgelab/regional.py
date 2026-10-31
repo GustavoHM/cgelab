@@ -685,6 +685,10 @@ def _refuse_unsupported(econ, closure, scenario, reg: Regional):
         named.append("capacity")
     if scenario.import_quota:
         named.append("import_quota")
+    if scenario.price_ceiling:
+        named.append("price_ceiling")
+    if scenario.price_floor:
+        named.append("price_floor")
     if named or scenario.activity_scale or scenario.fdi:
         extra = list(named)
         if scenario.activity_scale:

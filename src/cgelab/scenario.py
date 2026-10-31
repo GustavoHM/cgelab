@@ -166,6 +166,18 @@ class Scenario:
     #: that factor's other income.
     quota_rent_to: str = "government"
 
+    #: Upper bounds on purchaser prices, ``{commodity: bound}``: ceiling −
+    #: price ≥ 0 ⊥ subsidy ≥ 0. The bound is real, a multiple of the base-year
+    #: purchaser price indexed to the purchaser price index (1 holds the price
+    #: at its base-year level relative to that index). When it binds, the
+    #: government pays an ad valorem subsidy on the price before product tax,
+    #: to firms and households alike, as a fuel price cap does.
+    price_ceiling: Mapping[str, float] = field(default_factory=dict)
+    #: Lower bounds on purchaser prices, in the same units: price − floor ≥ 0
+    #: ⊥ purchases ≥ 0. When it binds, the government buys the commodity at
+    #: that price and stores it, out of its saving.
+    price_floor: Mapping[str, float] = field(default_factory=dict)
+
     def with_(self, **changes) -> "Scenario":
         """Return a copy with fields replaced -- for building a sweep from a base case."""
         import dataclasses

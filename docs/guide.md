@@ -786,6 +786,61 @@ the rent to the government and to capital. National models only, and not on a
 commodity with an import-supply curve; the regional solver and `to_jump` refuse
 it.
 
+### Price ceilings and floors
+
+```python
+scenario = cge.Scenario(price_ceiling={"c_agr": 1.1},   # real, base-year price = 1
+                        price_floor={"c_ind": 0.9})
+result = cge.solve_period(econ, scenario=scenario)
+result.price_bounds["ceiling"]["c_agr"]   # bound, price, subsidy, cost
+result.price_bounds["floor"]["c_ind"]     # bound, price, purchases, cost
+```
+
+Both bounds are on the purchaser price and both are real: a multiple of the
+base-year purchaser price, times the base-weighted purchaser price index that
+also deflates a fixed real wage. The model's numeraire is a factor price, so a
+nominal bound would be fixed in units of the wage or of capital rent.
+
+A ceiling holds by a subsidy: ceiling − price ≥ 0 ⊥ subsidy ≥ 0. The subsidy is
+ad valorem on the price before product tax and comes off the product-tax rate
+for firms and households alike, as a fuel price cap paid by the treasury does.
+A binding ceiling is the same economy as the solved subsidy entered as a
+product-tax cut, which the suite checks. A floor holds by government purchases:
+price − floor ≥ 0 ⊥ purchases ≥ 0. The government buys the commodity at the
+floor and stores it, out of its saving.
+
+`government_account` books the product tax before the subsidy, and the subsidy
+(`price_subsidy`) and the purchases (`price_support`) as outlays.
+`national_accounts` nets the subsidy out of taxes on products and counts the
+purchases in government expenditure, so `price_indices` and `real_gdp` see
+them; `gov_quantity` is without them and `stock_quantity` holds them.
+
+A floor on the purchaser price can be expensive. The price is the Armington
+composite, whose import part is fixed at the border, and with mobile factors
+and constant returns the domestic price moves little with demand. In the toy
+economy, after a 30% productivity gain in agriculture, holding its real price
+0.1% above where the market puts it takes purchases of two thirds of its
+absorption; for industry, whose costs barely respond to demand, 0.1% takes 26
+times its absorption. A floor far above the market price has no equilibrium
+with sensible purchases, and the solver then reports that it did not converge.
+A floor on the producer price, held by buying domestic output, is not in this
+version.
+
+```python
+closure = cge.Closure(labour="wage_floor", real_wage=1.0)   # the calibrated real wage
+```
+
+`labour="wage_floor"` is the downward-rigid wage: real wage − floor ≥ 0 ⊥
+unemployment ≥ 0. While the market wage is above the floor every worker is
+employed, as under `full_employment`; when it binds, employment is what demand
+asks for at the floor, as under `fixed_real_wage`. The unemployed are not paid.
+The base year sits on the kink when the floor is the calibrated wage.
+
+`validation/replicate_least_cost.py` checks all three against PATH: slack and
+binding ceilings and floors, both together, and the wage floor at the base
+year, slack and binding. National models only; the regional solver and
+`to_jump` refuse them.
+
 ### A baseline calibrated to GDP
 
 A baseline built from assumed rates makes GDP whatever the rates give. The

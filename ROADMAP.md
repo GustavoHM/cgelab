@@ -228,7 +228,15 @@ validated before the next one builds on it.
   to a factor's owners (`quota_rent_to`), reported as `quota_rent`. Validated against Hosoe,
   Gasawa and Hashimoto's `quocge` (GAMS library, ch. 10.5), whose bread quota is reproduced in
   all 49 variables to 1.2e-12, and against PATH. Quotas on exports or on output are not in it.
-- [ ] **Then** price floors and ceilings, validated the same way.
+- [x] **Price floors and ceilings**: `Scenario.price_ceiling`, ceiling − price ≥ 0 ⊥ subsidy ≥
+  0, the subsidy off the product tax and paid by the government, and `Scenario.price_floor`,
+  price − floor ≥ 0 ⊥ purchases ≥ 0, the government buying out of its saving; both bounds
+  real, on the purchaser price. `Closure(labour="wage_floor")`, real wage − floor ≥ 0 ⊥
+  unemployment ≥ 0. Validated against PATH in `validation/least_cost.jl` (slack and binding
+  bounds, both together, the wage floor at the base year, slack and binding) and against known
+  solutions: a binding ceiling is the solved subsidy entered as a tax cut, and a wage floor is
+  `full_employment` when slack and `fixed_real_wage` when binding. A floor on the producer
+  price, held by buying domestic output, is not in it.
 - [ ] **Backends**: Pyomo with IPOPT and PATH besides `scipy`, validated against GAMS/MPSGE with
   PATH, only after the cases above are fixed points they must reproduce.
 

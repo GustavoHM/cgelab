@@ -83,6 +83,15 @@ def to_jump(econ: Economy, closure: Closure | None = None, scenario: Scenario | 
             "to_jump does not write import quotas (Scenario.import_quota). A quota with its "
             "premium is a complementarity condition, which the replica's square system "
             "cannot hold.")
+    if sc.price_ceiling or sc.price_floor:
+        raise ValueError(
+            "to_jump does not write price bounds (Scenario.price_ceiling, price_floor). A "
+            "bound with its subsidy or purchases is a complementarity condition, which the "
+            "replica's square system cannot hold.")
+    if closure.labour == "wage_floor":
+        raise ValueError(
+            "to_jump does not write closure.labour='wage_floor'. A wage floor is a "
+            "complementarity condition, which the replica's square system cannot hold.")
     if econ.least_cost:
         raise ValueError(
             "to_jump does not write least-cost producers (ModelSpec.least_cost). Their "

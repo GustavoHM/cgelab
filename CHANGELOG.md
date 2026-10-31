@@ -7,6 +7,23 @@ before 1.0, a minor version may add to the API and a patch version only fixes.
 
 ### Added
 
+- `Scenario.price_ceiling` and `Scenario.price_floor`: bounds on purchaser
+  prices, real (a multiple of the base-year purchaser price, indexed to the
+  purchaser price index). A ceiling holds by a subsidy, ceiling − price ≥ 0 ⊥
+  subsidy ≥ 0, ad valorem on the price before product tax for firms and
+  households; a floor by government purchases, price − floor ≥ 0 ⊥ purchases ≥
+  0. `government_account` books them as `price_subsidy` and `price_support`,
+  outlays that lower government saving, with the product tax booked before the
+  subsidy; `national_accounts` nets the subsidy out of taxes on products and
+  counts purchases in government expenditure. `PeriodResult.price_bounds` and
+  `stock_quantity` report them. National models only; the regional solver and
+  `to_jump` refuse them.
+- `Closure(labour="wage_floor")`: the real wage cannot fall below `real_wage`,
+  real wage − floor ≥ 0 ⊥ unemployment ≥ 0. Slack, it is `full_employment`;
+  binding, it is `fixed_real_wage`, and the suite checks both identities.
+- `validation/least_cost.jl` checks ceilings, floors and the wage floor against
+  PATH: slack and binding bounds, a ceiling and a floor together, and the wage
+  floor at the base year, slack and binding.
 - `Scenario.import_quota` and `Scenario.quota_rent_to`: import quotas with rents,
   quota − imports ≥ 0 ⊥ premium ≥ 0. The premium is ad valorem on the border
   price, beside the tariff, as in Hosoe, Gasawa and Hashimoto's `quocge`; its

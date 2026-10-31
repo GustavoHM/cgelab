@@ -178,7 +178,10 @@ def _components(period) -> dict:
     return {
         "consumption": (np.concatenate([eff.ravel(), period.pa[keep]]),
                         np.concatenate([period.hh_quantity.ravel(), own_q[keep]])),
-        "government": (period.pq, period.gov_quantity),
+        # Purchases that hold a price floor are government expenditure.
+        "government": (period.pq, period.gov_quantity
+                       + (0.0 if getattr(period, "stock_quantity", None) is None
+                          else period.stock_quantity)),
         "investment": (period.pqf, period.investment_quantity),
         "exports": (period.pe, period.exports),
         "imports": (period.exchange_rate * period.world_import_price, period.imports),
@@ -227,7 +230,10 @@ def national_accounts(period: PeriodResult) -> dict:
     products (the product tax, tariff, output tax and both consumer wedges) and
     the activity tax, and the scarcity rent of any binding capacity limit
     (``capacity_rent``) and the premium of any binding import quota (``quota_rent``),
-    whoever holds the licences. The two agree in every equilibrium, not only at the base
+    whoever holds the licences. Taxes on products are net of the subsidy that
+    holds a price ceiling (``price_subsidy``); purchases that hold a price floor
+    are in government expenditure (``price_support``, also reported on its own).
+    The two agree in every equilibrium, not only at the base
     year; ``gap`` reports what separates them, and a gap above rounding is an
     accounting error. ``gni`` deducts factor income paid abroad.
     """
@@ -238,8 +244,9 @@ def national_accounts(period: PeriodResult) -> dict:
     W, Wg = _wedges(period)
     g = period.government
     wedges = float((period.hh_quantity * (W + Wg) * period.pq[None, :]).sum())
+    price_subsidy = float(g.get("price_subsidy", 0.0))
     product_taxes = (g["product_tax"] + g["tariff"] + g["output_tax"] + wedges
-                     + g["carbon_households"])
+                     + g["carbon_households"] - price_subsidy)
     factor_income = float(period.factor_prices @ period.factor_demand)
     production_taxes = g["activity_tax"] + g["carbon_production"]
     # A binding capacity limit's scarcity rent is in the activity's price and is
@@ -256,6 +263,8 @@ def national_accounts(period: PeriodResult) -> dict:
         "factor_income": factor_income,
         "capacity_rent": capacity_rent,
         "quota_rent": quota_rent,
+        "price_subsidy": price_subsidy,
+        "price_support": float(g.get("price_support", 0.0)),
         "taxes_on_products": product_taxes,
         "taxes_on_production": production_taxes,
         "gdp_income": income,
@@ -316,6 +325,6 @@ def government_account(period: PeriodResult) -> pd.Series:
     order = ["product_tax", "activity_tax", "carbon_production", "carbon_households",
              "tariff", "output_tax", "direct_tax",
              "factor_income", "wedge", "quota_rent", "revenue", "transfers", "consumption",
-             "absorbed", "saving"]
-    # The regional solver has no quotas and books no quota rent.
+             "absorbed", "price_subsidy", "price_support", "saving"]
+    # The regional solver has no quotas or price bounds and books neither.
     return pd.Series({k: period.government.get(k, 0.0) for k in order}, name="government")

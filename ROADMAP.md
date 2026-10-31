@@ -135,7 +135,7 @@ bilateral trade with transport margins; reading and aggregating GTAP data. Readi
 `read_har` and `write_har`, exact against harpy3 on GTAP 10A. Declared aggregation with explicit
 parameter weights and a one-region SAM are in, with a hand-balanced synthetic GTAP example and
 optional licensed-data tests. The comparison with GTAPAgg/FlexAgg and ORANI-G/TERM moved to
-0.8. On top of the regional model, the
+0.8, then to 0.9. On top of the regional model, the
 bridge to causal inference (see *General equilibrium and causal inference*):
 
 - [x] **Treated against control** as a result of a regional model (`treated_vs_control`).
@@ -171,15 +171,13 @@ solver work below. No new model features.
 - [x] **Release**: 0.7.2 on PyPI and archived on Zenodo
   ([10.5281/zenodo.23820159](https://doi.org/10.5281/zenodo.23820159)).
 
-**0.8 — regional validation, solvers and complementarity.** In this order; each step is
-validated before the next one builds on it.
+**0.8 — complementarity and solver speed.** Each step validated before the next one builds on
+it. The milestone was planned as regional validation, solvers and complementarity; on
+2026-10-31 it was released as 0.8.0 with what was done, and the comparisons that need licensed
+GTAP data, sparse algebra, the backstop technology and the other backends moved to 0.9.
 
 *Validation owed by 0.7:*
 
-- [ ] **GTAP aggregation against GTAPAgg/FlexAgg**: the same aggregation of the same database,
-  value headers and weighted parameters compared cell by cell.
-- [ ] **Regional equilibria against GTAP or ORANI-G/TERM**: a reference simulation reproduced,
-  with every difference explained by a stated difference in the model.
 - [x] **Coverage**: asymmetric destination prices, transport margins, factor migration and
   regional investment, each in a reproducible case: `validation/replicate_regional.py` against
   `validation/regional.jl`, an independent JuMP rewrite calibrated from the SAM, 12 cases to
@@ -206,8 +204,6 @@ validated before the next one builds on it.
   because the benchmark does not ask for them: derivatives for the national solver (two
   unknowns, under 0.3 s at 647 accounts) and for the regional government closures that spend
   a share of revenue or meet a target with a tax rate, which keep finite differences.
-- [ ] **Sparse algebra**, when a model is large enough to need it: at 819 accounts the dense
-  systems of one equation per destination and good are a small part of a solve.
 
 *New features: complementarity, by stages:*
 
@@ -237,10 +233,22 @@ validated before the next one builds on it.
   solutions: a binding ceiling is the solved subsidy entered as a tax cut, and a wage floor is
   `full_employment` when slack and `fixed_real_wage` when binding. A floor on the producer
   price, held by buying domestic output, is not in it.
-- [ ] **Backends**: Pyomo with IPOPT and PATH besides `scipy`, validated against GAMS/MPSGE with
-  PATH, only after the cases above are fixed points they must reproduce.
+- [ ] **Release**: 0.8.0 on PyPI and archived on Zenodo.
 
-**0.9 — the frontier.** A generic closure swap in the GEMPACK manner (the historical closure of
+**0.9 — what 0.8 left, then the frontier.** First the items moved from 0.8, in this order:
+
+- [ ] **GTAP aggregation against GTAPAgg/FlexAgg**: the same aggregation of the same database,
+  value headers and weighted parameters compared cell by cell. Needs licensed GTAP data.
+- [ ] **Regional equilibria against GTAP or ORANI-G/TERM**: a reference simulation reproduced,
+  with every difference explained by a stated difference in the model. Needs the same data.
+- [ ] **A backstop technology**: an activity with no base-year output, under `least_cost`, whose
+  costs come from outside the SAM.
+- [ ] **Backends**: Pyomo with IPOPT and PATH besides `scipy`, validated against GAMS/MPSGE with
+  PATH, reproducing the complementarity cases of 0.8 as fixed points.
+- [ ] **Sparse algebra**, when a model is large enough to need it: at 819 accounts the dense
+  systems of one equation per destination and good are a small part of a solve.
+
+Then the frontier: a generic closure swap in the GEMPACK manner (the historical closure of
 0.6 is its first case); SAM estimation by cross
 entropy; an intertemporal CGE with expectations, on the dsgelab bridge; imperfect competition
 and Melitz firms; asymmetric Armington; export taxes; capital utilization; AIDS and CDE demand;
@@ -250,8 +258,8 @@ land use allocated by CET; export to GAMS/MPSGE and GEMPACK.
 
 ## Next: gaps an applied model hit
 
-Nothing from 0.2 to 0.7 is open as a feature; what 0.7 still owes is validation, listed under
-0.8.
+Nothing from 0.2 to 0.8 is open as a feature; what 0.7 still owes is validation against GTAP
+and ORANI-G/TERM, listed under 0.9.
 
 Done, and no longer gaps:
 
@@ -489,4 +497,4 @@ input–output matrix and regional accounts. Useful helpers:
   Armington. The features Lofgren and Cicowiez (2017) need (the proximity matrix), Jia and Lin
   (2022) need (the energy nest and a carbon tax) and Mukashov and Thurlow (2026) need (several
   regions with margins and recursive dynamics) are in; their replications are open. A GTAP
-  paper waits on a licence for the database, with the regional validation of 0.8.
+  paper waits on a licence for the database, with the regional validation of 0.9.

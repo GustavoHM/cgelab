@@ -5,6 +5,19 @@ before 1.0, a minor version may add to the API and a patch version only fixes.
 
 ## Unreleased
 
+## 0.8.0 — 2026-10-31
+
+Complementarity, the first mixed complementarity conditions in the package, in four stages:
+producers of a commodity that compete at least cost and shut down, capacity limits with
+scarcity rents, import quotas with rents, and price ceilings, price floors and a wage floor.
+Each is solved inside the existing root finder through the Fischer–Burmeister function and
+validated against the same model written independently in Julia and solved by PATH (21 cases
+to 3.1e-11); the quotas also reproduce Hosoe, Gasawa and Hashimoto's `quocge` in all 49
+variables. National models only; the regional solver and `to_jump` refuse them. Every result
+that does not use them is unchanged: `government_account` and `national_accounts` gain keys
+that are zero without them. The comparisons with GTAPAgg/FlexAgg and GTAP or ORANI-G/TERM, the
+other backends and sparse algebra moved to 0.9.
+
 ### Added
 
 - `Scenario.price_ceiling` and `Scenario.price_floor`: bounds on purchaser

@@ -99,3 +99,61 @@ def test_the_period_equilibrium_is_cgelabs():
                            user_cost=0.10)
     assert res.converged and abs(res.walras) < 1e-10
     assert res.factor_prices[econ.factor("f_cap")] == pytest.approx(1.0, rel=1e-10)
+
+
+def test_several_stocks_are_states_of_their_own():
+    """Two regional stocks bought with one bundle: in the steady state each
+    rental price equals the price of investment."""
+    from cgelab.examples import regions
+    _, econ = regions.build()
+    factors = ["r1:f_cap", "r2:f_cap"]
+    model, params, guess = bridge.ramsey(econ, capital_factor=factors)
+    assert set(guess) == {"k_r1_f_cap", "k_r2_f_cap", "inv_r1_f_cap", "inv_r2_f_cap"}
+    ss = dsg.steady_state(model, guess, params)
+    v = ss.values
+    res = bridge.period_at(econ, cge.Closure(investment="fixed_real"), cge.Scenario(),
+                           [v["k_r1_f_cap"], v["k_r2_f_cap"]],
+                           v["inv_r1_f_cap"] + v["inv_r2_f_cap"],
+                           capital_factor=factors, user_cost=params.user_cost)
+    p_i = res.savings / res.real["inv_real"]
+    rents = res.factor_prices[[econ.factor(f) for f in factors]]
+    np.testing.assert_allclose(rents, p_i, rtol=1e-8)
+
+
+def test_one_stock_in_a_list_is_the_one_stock_model():
+    _, econ = toy.build_one_good()
+    model, params, guess = bridge.ramsey(econ, capital_factor=["f_cap"])
+    ss = dsg.steady_state(model, guess, params)
+    assert ss.values["k_f_cap"] == pytest.approx(400.0, rel=1e-10)
+    assert ss.values["inv_f_cap"] == pytest.approx(20.0, rel=1e-10)
+
+
+def test_a_stock_short_of_its_steady_state_draws_the_investment():
+    _, econ = toy.build_with_specific_capital()
+    model, params, guess = bridge.ramsey(econ, capital_factor=["f_cap", "f_kind"],
+                                         depreciation={"f_cap": 0.05, "f_kind": 0.08})
+    assert params.depreciation == (0.05, 0.08)
+    ss = dsg.steady_state(model, guess, params)
+    path = dsg.perfect_foresight(model, ss, ss, params=params, T=40,
+                                 initial_states=[ss.values["k_f_cap"],
+                                                 0.7 * ss.values["k_f_kind"]])
+    assert path.converged
+    assert np.asarray(path["inv_f_kind"])[0] > ss.values["inv_f_kind"]
+    assert np.asarray(path["inv_f_cap"])[0] < ss.values["inv_f_cap"]
+    with pytest.raises(KeyError, match="f_kind"):
+        bridge.ramsey(econ, capital_factor=["f_cap", "f_kind"], depreciation={"f_cap": 0.05})
+
+
+def test_a_failed_period_says_where_on_the_path():
+    _, econ = toy.build_with_specific_capital()
+    model, params, _ = bridge.ramsey(econ, capital_factor=["f_cap", "f_kind"])
+    dated = bridge.announced(params, [cge.Scenario()] * 3)
+    assert [p.date for p in dated] == [0, 1, 2]
+    with pytest.raises(RuntimeError, match="every start point failed") as info:
+        model.residuals(np.ones(4), np.array([-50.0, 10.0, 1.0, 1.0]), np.zeros(0),
+                        dated[2], None)
+    note = "\n".join(info.value.__notes__)
+    assert "date 2, the current period" in note
+    assert "k_f_cap=-50" in note and "k_f_kind=10" in note
+    assert "'baseline' is the base year" in note
+    assert "negative budget for commodities" in str(info.value)

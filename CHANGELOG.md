@@ -7,6 +7,33 @@ before 1.0, a minor version may add to the API and a patch version only fixes.
 
 ### Added
 
+- `regional_preflight(sam, spec)`: every reason a SAM is outside the regional
+  slice, one row per account (make cells across regions, own-account
+  activities, product-tax rates that differ across origins, missing origins,
+  unsupported features). Calibration now raises all of them at once in a
+  `RegionalSliceError`, a `ValueError` whose `issues` hold the list.
+- `bridge.ramsey(..., capital_factor=[...])`: one capital stock per factor
+  (per region or per sector), each a state `k_<factor>` with its own jump
+  `inv_<factor>`, depreciation and Euler equation, bought with the common
+  investment bundle. `period_at` takes one stock per factor.
+- `investment_bounds(econ, closure, scenario)`: the `investment_level` values a
+  `fixed_real` period solves at, bracketed by bisection, with what the first
+  failing level on each side raised.
+
+### Changed
+
+- When every start point of `solve_period` raises, the error lists what each
+  start raised (the same error once, naming its starts) and chains the last as
+  its cause, instead of only saying that every start failed. A household left
+  with a negative budget for commodities is named with that budget, and under
+  `fixed_real` with the levy it pays and the largest levy it could bear.
+- A period that fails inside `bridge.ramsey`'s residuals carries a note with
+  the date (`RamseyParams.date`, set by `announced`), which of the Euler
+  equation's periods it was, the stocks, investment, TFP and the scenario
+  fields that differ from the base year.
+- Docs: injecting into an activity account versus a commodity account in the
+  multiplier model.
+
 - `solve_period(..., backend="path")`: the same Pyomo system with the
   complementarity conditions written by `pyomo.mpec`, each paired with its
   variable (least-cost producers and backstops, capacity limits, import quotas,

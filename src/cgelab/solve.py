@@ -271,6 +271,30 @@ class PeriodResult:
 # Solver
 # ---------------------------------------------------------------------------
 
+
+def _fmt(values) -> str:
+    return "[" + ", ".join(f"{float(v):.6g}" for v in np.atleast_1d(values)) + "]"
+
+
+def all_starts_failed(failures) -> RuntimeError:
+    """The error for a period whose every start point raised, with each start's own error.
+
+    A start point fails when the residuals refuse a point, the start itself or
+    one the solver steps to (a household left with a negative budget, a negative
+    queue). That refusal is usually the diagnosis, and a message that drops it
+    leaves the caller to rerun the period by hand to find it.
+    """
+    seen: dict = {}                     # one line per distinct error, naming its starts
+    for label, exc in failures:
+        seen.setdefault(f"{type(exc).__name__}: {exc}", []).append(label)
+    lines = "\n".join(f"  {', '.join(labels)}: {text}" for text, labels in seen.items())
+    err = RuntimeError("solve_period: every start point failed, at the start or at a "
+                       f"point the solver tried from it. What they raised:\n{lines}")
+    if failures:
+        err.__cause__ = failures[-1][1]
+    return err
+
+
 def solve_period(econ: Economy, closure: Closure | None = None,
                  scenario: Scenario | None = None, *, warm_start=None,
                  raise_on_fail: bool = True, backend: str = "scipy") -> PeriodResult:
@@ -903,11 +927,32 @@ def solve_period(econ: Economy, closure: Closure | None = None,
             spend = hh_income * net
             hh_com_spend = spend - direct
             if np.any(hh_com_spend < -1e-9):
-                bad = [econ.hhs[i] for i in np.where(hh_com_spend < -1e-9)[0]]
-                raise ValueError(
-                    f"household(s) {bad} spend more on direct purchases from activities than "
-                    f"their whole budget. Clipping this to zero would destroy income and break "
-                    f"Walras' law silently.")
+                short = np.where(hh_com_spend < -1e-9)[0]
+                bad = [econ.hhs[i] for i in short]
+                msg = (f"household(s) {bad} have a negative budget for commodities once "
+                       f"their direct purchases from activities are paid: "
+                       f"{_fmt(hh_com_spend[short])}. Clipping this to zero would destroy "
+                       f"income and break Walras' law silently.")
+                if levy > 0:
+                    # Spending falls by pop_share * net per unit of levy (the wedge's
+                    # feedback aside), so this is the levy at which it reaches zero.
+                    rate = econ.pop_share[short] * net[short]
+                    with np.errstate(divide="ignore"):
+                        bearable = np.where(rate > 0, levy + hh_com_spend[short] / rate, -np.inf)
+                    level = (float(econ.inv_dem.sum()) if sc.investment_level is None
+                             else float(sc.investment_level))
+                    msg += (f" Under investment='fixed_real' households pay a per-capita "
+                            f"levy for the part of investment_level={level:.6g} that "
+                            f"voluntary saving does not finance. The levy at this point is "
+                            f"{levy:.6g}, they pay {_fmt(levy * econ.pop_share[short])} of "
+                            f"it, and at these prices the largest levy each can bear is "
+                            f"{_fmt(bearable)}. cgelab.investment_bounds brackets the "
+                            f"levels that solve.")
+                else:
+                    msg += (f" Their income at this point is {_fmt(base_income[short])}: a "
+                            f"factor endowment near zero, or a shock that leaves them too "
+                            f"little income for the purchases fixed in the SAM.")
+                raise ValueError(msg)
 
             # --- demand
             if econ.spec.household_demand == "les":
@@ -1374,6 +1419,7 @@ def solve_period(econ: Economy, closure: Closure | None = None,
         attempts.append(("lm", np.zeros(n_unknown), "lm"))
 
     best = None
+    failures = []
     for label, start, method in attempts:
         try:
             # A start that already solves the system (the base year, or a warm
@@ -1392,7 +1438,8 @@ def solve_period(econ: Economy, closure: Closure | None = None,
             sol = root(residuals, start, method=method,
                        options={"xtol": 1e-14} if method == "hybr"
                        else {"xtol": 1e-14, "ftol": 1e-14})
-        except ValueError:
+        except ValueError as exc:
+            failures.append((label, exc))
             continue
         res = float(np.max(np.abs(residuals(sol.x))))
         if best is None or res < best[0]:
@@ -1400,7 +1447,7 @@ def solve_period(econ: Economy, closure: Closure | None = None,
         if res < closure.tolerance:
             break
     if best is None:
-        raise RuntimeError("solve_period: every start point failed before a residual was formed")
+        raise all_starts_failed(failures)
 
     res, x, label, message = best
     residuals(x)

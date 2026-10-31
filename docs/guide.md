@@ -2097,7 +2097,7 @@ assumed. The NPISH join households, or government with `npish=`. The published
 2021 table at 68 activities closes exactly and gives the GDP the IBGE publishes
 for that year.
 
-## 21. Another solver: Pyomo and IPOPT
+## 21. Other solvers: Pyomo with IPOPT or PATH
 
 ```python
 result = cge.solve_period(econ, closure, scenario, backend="ipopt")
@@ -2133,8 +2133,44 @@ these models the backend is a cross-check, not a faster solver.
 
 It covers what `to_jump` covers and refuses the rest by name: the regional
 model and the complementarity conditions (least cost, capacity, quotas, price
-bounds, the wage floor, backstops), which a PATH backend is to solve.
+bounds, the wage floor, backstops), which the PATH backend solves.
 `pip install "cgelab[pyomo]"` installs Pyomo and `amplpy`; IPOPT itself is a
 program, found on `PATH` or installed among `amplpy`'s modules with
 `python -m amplpy.modules install ipopt`.
+
+```python
+result = cge.solve_period(econ, closure, scenario, backend="path")
+result.attempt, result.message          # "path", "PATH: optimal from the base start"
+```
+
+`backend="path"` writes the same system and adds each complementarity
+condition the nested solver writes with the Fischer–Burmeister function, now
+as a condition paired with the variable it holds at zero, through
+`pyomo.mpec`:
+
+| Condition | ⟂ | Variable |
+|---|---|---|
+| unit cost − price ≥ 0, for each least-cost producer or backstop | ⟂ | its share of the commodity's output ≥ 0 |
+| limit − output ≥ 0 | ⟂ | scarcity rent per unit ≥ 0 |
+| quota − imports ≥ 0 | ⟂ | premium on the border price ≥ 0 |
+| real ceiling − purchaser price ≥ 0 | ⟂ | subsidy off the product tax ≥ 0 |
+| purchaser price − real floor ≥ 0 | ⟂ | government purchases ≥ 0 |
+| real wage − wage floor ≥ 0 | ⟂ | unemployment ≥ 0 |
+
+A least-cost commodity's price is then its own variable, paired with the
+shares adding up to one. PATH solves the whole mixed complementarity problem at
+once, with nothing nested and nothing smoothed, and cgelab judges the point by
+its own residual as it does IPOPT's. `validation/replicate_path.py` runs the 26
+cases that `validation/least_cost.jl` checks against an independent JuMP
+formulation: through the backend and through `scipy` they agree to 2.4e-10. The
+50 round-trip cases, with no complementarity, agree to 1.1e-13 and all solve
+from the base year (`validation/replicate_pyomo.py --backend path`), the
+Leontief-vintage shock that defeats IPOPT included.
+
+PATH is a program too: `python -m amplpy.modules install path`, or a
+`pathampl` on `PATH`. `amplpy`'s module for macOS is an x86-64 binary, which
+runs on Apple silicon under Rosetta. Without a licence string PATH stops above
+300 variables; its authors publish a free string at
+<https://pages.cs.wisc.edu/~ferris/path/LICENSE>, which the backend reads from
+the environment variable `PATH_LICENSE_STRING`.
 

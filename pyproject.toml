@@ -46,7 +46,7 @@ plot = ["matplotlib>=3.7"]
 # The IBGE publishes its supply and use tables as .xls; read_tru reads them through pandas.
 ibge = ["xlrd>=2"]
 test = ["pytest>=7"]
-# The simultaneous backend; IPOPT itself: python -m amplpy.modules install ipopt
+# The simultaneous backends; the solvers themselves: python -m amplpy.modules install ipopt path
 pyomo = ["pyomo>=6.7", "amplpy>=0.14"]
 
 [project.scripts]

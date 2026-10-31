@@ -157,6 +157,7 @@ period.
 | Base-year reproduction, homogeneity, Walras | `cgelab.diagnostics` |
 | The same equilibrium as a JuMP model, for independent validation | `to_jump` |
 | The same equilibrium solved simultaneously by IPOPT through Pyomo | `solve_period(..., backend="ipopt")` |
+| The same equilibrium with its complementarity conditions, solved by PATH through Pyomo | `solve_period(..., backend="path")` |
 
 ## Documentation
 
@@ -190,7 +191,10 @@ compute itself:
   in which nothing is nested. `validation/roundtrip_jump.py` runs 50 cases; the
   nested solver and Ipopt agree to 1.2e-11. The same equations in Pyomo,
   `solve_period(..., backend="ipopt")`, agree with the nested solver on the same
-  50 cases to 1.1e-13 (`validation/replicate_pyomo.py`).
+  50 cases to 1.1e-13 (`validation/replicate_pyomo.py`), and with the
+  complementarity conditions added and PATH as the solver,
+  `backend="path"`, on the 26 complementarity cases to 2.4e-10
+  (`validation/replicate_path.py`).
 - **The regional model, rewritten**: `validation/regional.jl` calibrates the
   multi-region model in Julia from the SAM and solves it in JuMP.
   `validation/replicate_regional.py` runs 12 cases (asymmetric imports, transport

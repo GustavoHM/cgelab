@@ -39,7 +39,7 @@ from .segments import period_groups
 from .scenario import Scenario, investment_shares
 from .solve import _marginal_budget_shares, _recycle_shares, _trade_curves
 
-__all__ = ["to_jump", "JUMP_TEMPLATE"]
+__all__ = ["to_jump", "replica_data", "JUMP_TEMPLATE"]
 
 
 def _l(a):
@@ -71,35 +71,50 @@ def to_jump(econ: Economy, closure: Closure | None = None, scenario: Scenario | 
     Julia a aplicá-la só aos preços, que é exatamente o erro que faz o resíduo de Walras crescer ao
     longo de uma trajetória.
     """
+    dados = replica_data(econ, closure, scenario)
+    path = Path(path)
+    data_path = Path(data_path) if data_path is not None else path.with_name(
+        path.stem + "_data.json")
+    path.write_text(JUMP_TEMPLATE, encoding="utf-8")
+    data_path.write_text(json.dumps(dados), encoding="utf-8")
+    return dados
+
+
+def replica_data(econ: Economy, closure: Closure | None = None,
+                 scenario: Scenario | None = None, *, who: str = "to_jump") -> dict:
+    """Os dados da réplica simultânea: o que ``to_jump`` escreve no JSON e o backend Pyomo lê.
+
+    ``who`` nomeia quem recusa o que a réplica não escreve, nas mensagens de erro.
+    """
     closure = closure or Closure()
     sc = scenario or Scenario()
     if sc.capacity:
         raise ValueError(
-            "to_jump does not write capacity limits (Scenario.capacity). A limit with "
+            f"{who} does not write capacity limits (Scenario.capacity). A limit with "
             "its rent is a complementarity condition, which the replica's square system "
             "cannot hold.")
     if sc.import_quota:
         raise ValueError(
-            "to_jump does not write import quotas (Scenario.import_quota). A quota with its "
+            f"{who} does not write import quotas (Scenario.import_quota). A quota with its "
             "premium is a complementarity condition, which the replica's square system "
             "cannot hold.")
     if sc.price_ceiling or sc.price_floor:
         raise ValueError(
-            "to_jump does not write price bounds (Scenario.price_ceiling, price_floor). A "
+            f"{who} does not write price bounds (Scenario.price_ceiling, price_floor). A "
             "bound with its subsidy or purchases is a complementarity condition, which the "
             "replica's square system cannot hold.")
     if closure.labour == "wage_floor":
         raise ValueError(
-            "to_jump does not write closure.labour='wage_floor'. A wage floor is a "
+            f"{who} does not write closure.labour='wage_floor'. A wage floor is a "
             "complementarity condition, which the replica's square system cannot hold.")
     if econ.least_cost:
         raise ValueError(
-            "to_jump does not write least-cost producers (ModelSpec.least_cost). Their "
+            f"{who} does not write least-cost producers (ModelSpec.least_cost). Their "
             "complementarity conditions need a complementarity solver; exporting fixed "
             "market shares instead would describe another model.")
     if econ.regional is not None and len(econ.regional.regions) > 1:
         raise ValueError(
-            "to_jump does not write the interregional nest. Exporting the "
+            f"{who} does not write the interregional nest. Exporting the "
             "regional accounts as ordinary commodities would drop the origin "
             "CES and the replica would be a different model.")
     nf, nc, nh, na = econ.n_fac, econ.n_com, econ.n_hh, econ.n_act
@@ -350,12 +365,6 @@ def to_jump(econ: Economy, closure: Closure | None = None, scenario: Scenario | 
                        clearing=[int(i) + 1 for i in g.clearing])
                   for g in grupos],
     )
-
-    path = Path(path)
-    data_path = Path(data_path) if data_path is not None else path.with_name(
-        path.stem + "_data.json")
-    path.write_text(JUMP_TEMPLATE, encoding="utf-8")
-    data_path.write_text(json.dumps(dados), encoding="utf-8")
     return dados
 
 

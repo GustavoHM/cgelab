@@ -233,7 +233,8 @@ GTAP data, sparse algebra, the backstop technology and the other backends moved 
   solutions: a binding ceiling is the solved subsidy entered as a tax cut, and a wage floor is
   `full_employment` when slack and `fixed_real_wage` when binding. A floor on the producer
   price, held by buying domestic output, is not in it.
-- [ ] **Release**: 0.8.0 on PyPI and archived on Zenodo.
+- [x] **Release**: 0.8.0 on PyPI and archived on Zenodo
+  ([10.5281/zenodo.23835069](https://doi.org/10.5281/zenodo.23835069)).
 
 **0.9 — what 0.8 left, then the frontier.** First the items moved from 0.8, in this order:
 

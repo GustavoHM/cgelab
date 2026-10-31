@@ -249,8 +249,16 @@ GTAP data, sparse algebra, the backstop technology and the other backends moved 
   the markup, to machine precision) and against PATH in `validation/least_cost.jl`: idle at the
   base year, taking the market, sharing it, entering at the incumbent's capacity limit, beside
   two competing technologies, to 6e-14.
-- [ ] **Backends**: Pyomo with IPOPT and PATH besides `scipy`, validated against GAMS/MPSGE with
-  PATH, reproducing the complementarity cases of 0.8 as fixed points.
+- [ ] **Backends**: Pyomo with IPOPT and PATH besides `scipy`, validated against the independent
+  JuMP replicas (no GAMS licence is at hand; a comparison with GAMS/MPSGE stays open for whoever
+  has one).
+  - [x] IPOPT: `solve_period(..., backend="ipopt")`, the equations of `to_jump`'s replica in
+    Pyomo, accepted only where cgelab's own residual holds; the 50 round-trip cases agree with
+    the nested solver to 1.1e-13 (`validation/replicate_pyomo.py`).
+  - [ ] PATH: the complementarity conditions of 0.8 and the backstop through `pyomo.mpec`,
+    reproducing the 26 cases of `validation/least_cost.jl`. `amplpy`'s PATH module ships an
+    x86-64 binary for macOS, which needs Rosetta on Apple silicon; PATH beyond 300 variables
+    needs its authors' free licence string.
 - [ ] **Sparse algebra**, when a model is large enough to need it: at 819 accounts the dense
   systems of one equation per destination and good are a small part of a solve.
 

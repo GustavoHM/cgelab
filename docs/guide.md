@@ -2096,3 +2096,45 @@ proportion to what each provides: an allocation the provenance records as
 assumed. The NPISH join households, or government with `npish=`. The published
 2021 table at 68 activities closes exactly and gives the GDP the IBGE publishes
 for that year.
+
+## 21. Another solver: Pyomo and IPOPT
+
+```python
+result = cge.solve_period(econ, closure, scenario, backend="ipopt")
+result.attempt, result.message          # "ipopt", "IPOPT: optimal from the base start"
+```
+
+`solve_period` solves by nesting: a Newton step on a few outer unknowns, and
+inside it the delivered-price fixed point, two sums in closed form and a
+Leontief inversion. `backend="ipopt"` writes the same period as one
+simultaneous system in Pyomo instead, every block a constraint, the equations
+of the JuMP replica `to_jump` writes, read from the same data
+(`cgelab.export.replica_data`), and IPOPT solves it. cgelab then maps the
+solution onto its own unknowns and evaluates its own residual there: the
+result is a complete `PeriodResult` only if that residual is below
+`Closure.tolerance`, and an error otherwise. Every backend solve is therefore
+also a check of cgelab's equations by a solver that shares none of its
+nesting.
+
+IPOPT starts at the base year; if it does not certify a point there, it starts
+again from the displaced start of the JuMP replica (non-numeraire factor
+prices at 0.85 and the exchange rate at 1.15 of the numeraire's). Some
+systems remain hard from a cold start: with putty-clay vintages whose old
+bundle is Leontief, a productivity shock alone defeats IPOPT from both starts,
+in Pyomo and in the JuMP replica alike, while the nested solver, with three
+unknowns, solves it.
+
+`validation/replicate_pyomo.py` runs the 50 cases of the JuMP round trip
+through the backend and through `scipy`: they agree to 1.1e-13, and cgelab's
+residual at IPOPT's points is below 3e-14. On the synthetic SAMs of
+`tools/benchmark_solver.py` a national model of 647 accounts solves in 2.4 s
+through IPOPT against 0.09 s nested, most of it building the Pyomo model: for
+these models the backend is a cross-check, not a faster solver.
+
+It covers what `to_jump` covers and refuses the rest by name: the regional
+model and the complementarity conditions (least cost, capacity, quotas, price
+bounds, the wage floor, backstops), which a PATH backend is to solve.
+`pip install "cgelab[pyomo]"` installs Pyomo and `amplpy`; IPOPT itself is a
+program, found on `PATH` or installed among `amplpy`'s modules with
+`python -m amplpy.modules install ipopt`.
+

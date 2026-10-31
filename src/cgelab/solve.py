@@ -273,7 +273,7 @@ class PeriodResult:
 
 def solve_period(econ: Economy, closure: Closure | None = None,
                  scenario: Scenario | None = None, *, warm_start=None,
-                 raise_on_fail: bool = True) -> PeriodResult:
+                 raise_on_fail: bool = True, backend: str = "scipy") -> PeriodResult:
     """Solve one period's general equilibrium.
 
     Unknowns
@@ -287,9 +287,21 @@ def solve_period(econ: Economy, closure: Closure | None = None,
     therefore carries its own adjusting variable; a closure that pins a magnitude
     without freeing one somewhere else does not close the model, and the symptom
     is a Walras residual rather than a solver failure.
+
+    ``backend="ipopt"`` solves the period as one simultaneous system in Pyomo
+    (:mod:`cgelab.backends`) instead, maps the solution onto these unknowns and
+    accepts it only if this residual holds there; ``warm_start`` is then not read.
     """
     closure = closure or Closure()
     sc = scenario or Scenario()
+    if backend != "scipy":
+        from .backends import BACKENDS
+        if backend not in BACKENDS:
+            raise ValueError(f"backend must be 'scipy' or one of {BACKENDS}, got {backend!r}")
+        if econ.regional is not None:
+            raise ValueError(
+                f"backend={backend!r} does not write the interregional nest: the simultaneous "
+                f"system is the national one. Solve regional models with backend='scipy'.")
     if econ.regional is not None:
         from .regional import solve_regions
         return solve_regions(econ, closure, sc, warm_start=warm_start,
@@ -1304,22 +1316,50 @@ def solve_period(econ: Economy, closure: Closure | None = None,
     # solution, and it terminates early from a warm start that sits exactly on
     # the previous period's answer.
     attempts = []
-    if warm_start is not None:
+    if backend != "scipy":
+        # The simultaneous solution, mapped onto the outer unknowns. It is
+        # accepted only if this residual holds there: no root finder runs.
+        from .backends import solve_replica
+        sol = solve_replica(econ, closure, sc, backend)
+        z0 = np.zeros(n_unknown)
+        for k, i in enumerate(others):
+            z0[k] = np.log(sol["w"][i] / nu)
+        if closure.solves_exchange_rate:
+            z0[i_ext] = np.log(sol["er"])
+        else:
+            z0[i_ext] = (sol["fsav"] - trade_target) / ext_scale
+        if closure.investment == "fixed_real":
+            z0[i_inv] = sol["levy"] / sav_scale
+        z0[i_curve:i_curve + curve_x.size] = np.log(sol["pwe"][curve_x] / world_pe[curve_x])
+        z0[i_curve + curve_x.size:i_curve + curve_x.size + curve_m.size] = np.log(
+            sol["pwm"][curve_m] / world_p[curve_m])
+        if tax_lever:
+            z0[i_gov] = np.log(sol["tscale"])
+        for i, m in mob.items():
+            z0[i_mob[i]] = np.log(np.array([sol["w_act"][(i, j)]
+                                            for j in np.where(m.users)[0]]) / nu)
+        for k in i_ht:
+            z0[i_ht[k]] = (sol["unemployment"][k] - groups[k].U0) / groups[k].rigid_base
+        attempts.append((backend, z0, None))
+        backend_status = sol["status"]
+    elif warm_start is not None:
         z0 = warm_start.z if isinstance(warm_start, PeriodResult) else np.asarray(warm_start)
         z0 = np.asarray(z0, dtype=float)
         if z0.size == n_unknown:
             attempts.append(("warm", z0, "hybr"))
-    attempts += [("cold", np.zeros(n_unknown), "hybr"),
-                 ("perturbed", np.full(n_unknown, 1e-4), "hybr")]
+    if backend == "scipy":
+        attempts += [("cold", np.zeros(n_unknown), "hybr"),
+                     ("perturbed", np.full(n_unknown, 1e-4), "hybr")]
     # A binding quota's premium can be far from zero even for a small cut: the
     # rent it pays and the exchange rate it moves can raise demand for the very
     # import it limits, so imports first rise with the premium. Newton from a
     # zero premium then heads the wrong way; starts at larger premia do not.
-    for level in ((0.3, 1.0, 3.0, 10.0) if quota_idx.size else ()):
+    for level in ((0.3, 1.0, 3.0, 10.0) if quota_idx.size and backend == "scipy" else ()):
         start = np.zeros(n_unknown)
         start[i_quota:i_quota + quota_idx.size] = level
         attempts.append((f"quota premium {level:g}", start, "hybr"))
-    attempts.append(("lm", np.zeros(n_unknown), "lm"))
+    if backend == "scipy":
+        attempts.append(("lm", np.zeros(n_unknown), "lm"))
 
     best = None
     for label, start, method in attempts:
@@ -1328,6 +1368,10 @@ def solve_period(econ: Economy, closure: Closure | None = None,
             # start on an unchanged period) is the answer; hybr would spend a
             # Jacobian per unknown on it.
             first = np.asarray(residuals(start), dtype=float)
+            if method is None:          # a backend's point: judged, never moved
+                best = (float(np.max(np.abs(first))) if first.size else 0.0,
+                        np.asarray(start, dtype=float), label, f"IPOPT: {backend_status}")
+                break
             if first.size == 0 or float(np.max(np.abs(first))) < min(closure.tolerance, _AT_START):
                 best = (float(np.max(np.abs(first))) if first.size else 0.0,
                         np.asarray(start, dtype=float), label, "the start point solves the system")

@@ -7,6 +7,19 @@ before 1.0, a minor version may add to the API and a patch version only fixes.
 
 ### Added
 
+- `solve_period(..., backend="ipopt")` and `cgelab.backends`: the period as one
+  simultaneous system in Pyomo, the equations of `to_jump`'s JuMP replica,
+  solved by IPOPT. The solution is mapped onto cgelab's unknowns and accepted
+  only if cgelab's own residual holds there; IPOPT starts at the base year and,
+  if it does not certify a point, from the JuMP replica's displaced start.
+  National models in `to_jump`'s scope; regional models and complementarity
+  conditions are refused. `validation/replicate_pyomo.py` runs the 50
+  round-trip cases through it: they agree with the nested solver to 1.1e-13.
+  New extra `cgelab[pyomo]` (Pyomo and `amplpy`, whose modules can install
+  IPOPT).
+- `cgelab.export.replica_data`: the data of the simultaneous replica, which
+  `to_jump` writes to JSON and the Pyomo backend reads.
+
 - `Backstop` and `calibrate(..., backstops=)`: technologies with no base-year
   output, whose costs come from outside the SAM. Each joins the activities with
   zero base output and competes at least cost with the producers of its

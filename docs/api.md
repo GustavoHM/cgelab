@@ -278,7 +278,16 @@ restricted to a subset of household accounts.
 
 ## Solving
 
-### `solve_period(econ, closure=None, scenario=None, *, warm_start=None, raise_on_fail=True) -> PeriodResult`
+### `solve_period(econ, closure=None, scenario=None, *, warm_start=None, raise_on_fail=True, backend="scipy") -> PeriodResult`
+
+`backend="ipopt"` solves the period as one simultaneous Pyomo system, the
+equations of `to_jump`'s JuMP replica (`cgelab.backends`, data from
+`cgelab.export.replica_data`), maps IPOPT's solution onto the unknowns below and
+accepts it only if cgelab's residual there is below `Closure.tolerance`;
+`attempt` is then `"ipopt"` and `message` IPOPT's status and start. National
+models in `to_jump`'s scope only; regional models and complementarity
+conditions are refused. Needs `pip install "cgelab[pyomo]"` and an `ipopt`
+executable on `PATH` or among `amplpy`'s modules.
 
 Unknowns: one price per non-numeraire factor, one for the external closure (the
 exchange rate under `foreign="fixed_saving"`, foreign saving under

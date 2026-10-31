@@ -9,8 +9,16 @@ where all of them hold. ``solve_period(..., backend="ipopt")`` then maps that
 point onto its own unknowns and evaluates its own residual there, so a
 solution is accepted only if cgelab's equations hold at it as well.
 
-The solver programs are not Python packages. IPOPT is found on ``PATH`` or in
-the modules of ``amplpy`` (``python -m amplpy.modules install ipopt``).
+With ``backend="path"`` the same system also carries the complementarity
+conditions solve_period writes with the Fischer–Burmeister function: least-cost
+producers, capacity limits, import quotas, price bounds and the wage floor. Each
+is written with ``pyomo.mpec`` as a condition paired with the variable it holds
+at zero, and PATH solves the mixed complementarity problem as a whole.
+
+The solver programs are not Python packages. IPOPT and PATH are found on
+``PATH`` or in the modules of ``amplpy`` (``python -m amplpy.modules install
+ipopt path``). Without a licence string PATH stops above 300 variables; it
+reads the free one from the environment variable ``PATH_LICENSE_STRING``.
 """
 
 from __future__ import annotations
@@ -23,32 +31,37 @@ import numpy as np
 __all__ = ["solve_replica", "BACKENDS"]
 
 #: Backends ``solve_period`` accepts besides its own ``"scipy"``.
-BACKENDS = ("ipopt",)
+BACKENDS = ("ipopt", "path")
+
+#: The program each backend runs: amplpy's PATH module installs ``path``, other
+#: distributions ``pathampl``.
+_PROGRAMS = {"ipopt": ("ipopt",), "path": ("pathampl", "path")}
 
 
-def _pyomo():
+def _pyomo(backend="ipopt"):
     try:
         import pyomo.environ as pe
     except ImportError as err:  # pragma: no cover - depends on the environment
-        raise ImportError("backend='ipopt' needs Pyomo: pip install 'cgelab[pyomo]'") from err
+        raise ImportError(f"backend={backend!r} needs Pyomo: pip install 'cgelab[pyomo]'") from err
     return pe
 
 
 def solver_executable(name: str) -> str:
-    """Path of a solver program: on ``PATH``, or among the modules of ``amplpy``."""
-    found = shutil.which(name)
-    if found:
-        return found
+    """Path of a solver's program: on ``PATH``, or among the modules of ``amplpy``."""
     try:
         from amplpy import modules
-        found = shutil.which(name, path=modules.path())
+        module_path = modules.path()
     except Exception:  # amplpy absent, or no modules installed
-        found = None
-    if not found:
-        raise RuntimeError(
-            f"no {name!r} executable on PATH or among amplpy's modules. Install it, for "
-            f"instance with: pip install amplpy && python -m amplpy.modules install {name}")
-    return found
+        module_path = None
+    for program in _PROGRAMS.get(name, (name,)):
+        found = shutil.which(program) if program != "path" else None
+        if not found and module_path:
+            found = shutil.which(program, path=module_path)
+        if found:
+            return found
+    raise RuntimeError(
+        f"no {name!r} executable on PATH or among amplpy's modules. Install it, for "
+        f"instance with: pip install amplpy && python -m amplpy.modules install {name}")
 
 
 def solve_replica(econ, closure, scenario, backend: str = "ipopt") -> dict:
@@ -56,27 +69,43 @@ def solve_replica(econ, closure, scenario, backend: str = "ipopt") -> dict:
     if backend not in BACKENDS:
         raise ValueError(f"backend must be 'scipy' or one of {BACKENDS}, got {backend!r}")
     from .export import replica_data
-    d = replica_data(econ, closure, scenario, who=f"backend={backend!r}")
-    pe = _pyomo()
-    opt = pe.SolverFactory("ipopt", executable=solver_executable("ipopt"))
-    # The flag is not the verdict: with a constant objective the problem is pure
-    # feasibility. cgelab's own residual at the point decides.
-    opt.options.update({"tol": 1e-12, "constr_viol_tol": 1e-12, "acceptable_tol": 1e-10,
-                        "max_iter": 3000, "nlp_scaling_method": "gradient-based",
-                        "nlp_scaling_max_gradient": 100.0, "print_level": 0})
-    # From the base year first; if IPOPT does not certify a point there, from the
-    # displaced start of the JuMP replica, as the scipy solver tries a second start.
+    mcp = backend == "path"
+    d = replica_data(econ, closure, scenario, who=f"backend={backend!r}", complementarity=mcp)
+    pe = _pyomo(backend)
+    if mcp:
+        opt = pe.SolverFactory("path", executable=solver_executable("path"))
+        # The AMPL driver's names for PATH's convergence tolerance and limits.
+        opt.options.update({"convtol": 1e-12, "majiterlim": 500, "cumuliterlim": 100000,
+                            "outlev": 0})
+        if os.environ.get("PATH_LICENSE_STRING"):
+            opt.options["license"] = os.environ["PATH_LICENSE_STRING"]
+    else:
+        opt = pe.SolverFactory("ipopt", executable=solver_executable("ipopt"))
+        # The flag is not the verdict: with a constant objective the problem is pure
+        # feasibility. cgelab's own residual at the point decides.
+        opt.options.update({"tol": 1e-12, "constr_viol_tol": 1e-12, "acceptable_tol": 1e-10,
+                            "max_iter": 3000, "nlp_scaling_method": "gradient-based",
+                            "nlp_scaling_max_gradient": 100.0, "print_level": 0})
+    name = "PATH" if mcp else "IPOPT"
+    # From the base year first; if the solver does not certify a point there, from
+    # the displaced start of the JuMP replica, as the scipy solver tries a second start.
     for start in ("base", "displaced"):
         m, h = build_model(d, start=start)
-        results = opt.solve(m, tee=False, load_solutions=False)
+        try:
+            results = opt.solve(m, tee=False, load_solutions=False)
+        except Exception as err:  # the program failed before writing a solution
+            status, results = f"error: {err}", None
+            continue
         status = str(results.solver.termination_condition)
         if status in ("optimal", "locallyOptimal"):
             break
-    if len(results.solution) == 0:
-        raise RuntimeError(f"backend={backend!r}: IPOPT returned no point ({status})")
+    if results is None or len(results.solution) == 0:
+        hint = (" Above 300 variables PATH needs a licence string in PATH_LICENSE_STRING: "
+                "https://pages.cs.wisc.edu/~ferris/path/LICENSE" if mcp else "")
+        raise RuntimeError(f"backend={backend!r}: {name} returned no point ({status}).{hint}")
     m.solutions.load_from(results)
     v = pe.value
-    return dict(
+    out = dict(
         status=f"{status} from the {start} start",
         w=np.array([v(h["w"][f]) for f in range(d["nf"])]),
         w_act={k: v(x) for k, x in h["wm"].items()},
@@ -87,6 +116,16 @@ def solve_replica(econ, closure, scenario, backend: str = "ipopt") -> dict:
         unemployment=[float(v(u)) for u in h["U"]],
         n_variables=sum(1 for _ in m.component_data_objects(pe.Var)),
     )
+    if mcp:
+        out.update(
+            price={c: float(v(h["pd"][c])) for c in {g["commodity"] for g in d["least_cost"]}},
+            share={k: float(v(x)) for k, x in h["share"].items()},
+            rent={j: float(v(x)) for j, x in h["rent"].items()},
+            premium={c: float(v(x)) for c, x in h["premium"].items()},
+            subsidy={c: float(v(x)) for c, x in h["subsidy"].items()},
+            bought={c: float(v(x)) for c, x in h["bought"].items()},
+        )
+    return out
 
 
 def build_model(d: dict, start: str = "base"):
@@ -145,6 +184,15 @@ def build_model(d: dict, start: str = "base"):
     gov_dem = a("gov_dem")
     Bmat = io @ msh
     A, C, H, F = range(na), range(nc), range(nh), range(nf)
+    # Complementarity, for PATH: each condition is written with the variable it
+    # holds at its bound, and nothing else in the model changes.
+    MCP = "least_cost" in d
+    LC = {int(g["commodity"]): [int(j) for j in g["makers"]] for g in d.get("least_cost", [])}
+    CAP = {int(j): float(v) for j, v in d.get("capacity", [])}
+    QUOTA = {int(c): float(v) for c, v in d.get("import_quota", [])}
+    CEIL = {int(c): float(b) for c, b in d.get("price_ceiling", [])}
+    FLOOR = {int(c): (float(b), float(k)) for c, b, k in d.get("price_floor", [])}
+    WAGE_FLOOR = d["labour"] == "wage_floor"
 
     # Starts at the base year, prices scaled by the numeraire, as GAMS initializes a model.
     def var(index=None, lb=None, init=0.0):
@@ -173,6 +221,29 @@ def build_model(d: dict, start: str = "base"):
 
     if slack:
         m.emp = var(None, 0.0, supply[LAB])
+    if MCP:
+        from pyomo.mpec import ComplementarityList, complements
+        m.cc = ComplementarityList()
+        # Each least-cost producer's share of its commodity's output, the
+        # scarcity rent per unit of a capped activity (numeraire units), the
+        # premium on a quota's border price, the subsidy that holds a ceiling
+        # (off the product tax rate) and the purchases that hold a floor (in
+        # units of the commodity's base absorption, as solve_period counts them).
+        lc_pairs = [(c, j) for c, makers in LC.items() for j in makers]
+        m.share = pe.Var(lc_pairs, bounds=(0.0, None),
+                         initialize=lambda _, c, j: float(msh[j, c]))
+        m.rent = pe.Var(list(CAP), bounds=(0.0, None), initialize=0.0)
+        m.premium = pe.Var(list(QUOTA), bounds=(0.0, None), initialize=0.0)
+        m.subsidy = pe.Var(list(CEIL), bounds=(0.0, None), initialize=0.0)
+        m.bought = pe.Var(list(FLOOR), bounds=(0.0, None), initialize=0.0)
+        if WAGE_FLOOR:
+            m.Uw = pe.Var(bounds=(0.0, None), initialize=0.0)
+    rent = {j: m.rent[j] for j in CAP} if MCP else {}
+    subsidy = {c: m.subsidy[c] for c in CEIL} if MCP else {}
+    stock = [m.bought[c] * FLOOR[c][1] if c in FLOOR else 0.0 for c in C]
+
+    def msh_eff(j, c):
+        return m.share[c, j] if c in LC and j in LC[c] else msh[j, c]
     m.pva = var(A, 0.0, nu)
     m.pa = var(A, 1e-8, nu)
     m.pd = var(C, 1e-8, nu)
@@ -215,10 +286,12 @@ def build_model(d: dict, start: str = "base"):
         tscale = 1.0
 
     def ta(c):
-        return ptax_a[c] * tscale if TAX_LEVER and GADJ == "product_tax" else ptax_a[c]
+        rate = ptax_a[c] * tscale if TAX_LEVER and GADJ == "product_tax" else ptax_a[c]
+        return rate - subsidy[c] if c in subsidy else rate
 
     def tf(c):
-        return ptax_f[c] * tscale if TAX_LEVER and GADJ == "product_tax" else ptax_f[c]
+        rate = ptax_f[c] * tscale if TAX_LEVER and GADJ == "product_tax" else ptax_f[c]
+        return rate - subsidy[c] if c in subsidy else rate
 
     def td(h):
         return dtax[h] * tscale if TAX_LEVER and GADJ == "direct_tax" else dtax[h]
@@ -292,6 +365,8 @@ def build_model(d: dict, start: str = "base"):
             return paid_seg[f]
         if slack and f == LAB:
             return m.emp
+        if WAGE_FLOOR and f == LAB:
+            return supply[f] - m.Uw
         if LABOUR == "elastic_supply" and f == LAB:
             return supply[f] * (m.w[f] / P) ** float(d["labour_supply_elasticity"])
         return supply[f]
@@ -463,12 +538,20 @@ def build_model(d: dict, start: str = "base"):
     for j in A:
         cost = (sum(iofix[c, j] * pqf[c] for c in C) + topcost[j] if NEST
                 else sum(io[c, j] * pqf[c] for c in C if io[c, j] != 0) + m.pva[j] * vunit[j])
-        add(m.pa[j] == cost + atax[j])
+        add(m.pa[j] == cost + atax[j] + (rent[j] if j in rent else 0.0))
     for c in C:
+        if c in LC:
+            # Its price is its own variable, set by the producers in use:
+            # unit cost − price >= 0 ⊥ share >= 0, and the shares make the output.
+            for j in LC[c]:
+                m.cc.add(complements((m.pa[j] - m.pd[c]) / nu >= 0, m.share[c, j] >= 0))
+            add(sum(m.share[c, j] for j in LC[c]) == 1.0)
+            continue
         add(m.pd[c] == sum(msh[j, c] * m.pa[j] for j in A if msh[j, c] != 0))
 
     # ---- 4-5. Armington
-    pm = [er * m.pwm[c] * (1 + tm[c]) / (1 + tm0[c]) for c in C]
+    pm = [er * m.pwm[c] * (1 + tm[c] + (m.premium[c] if c in QUOTA else 0.0)) / (1 + tm0[c])
+          for c in C]
     for c in C:
         if abs(sarm[c] - 1) < 1e-9:
             add(log(m.arm[c]) == domsh[c] * log(pdom[c]) + (1 - domsh[c]) * log(pm[c]))
@@ -521,8 +604,17 @@ def build_model(d: dict, start: str = "base"):
                 offer[(f, j)] = sum(S(o, j) for o in range(npool) if dl[o, j] > 0)
         add(m.w[f] * float(L.sum()) == mob_income[f])
 
+    # Rents times the limit and the quota: at the solution they are rent times
+    # output and premium times imports, as solve_period books them.
+    quota_rent = sum(m.premium[c] * er * m.pwm[c] * q for c, q in QUOTA.items()) if MCP else 0.0
+    extra_income = [0.0] * nf
+    if CAP:
+        extra_income[int(d["capacity_owner"])] += sum(m.rent[j] * lim for j, lim in CAP.items())
+    if QUOTA and d["quota_rent_to"] is not None:
+        extra_income[int(d["quota_rent_to"])] += quota_rent
+
     def factor_income(f):
-        return mob_income[f] if ismob[f] else m.w[f] * paid_supply(f)
+        return (mob_income[f] if ismob[f] else m.w[f] * paid_supply(f)) + extra_income[f]
 
     # ---- 7. households, with the wedge recycled
     direct = [sum(hh_direct[h, j] * m.pa[j] * act_scale[j] for j in A if hh_direct[h, j] != 0)
@@ -603,6 +695,9 @@ def build_model(d: dict, start: str = "base"):
     hh_sav = sum(m.hh_income[h] * (1 - td(h)) * savrate[h] for h in H)
     gov_inst = (sum(m.hh_income[h] * td(h) for h in H)
                 + sum(factor_income(f) * gsh[f] for f in F if gsh[f] != 0) - float(gov_tr.sum()))
+    if QUOTA and d["quota_rent_to"] is None:
+        gov_inst = gov_inst + quota_rent                 # auctioned licences
+    support = sum(pq[c] * stock[c] for c in FLOOR)
 
     if d["investment"] == "savings_driven":
         inv_q = [inv_w[c] * m.savings / pqf[c] for c in C]
@@ -613,19 +708,24 @@ def build_model(d: dict, start: str = "base"):
     # ---- 8. absorption balance, in place of the Leontief inversion
     X = [X_exog[j] if own[j] else m.Xraw[j] for j in A]
     for c in C:
-        inter = (sum(iouse(c, j) * (m.Xraw[j] + X_exog[j]) for j in A) - exog_int[c] if NEST
-                 else sum(Bmat[c, k] * m.Q[k] for k in C if Bmat[c, k] != 0))
+        if NEST:
+            inter = sum(iouse(c, j) * (m.Xraw[j] + X_exog[j]) for j in A) - exog_int[c]
+        elif LC:
+            inter = sum(io[c, j] * m.Xraw[j] for j in A if io[c, j] != 0)
+        else:
+            inter = sum(Bmat[c, k] * m.Q[k] for k in C if Bmat[c, k] != 0)
         add(m.Aabs[c] == inter + sum(mq[c, k] * m.Aabs[k] for k in C if mq[c, k] != 0)
-            + hh_final[c] + gov_q[c] + inv_q[c] + exog_int[c])
+            + hh_final[c] + gov_q[c] + inv_q[c] + exog_int[c] + stock[c])
         if expsh[c] >= 1:
             add(m.Q[c] == 0)
         else:
             add(m.Q[c] == m.dsh[c] * armsh[c] / (domfrac[c] * (1 + tauz0[c])) * m.Aabs[c])
     for j in A:
-        add(m.Xraw[j] == sum(msh[j, c] * m.Q[c] for c in C if msh[j, c] != 0))
+        add(m.Xraw[j] == sum(msh_eff(j, c) * m.Q[c] for c in C
+                             if msh[j, c] != 0 or (c in LC and j in LC[c])))
 
     # ---- 9. saving
-    fin_c = [hh_final[c] + gov_q[c] for c in C]
+    fin_c = [hh_final[c] + gov_q[c] + stock[c] for c in C]
     tax_rev = (sum(m.pbase[c] * ((m.Aabs[c] - fin_c[c]) * tf(c) + fin_c[c] * ta(c)) for c in C)
                + sum(atax[j] * X[j] for j in A if atax[j] != 0)
                + (sum(carbf[c, j] * iouse(c, j) * X[j] for c in C for j in A if carbf[c, j] != 0)
@@ -633,16 +733,20 @@ def build_model(d: dict, start: str = "base"):
                + sum(tm[c] * er * m.pwm[c] * m.mshm[c] * armsh[c] * m.Aabs[c] / (1 + tm0[c])
                      for c in C if tm[c] != 0)
                + sum(tauz[c] * m.pd[c] * m.Q[c] for c in C if tauz[c] != 0))
-    add(m.savings == hh_sav + levy + tax_rev + gov_inst - gov_spend - gov_cost + fsav)
+    # Purchases that hold a price floor come out of government saving.
+    add(m.savings == hh_sav + levy + tax_rev + gov_inst - gov_spend - gov_cost - support + fsav)
     if d["government"] == "saving_rate":
         add(m.gbud == (1 - float(d["gov_savrate"])) * (tax_rev + gov_inst - gov_cost))
     GTVAL = float(d["government_target_value"])
+    # Revenue counts the product tax before the subsidy that holds a ceiling.
+    subsidy_cost = sum(m.subsidy[c] * m.pbase[c] * m.Aabs[c] for c in CEIL) if MCP else 0.0
     if GTARGET == "saving" and GADJ == "spending":
-        add(m.gbud == tax_rev + gov_inst - gov_cost - GTVAL)
+        add(m.gbud == tax_rev + gov_inst - gov_cost - support - GTVAL)
     elif TAX_LEVER and GTARGET == "saving":
-        add(tax_rev + gov_inst - gov_spend - gov_cost == GTVAL)
+        add(tax_rev + gov_inst - gov_spend - gov_cost - support == GTVAL)
     elif TAX_LEVER and GTARGET == "revenue":
-        add(tax_rev + gov_inst + float(gov_tr.sum()) - gov_cost + gov_absorbs == GTVAL)
+        add(tax_rev + subsidy_cost + gov_inst + float(gov_tr.sum()) - gov_cost + gov_absorbs
+            == GTVAL)
 
     # ---- 10. factor demand
     def facint(f, j):
@@ -681,6 +785,12 @@ def build_model(d: dict, start: str = "base"):
             continue
         if LABOUR == "fixed_real_wage" and f == LAB:
             continue
+        if WAGE_FLOOR and f == LAB:
+            # Employment is demand; the floor: real wage − floor >= 0 ⊥ U >= 0.
+            add(facdem[f] == supply[f] - m.Uw)
+            floor_w = float(d["real_wage_target"])
+            m.cc.add(complements(m.w[f] / (floor_w * P) - 1.0 >= 0, m.Uw >= 0))
+            continue
         if LABOUR == "wage_curve" and f == LAB:
             u0 = float(d["natural_unemployment"])
             add(log(m.w[f] / P) + float(d["wage_curve_elasticity"])
@@ -714,6 +824,23 @@ def build_model(d: dict, start: str = "base"):
     current = trade + sum(factor_income(f) * rsh[f] for f in F if rsh[f] != 0) - float(remit.sum())
     add(current == fsav)
 
-    m.obj = pe.Objective(expr=0.0)
-    return m, dict(w=m.w, wm=wm, er=er, fsav=fsav, pwe=m.pwe, pwm=m.pwm, tscale=tscale,
+    # ---- 13. complementarity, each condition scaled as solve_period scales it
+    for j, lim in CAP.items():
+        m.cc.add(complements((lim - X[j]) / max(lim, 1.0) >= 0, m.rent[j] >= 0))
+    for c, q in QUOTA.items():
+        m.cc.add(complements((q - imports[c]) / max(q, 1.0) >= 0, m.premium[c] >= 0))
+    for c, b in CEIL.items():
+        bound = b * P * (1.0 + float(d["ptax_base"][c]))
+        m.cc.add(complements((bound - pq[c]) / bound >= 0, m.subsidy[c] >= 0))
+    for c, (b, _) in FLOOR.items():
+        bound = b * P * (1.0 + float(d["ptax_base"][c]))
+        m.cc.add(complements((pq[c] - bound) / bound >= 0, m.bought[c] >= 0))
+
+    if not MCP:
+        m.obj = pe.Objective(expr=0.0)
+    handles = dict(w=m.w, wm=wm, er=er, fsav=fsav, pwe=m.pwe, pwm=m.pwm, tscale=tscale,
                    levy=levy, U=Useg)
+    if MCP:
+        handles.update(pd=m.pd, share=m.share, rent=m.rent, premium=m.premium,
+                       subsidy=m.subsidy, bought=m.bought)
+    return m, handles

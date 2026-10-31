@@ -7,6 +7,16 @@ before 1.0, a minor version may add to the API and a patch version only fixes.
 
 ### Added
 
+- `solve_period(..., backend="path")`: the same Pyomo system with the
+  complementarity conditions written by `pyomo.mpec`, each paired with its
+  variable (least-cost producers and backstops, capacity limits, import quotas,
+  price bounds, the wage floor), solved by PATH as one mixed complementarity
+  problem and judged by cgelab's own residual. `validation/replicate_path.py`
+  runs the 26 cases of `validation/least_cost.jl` through it: they agree with
+  the nested solver to 2.4e-10; the 50 round-trip cases agree to 1.1e-13
+  (`validation/replicate_pyomo.py --backend path`). PATH is found among
+  `amplpy`'s modules (`python -m amplpy.modules install path`); above 300
+  variables it reads its free licence string from `PATH_LICENSE_STRING`.
 - `solve_period(..., backend="ipopt")` and `cgelab.backends`: the period as one
   simultaneous system in Pyomo, the equations of `to_jump`'s JuMP replica,
   solved by IPOPT. The solution is mapped onto cgelab's unknowns and accepted

@@ -81,13 +81,42 @@ def to_jump(econ: Economy, closure: Closure | None = None, scenario: Scenario | 
 
 
 def replica_data(econ: Economy, closure: Closure | None = None,
-                 scenario: Scenario | None = None, *, who: str = "to_jump") -> dict:
+                 scenario: Scenario | None = None, *, who: str = "to_jump",
+                 complementarity: bool = False) -> dict:
     """Os dados da réplica simultânea: o que ``to_jump`` escreve no JSON e o backend Pyomo lê.
 
-    ``who`` nomeia quem recusa o que a réplica não escreve, nas mensagens de erro.
+    ``who`` nomeia quem recusa o que a réplica não escreve, nas mensagens de erro. Com
+    ``complementarity=True`` (o backend PATH) os produtores de menor custo, os limites de
+    capacidade, as cotas, os limites de preço e o piso salarial entram nos dados em vez de serem
+    recusados; o cenário já foi conferido por ``solve_period``.
     """
     closure = closure or Closure()
     sc = scenario or Scenario()
+    dados = _replica_data(econ, closure, sc, who, complementarity)
+    if complementarity:
+        dados.update(_complementarity_data(econ, closure, sc))
+    return dados
+
+
+def _complementarity_data(econ: Economy, closure: Closure, sc: Scenario) -> dict:
+    """As condições de complementaridade, com índices base 0, como ``solve_period`` as lê."""
+    ceil = {econ.commodity(k): float(v) for k, v in sc.price_ceiling.items()}
+    floor = {econ.commodity(k): float(v) for k, v in sc.price_floor.items()}
+    return dict(
+        least_cost=[dict(commodity=int(i), makers=[int(j) for j in makers])
+                    for i, makers in econ.least_cost.items()],
+        capacity=[[econ.activity(k), float(v)] for k, v in sc.capacity.items()],
+        capacity_owner=(econ.factor(sc.capacity_owner) if sc.capacity else None),
+        import_quota=[[econ.commodity(k), float(v)] for k, v in sc.import_quota.items()],
+        quota_rent_to=(None if not sc.import_quota or sc.quota_rent_to == "government"
+                       else econ.factor(sc.quota_rent_to)),
+        price_ceiling=[[i, b] for i, b in ceil.items()],
+        price_floor=[[i, b, float(max(econ.A0[i], 1.0))] for i, b in floor.items()],
+    )
+
+
+def _refuse_complementarity(econ: Economy, closure: Closure, sc: Scenario, who: str) -> None:
+    """A réplica quadrada não escreve condições de complementaridade."""
     if sc.capacity:
         raise ValueError(
             f"{who} does not write capacity limits (Scenario.capacity). A limit with "
@@ -112,6 +141,12 @@ def replica_data(econ: Economy, closure: Closure | None = None,
             f"{who} does not write least-cost producers (ModelSpec.least_cost). Their "
             "complementarity conditions need a complementarity solver; exporting fixed "
             "market shares instead would describe another model.")
+
+
+def _replica_data(econ: Economy, closure: Closure, sc: Scenario, who: str,
+                  complementarity: bool) -> dict:
+    if not complementarity:
+        _refuse_complementarity(econ, closure, sc, who)
     if econ.regional is not None and len(econ.regional.regions) > 1:
         raise ValueError(
             f"{who} does not write the interregional nest. Exporting the "

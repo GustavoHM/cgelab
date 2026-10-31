@@ -94,7 +94,11 @@ grid. Their sum reproduces the SAM cells without route margins; with routes, add
 use a separate channel. Margins, CET exports and the government closures
 `real_fixed`, `nominal_fixed`, `saving_rate` and saving/revenue targets are
 supported. LES, trade taxes, energy nests and unsupported labour closures are
-refused by name rather than ignored.
+refused by name rather than ignored. Calibration reports every such refusal of the
+SAM in one `RegionalSliceError` (a `ValueError`, with the list in `issues`): make
+cells across regions, own-account activities, product-tax rates that differ across
+origins, missing origins and the features the slice does not carry.
+`regional_preflight(sam, spec)` returns the same list as a table.
 Regional scenarios also refuse `tariff`, `output_tax`, `carbon_price`,
 `pool_supply`, `labour_force` and nonzero `government_absorbs`. Household price
 indices are the exact Cobb–Douglas index of destination purchaser prices, at the
@@ -312,6 +316,13 @@ quota − imports ≥ 0 ⊥ premium ≥ 0. For each `Scenario.price_ceiling`, it
 subsidy rate, and for each `price_floor`, the purchases in units of base
 absorption, each with one residual. Under `labour="wage_floor"` the labour
 market's residual is real wage − floor ≥ 0 ⊥ unemployment ≥ 0.
+
+When every start point raises (the residuals refuse the start, or a point the
+solver steps to from it), the `RuntimeError` lists what each start raised, starts
+with the same error on one line, and chains the last of them as `__cause__`. A
+household left with a negative budget for commodities is named with that budget;
+under `investment="fixed_real"` the message adds the levy, the share of it the
+household pays and the largest levy it could bear at those prices.
 
 With a regional economy, `investment="fixed_real"` holds investment quantities
 at base-year purchaser prices and solves a per-capita forced-saving levy, which
@@ -790,17 +801,25 @@ Columns `year`, `account`, `cv`.
 
 A dsgelab `Model` with state `k` (and `a` with `tfp_persistence`), jump `inv`,
 and the capital-accumulation and Euler residuals, each period solved by
-`solve_period` under `investment="fixed_real"`.
+`solve_period` under `investment="fixed_real"`. A sequence of capital factors
+gives one state `k_<factor>` and one jump `inv_<factor>` per factor (characters
+other than letters, digits and `_` become `_`), with its own accumulation and
+Euler equation; `depreciation` is then a rate or a mapping from factor to rate,
+and `RamseyParams.depreciation` and `user_cost` are tuples in the same order.
+A period that fails inside the residuals carries a note with the date, which of
+the Euler equation's two periods it was, the stocks, total investment, TFP and
+the scenario fields that differ from the base year.
 
 ### `announced(params, scenarios) -> list[RamseyParams]`
 
-Per-date parameters for `dsgelab.perfect_foresight`: each date's scenario and the
-next date's.
+Per-date parameters for `dsgelab.perfect_foresight`: each date's scenario, the
+next date's, and the date itself in `RamseyParams.date`.
 
 ### `period_at(econ, closure, scenario, k, inv, a=1.0, *, capital_factor="f_cap", user_cost, warm=None) -> PeriodResult`
 
 The period equilibrium at a capital stock, an investment level and a TFP level. `warm`, a
-previous `PeriodResult`, is the solver's start.
+previous `PeriodResult`, is the solver's start. With several capital factors, `k`
+and `user_cost` have one entry per factor and `inv` is total real investment.
 
 `Scenario.investment_level` is real investment under `investment="fixed_real"`.
 
@@ -1071,6 +1090,8 @@ the descriptions and the reader's choices into the provenance.
 | `homogeneity_test(econ, closure=None, factor=2.5, tol=1e-7)` | does scaling the numeraire leave every real magnitude untouched? |
 | `walras_check(result, tol=1e-8)` | does the market the solver was not told to clear, clear? |
 | `report(econ, closure=None)` | all of the above, rendered for a log or a referee appendix |
+| `investment_bounds(econ, closure=None, scenario=None, *, rtol=1e-3, doublings=12)` | which `investment_level` values does a `fixed_real` period solve at? An `InvestmentBounds` with `low`, `high`, `reference`, and in `below` and `above` what the first failing level on each side raised |
+| `regional_preflight(sam, spec, **calibrate_kwargs)` | why is this SAM outside the regional slice? A DataFrame with `issue`, `account` and `detail`, every issue at once; empty when the slice accepts it |
 
 ---
 

@@ -1041,6 +1041,20 @@ m.leakage                                          # what each account pays the 
 `M[i, j]` is the effect on account `i` of one unit injected into account `j`.
 `exogenous=` or `endogenous=` states a split other than the usual one.
 
+**An activity or a commodity.** The two accounts answer different questions. An
+injection into an activity account is demand addressed to that producer: the
+whole amount is its output in the first round. An injection into a commodity
+account is demand for the good, and the commodity's column passes it on in
+base-year proportions, to every activity that makes the good in proportion to its
+cell in the make matrix, and to imports and product taxes for the rest. In the
+toy SAM (`toy.build()`) `c_ind` pays `a_ind` 200, imports 25 and taxes 10, so 100
+injected into `c_ind` reaches `a_ind` as 85.1 in the first round and 221.0 in
+total, against 259.7 for 100 injected into `a_ind`. With two producers of one good, the commodity
+injection spreads over both by their supply shares, while the activity injection
+puts the shock in the one producer named. A shock located in a plant or a sector
+goes into the activity. A change in the demand for a good, whoever supplies it,
+goes into the commodity.
+
 **Fixed-price multipliers.** `fixed_price_multipliers(sam, spec=spec,
 households=..., income_elasticities={"c_agr": 0.6, ...})` replaces each
 household's average propensity to consume a commodity by the marginal one,
@@ -1428,6 +1442,21 @@ one-region model. Household saving, the levy, government saving and foreign
 saving sum to nominal investment at the solved prices. With no scenario level,
 the calibrated investment is used. `savings_driven` remains the default.
 
+### Before calibrating a regional SAM
+
+A regional model refuses make cells across regions, own-account activities,
+product-tax rates that differ across the origins of one good, missing origins and
+the features the slice does not carry. Calibration reports all of them in one
+`RegionalSliceError`, and `regional_preflight` returns them as a table, one row per
+account, to work through while the SAM is still in preparation:
+
+```python
+issues = cge.regional_preflight(sam, spec)
+issues.groupby("issue").account.apply(list)
+```
+
+An empty table means the slice accepts the SAM.
+
 ### Government closures in a regional model
 
 `real_fixed`, `nominal_fixed` and `saving_rate` work on the consolidated regional
@@ -1780,6 +1809,32 @@ A tax announced for date 5 moves investment at date 0. `run_path` cannot do that
 **Aggregate uncertainty.** `tfp_persistence=ρ` adds a TFP state with an AR(1) in
 logs and a shock `eps_a`. `dsg.solve` then gives the first-order solution and
 impulse responses, and `dsg.solve_second_order` gives risk corrections.
+
+**Several capital stocks.** A list of capital factors gives each its own stock,
+investment and Euler equation:
+
+```python
+model, params, guess = bridge.ramsey(
+    econ, capital_factor=["r1:f_cap", "r2:f_cap"],
+    depreciation={"r1:f_cap": 0.05, "r2:f_cap": 0.07})
+model.states                                   # ["k_r1_f_cap", "k_r2_f_cap"]
+```
+
+Every stock is bought with the same investment bundle, so `P_I` is common and the
+Euler equations arbitrage through the rental prices. In a steady state each rental
+price equals `P_I`. `solve_period` receives total investment, the sum of the jumps.
+A region or a sector whose stock is below its steady state draws investment from
+the others.
+
+**When a period fails.** dsgelab's Newton steps can take the capital stock or
+investment where no period equilibrium exists. The error then lists what each of
+`solve_period`'s start points raised, and the bridge adds a note with the date
+(when the parameters come from `announced`), whether it was the current or the
+next period of the Euler equation, the stocks, total investment, TFP and the
+scenario fields that differ from the base year. Under the `fixed_real` closure the
+usual cause is a household that cannot pay the levy financing the investment; the
+message names it and the largest levy it could bear. `cge.investment_bounds(econ,
+closure, scenario)` brackets the investment levels a period solves at.
 
 **What it is checked against.** In a one-good closed economy with Cobb–Douglas
 production (`toy.build_one_good()`), the Ramsey CGE is the stochastic growth

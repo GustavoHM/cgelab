@@ -215,9 +215,9 @@ where it stands. Things to know before relying on it:
   nests and unsupported labour closures are refused by name. A GTAP-style global
   savings bank remains future work.
 - **Complementarity has only started**: producers of a commodity can compete at
-  least cost and shut down (`ModelSpec.least_cost`, national models), but there
-  are no quotas, price floors or capacity limits yet. Those are the next stages
-  of 0.8.
+  least cost and shut down (`ModelSpec.least_cost`) and activities can face
+  capacity limits with scarcity rents (`Scenario.capacity`), in national models;
+  there are no quotas or price floors yet. Those are the next stages of 0.8.
 - **The solver** works on a few unknowns, with an exact Jacobian in the regional
   model and finite differences elsewhere. On the synthetic SAMs of
   `tools/benchmark_solver.py`, a national model of 647 accounts solves a shock in

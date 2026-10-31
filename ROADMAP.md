@@ -68,7 +68,7 @@ several regions, the result helpers, and the JuMP export replicating all of it. 
 - [x] **KLEM nesting**: a value-added-energy nest with interfuel substitution
   (`ModelSpec.energy`, `sigma_vae`, `sigma_energy`).
 - [x] **Physical units for energy**: `add_physical_units`, `physical`, `physical_coefficient`.
-  Capacity as a constraint needs complementarity, in 0.8.
+  Capacity as a constraint: `Scenario.capacity`, in 0.8.
 - [x] **Government closures**: a deficit target, revenue-neutral tax replacement
   (`Closure.government_target`, `government_adjusts`), and the fixed saving rate
   (`government="saving_rate"`).
@@ -218,8 +218,13 @@ validated before the next one builds on it.
   against `validation/least_cost.jl`, the model calibrated in Julia and solved as a mixed
   complementarity problem by PATH, on both sides of each switch, to 3e-14. National only for
   now; a technology with no base-year output needs costs from outside the SAM.
-- [ ] **Then** capacity limits, quotas with rents, and price floors and ceilings, each validated
-  the same way before the next.
+- [x] **Capacity limits**: `Scenario.capacity`, an upper limit on an activity's output, limit −
+  output ≥ 0 ⊥ rent ≥ 0, the scarcity rent in the unit cost and paid to the owners of a named
+  factor (`capacity_owner`), reported by `national_accounts` as `capacity_rent`. With
+  `least_cost` it gives a merit order. Validated against PATH in `validation/least_cost.jl`
+  (a slack limit, a sole producer, the merit order, a limit that binds after a shock), to 3e-14.
+- [ ] **Then** quotas with rents, and price floors and ceilings, each validated the same way
+  before the next.
 - [ ] **Backends**: Pyomo with IPOPT and PATH besides `scipy`, validated against GAMS/MPSGE with
   PATH, only after the cases above are fixed points they must reproduce.
 
@@ -271,7 +276,8 @@ the rest) would be further nests of the same kind.
 
 **Capacity in physical units.** The physical-units account is in: a coefficient in kWh per kg
 becomes a SAM entry with `physical_coefficient`, and a path reports kWh and tonnes. A capacity
-stated in tonnes is a bound on an activity, and that is a complementarity condition, in 0.8.
+stated in tonnes is a bound on an activity: `Scenario.capacity` (0.8), once divided by the
+activity's base-year physical intensity.
 
 **Government closures.** Done in 0.4: a fixed public saving target and revenue-neutral tax
 replacement, met by direct taxes, product taxes or spending (`Closure.government_target`,

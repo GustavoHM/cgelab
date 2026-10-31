@@ -73,6 +73,11 @@ def to_jump(econ: Economy, closure: Closure | None = None, scenario: Scenario | 
     """
     closure = closure or Closure()
     sc = scenario or Scenario()
+    if sc.capacity:
+        raise ValueError(
+            "to_jump does not write capacity limits (Scenario.capacity). A limit with "
+            "its rent is a complementarity condition, which the replica's square system "
+            "cannot hold.")
     if econ.least_cost:
         raise ValueError(
             "to_jump does not write least-cost producers (ModelSpec.least_cost). Their "

@@ -245,6 +245,8 @@ base-year queue as a share of its supply, one rate or `{factor: rate}`.
 | `foreign_factor_share` | `(nf,)` | share of each factor owned abroad, overriding the SAM's; `run_path` sets it from the capital it tracks |
 | `carbon_price` | scalar | price per unit of emissions, numeraire units; needs an emissions account |
 | `fdi` | mapping | `{capital factor: amount}` in numeraire units: raises foreign saving, and `run_path` adds the capital it buys to the foreign-owned stock |
+| `capacity` | mapping | `{activity: limit}` in base-year output units: limit − output ≥ 0 ⊥ rent ≥ 0, the rent per unit of output added to the activity's unit cost. National models only; not on own-account activities |
+| `capacity_owner` | str | the factor whose owners receive capacity rents, shared like its other income; default `"f_cap"` |
 
 `sc.with_(**changes)` returns a copy with fields replaced.
 
@@ -268,6 +270,8 @@ in `ModelSpec.factor_mobility`, its price in each activity that uses it instead
 of one price, with one market per activity. For each `ModelSpec.least_cost`
 commodity, its log price and each producer's output share, with one
 Fischer–Burmeister residual per producer and one for the shares adding to one.
+For each activity in `Scenario.capacity`, its rent per unit of output, with one
+Fischer–Burmeister residual for limit − output ≥ 0 ⊥ rent ≥ 0.
 
 With a regional economy, `investment="fixed_real"` holds investment quantities
 at base-year purchaser prices and solves a per-capita forced-saving levy, which
@@ -291,6 +295,7 @@ is deducted from households. `savings_driven` remains the default.
 | `factor_demand_by_activity`, `factor_prices_by_activity` | `(nf, na)` factor use and the price each activity pays. Under a CET the use does not add up to the endowment off the base year |
 | `labour_markets` | `{group: {...}}` for each group of labour segments: `segments`, `informal` (`None` under `segment_mobility`), `wage`, `real_wage`, `employment`, `supply`, `queue`, `labour_force`, `unemployment`, `unemployment_rate`, `harris_todaro`, `household_workforce`, `household_employment` `(nh, n_seg)`, `household_unemployed`; `None` without segments |
 | `factor_pools` | `{factor: {"pools", "price", "endowment", "supply"}}` for each imperfectly mobile factor, `supply` by pool and activity; `None` when every factor is mobile |
+| `capacity` | `{activity: {"limit", "output", "rent", "unused"}}` for each limit in `Scenario.capacity`, the rent per unit of output in numeraire units, zero while the limit is slack; `None` without limits |
 | `least_cost` | `{commodity: {"activities", "share", "unit_cost", "price", "margin"}}` for each `ModelSpec.least_cost` commodity: each producer's share of its output and unit cost, the commodity's price, and `margin`, unit cost minus price, zero for a producer that produces; `None` without least cost |
 | `wedge_revenue`, `government_cost` | recycled revenue; cost falling on the budget |
 | `vintage_value_added` | `(2, na)`: the old and the new capital vintage's bundle, in the base-year value of the factors each uses; `None` without vintages |
@@ -353,7 +358,8 @@ use; activity taxes stay inside, so at the base year it sums to
 GDP at current market prices: `consumption`, `government`, `investment`,
 `exports`, `imports`, `gdp_expenditure`; `factor_income`, `taxes_on_products`
 (product tax, tariff, output tax, both consumer wedges), `taxes_on_production`
-(activity tax), `gdp_income`; their `gap`; `factor_income_abroad` and `gni`.
+(activity tax), `capacity_rent` (the scarcity rent of binding capacity limits),
+`gdp_income`; their `gap`; `factor_income_abroad` and `gni`.
 For regional models, final demand is valued by destination channel at the
 purchaser prices each destination pays; the national average price is not an
 accounting valuation of those flows. `price_indices`, `in_money` and `real_gdp`

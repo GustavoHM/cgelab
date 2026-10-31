@@ -1,4 +1,4 @@
-"""replicate_least_cost.py — produtores de menor custo contra um problema de complementaridade no PATH.
+"""replicate_least_cost.py — menor custo e capacidade contra um problema de complementaridade no PATH.
 
 `least_cost.jl` lê a MCS e o enunciado do modelo, calibra o modelo nacional por conta própria e
 escreve os produtores de menor custo como um problema de complementaridade misto, resolvido
@@ -8,8 +8,10 @@ pela função de Fischer–Burmeister. Este script escreve o enunciado de cada c
 parâmetro calibrado pelo cgelab, e compara preços dos fatores, câmbio, níveis de atividade,
 preços ao produtor e ao comprador, custos unitários, renda das famílias e poupança.
 
-Os casos cobrem os dois lados da troca de tecnologia: o ano-base, choques em que as duas
-continuam ativas, choques em que uma delas para e choques em que a outra para.
+Os casos cobrem os dois lados da troca de tecnologia (o ano-base, choques em que as duas
+continuam ativas, em que uma delas para e em que a outra para) e os limites de capacidade: um
+limite folgado, um que prende o único produtor de um bem, a ordem de mérito (a tecnologia mais
+barata no limite e a mais cara de volta) e um limite que só prende depois de um choque.
 
     cd validation && julia --project=. -e 'using Pkg; Pkg.instantiate()' && cd ..
     python validation/replicate_least_cost.py
@@ -69,7 +71,9 @@ def enunciado(sam, econ, scenario) -> dict:
         sigma_armington=dict(zip(econ.coms, map(float, econ.sigma_arm))),
         numeraire_factor=econ.factors[econ.numeraire_index],
         productivity=dict(zip(econ.acts, map(float, tfp))),
-        world_price=dict(zip(econ.coms, map(float, world))))
+        world_price=dict(zip(econ.coms, map(float, world))),
+        capacity={a: float(v) for a, v in scenario.capacity.items()},
+        capacity_owner=scenario.capacity_owner)
 
 
 def roda_julia(dados: Path, saida: Path):
@@ -93,6 +97,8 @@ def caso(nome, sam, econ, scenario) -> dict:
         "X": _rel(jl["X"], res.X), "pd": _rel(jl["pd"], res.pd), "pq": _rel(jl["pq"], res.pq),
         "pa": _rel(jl["pa"], res.pa), "hh_income": _rel(jl["hh_income"], res.hh_income),
         "savings": _rel(jl["savings"], res.savings),
+        "rent": _rel(jl["rent"], [(res.capacity or {}).get(a, {}).get("rent", 0.0)
+                                  for a in econ.acts]),
     }
     pior = max(desvios.values())
     campo = max(desvios, key=desvios.get)
@@ -107,12 +113,12 @@ def main() -> int:
     sam, econ = toy.build_with_technologies()
     alt = econ.activity("a_alt")
 
-    def tfp(value):
+    def tfp(value, **capacity):
         out = np.ones(econ.n_act)
         out[alt] = value
-        return cge.Scenario(productivity=out)
+        return cge.Scenario(productivity=out, capacity=capacity)
 
-    print("cgelab contra o PATH, produtores de c_ind ao menor custo")
+    print("cgelab contra o PATH, produtores de c_ind ao menor custo, com e sem limites")
     casos = {
         "ano_base": caso("ano_base", sam, econ, cge.Scenario()),
         "as_duas_ativas": caso("as_duas_ativas", sam, econ, tfp(1.2)),
@@ -121,6 +127,11 @@ def main() -> int:
         "a_alt_bem_atras": caso("a_alt_bem_atras", sam, econ, tfp(0.5)),
         "preco_mundial": caso("preco_mundial", sam, econ,
                               cge.Scenario(world_price=np.array([1.0, 1.4]))),
+        "limite_folgado": caso("limite_folgado", sam, econ, tfp(1.5, a_alt=300.0)),
+        "limite_do_unico": caso("limite_do_unico", sam, econ, tfp(1.0, a_agr=95.0)),
+        "ordem_de_merito": caso("ordem_de_merito", sam, econ, tfp(1.5, a_alt=200.0)),
+        "limite_depois_do_choque": caso("limite_depois_do_choque", sam, econ,
+                                        tfp(0.9, a_ind=125.0)),
     }
     pior = max(r["pior"] for r in casos.values())
     if all(r["ok"] for r in casos.values()):

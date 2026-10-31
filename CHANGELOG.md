@@ -7,6 +7,15 @@ before 1.0, a minor version may add to the API and a patch version only fixes.
 
 ### Added
 
+- `Scenario.capacity` and `Scenario.capacity_owner`: upper limits on activity
+  output, limit − output ≥ 0 ⊥ rent ≥ 0. A binding limit holds output at the
+  limit and adds a scarcity rent to the activity's unit cost; the rent is paid
+  to the owners of `capacity_owner` (capital by default) and reported by
+  `national_accounts` as `capacity_rent`. With `least_cost`, a limit on the
+  cheaper technology gives a merit order. `PeriodResult.capacity` reports each
+  limit's output, rent and unused capacity. National models only; the regional
+  solver and `to_jump` refuse it. `validation/least_cost.jl` checks four
+  capacity cases against PATH, to 3e-14.
 - `ModelSpec.least_cost`: commodities whose producers are perfect substitutes
   chosen at least cost, the first complementarity condition. A producer whose
   unit cost is above the commodity's price produces nothing (unit cost − price ≥

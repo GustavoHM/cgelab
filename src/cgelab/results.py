@@ -225,7 +225,8 @@ def national_accounts(period: PeriodResult) -> dict:
     and own-account purchases included), government consumption, investment,
     exports, less imports at the border. Income: factor income, taxes on
     products (the product tax, tariff, output tax and both consumer wedges) and
-    the activity tax. The two agree in every equilibrium, not only at the base
+    the activity tax, and the scarcity rent of any binding capacity limit
+    (``capacity_rent``). The two agree in every equilibrium, not only at the base
     year; ``gap`` reports what separates them, and a gap above rounding is an
     accounting error. ``gni`` deducts factor income paid abroad.
     """
@@ -240,11 +241,16 @@ def national_accounts(period: PeriodResult) -> dict:
                      + g["carbon_households"])
     factor_income = float(period.factor_prices @ period.factor_demand)
     production_taxes = g["activity_tax"] + g["carbon_production"]
-    income = factor_income + product_taxes + production_taxes
+    # A binding capacity limit's scarcity rent is in the activity's price and is
+    # paid to the owners of a factor: value added that no factor's price shows.
+    capacity_rent = float(sum(c["rent"] * c["output"]
+                              for c in (getattr(period, "capacity", None) or {}).values()))
+    income = factor_income + capacity_rent + product_taxes + production_taxes
     return {
         **value,
         "gdp_expenditure": expenditure,
         "factor_income": factor_income,
+        "capacity_rent": capacity_rent,
         "taxes_on_products": product_taxes,
         "taxes_on_production": production_taxes,
         "gdp_income": income,

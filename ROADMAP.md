@@ -213,7 +213,7 @@ GTAP data, sparse algebra, the backstop technology and the other backends moved 
   against a known solution (with one factor, any cost advantage takes the whole market) and
   against `validation/least_cost.jl`, the model calibrated in Julia and solved as a mixed
   complementarity problem by PATH, on both sides of each switch, to 3e-14. National only for
-  now; a technology with no base-year output needs costs from outside the SAM.
+  now; a technology with no base-year output came in 0.9, as a backstop.
 - [x] **Capacity limits**: `Scenario.capacity`, an upper limit on an activity's output, limit −
   output ≥ 0 ⊥ rent ≥ 0, the scarcity rent in the unit cost and paid to the owners of a named
   factor (`capacity_owner`), reported by `national_accounts` as `capacity_rent`. With
@@ -242,8 +242,13 @@ GTAP data, sparse algebra, the backstop technology and the other backends moved 
   value headers and weighted parameters compared cell by cell. Needs licensed GTAP data.
 - [ ] **Regional equilibria against GTAP or ORANI-G/TERM**: a reference simulation reproduced,
   with every difference explained by a stated difference in the model. Needs the same data.
-- [ ] **A backstop technology**: an activity with no base-year output, under `least_cost`, whose
-  costs come from outside the SAM.
+- [x] **A backstop technology**: `calibrate(..., backstops={name: Backstop(...)})`, an activity
+  with no base-year output that competes under `least_cost`, its costs either another
+  activity's scaled by a markup (`like`) or engineering data (`costs`). Validated against a
+  known solution (a backstop built like the incumbent is the incumbent at productivity over
+  the markup, to machine precision) and against PATH in `validation/least_cost.jl`: idle at the
+  base year, taking the market, sharing it, entering at the incumbent's capacity limit, beside
+  two competing technologies, to 6e-14.
 - [ ] **Backends**: Pyomo with IPOPT and PATH besides `scipy`, validated against GAMS/MPSGE with
   PATH, reproducing the complementarity cases of 0.8 as fixed points.
 - [ ] **Sparse algebra**, when a model is large enough to need it: at 819 accounts the dense

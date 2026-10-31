@@ -122,7 +122,7 @@ contains the solved GTAP flows.
 
 ## Calibration
 
-### `calibrate(sam, spec=None, *, income_elasticities=None, population=None, tariffs=None, output_taxes=None, factor_pools=None, transport=None, check_balance=True) -> Economy`
+### `calibrate(sam, spec=None, *, income_elasticities=None, population=None, tariffs=None, output_taxes=None, factor_pools=None, transport=None, backstops=None, check_balance=True) -> Economy`
 
 `income_elasticities` maps commodity to income elasticity (LES only).
 `population` maps household account to a household count — the weight of a per
@@ -137,6 +137,19 @@ add up to what the SAM pays the factor in that activity. Absent, the endowment i
 one pool; `"activities"` gives each activity that uses the factor a pool of its
 own, so the factor is sector-specific. The calibrated transformations are
 `econ.mobility`, by factor index; the vintage nest is `econ.vintage`.
+`backstops` maps a new activity name to a `Backstop`: a technology with zero
+base-year output that competes at least cost with the producers of its
+commodity, which joins `econ.least_cost`; `econ.backstops`, by activity index,
+records each one's commodity, `like`, `markup` and `costs`. National only,
+without vintages or an energy nest.
+
+### `Backstop(commodity, like=None, markup=None, costs=None)`
+
+A technology the base year does not use. Give either `like`, an activity whose
+inputs and factors per unit are scaled by `markup` (its activity tax per unit
+is copied as it is), or `costs`, `{commodity or factor: base-year value per
+unit of output}`, commodity inputs at purchaser prices and no activity tax. The
+unit cost at base-year prices must exceed one, the commodity's base price.
 
 ### `Economy`
 

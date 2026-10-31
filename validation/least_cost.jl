@@ -1,6 +1,6 @@
 # least_cost.jl — produtores que competem ao menor custo, limites de capacidade, cotas de
-# importação, tetos e pisos de preço e piso salarial, como problema de complementaridade misto
-# resolvido pelo PATH.
+# importação, tetos e pisos de preço, piso salarial e tecnologias de reserva (backstop), como
+# problema de complementaridade misto resolvido pelo PATH.
 #
 # Nada vem do cgelab. O script lê a MCS e o enunciado (papéis das contas, elasticidades, as
 # commodities de menor custo, o choque), calibra o modelo nacional aqui e escreve cada
@@ -13,6 +13,11 @@
 #     teto_i·P·pq0_i − pq_i ≥ 0        ⟂   sub_i ≥ 0    (cada bem com teto de preço)
 #     pq_i − piso_i·P·pq0_i ≥ 0        ⟂   compra_i ≥ 0 (cada bem com piso de preço)
 #     w_L/P − piso salarial ≥ 0        ⟂   U ≥ 0        (com o piso salarial)
+#
+# Uma tecnologia de reserva não produz no ano-base e não está na MCS: os seus custos por unidade
+# vêm do enunciado, ou como os de outra atividade (insumos e fatores vezes o markup, o imposto
+# sobre a atividade por unidade como está), ou como valores de cada insumo, a preço do comprador,
+# e de cada fator. Ela entra como mais um produtor do bem, ao menor custo.
 #
 # P é o índice de Laspeyres dos preços ao comprador, com as quantidades das famílias no ano-base.
 # O subsídio sai da alíquota do imposto sobre produtos, para firmas e famílias; as compras de
@@ -85,6 +90,23 @@ vs = [sam(COM[i], inv) for i in 1:NC]
 vs = vs ./ sum(vs)
 FS0 = sum(M0) - sum(E0)
 quem = Dict(i => [j for j in 1:NA if faz[j, i] > 0] for i in 1:NC)
+for b in E.backstops
+    i = findfirst(==(String(b.commodity)), COM)
+    if b.like !== nothing
+        j = findfirst(==(String(b.like)), ATV)
+        m = Float64(b.markup)
+        io_b, f_b, t_b = io[:, j] .* m, F0[:, j] ./ X0[j] .* m, atax[j]
+    else
+        io_b = [Float64(get(b.costs, Symbol(COM[k]), 0.0)) / (1 + ptax[k]) for k in 1:NC]
+        f_b = [Float64(get(b.costs, Symbol(FAT[f]), 0.0)) for f in 1:NF]
+        t_b = 0.0
+    end
+    global io = hcat(io, io_b)
+    global theta = hcat(theta, f_b ./ sum(f_b))
+    push!(ATV, String(b.name)); push!(X0, 0.0); push!(vunit, sum(f_b)); push!(atax, t_b)
+    push!(quem[i], length(ATV))
+    global NA = length(ATV)
+end
 for i in 1:NC
     @assert !isempty(quem[i])
 end

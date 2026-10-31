@@ -5,6 +5,24 @@ before 1.0, a minor version may add to the API and a patch version only fixes.
 
 ## Unreleased
 
+### Added
+
+- `Backstop` and `calibrate(..., backstops=)`: technologies with no base-year
+  output, whose costs come from outside the SAM. Each joins the activities with
+  zero base output and competes at least cost with the producers of its
+  commodity, which joins `least_cost` (so a commodity with one base-year
+  producer can have a backstop). Its costs are another activity's, inputs and
+  factors scaled by a markup and the activity tax per unit as it is (`like`),
+  or engineering data (`costs`); its base-year unit cost must exceed the
+  commodity's price. `Economy.backstops` records them. Under `add_emissions` a
+  backstop built `like` an activity emits as it does. National only; vintages,
+  the energy nest, a backstop using an imperfectly mobile factor and `to_jump`
+  are refused.
+- `validation/least_cost.jl` builds backstops from its own calibration or the
+  cost data, and `replicate_least_cost.py` checks five cases against PATH: idle
+  at the base year, taking the market, sharing it, entering at the incumbent's
+  capacity limit and beside two competing technologies.
+
 ## 0.8.0 — 2026-10-31
 
 Complementarity, the first mixed complementarity conditions in the package, in four stages:

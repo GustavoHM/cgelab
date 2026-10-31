@@ -723,7 +723,50 @@ unknowns and writes the complementarity with the Fischer–Burmeister function.
 in Julia and solved as a mixed complementarity problem by PATH, on both sides
 of each switch: they agree to 3e-14. Each producer must make only that
 commodity; the regional model, vintages and `to_jump` refuse `least_cost` for
-now. A technology with no base-year output is a later stage.
+now.
+
+### Backstop technologies
+
+```python
+econ = cge.calibrate(sam, spec, backstops={
+    "a_new": cge.Backstop("c_ind", like="a_ind", markup=1.25),   # a_ind's structure, 25% dearer
+    "a_eng": cge.Backstop("c_ind", costs={"c_agr": 0.1, "c_ind": 0.2,
+                                          "f_lab": 0.6, "f_cap": 0.2}),
+})
+```
+
+A backstop is a technology the base year does not use: an activity with no
+output in the SAM, whose costs come from outside it, that produces once it is
+the cheapest way to make its commodity. It joins `econ.acts` with zero base
+output, and its commodity joins `least_cost` with the backstop as a producer
+whose base share is zero; that also lets a commodity with a single base-year
+producer compete at least cost. Its costs per unit of output are either
+another activity's (`like`), inputs and factors scaled by `markup` and the
+activity tax per unit as it is, the way MIT's EPPA writes its backstops; or
+`costs`, engineering data: the base-year value of each commodity input, at
+purchaser prices as the SAM records intermediates, and of each factor, with no
+activity tax. Either way the unit cost at base-year prices must exceed the
+commodity's base price, one, or the base year would not be an equilibrium.
+
+Productivity on the backstop (learning), a carbon price, dearer factors or a
+capacity limit on the incumbent bring it in. A backstop built `like` an
+activity has that activity's structure, so its unit cost is always the markup
+over its productivity times the incumbent's: it stays idle while its
+productivity is below the markup and takes the whole market above it, and the
+economy is then exactly the one in which the incumbent itself has productivity
+divided by the markup. The suite checks that identity to machine precision. A
+backstop of another factor intensity can share the market with the incumbent
+over a range of productivity, as two base-year technologies can.
+
+Under `add_emissions` a backstop built `like` an activity burns its inputs and
+releases process emissions as that activity does; one built from `costs`
+emits nothing, since the SAM records no flow to attach emissions to.
+Per-activity arrays such as `Scenario.productivity` have one more entry per
+backstop. `validation/replicate_least_cost.py` checks backstops against PATH:
+idle at the base year, taking the market, sharing it, entering when the
+incumbent reaches a capacity limit, and beside two technologies already
+competing. National models only; vintages, the energy nest, a backstop that
+uses an imperfectly mobile factor and `to_jump` are refused.
 
 ### Capacity limits
 

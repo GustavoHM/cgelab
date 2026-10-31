@@ -96,6 +96,13 @@ def add_emissions(econ, *, intermediate=None, household=None, government=None, p
                              f"as zero: there is no quantity to attach them to")
         with np.errstate(divide="ignore", invalid="ignore"):
             coef[k] = np.where(q > 0, total / np.where(q > 0, q, 1.0), 0.0)
+    # A backstop built like another activity burns its inputs as that activity
+    # does, and releases what it releases per unit of output. One built from
+    # costs emits nothing: the SAM records no flow to attach emissions to.
+    for j, b in getattr(econ, "backstops", {}).items():
+        if b["like"] is not None:
+            coef["intermediate"][:, j] = coef["intermediate"][:, b["like"]]
+            coef["process"][j] = coef["process"][b["like"]]
     return replace(econ, emissions=Emissions(**coef, unit=unit))
 
 

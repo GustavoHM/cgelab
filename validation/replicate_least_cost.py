@@ -14,7 +14,9 @@ limite folgado, um que prende o único produtor de um bem, a ordem de mérito (a
 barata no limite e a mais cara de volta) e um limite que só prende depois de um choque) e as
 cotas de importação: folgada, que prende com a renda ao governo e com a renda aos donos do
 capital; e os limites de preço: teto e piso folgados e que prendem, e o piso salarial folgado,
-no ano-base e que prende depois de um choque.
+no ano-base e que prende depois de um choque; e as tecnologias de reserva: parada no ano-base,
+tomando o mercado, dividindo-o com a incumbente, entrando quando a incumbente bate no limite de
+capacidade e ao lado de duas tecnologias que já competem.
 
     cd validation && julia --project=. -e 'using Pkg; Pkg.instantiate()' && cd ..
     python validation/replicate_least_cost.py
@@ -68,12 +70,17 @@ def enunciado(sam, econ, scenario, closure) -> dict:
            else np.asarray(scenario.productivity, float))
     world = np.ones(econ.n_com) if scenario.world_price is None else scenario.world_price
     supply = econ.fac_supply if scenario.factor_supply is None else scenario.factor_supply
+    backstops = [dict(name=econ.acts[j], commodity=econ.coms[b["commodity"]],
+                      like=None if b["like"] is None else econ.acts[b["like"]],
+                      markup=b["markup"], costs=b["costs"])
+                 for j, b in econ.backstops.items()]
     return dict(
         sam=[[r, c, float(v)] for r, c, v in sam.frame.itertuples(index=False)],
-        activities=list(econ.acts), commodities=list(econ.coms), factors=list(econ.factors),
+        activities=[a for j, a in enumerate(econ.acts) if j not in econ.backstops],
+        commodities=list(econ.coms), factors=list(econ.factors), backstops=backstops,
         households=list(econ.hhs), government=econ.layout.government,
         investment=econ.layout.investment, rest_of_world=econ.layout.rest_of_world,
-        least_cost=list(spec.least_cost or []), sigma_va=float(spec.sigma_va),
+        least_cost=[econ.coms[i] for i in econ.least_cost], sigma_va=float(spec.sigma_va),
         sigma_armington=dict(zip(econ.coms, map(float, econ.sigma_arm))),
         numeraire_factor=econ.factors[econ.numeraire_index],
         productivity=dict(zip(econ.acts, map(float, tfp))),
@@ -140,7 +147,8 @@ def main() -> int:
         out[alt] = value
         return cge.Scenario(productivity=out, capacity=capacity)
 
-    print("cgelab contra o PATH: menor custo, capacidade, cotas, limites de preço e piso salarial")
+    print("cgelab contra o PATH: menor custo, capacidade, cotas, limites de preço, piso salarial "
+          "e reserva")
     casos = {
         "ano_base": caso("ano_base", sam, econ, cge.Scenario()),
         "as_duas_ativas": caso("as_duas_ativas", sam, econ, tfp(1.2)),
@@ -179,6 +187,33 @@ def main() -> int:
     menos_capital = econ2.fac_supply.copy()
     menos_capital[econ2.factor("f_cap")] *= 0.8
     choque = cge.Scenario(factor_supply=menos_capital)
+    # Tecnologias de reserva: custos de fora da MCS.
+    def reserva(**backstops):
+        s, _ = toy.build()
+        return s, cge.calibrate(s, toy.spec(), backstops=backstops)
+
+    def tfp_de(econ, **niveis):
+        out = np.ones(econ.n_act)
+        for nome, v in niveis.items():
+            out[econ.activity(nome)] = v
+        return cge.Scenario(productivity=out)
+
+    copia = cge.Backstop("c_ind", like="a_ind", markup=1.25)
+    engenharia = cge.Backstop("c_ind", costs={"c_agr": 0.1, "c_ind": 0.2, "f_lab": 0.6, "f_cap": 0.2})
+    s3, e3 = reserva(a_new=copia)
+    s4, e4 = reserva(a_eng=engenharia)
+    s5, e5 = reserva(a_new=cge.Backstop("c_ind", like="a_ind", markup=1.1))
+    s6, _ = toy.build_with_technologies()
+    e6 = cge.calibrate(s6, toy.spec(least_cost=["c_ind"]),
+                       backstops={"a_new": cge.Backstop("c_ind", like="a_alt", markup=1.2)})
+    casos |= {
+        "reserva_ano_base": caso("reserva_ano_base", s3, e3, cge.Scenario()),
+        "reserva_toma": caso("reserva_toma", s3, e3, tfp_de(e3, a_new=1.5)),
+        "reserva_divide": caso("reserva_divide", s4, e4, tfp_de(e4, a_eng=1.11)),
+        "reserva_capacidade": caso("reserva_capacidade", s5, e5,
+                                   tfp_de(e5, a_ind=1.2).with_(capacity={"a_ind": 210.0})),
+        "reserva_com_duas": caso("reserva_com_duas", s6, e6, tfp_de(e6, a_new=1.5)),
+    }
     casos |= {
         "salario_ano_base": caso("salario_ano_base", sam2, econ2, cge.Scenario(),
                                  cge.Closure(labour="wage_floor")),

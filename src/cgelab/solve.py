@@ -291,6 +291,9 @@ def solve_period(econ: Economy, closure: Closure | None = None,
     ``backend="ipopt"`` solves the period as one simultaneous system in Pyomo
     (:mod:`cgelab.backends`) instead, maps the solution onto these unknowns and
     accepts it only if this residual holds there; ``warm_start`` is then not read.
+    ``backend="path"`` does the same with PATH, and also writes the
+    complementarity conditions: least-cost producers, capacity limits, import
+    quotas, price bounds and the wage floor.
     """
     closure = closure or Closure()
     sc = scenario or Scenario()
@@ -1340,6 +1343,15 @@ def solve_period(econ: Economy, closure: Closure | None = None,
                                             for j in np.where(m.users)[0]]) / nu)
         for k in i_ht:
             z0[i_ht[k]] = (sol["unemployment"][k] - groups[k].U0) / groups[k].rigid_base
+        if backend == "path":
+            for i, makers in least_cost.items():
+                z0[i_lc[i]] = np.log(sol["price"][i] / nu)
+                z0[i_lc[i] + 1:i_lc[i] + 1 + makers.size] = [
+                    sol["share"][(i, j)] - econ.msh[j, i] for j in makers]
+            z0[i_cap:i_cap + capped.size] = [sol["rent"][j] / nu for j in capped]
+            z0[i_quota:i_quota + quota_idx.size] = [sol["premium"][i] for i in quota_idx]
+            z0[i_ceil:i_ceil + ceil_idx.size] = [sol["subsidy"][i] for i in ceil_idx]
+            z0[i_floor:i_floor + floor_idx.size] = [sol["bought"][i] for i in floor_idx]
         attempts.append((backend, z0, None))
         backend_status = sol["status"]
     elif warm_start is not None:
@@ -1370,7 +1382,8 @@ def solve_period(econ: Economy, closure: Closure | None = None,
             first = np.asarray(residuals(start), dtype=float)
             if method is None:          # a backend's point: judged, never moved
                 best = (float(np.max(np.abs(first))) if first.size else 0.0,
-                        np.asarray(start, dtype=float), label, f"IPOPT: {backend_status}")
+                        np.asarray(start, dtype=float), label,
+                        f"{'PATH' if backend == 'path' else 'IPOPT'}: {backend_status}")
                 break
             if first.size == 0 or float(np.max(np.abs(first))) < min(closure.tolerance, _AT_START):
                 best = (float(np.max(np.abs(first))) if first.size else 0.0,

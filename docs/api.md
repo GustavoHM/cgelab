@@ -289,6 +289,13 @@ models in `to_jump`'s scope only; regional models and complementarity
 conditions are refused. Needs `pip install "cgelab[pyomo]"` and an `ipopt`
 executable on `PATH` or among `amplpy`'s modules.
 
+`backend="path"` solves the same system with PATH and also writes the
+complementarity conditions (least-cost producers and backstops, capacity,
+import quotas, price bounds, the wage floor) through `pyomo.mpec`; `attempt` is
+then `"path"`. Needs a `pathampl` executable on `PATH` or `amplpy`'s `path`
+module; above 300 variables, PATH's free licence string in the environment
+variable `PATH_LICENSE_STRING`.
+
 Unknowns: one price per non-numeraire factor, one for the external closure (the
 exchange rate under `foreign="fixed_saving"`, foreign saving under
 `"fixed_rate"`), and under `investment="fixed_real"` the forced household saving

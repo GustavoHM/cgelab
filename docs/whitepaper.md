@@ -272,7 +272,7 @@ e o feixe velho passa a ter, por unidade, a média dos seus insumos e dos do fei
 
 `calibrate_historical` estende a mesma inversão a alvos escalares arbitrários. Se \(y_{kt}^{*}\) é o valor observado do alvo \(k\) e \(y_{kt}(\lambda_t)\) o resultado do período, os multiplicadores são resolvidos em conjunto por \(\log y_{kt}(\lambda_t)-\log y_{kt}^{*}=0\). Cada incógnita é um multiplicador positivo de produtividade, comum ou próprio de uma atividade, ou de preferência de um domicílio por uma mercadoria. Os anos permanecem sequenciais quando o capital é recursivo, e `calibrate_baseline` chama as mesmas rotinas de raiz escalar e vetorial.
 
-Para o domicílio \(h\), os pesos de orçamento são recalculados por \(b_{hc}'=b_{hc}m_{hc}/\sum_j b_{hj}m_{hj}\). O multiplicador de uma mercadoria de referência é fixado em um, porque a Cobb–Douglas e a LES só identificam preferências relativas; sem essa normalização e esse *gauge*, o sistema teria uma direção a mais sem identificação. Uma política posterior mantém produtividade e preferências calibradas e deixa os alvos se moverem. É uma versão limitada da troca de fechamento, não o mecanismo genérico previsto para a 0.9.
+Para o domicílio \(h\), os pesos de orçamento são recalculados por \(b_{hc}'=b_{hc}m_{hc}/\sum_j b_{hj}m_{hj}\). O multiplicador de uma mercadoria de referência é fixado em um, porque a Cobb–Douglas e a LES só identificam preferências relativas; sem essa normalização e esse *gauge*, o sistema teria uma direção a mais sem identificação. Uma política posterior mantém produtividade e preferências calibradas e deixa os alvos se moverem. É uma versão limitada da troca de fechamento, não o mecanismo genérico previsto para a 0.10.
 
 ### Trajetórias de política
 

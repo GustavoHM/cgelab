@@ -3,7 +3,18 @@
 All notable changes to `cgelab`. Versions follow [semantic versioning](https://semver.org/);
 before 1.0, a minor version may add to the API and a patch version only fixes.
 
-## Unreleased
+## 0.9.0 — 2026-11-03
+
+The PATH backend and reports on failed solves. `solve_period(..., backend="path")` writes the
+complementarity conditions of 0.8 and the backstop through `pyomo.mpec` and solves the period
+as one mixed complementarity problem with PATH, accepting a point only where cgelab's own
+residual holds; the 26 cases of `validation/least_cost.jl` agree with the nested solver to
+2.4e-10 and the 50 round-trip cases to 1.1e-13. When every start point fails, the error lists
+what each one raised; calibration refuses a SAM outside the regional slice with every reason
+at once; `investment_bounds` brackets the investment levels a `fixed_real` period solves at;
+and the Ramsey bridge takes one capital stock per factor. The 0.9 items that were not done,
+the comparisons with GTAPAgg/FlexAgg and GTAP or ORANI-G/TERM (which need licensed GTAP data)
+and sparse algebra (which no model has needed yet), move to 0.10.
 
 ### Added
 

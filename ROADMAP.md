@@ -239,7 +239,8 @@ GTAP data, sparse algebra, the backstop technology and the other backends moved 
 **0.8.1 — the backstop and IPOPT.** The two 0.9 items done below, the backstop technology and
 the IPOPT backend, released ahead of the rest of 0.9.
 
-- [ ] **Release**: 0.8.1 on PyPI and archived on Zenodo.
+- [x] **Release**: 0.8.1 on PyPI and archived on Zenodo
+  ([10.5281/zenodo.23917550](https://doi.org/10.5281/zenodo.23917550)).
 
 **0.9 — what 0.8 left, then the frontier.** First the items moved from 0.8, in this order:
 

@@ -28,7 +28,8 @@ the solver was told to satisfy.
 from .calibrate import Backstop, Economy, calibrate
 from .closure import Closure, LabourMarket
 from .decompose import path_decomposition, scenario_vector, subtotals, welfare_decomposition
-from .diagnostics import base_year_reproduction, homogeneity_test, report, walras_check
+from .diagnostics import (InvestmentBounds, base_year_reproduction, homogeneity_test,
+                          investment_bounds, report, walras_check)
 from .emissions import Emissions, add_emissions, emissions
 from .physical import PhysicalUnits, add_physical_units, physical, physical_coefficient
 from .export import to_jump
@@ -49,6 +50,7 @@ from .micro import (MicroResult, Survey, account_sources, atkinson, fgt, fgt_dec
                     mean_log_deviation, microsimulate, poverty, theil)
 from .mobility import FactorMobility
 from .match import MatchResult, match_targets
+from .regional import RegionalSliceError, regional_preflight
 from .multipliers import (Multipliers, accounting_multipliers, fixed_price_multipliers,
                           leontief_multipliers, linkages, structural_paths)
 from .results import (factor_demand_by_activity, government_account, national_accounts,
@@ -85,6 +87,7 @@ __all__ = [
     "ge_decomposition", "fgt_decomposition",
     "equivalent_variation", "ev_by_group", "compensating_variation",
     "base_year_reproduction", "homogeneity_test", "walras_check", "report",
+    "investment_bounds", "InvestmentBounds", "regional_preflight", "RegionalSliceError",
     "to_jump", "read_har", "write_har", "aggregate_gtap", "gtap_supply_use", "gtap_sam",
     "Emissions", "add_emissions", "emissions",
     "PhysicalUnits", "add_physical_units", "physical", "physical_coefficient",

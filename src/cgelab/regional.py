@@ -30,10 +30,11 @@ from .functions import (armington, ces_intensity, ces_price, cet, cet_domestic_p
                         cobb_douglas_price)
 from . import regional_jacobian
 from .mobility import FactorMobility
-from .solve import PeriodResult, factor_intensity, value_added_price
+from .solve import PeriodResult, all_starts_failed, factor_intensity, value_added_price
 from .transport import TransportMargins
 
-__all__ = ["Regional", "build_regional", "solve_regions"]
+__all__ = ["Regional", "RegionalSliceError", "build_regional", "regional_preflight",
+           "solve_regions"]
 
 _PRICE_ITERS = 200
 #: A start whose residual is the rounding a calibration leaves (1e-13 to 5e-13 on the
@@ -264,68 +265,152 @@ def _transport_calibration(econ, transport, regions, local, origin_index, use,
             basic_price * yard, transport)
 
 
+#: Why the regional slice refuses each kind of issue, said once per kind.
+_WHY = {
+    "account name": "every account of a regional model is 'region:name'",
+    "missing origin": "every region carries the same commodities, or the missing "
+                      "origin would be a silent zero share",
+    "make across regions": "an activity produces in its own region; trade goes "
+                           "through the origin nest, not through the make matrix",
+    "own-account activity": "an activity that sells straight to households has no "
+                            "origin price",
+    "product tax across regions": "this slice puts one rate on the national composite; "
+                                  "different origin rates would be a wedge on the origin "
+                                  "price it does not have",
+    "trade or output tax": "the regional nest does not apply a tariff or an indirect "
+                           "tax on output yet; calibrate those on a one-region model",
+    "energy nest": "the regional slice keeps intermediate inputs Leontief; "
+                   "ModelSpec.energy is a one-region feature for now",
+    "world demand or supply": "the regional slice is a price taker abroad; "
+                              "export_demand and import_supply would need one world "
+                              "price per national commodity",
+    "household demand": "regional households buy the national composite with "
+                        "Cobb-Douglas shares",
+}
+
+
+class RegionalSliceError(ValueError):
+    """A SAM outside the regional slice, with every issue found, not only the first.
+
+    ``issues`` is a list of ``(issue, account, detail)``;
+    :func:`regional_preflight` returns it as a table.
+    """
+
+    def __init__(self, issues):
+        self.issues = list(issues)
+        kinds: dict = {}
+        for kind, account, detail in self.issues:
+            kinds.setdefault(kind, []).append(f"{account}: {detail}" if detail else account)
+        parts = [f"- {kind} ({_WHY[kind]}):\n" + "\n".join(f"    {x}" for x in found)
+                 for kind, found in kinds.items()]
+        super().__init__(f"this SAM is outside the regional slice, {len(self.issues)} "
+                         f"issue(s):\n" + "\n".join(parts))
+
+
+def _slice_issues(econ, sam) -> list:
+    """Every reason the regional slice cannot price this SAM, as (issue, account, detail)."""
+    spec = econ.spec
+    regions = tuple(spec.regions)
+    issues = []
+
+    def split(name):
+        reg, sep, loc = name.partition(":")
+        if not sep or reg not in regions:
+            issues.append(("account name", name, f"region not one of {list(regions)}"))
+            return None
+        return reg, loc
+
+    parts = {name: split(name) for name in [*econ.acts, *econ.coms, *econ.hhs, *econ.factors]}
+    local: list[str] = []
+    for name in econ.coms:
+        if parts[name] is not None and parts[name][1] not in local:
+            local.append(parts[name][1])
+    for loc in local:
+        for reg in regions:
+            if f"{reg}:{loc}" not in econ.coms:
+                issues.append(("missing origin", f"{reg}:{loc}", ""))
+
+    make = sam.block(econ.acts, econ.coms)
+    for j, act in enumerate(econ.acts):
+        for k, com in enumerate(econ.coms):
+            if (abs(make[j, k]) > 1e-12 and parts[act] is not None and parts[com] is not None
+                    and parts[act][0] != parts[com][0]):
+                issues.append(("make across regions", act, f"produces {com!r} ({make[j, k]:.6g})"))
+    for j in np.where(econ.own_account)[0]:
+        issues.append(("own-account activity", econ.acts[j], "sells only to households"))
+    by_local: dict = {}
+    for i, com in enumerate(econ.coms):
+        if parts[com] is not None:
+            by_local.setdefault(parts[com][1], []).append((com, float(econ.ptax[i])))
+    for loc, rates in by_local.items():
+        values = np.array([r for _, r in rates])
+        if np.max(np.abs(values - values[0])) > 1e-8:
+            issues.append(("product tax across regions", loc,
+                           ", ".join(f"{c} {r:.6g}" for c, r in rates)))
+
+    if econ.tm0 is not None:
+        issues.append(("trade or output tax", "tariffs", "calibrated tariffs"))
+    if econ.tauz0 is not None:
+        issues.append(("trade or output tax", "output_taxes", "calibrated output taxes"))
+    if spec.energy:
+        issues.append(("energy nest", "ModelSpec.energy", ""))
+    if spec.export_demand is not None:
+        issues.append(("world demand or supply", "ModelSpec.export_demand", ""))
+    if spec.import_supply is not None:
+        issues.append(("world demand or supply", "ModelSpec.import_supply", ""))
+    if spec.household_demand != "cobb_douglas":
+        issues.append(("household demand", "ModelSpec.household_demand",
+                       f"{spec.household_demand!r} is not in this slice"))
+    return issues
+
+
+def regional_preflight(sam, spec, **calibrate_kwargs):
+    """Every reason a SAM is outside the regional slice, one row per account, at once.
+
+    Calibrating a regional model stops at the first refusal, which leaves a SAM
+    in preparation to be fixed one error at a time. This calibrates it and
+    returns a table with columns ``issue``, ``account`` and ``detail``: make
+    cells across regions, own-account activities, product-tax rates that differ
+    across origins, missing origins and the features the slice does not carry.
+    An empty table means the slice accepts the SAM. Errors that are not about
+    the regional slice (an unbalanced SAM, an unknown account) are raised as
+    :func:`~cgelab.calibrate.calibrate` raises them.
+    """
+    import pandas as pd
+
+    from .calibrate import calibrate
+    try:
+        calibrate(sam, spec, **calibrate_kwargs)
+        issues = []
+    except RegionalSliceError as exc:
+        issues = exc.issues
+    return pd.DataFrame(issues, columns=["issue", "account", "detail"])
+
+
 def build_regional(econ, sam, *, migration_pools=None, transport=None) -> Regional:
-    """Read the origin nest off a calibrated regional economy. Refuse a SAM it cannot price."""
+    """Read the origin nest off a calibrated regional economy. Refuse a SAM it cannot price.
+
+    Every issue of the slice is reported in one :class:`RegionalSliceError`.
+    """
     spec = econ.spec
     regions = tuple(spec.regions)
     acts, coms = econ.acts, econ.coms
+    issues = _slice_issues(econ, sam)
+    if issues:
+        raise RegionalSliceError(issues)
     local: list[str] = []
     for name in coms:
         _, loc = _split(name, regions)
         if loc not in local:
             local.append(loc)
-    missing = [f"{reg}:{loc}" for reg in regions for loc in local
-               if f"{reg}:{loc}" not in coms]
-    if missing:
-        raise ValueError(
-            "every region carries the same commodities. Missing origins, which "
-            f"would otherwise be a silent zero share: {missing}")
     r_of = {r: i for i, r in enumerate(regions)}
     c_of = {c: i for i, c in enumerate(local)}
     origin_index = np.empty((len(regions), len(local)), dtype=int)
     for i, name in enumerate(coms):
         reg, loc = _split(name, regions)
         origin_index[r_of[reg], c_of[loc]] = i
-
-    # An activity produces in its own region. A make cell across regions would
-    # be a second theory of trade, on top of the origin CES.
-    make = sam.block(acts, coms)
-    activity_region = np.empty(len(acts), dtype=int)
-    for j, name in enumerate(acts):
-        reg, _ = _split(name, regions)
-        activity_region[j] = r_of[reg]
-        for k, com in enumerate(coms):
-            if abs(make[j, k]) > 1e-12:
-                creg, _ = _split(com, regions)
-                if creg != reg:
-                    raise ValueError(
-                        f"activity {name!r} produces {com!r}, in another region. "
-                        "Trade goes through the origin nest, not through the make matrix.")
+    activity_region = np.array([r_of[_split(name, regions)[0]] for name in acts], dtype=int)
     household_region = np.array([r_of[_split(h, regions)[0]] for h in econ.hhs], dtype=int)
-    for name in econ.factors:
-        _split(name, regions)
-
-    if econ.tm0 is not None or econ.tauz0 is not None:
-        raise ValueError(
-            "the regional nest does not apply a tariff or an indirect tax on "
-            "output yet. Calibrate those on a one-region model.")
-    if econ.own_account.any():
-        raise ValueError(
-            "own-account activities are not in the regional slice. An activity "
-            "that sells straight to households has no origin price.")
-    if spec.energy:
-        raise ValueError(
-            "the regional slice keeps intermediate inputs Leontief; an energy nest "
-            "(ModelSpec.energy) is a one-region feature for now.")
-    if spec.export_demand is not None or spec.import_supply is not None:
-        raise ValueError(
-            "the regional slice is a price taker abroad. export_demand and "
-            "import_supply would need one world price per national commodity, "
-            "and the origin nest does not carry it.")
-    if spec.household_demand != "cobb_douglas":
-        raise ValueError(
-            "regional households buy the national composite with Cobb-Douglas "
-            f"shares. household_demand={spec.household_demand!r} is not in this slice.")
 
     n_reg, n_loc = len(regions), len(local)
     dom = np.zeros((n_reg, n_loc))
@@ -342,20 +427,9 @@ def build_regional(econ, sam, *, migration_pools=None, transport=None) -> Region
         origin_share = np.where(dom_total > 0, dom / np.maximum(dom_total, 1e-12), 0.0)
     absorbed = dom_total + imp.sum(axis=0)
     dom_share = np.where(absorbed > 0, dom_total / np.maximum(absorbed, 1e-12), 1.0)
-    # One tax rate on the composite. Different origin rates would be a wedge on
-    # the origin price, which this slice does not have; pooling them would move
-    # the mix for a reason that is not the elasticity.
-    ptax_o = np.zeros((n_reg, n_loc))
-    for r in range(n_reg):
-        for c in range(n_loc):
-            ptax_o[r, c] = econ.ptax[origin_index[r, c]]
-    for c, name in enumerate(local):
-        rates = ptax_o[:, c]
-        if np.max(np.abs(rates - rates[0])) > 1e-8:
-            raise ValueError(
-                f"commodity {name!r} has different product-tax rates across regions "
-                f"({rates.tolist()}). This slice puts one rate on the national composite.")
-    ptax = ptax_o[0].copy()
+    # One tax rate on the composite (_slice_issues refused different origin
+    # rates: pooling them would move the mix for a reason that is not the elasticity).
+    ptax = econ.ptax[origin_index[0]].copy()
 
     sigma = _sigma(spec, local)
     sigma_arm = np.array([_arm_sigma(spec, econ, origin_index[:, c]) for c in range(n_loc)])
@@ -1002,6 +1076,7 @@ def _solve(residuals, n_unknown, tolerance, warm_start, raise_on_fail, jac=None)
                  ("perturbed", np.full(n_unknown, 1e-4), "hybr"),
                  ("lm", np.zeros(n_unknown), "lm")]
     best = None
+    failures = []
     for label, start, method in attempts:
         try:
             # A start that already solves the system (the base year, or a warm
@@ -1015,7 +1090,8 @@ def _solve(residuals, n_unknown, tolerance, warm_start, raise_on_fail, jac=None)
             sol = root(residuals, start, method=method, jac=jac,
                        options={"xtol": 1e-14} if method == "hybr"
                        else {"xtol": 1e-14, "ftol": 1e-14})
-        except (ValueError, RuntimeError):
+        except (ValueError, RuntimeError) as exc:
+            failures.append((label, exc))
             continue
         z = np.asarray(sol.x, dtype=float)
         res = float(np.max(np.abs(residuals(z))))
@@ -1026,7 +1102,7 @@ def _solve(residuals, n_unknown, tolerance, warm_start, raise_on_fail, jac=None)
         if res < tolerance:
             break
     if best is None:
-        raise RuntimeError("solve_period: every start point failed before a residual was formed")
+        raise all_starts_failed(failures)
     res, z, label, message = best
     if res >= tolerance and raise_on_fail:
         raise RuntimeError(

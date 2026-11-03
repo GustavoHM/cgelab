@@ -154,3 +154,14 @@ def test_misuse_is_refused():
     m = cge.accounting_multipliers(sam, spec=toy.spec())
     with pytest.raises(ValueError, match="different"):
         cge.structural_paths(m, "c_agr", "c_agr")
+
+
+def test_an_activity_injection_is_not_a_commodity_injection():
+    """The guide's numbers: c_ind passes 200/235 of an injection to a_ind in the
+    first round and leaks the rest to imports and taxes."""
+    from cgelab.examples import toy
+    sam, econ = toy.build()
+    m = cge.accounting_multipliers(sam, spec=econ.spec)
+    assert m.A.loc["a_ind", "c_ind"] * 100 == pytest.approx(85.1, abs=0.05)
+    assert m.impact({"c_ind": 100.0})["a_ind"] == pytest.approx(221.0, abs=0.05)
+    assert m.impact({"a_ind": 100.0})["a_ind"] == pytest.approx(259.7, abs=0.05)

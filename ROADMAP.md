@@ -1,6 +1,6 @@
 # Roadmap
 
-Plan revised on 11 October 2026; milestones brought up to date on 29 October 2026.
+Plan revised on 11 October 2026; milestones brought up to date on 3 November 2026.
 The goal is to make `cgelab` **as complete as possible**:
 **version 1.0** covers what the reference platforms offer — GAMS/MPSGE, GEMPACK, GTAP and the
 IFPRI and PEP standard models — together with the gaps the applied models exposed. The **public
@@ -242,12 +242,10 @@ the IPOPT backend, released ahead of the rest of 0.9.
 - [x] **Release**: 0.8.1 on PyPI and archived on Zenodo
   ([10.5281/zenodo.23917550](https://doi.org/10.5281/zenodo.23917550)).
 
-**0.9 — what 0.8 left, then the frontier.** First the items moved from 0.8, in this order:
+**0.9 — the backends.** The backstop technology and the IPOPT backend came out ahead, in
+0.8.1; 0.9.0 adds PATH and reports on failed solves. On 3 November 2026 the comparisons with
+GTAP data and sparse algebra moved to 0.10.
 
-- [ ] **GTAP aggregation against GTAPAgg/FlexAgg**: the same aggregation of the same database,
-  value headers and weighted parameters compared cell by cell. Needs licensed GTAP data.
-- [ ] **Regional equilibria against GTAP or ORANI-G/TERM**: a reference simulation reproduced,
-  with every difference explained by a stated difference in the model. Needs the same data.
 - [x] **A backstop technology**: `calibrate(..., backstops={name: Backstop(...)})`, an activity
   with no base-year output that competes under `least_cost`, its costs either another
   activity's scaled by a markup (`like`) or engineering data (`costs`). Validated against a
@@ -267,6 +265,19 @@ the IPOPT backend, released ahead of the rest of 0.9.
     (`validation/replicate_path.py`). `amplpy`'s PATH module ships an x86-64 binary for macOS,
     which needs Rosetta on Apple silicon; PATH beyond 300 variables needs its authors' free
     licence string.
+- [x] **Reports on failed solves**, added with 0.9.0: `solve_period` lists what each start point
+  raised; calibration refuses a SAM outside the regional slice with every reason at once
+  (`RegionalSliceError`, `regional_preflight`); `investment_bounds` brackets the investment
+  levels a `fixed_real` period solves at; `bridge.ramsey` takes one capital stock per factor
+  and names the date and stocks of a period that fails.
+- [ ] **Release**: 0.9.0 on PyPI and archived on Zenodo.
+
+**0.10 — what 0.9 left, then the frontier.** First the items moved from 0.9, in this order:
+
+- [ ] **GTAP aggregation against GTAPAgg/FlexAgg**: the same aggregation of the same database,
+  value headers and weighted parameters compared cell by cell. Needs licensed GTAP data.
+- [ ] **Regional equilibria against GTAP or ORANI-G/TERM**: a reference simulation reproduced,
+  with every difference explained by a stated difference in the model. Needs the same data.
 - [ ] **Sparse algebra**, when a model is large enough to need it: at 819 accounts the dense
   systems of one equation per destination and good are a small part of a solve.
 

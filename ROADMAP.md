@@ -270,7 +270,8 @@ GTAP data and sparse algebra moved to 0.10.
   (`RegionalSliceError`, `regional_preflight`); `investment_bounds` brackets the investment
   levels a `fixed_real` period solves at; `bridge.ramsey` takes one capital stock per factor
   and names the date and stocks of a period that fails.
-- [ ] **Release**: 0.9.0 on PyPI and archived on Zenodo.
+- [x] **Release**: 0.9.0 on PyPI and archived on Zenodo
+  ([10.5281/zenodo.23934696](https://doi.org/10.5281/zenodo.23934696)).
 
 **0.10 — what 0.9 left, then the frontier.** First the items moved from 0.9, in this order:
 

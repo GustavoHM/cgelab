@@ -301,13 +301,16 @@ independent replica in Julia (JuMP with Ipopt or PATH), as in `validation/`.
 
 **0.11 — closures and data.**
 
-- [ ] **A generic closure swap** in the GEMPACK manner: any variable exogenous against any
-  shifter, of which `calibrate_historical` is a case. Reference: swap and swap back reproduce
-  the standard closure, and the historical closure's results.
-- [ ] **SAM balancing by cross entropy** beside RAS (Robinson, Cattaneo and El-Said, 2001).
-  Reference: their published example, and RAS as the special case it contains.
-- [ ] **Regionalising national coefficients** by location quotients (SLQ, CILQ, FLQ). Reference:
-  the published formulas on a published worked example.
+- [x] **A generic closure swap** in the GEMPACK manner: any variable exogenous against any
+  shifter, of which `calibrate_historical` is a case (`solve_swapped`, for one period).
+  Validated: swap and swap back reproduce the standard closure, and the historical closure's
+  common productivity, to 1e-10.
+- [x] **SAM balancing by cross entropy** beside RAS (Robinson, Cattaneo and El-Said, 2001)
+  (`cross_entropy`). Validated against RAS, the special case it contains, and against the
+  primal problem solved by Ipopt in Julia, to 8e-12 (`validation/replicate_cross_entropy.py`).
+- [x] **Regionalising national coefficients** by location quotients (SLQ, CILQ, FLQ, AFLQ)
+  (`location_quotients`, `regional_coefficients`). Validated against the published formulas,
+  computed by hand.
 
 **0.12 — households, factors and land.**
 

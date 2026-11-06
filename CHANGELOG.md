@@ -3,6 +3,30 @@
 All notable changes to `cgelab`. Versions follow [semantic versioning](https://semver.org/);
 before 1.0, a minor version may add to the API and a patch version only fixes.
 
+## Unreleased
+
+### Added
+
+- `solve_swapped(econ, closure, scenario, exogenous=, endogenous=)` and
+  `Swapped`: a generic closure swap for one period, in the GEMPACK manner. Each
+  variable in `exogenous` (a period result by name, `"real_gdp"`,
+  `"government.<key>"` or a callable) is set to a value, and as many scenario
+  instruments (`"productivity[a]"`, `"world_price[c]"`, a tax rate,
+  `"investment_level"`, `"field[*]"` for a common multiplier) become the
+  unknowns. An instrument the closure does not read is refused. Swapping and
+  swapping back reproduce the standard closure to 1e-10, and
+  `calibrate_historical`'s common productivity is a case of it.
+- `cross_entropy(prior, totals=, fixed=, targets=, aggregates=)` and
+  `CrossEntropy`: SAM estimation by minimum I-divergence over the flows
+  (Golan, Judge and Robinson; Robinson, Cattaneo and El-Said), with account
+  totals, fixed cells, cell targets and linear aggregates. Zeros and signs of
+  the prior are kept, and the information multipliers report what each piece
+  of information costs. With every total given it is RAS, which the suite
+  checks; `validation/cross_entropy.jl` solves the primal with Ipopt and eight
+  cases agree to 8e-12.
+- `location_quotients(regional, national, method=, delta=)` (SLQ, CILQ, FLQ,
+  AFLQ) and `regional_coefficients(national, quotients)`.
+
 ## 0.10.0 — 2026-11-05
 
 Trade instruments, the first version of the plan to 1.0 in `ROADMAP.md`. An export tax on the

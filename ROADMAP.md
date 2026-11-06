@@ -325,10 +325,12 @@ independent replica in Julia (JuMP with Ipopt or PATH), as in `validation/`.
   0.15: the paper's formulation is not at hand, and guessing it would not be a replication.
 - [x] **Land allocated by CET** across uses: `factor_mobility` on a land factor, since 0.6,
   is GTAP's sluggish endowment. A nested land CET is open, in 0.15.
-- [ ] **Release**: 0.12.0 on PyPI and archived on Zenodo.
+- [x] **Release**: 0.12.0 on PyPI and archived on Zenodo
+  ([10.5281/zenodo.24014846](https://doi.org/10.5281/zenodo.24014846)).
 - [x] **Regional investment basket**: `Scenario.investment_mix` in the regional solver, each
   share bought from the named region, released as 0.12.1.
-- [ ] **Release**: 0.12.1 on PyPI and archived on Zenodo.
+- [x] **Release**: 0.12.1 on PyPI and archived on Zenodo
+  ([10.5281/zenodo.24015090](https://doi.org/10.5281/zenodo.24015090)).
 
 **0.13 — market structure.**
 

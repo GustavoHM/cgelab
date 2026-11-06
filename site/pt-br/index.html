@@ -1092,20 +1092,21 @@ mais_barata.armington_sigma</code></pre>
   (1,8% e 8,1%), então o preço da sua importação sobe em relação ao doméstico e ela substitui a
   0,9.</p>
   <h3>44. Uma MCS estimada por entropia cruzada</h3>
-<pre><code>ruidosa = cge.SAM(frame=sam.frame.assign(
-    value=sam.frame.value * np.random.default_rng(7).uniform(0.8, 1.25, len(sam.frame))))
+<pre><code>toy_sam, _ = toy.build()
+ruidosa = cge.SAM(frame=toy_sam.frame.assign(
+    value=toy_sam.frame.value * np.random.default_rng(7).uniform(0.8, 1.25, len(toy_sam.frame))))
 est = cge.cross_entropy(ruidosa, totals={"a_agr": 100.0},
                         targets={("c_agr", "hh_1"): 33.0})
 round(float(ruidosa.imbalance().abs().max()), 3)
 round(float(est.sam.imbalance().abs().max()), 12)
 est.information_multipliers.round(4)</code></pre>
 <pre class="output" data-label="Saída"><code><span class="out-expr">round(float(ruidosa.imbalance().abs().max()), 3)</span>
-36.65
+40.06
 <span class="out-expr">round(float(est.sam.imbalance().abs().max()), 12)</span>
 0
 <span class="out-expr">est.information_multipliers.round(4)</span>
-total:a_agr          0.097
-cell:c_agr&lt;-hh_1   -0.0691</code></pre>
+total:a_agr         0.1054
+cell:c_agr&lt;-hh_1   -0.2069</code></pre>
   <p>Uma MCS a priori que não fecha, e duas informações que não estavam nela, viram a MCS
   balanceada mais próxima dela no sentido da informação. Os zeros e os sinais da MCS a priori
   ficam como estão. Cada multiplicador diz quanto a sua informação custa em divergência, que é
@@ -1126,7 +1127,7 @@ svc 1.323 0.662 0.662</code></pre>
   então multiplica os coeficientes nacionais por <code>min(1, QL)</code>, e o resto é importado.</p>
 
   <h3>46. Trocando o fechamento</h3>
-<pre><code>economia_cet = cge.calibrate(sam, toy.spec(export_rule="cet"))
+<pre><code>economia_cet = cge.calibrate(toy_sam, toy.spec(export_rule="cet"))
 alvo = cge.solve_period(economia_cet, scenario=cge.Scenario(export_price=np.array([1.2, 1.0])))
 trocado = cge.solve_swapped(economia_cet, exogenous={"exports[c_agr]": alvo.exports[0]},
                             endogenous=["export_price[c_agr]"])
@@ -1137,6 +1138,31 @@ export_price[c_agr]   1.2</code></pre>
   uma troca à moda do GEMPACK dentro do período. Fixadas no que uma alta de 20% desse preço
   produziu, a troca encontra os 20%. Um instrumento que o fechamento não lê é recusado em vez de
   aparecer como resolvido.</p>
+  <h3>47. Demanda das famílias que não é homotética: CDE</h3>
+<pre><code>cde = cge.calibrate(toy_sam, toy.spec(household_demand="cde",
+                                  cde_substitution={"c_agr": 0.3, "c_ind": 0.6}),
+                    income_elasticities={"c_agr": 0.6, "c_ind": 1.2})
+mais_rica = cge.solve_period(cde, scenario=cge.Scenario(productivity=np.array([1.1, 1.1])))
+(mais_rica.hh_quantity / cge.solve_period(cde).hh_quantity).round(4)</code></pre>
+<pre class="output" data-label="Saída"><code><span class="out-expr">(mais_rica.hh_quantity / cge.solve_period(cde).hh_quantity).round(4)</span>
+[[1.086 1.204]
+ [1.09 1.21]]</code></pre>
+  <p>A diferença constante de elasticidades do GTAP: elasticidades-renda diferentes por bem e
+  substituição que não depende delas. Quando a produtividade sobe, as famílias compram
+  proporcionalmente mais da indústria, cuja elasticidade-renda passa de um, do que da
+  agricultura.</p>
+
+  <h3>48. Oferta de trabalho escolhida contra o lazer</h3>
+<pre><code>lazer = cge.calibrate(toy_sam, toy.spec(numeraire_factor="f_cap",
+                                    leisure_ratio={"hh_1": 0.5, "hh_2": 0.8}))
+mais_capital = cge.solve_period(lazer, scenario=cge.Scenario(
+    factor_supply=np.array([110.0, 72.0])))
+mais_capital.leisure["labour"].round(3)</code></pre>
+<pre class="output" data-label="Saída"><code><span class="out-expr">mais_capital.leisure["labour"].round(3)</span>
+[70.39 40.21]</code></pre>
+  <p>Cada família tem o seu tempo e o divide entre trabalho e lazer. Vinte por cento mais capital
+  sobe o salário, e o trabalho que cada família oferece responde a ele; o mercado de trabalho
+  fecha contra a soma.</p>
 </div></section>
 
 <section id="verificacoes"><div class="wrap">

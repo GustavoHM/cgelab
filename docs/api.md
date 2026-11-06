@@ -88,7 +88,9 @@ gives `inf`; negative or nonfinite entries and zero total flow are refused.
 | `import_supply` | `None` | import-supply elasticity ψ, `M / M0 = (pWm / world_price)^ψ`; scalar or mapping by commodity |
 | `energy`, `sigma_vae`, `sigma_energy` | `None`, `0.5`, `1.0` | energy commodities; a CES between value added and an energy bundle, and across fuels inside it; scalar or mapping by activity |
 | `energy_nest`, `energy_capital`, `sigma_ke` | `"value_added"`, `"f_cap"`, `0.5` | `"capital"` puts energy with that capital factor in a composite (`sigma_ke`) inside the value-added nest (`sigma_va`), as in GTAP-E |
-| `household_demand`, `frisch` | `"cobb_douglas"`, `-1.5` | `"les"` uses `frisch` for subsistence |
+| `household_demand`, `frisch` | `"cobb_douglas"`, `-1.5` | `"les"` uses `frisch` for subsistence; `"cde"` is the constant difference of elasticities, with `cde_substitution` |
+| `cde_substitution` | `None` | CDE only, required: the substitution parameter `b` by commodity, in (0, 1); the expansion parameters follow from `income_elasticities`. National; consumer and government wedges refused |
+| `leisure_ratio`, `leisure_factor` | `None`, `"f_lab"` | a labour–leisure choice: leisure over base-year labour by household (scalar or mapping). Each household owns time and chooses labour with a Cobb–Douglas between leisure and spending; its labour income follows its supply. The factor cannot be the numeraire; needs `full_employment`; wedges refused |
 | `negative_value_added` | `"leontief"` | or `"net"` |
 | `margins` | `True` | read the commodity-to-commodity margin block |
 | `regions` | `None` | region names. Accounts are then `region:local`. Absent, the one-region model |
@@ -374,6 +376,7 @@ is deducted from households. `savings_driven` remains the default.
 | `hh_direct_tax`, `factor_income_abroad`, `foreign_saving` | direct tax by household; factor income paid abroad; the period's foreign saving, FDI included |
 | `Q`, `X`, `absorption`, `imports`, `exports` | the quantity system; `imports` at the border, `exports` at their tax-inclusive value, and at the border when an export tax was calibrated |
 | `armington_sigma` | `(nc,)` the elasticity each commodity was solved at under an asymmetric Armington; `None` with one elasticity |
+| `leisure` | `{"time", "leisure", "labour", "spending", "wage"}` by household under `leisure_ratio`, `wage` net of what goes to government and abroad; `None` without it |
 | `hh_quantity`, `hh_income`, `hh_commodity_spend`, `hh_direct_outlay`, `hh_wedge_paid` | the household block |
 | `gov_quantity`, `investment_quantity`, `savings`, `factor_demand` | the rest of final demand; for an imperfectly mobile factor, `factor_demand` is its endowment and `factor_prices` its income over that endowment |
 | `factor_demand_by_activity`, `factor_prices_by_activity` | `(nf, na)` factor use and the price each activity pays. Under a CET the use does not add up to the endowment off the base year |

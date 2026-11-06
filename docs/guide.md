@@ -212,7 +212,7 @@ econ = cge.calibrate(sam, spec,
                      population={"hh_d1": 8.3e6, ...})
 ```
 
-`income_elasticities` are used only under LES. `population` is the weight of a
+`income_elasticities` are used under LES and CDE. `population` is the weight of a
 **per capita** transfer — neither the income share nor the expenditure share.
 Getting it wrong reverses the distributional sign of any lump-sum recycling, so
 it is a separate input rather than a default derived from money.
@@ -536,6 +536,65 @@ absent, it is the base year's, scaled with the supply of the group's factors.
 also be the numeraire, sit in `factor_mobility`, or take `Closure.labour`.
 
 ---
+
+### CDE household demand
+
+```python
+spec = cge.ModelSpec(..., household_demand="cde",
+                     cde_substitution={"c_food": 0.3, "c_services": 0.6})
+econ = cge.calibrate(sam, spec, income_elasticities={"c_food": 0.6, "c_services": 1.2})
+```
+
+The constant difference of elasticities (Hanoch; Hertel et al., 1991) is GTAP's
+household. It is defined implicitly, `Σ_i B_i u^(e_i b_i) (p_i/E)^b_i = 1`, so
+income elasticities can differ by good and change with income, and the
+substitution between goods is not tied to them as it is under LES. The
+substitution parameters `b` (in (0, 1)) are given; the expansion parameters
+follow in closed form from the income elasticities, scaled to Engel aggregation,
+and `B` from base-year utility of one. With every `b` equal and unit income
+elasticities it is a CES with elasticity `1 − b`, which the suite checks, along
+with the income and price elasticities, by finite differences against their
+closed forms. `period.real["hh_price_index"]` is then a money-metric index:
+spending over what the same utility costs at base-year prices.
+`validation/replicate_trade_instruments.py` writes the CDE households
+independently in Julia (utility a variable paired with the identity) and four
+cases agree to 1e-14. Consumer and government wedges are refused under CDE,
+because their revenue is recycled in closed form only for demand that is affine
+in spending; `to_jump` and the regional solver refuse it.
+
+### Labour and leisure
+
+```python
+spec = cge.ModelSpec(..., numeraire_factor="f_cap", leisure_ratio={"hh_1": 0.5, "hh_2": 0.8})
+result = cge.solve_period(cge.calibrate(sam, spec))
+result.leisure            # time, leisure, labour, spending and net wage by household
+```
+
+`leisure_ratio` gives each household's leisure over the labour it supplied in the
+base year. Each household then owns time `T = labour × (1 + ratio)` and splits it
+between labour, paid the wage net of what goes to government and abroad, and
+leisure, with a Cobb–Douglas between leisure and its commodity spending. An hour
+of leisure gives up `net × w_net` of spending, where `net` is what is left after
+direct tax and saving, so `net w_net L = k C` with `k` calibrated on the base
+year. Spending is then affine in what the household is given, and the choice
+enters the solver in closed form. Each household's labour income follows its own
+supply, and the labour market clears against the sum. `Scenario.factor_supply`
+on that factor scales the time endowment. The leisure factor cannot be the
+numeraire, whose market is Walras' check, and the closure must be
+`full_employment`. Wedges and `factor_ownership` on the factor are refused. A
+leisure ratio near zero gives back the fixed labour supply, which the suite
+checks; `validation/replicate_trade_instruments.py` solves the same choice in
+Julia, the first-order condition paired with leisure, and five cases agree to
+1e-14.
+
+### Land
+
+Land allocated across uses by a constant elasticity of transformation, as in
+GTAP's sluggish endowments and its land-use extensions, is
+`ModelSpec.factor_mobility={"f_land": omega}`: each activity that uses land pays
+its own rent, and the land supplied to each moves with relative rents (see
+*Factors that move only partway*). A nested transformation, land to forestry
+against agriculture and then crops against pasture, is not in this version.
 
 ## 7. Scenarios
 

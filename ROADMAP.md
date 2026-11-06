@@ -323,6 +323,7 @@ independent replica in Julia (JuMP with Ipopt or PATH), as in `validation/`.
   0.15: the paper's formulation is not at hand, and guessing it would not be a replication.
 - [x] **Land allocated by CET** across uses: `factor_mobility` on a land factor, since 0.6,
   is GTAP's sluggish endowment. A nested land CET is open, in 0.15.
+- [ ] **Release**: 0.12.0 on PyPI and archived on Zenodo.
 
 **0.13 — market structure.**
 

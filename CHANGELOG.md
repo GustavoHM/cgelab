@@ -3,7 +3,14 @@
 All notable changes to `cgelab`. Versions follow [semantic versioning](https://semver.org/);
 before 1.0, a minor version may add to the API and a patch version only fixes.
 
-## Unreleased
+## 0.12.0 — 2026-11-06
+
+Households. CDE household demand, the GTAP household, with its substitution parameters given and
+its expansion parameters calibrated in closed form from income elasticities; and a labour–leisure
+choice by household, solved in closed form inside the period. Both are checked against closed
+forms and against an independent Julia rewrite solved by PATH, to 1e-14. Capital utilization
+and AIDS demand move to 0.15; land allocated by CET has been `factor_mobility` since 0.6. Nothing
+released earlier changes.
 
 ### Added
 

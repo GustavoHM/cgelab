@@ -321,12 +321,20 @@ def _welfare_state(period) -> dict:
         pqf=period.pqf, pbase=period.pbase, pd=period.pd, w=period.factor_prices,
         ptax_a=r["ptax_a"], ptax_f=r["ptax_f"], wedge=r["W"] + r["Wg"], tm=r["tm"],
         tauz=r["tauz"], te=r["te"], atax=econ.atax * nu,
+        # A monopolist's markup is a wedge on home sales, at what buyers pay; a fixed cost per
+        # unit falls as output rises.
+        home=np.asarray(period.domestic_sales, float),
+        mark=(np.zeros(econ.n_com) if econ.monopoly is None else
+              (1.0 - 1.0 / econ.monopoly["markup"]) * np.asarray(period.p_domestic, float)),
+        fc_unit=np.array([(period.fixed_costs or {}).get(a, {}).get("average", 0.0)
+                          for a in econ.acts]),
     )
 
 
 _WELFARE_TERMS = ["endowment", "technology", "allocative_product_tax",
                   "allocative_consumer_wedge", "allocative_activity_tax", "allocative_carbon_tax",
                   "allocative_tariff", "allocative_output_tax", "allocative_export_tax",
+                  "allocative_monopoly", "scale_economies",
                   "factor_reallocation",
                   "terms_of_trade", "external_account"]
 
@@ -375,6 +383,10 @@ def _welfare_integrand(s: dict, d: dict) -> dict:
         # are measured in, times the change in exports.
         "allocative_export_tax": (0.0 if s["te"] is None
                                   else float((s["te"] * s["er"] * s["pWe"]) @ d["E"])),
+        # The markup times the change in home sales: what a monopolist's restriction costs.
+        "allocative_monopoly": float(s["mark"] @ d["home"]),
+        # A fixed cost spread over more output: its unit cost times the change in output.
+        "scale_economies": float(s["fc_unit"] @ d["X"]),
         "terms_of_trade": float(s["er"] * (s["E"] @ d["pWe"] - s["M"] @ d["pWm"])),
         "external_account": float(d["FS"] + (s["pWe"] @ s["E"] - s["pWm"] @ s["M"]) * d["er"]
                                   - d["row"]),
@@ -459,7 +471,7 @@ def welfare_decomposition(econ, reference: Scenario, alternative: Scenario, *, c
         d = {k: (np.asarray(up[k], float) - np.asarray(down[k], float)) / (2 * step)
              for k in ("hh_q", "own", "gov_q", "inv_q", "fin", "firm", "X", "Q", "M", "E",
                        "F", "Fa", "Fpool", "pWe", "pWm", "er", "FS", "row", "log_tfp",
-                       "em_act")}
+                       "em_act", "home")}
         for k, v in _welfare_integrand(s, d).items():
             total[k] += w * v
     out = pd.Series(total, name="welfare")

@@ -184,6 +184,15 @@ class Economy:
     #: leisure to commodity spending (``(1 - alpha) / alpha`` of its Cobb–Douglas
     #: between leisure and spending). None without it.
     leisure: dict | None = field(default=None, repr=False)
+    #: Monopolists (``ModelSpec.monopoly``): ``index`` (commodities), ``markup``
+    #: (n_com,) the buyer's price over the producer's on home sales, one where
+    #: there is no monopoly, ``weights`` (n_fac, n_com) the factors the rent was
+    #: taken from, which carry it back to their owners, and ``rent0``. None
+    #: without monopoly.
+    monopoly: dict | None = field(default=None, repr=False)
+    #: Fixed costs (``ModelSpec.fixed_costs``): ``index`` (activities), ``fc``
+    #: (n_act,) in base-year numeraire units, and ``factor``. None without them.
+    fixed_costs: dict | None = field(default=None, repr=False)
     #: Government saving over government income at the base year, income net
     #: of transfers to households. Read by ``Closure(government="saving_rate")``.
     gov_savrate: float = 0.0
@@ -495,6 +504,8 @@ def calibrate(sam: SAM, spec: ModelSpec | None = None, *,
     Q0 = make.sum(axis=0)
     with np.errstate(divide="ignore", invalid="ignore"):
         msh = np.where(Q0 > 0, make / np.maximum(Q0, 1e-12), 0.0)
+    monopoly, fixed_costs, X0, make, fac, Q0 = _market_structure(
+        spec, sam, acts, coms, facs, X0, make, fac, Q0, msh, layout.rest_of_world)
 
     # An activity with no market share in any commodity does not appear in the
     # commodity balance, so its level cannot be recovered from `X = MSH @ Q` --
@@ -583,7 +594,10 @@ def calibrate(sam: SAM, spec: ModelSpec | None = None, *,
     if np.any(dom0 < -1e-9):
         bad = [coms[i] for i in np.where(dom0 < -1e-9)[0]]
         raise ValueError(f"exports exceed tax-inclusive output for {bad}")
-    A0 = dom0 + imp_arm0 + margin_in
+    # Under a monopoly, buyers pay the markup over the producer's price on home sales: the
+    # Armington nest is calibrated on what they pay.
+    dom_buy0 = dom0 * (monopoly["markup"] if monopoly is not None else 1.0)
+    A0 = dom_buy0 + imp_arm0 + margin_in
     ptax = np.where(A0 > 0, tax_c / np.maximum(A0, 1e-12), 0.0)
     tax_a = sam.block([gov], acts).ravel()
     atax = np.where(X0 > 0, tax_a / np.maximum(X0, 1e-12), 0.0)
@@ -592,7 +606,7 @@ def calibrate(sam: SAM, spec: ModelSpec | None = None, *,
         io = np.where(X0 > 0, inter / np.maximum(X0, 1e-12)[None, :], 0.0)
         io = io / (1.0 + ptax)[:, None]
         mq = (CC / (1.0 + ptax)[:, None]) / np.maximum(A0, 1e-12)[None, :]
-        arm_share = (dom0 + imp_arm0) / np.maximum(A0, 1e-12)
+        arm_share = (dom_buy0 + imp_arm0) / np.maximum(A0, 1e-12)
 
     # -- final demand ------------------------------------------------------
     hh_com = sam.block(coms, hhs).T                       # (n_hh, n_com), purchaser prices
@@ -642,8 +656,8 @@ def calibrate(sam: SAM, spec: ModelSpec | None = None, *,
     # income paid abroad and net transfers abroad are part of it.
     foreign_sav0 = (trade_balance0 + float(fac_row.sum())
                     + float(remit_out.sum()) - float(remit_in.sum()))
-    dom_share = np.where(dom0 + imp_arm0 > 0,
-                         dom0 / np.maximum(dom0 + imp_arm0, 1e-12), 1.0)
+    dom_share = np.where(dom_buy0 + imp_arm0 > 0,
+                         dom_buy0 / np.maximum(dom_buy0 + imp_arm0, 1e-12), 1.0)
     # Government income as the solver books it: every tax, its factor income,
     # net of its transfers to households. What it does not spend it saves.
     energy_nest = _energy_nest(spec, coms, acts, io, ptax, vunit, leontief, aunit, facs)
@@ -679,6 +693,7 @@ def calibrate(sam: SAM, spec: ModelSpec | None = None, *,
         hh_spend0=hh_com.sum(axis=1), hh_gross0=gross0,
         tm0=tm0, tauz0=tauz0, te0=te0, gov_savrate=gov_savrate,
         sigma_arm_falling=_asymmetric_armington(spec, coms), cde=cde,
+        monopoly=monopoly, fixed_costs=fixed_costs,
         energy_nest=energy_nest, vintage=vintage,
         mobility=build_mobility(spec, facs, acts, aunit * X0[None, :], factor_pools),
         segments=build_segments(spec, facs, fac_supply),
@@ -955,6 +970,87 @@ def _leisure(spec, econ):
     leisure0 = ratio * labour
     k = np.where(spend > 0, net * keep * leisure0 / np.maximum(spend, 1e-300), 0.0)
     return dict(factor=i, T=labour + leisure0, k=k, ratio=ratio)
+
+
+def _market_structure(spec, sam, acts, coms, facs, X0, make, fac, Q0, msh, row):
+    """Take monopoly rents and fixed costs out of the factor payments that hold them.
+
+    A monopolist's buyers pay ``markup = sigma / (sigma - 1)`` times its producer price on
+    home sales, so of their base-year value ``V`` the rent is ``V (1 - 1 / markup)``: home
+    sales at the buyer's value are output, plus the indirect tax on it, less exports at the
+    producer's value. The rent leaves the activity's factor payments in proportion to them, and
+    its output and the commodity's by the same amount, as in ``moncge``. A fixed cost leaves
+    only the factor's payment: output keeps it, as in ``irscge``.
+    """
+    if not spec.monopoly and not spec.fixed_costs:
+        return None, None, X0, make, fac, Q0
+    if spec.regions:
+        raise ValueError("monopoly and fixed_costs are national for now")
+    fac, make, X0, Q0 = fac.copy(), make.copy(), X0.copy(), Q0.copy()
+    nc, nf = len(coms), len(facs)
+    monopoly = None
+    if spec.monopoly:
+        sigma = spec.sigma_armington_vector(coms)
+        markup = np.ones(nc)
+        weights = np.zeros((nf, nc))
+        rent0 = np.zeros(nc)
+        index = []
+        accounts = [a for a in (spec.indirect_tax_account,) if a]
+        for name in spec.monopoly:
+            if name not in coms:
+                raise KeyError(f"monopoly names {name!r}, which is not a commodity: {list(coms)}")
+            i = coms.index(name)
+            makers = np.where(msh[:, i] > 0)[0]
+            if makers.size != 1 or np.count_nonzero(make[makers[0]]) != 1:
+                raise ValueError(f"monopoly {name!r}: one activity must make it and nothing "
+                                 f"else")
+            if not sigma[i] > 1:
+                raise ValueError(f"monopoly {name!r}: the Lerner markup sigma / (sigma - 1) "
+                                 f"needs an Armington elasticity above one, got {sigma[i]}")
+            if spec.least_cost and name in spec.least_cost:
+                raise ValueError(f"{name!r} cannot be both a monopoly and least-cost")
+            j = int(makers[0])
+            idt = sum(float(sam.block([a], [name]).sum()) for a in accounts)
+            etx = (float(sam.block([spec.export_tax_account], [name]).sum())
+                   if spec.export_tax_account else 0.0)
+            home = Q0[i] + idt - (float(sam.block([name], [row]).sum()) - etx)
+            m = sigma[i] / (sigma[i] - 1.0)
+            rent = home * (1.0 - 1.0 / m)
+            col = fac[:, j]
+            if np.any(col < 0) or not col.sum() > rent:
+                raise ValueError(f"monopoly {name!r}: the rent {rent:.6g} is not covered by the "
+                                 f"activity's value added {col.sum():.6g}")
+            taken = col / col.sum() * rent
+            fac[:, j] = col - taken
+            make[j, i] -= rent
+            X0[j] -= rent
+            Q0[i] -= rent
+            markup[i] = m
+            weights[:, i] = taken / rent
+            rent0[i] = rent
+            index.append(i)
+        monopoly = dict(index=np.array(index, dtype=int), markup=markup, weights=weights,
+                        rent0=rent0)
+    fixed = None
+    if spec.fixed_costs:
+        if spec.fixed_cost_factor not in facs:
+            raise KeyError(f"fixed_cost_factor {spec.fixed_cost_factor!r} is not a factor: "
+                           f"{list(facs)}")
+        k = facs.index(spec.fixed_cost_factor)
+        fc = np.zeros(len(acts))
+        for name, share in spec.fixed_costs.items():
+            if name not in acts:
+                raise KeyError(f"fixed_costs names {name!r}, which is not an activity")
+            share = float(share)
+            if not 0 < share < 1:
+                raise ValueError(f"fixed_costs share of {name!r} must be in (0, 1), got {share}")
+            j = acts.index(name)
+            if not fac[k, j] > 0:
+                raise ValueError(f"fixed_costs: {name!r} pays no {spec.fixed_cost_factor!r}")
+            fc[j] = share * fac[k, j]
+            fac[k, j] -= fc[j]
+        fixed = dict(index=np.where(fc > 0)[0], fc=fc, factor=k)
+    return monopoly, fixed, X0, make, fac, Q0
 
 
 def _population_shares(hhs, population) -> np.ndarray:

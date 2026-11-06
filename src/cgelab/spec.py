@@ -228,6 +228,20 @@ class ModelSpec:
     #: that produces earns that price: unit cost ≥ price ⊥ output share ≥ 0.
     #: A commodity left out takes its producers' output in base-year shares.
     least_cost: Sequence[str] | None = None
+    #: Commodities whose domestic producer is a monopolist that charges the
+    #: Lerner markup ``sigma / (sigma - 1)`` on home sales, ``sigma`` being the
+    #: commodity's Armington elasticity (Hosoe, Gasawa and Hashimoto's
+    #: ``moncge``). The base-year rent is taken out of the producing activity's
+    #: factor payments in proportion, and is paid back through the same factors.
+    #: Exports sell at the world price. One activity makes each of them and
+    #: nothing else.
+    monopoly: Sequence[str] | None = None
+    #: Fixed costs, by activity: the share of ``fixed_cost_factor``'s payment
+    #: that is a fixed cost rather than a variable input (``irscge``'s ``nu``).
+    #: The amount is fixed in numeraire units, enters the unit cost as
+    #: ``FC / X`` (increasing returns) and is paid to that factor's owners.
+    fixed_costs: Mapping[str, float] | None = None
+    fixed_cost_factor: str = "f_cap"
 
     def __post_init__(self):
         self.factors = list(self.factors)

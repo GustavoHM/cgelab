@@ -311,6 +311,7 @@ independent replica in Julia (JuMP with Ipopt or PATH), as in `validation/`.
 - [x] **Regionalising national coefficients** by location quotients (SLQ, CILQ, FLQ, AFLQ)
   (`location_quotients`, `regional_coefficients`). Validated against the published formulas,
   computed by hand.
+- [ ] **Release**: 0.11.0 on PyPI and archived on Zenodo.
 
 **0.12 — households, factors and land.**
 

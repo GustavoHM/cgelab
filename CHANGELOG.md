@@ -3,7 +3,14 @@
 All notable changes to `cgelab`. Versions follow [semantic versioning](https://semver.org/);
 before 1.0, a minor version may add to the API and a patch version only fixes.
 
-## Unreleased
+## 0.11.0 — 2026-11-06
+
+Closures and data. A generic closure swap in the GEMPACK manner for one period, validated by
+swapping and swapping back, with `calibrate_historical`'s common productivity as a case of it;
+SAM estimation by minimum I-divergence (cross entropy) with account totals, fixed cells, cell
+targets and linear aggregates, RAS when every total is given and the primal solved by Ipopt
+agreeing to 5e-15; and location quotients for regional coefficients. Nothing released earlier
+changes.
 
 ### Added
 

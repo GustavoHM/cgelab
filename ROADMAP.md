@@ -314,10 +314,14 @@ independent replica in Julia (JuMP with Ipopt or PATH), as in `validation/`.
 
 **0.12 — households, factors and land.**
 
-- [ ] **AIDS and CDE household demand**, and a **labour–leisure choice**. Reference: closed-form
-  elasticities and an independent JuMP replica.
-- [ ] **Capital utilization** that responds to its price (Galindev and Decaluwé, 2022).
-- [ ] **Land allocated by CET** across uses.
+- [x] **CDE household demand** and a **labour–leisure choice** (`household_demand="cde"`,
+  `leisure_ratio`). Validated against closed-form elasticities, the CES case, and an
+  independent Julia rewrite solved by PATH, to 1e-14. AIDS moved to 0.15: its price parameters
+  need a calibration a SAM does not give, and the CDE covers non-homothetic demand.
+- [ ] **Capital utilization** that responds to its price (Galindev and Decaluwé, 2022). Moved to
+  0.15: the paper's formulation is not at hand, and guessing it would not be a replication.
+- [x] **Land allocated by CET** across uses: `factor_mobility` on a land factor, since 0.6,
+  is GTAP's sluggish endowment. A nested land CET is open, in 0.15.
 
 **0.13 — market structure.**
 
@@ -332,7 +336,8 @@ taxes, carbon prices, government absorption, LES demand, the energy nest, and th
 complementarity conditions of 0.8. Reference: `validation/regional.jl` extended, and the
 one-region model against the national solver.
 
-**0.15 — what released items left open.** Employment in persons, unemployment benefits and a
+**0.15 — what released items left open.** AIDS household demand; capital utilization; a
+nested land CET; employment in persons, unemployment benefits and a
 wage curve by segment; vintages that substitute perfectly with idle capital, the sale of old
 capital, and vintages with the energy nest and in several regions; historical calibration with
 employment, the investment rate and exports as unknowns; quotas on exports and output, and a

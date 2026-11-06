@@ -26,6 +26,19 @@ before 1.0, a minor version may add to the API and a patch version only fixes.
   cases agree to 5e-15.
 - `location_quotients(regional, national, method=, delta=)` (SLQ, CILQ, FLQ,
   AFLQ) and `regional_coefficients(national, quotients)`.
+- `ModelSpec(household_demand="cde", cde_substitution=)`: CDE household demand
+  (Hertel et al., 1991), the substitution parameters given and the expansion
+  parameters calibrated in closed form from `income_elasticities`. Its income
+  and price elasticities are checked against their closed forms, and with equal
+  substitution parameters it is a CES. `period.real["hh_price_index"]` is a
+  money-metric index under it. Wedges, `to_jump` and the regional solver refuse
+  it.
+- `ModelSpec.leisure_ratio` and `leisure_factor`: a labour–leisure choice, each
+  household owning its time and choosing labour with a Cobb–Douglas between
+  leisure and spending, solved in closed form inside the period;
+  `PeriodResult.leisure` reports it. `validation/trade_instruments.jl` now
+  writes CDE households and the leisure choice as well, and nine more cases
+  agree to 1e-14.
 
 ## 0.10.0 — 2026-11-05
 

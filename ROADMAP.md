@@ -297,7 +297,8 @@ independent replica in Julia (JuMP with Ipopt or PATH), as in `validation/`.
   equilibrium equals the symmetric model at the elasticity its regime selects) and against the
   paper's Table 2.1 written independently in Julia and solved by PATH, to 1e-12. The paper's
   Mongolia SAM is not public, so its tables are not the reference.
-- [ ] **Release**: 0.10.0 on PyPI and archived on Zenodo.
+- [x] **Release**: 0.10.0 on PyPI and archived on Zenodo
+  ([10.5281/zenodo.24005965](https://doi.org/10.5281/zenodo.24005965)).
 
 **0.11 — closures and data.**
 
@@ -311,7 +312,8 @@ independent replica in Julia (JuMP with Ipopt or PATH), as in `validation/`.
 - [x] **Regionalising national coefficients** by location quotients (SLQ, CILQ, FLQ, AFLQ)
   (`location_quotients`, `regional_coefficients`). Validated against the published formulas,
   computed by hand.
-- [ ] **Release**: 0.11.0 on PyPI and archived on Zenodo.
+- [x] **Release**: 0.11.0 on PyPI and archived on Zenodo
+  ([10.5281/zenodo.24006498](https://doi.org/10.5281/zenodo.24006498)).
 
 **0.12 — households, factors and land.**
 

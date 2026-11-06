@@ -174,6 +174,11 @@ class Economy:
     #: commodity, ``nan`` where one elasticity holds. ``sigma_arm`` is the one
     #: where they get dearer. None: one elasticity everywhere.
     sigma_arm_falling: np.ndarray | None = None
+    #: CDE household demand (``household_demand="cde"``): the substitution
+    #: parameters ``b`` (n_com,), the expansion parameters ``e`` (n_hh, n_com),
+    #: and the scale ``B`` (n_hh, n_com), calibrated so that base-year utility is
+    #: one: ``sum_i B_i u^(e_i b_i) (p_i / E)^b_i = 1``. None for other demand.
+    cde: dict | None = field(default=None, repr=False)
     #: Government saving over government income at the base year, income net
     #: of transfers to households. Read by ``Closure(government="saving_rate")``.
     gov_savrate: float = 0.0
@@ -623,6 +628,7 @@ def calibrate(sam: SAM, spec: ModelSpec | None = None, *,
     inv_dem = sam.block(coms, [inv]).ravel()
 
     pop_share = _population_shares(hhs, population)
+    cde = _cde(spec, hh_com, hh_budget, ptax, income_elasticities, coms)
     hh_committed = _les_subsistence(spec, hh_com, hh_budget, ptax,
                                     income_elasticities, coms)
 
@@ -667,7 +673,7 @@ def calibrate(sam: SAM, spec: ModelSpec | None = None, *,
         fac_gov_share=fac_gov_share, fac_row_share=fac_row_share,
         hh_spend0=hh_com.sum(axis=1), hh_gross0=gross0,
         tm0=tm0, tauz0=tauz0, te0=te0, gov_savrate=gov_savrate,
-        sigma_arm_falling=_asymmetric_armington(spec, coms),
+        sigma_arm_falling=_asymmetric_armington(spec, coms), cde=cde,
         energy_nest=energy_nest, vintage=vintage,
         mobility=build_mobility(spec, facs, acts, aunit * X0[None, :], factor_pools),
         segments=build_segments(spec, facs, fac_supply),
@@ -850,6 +856,57 @@ def _energy_nest(spec, coms, acts, io, ptax, vunit, leontief, aunit, facs):
                       sigma_vae=sig_vae, sigma_energy=sig_e, mode="capital", capital=k,
                       free=free, top_share=top, ke_share=ke_share, k_share=k_share,
                       sigma_ke=sig_ke, sigma_top=np.where(free, sig_top, 0.0))
+
+
+def _cde(spec, hh_com, hh_budget, ptax, income_elasticities, coms):
+    """CDE parameters: b given, e from the income elasticities, B from the base year.
+
+    With ``z_i = B_i u^(e_i b_i) (p_i / E)^b_i`` summing to one, shares are
+    ``w_i = b_i z_i / sum_k b_k z_k`` and the income elasticity is
+    ``eta_i = 1 - b_i + sum w b + (e_i b_i - sum w e b) / sum w e``. Normalising
+    ``sum w e = 1``, the expansion parameters that give the elasticities are
+    ``e_i = (eta_i - 1 + b_i - sum w b + S) / b_i`` with ``S`` fixed by the
+    normalisation; the elasticities are first scaled to Engel aggregation,
+    ``sum w eta = 1``, as the LES's are.
+    """
+    if spec.household_demand != "cde":
+        return None
+    if spec.cde_substitution is None:
+        raise ValueError("household_demand='cde' needs ModelSpec.cde_substitution, the "
+                         "substitution parameter b by commodity, in (0, 1): a SAM does not "
+                         "supply it")
+    from .spec import _as_vector
+    b = (np.full(len(coms), float(spec.cde_substitution))
+         if not isinstance(spec.cde_substitution, Mapping)
+         else _as_vector(spec.cde_substitution, coms, "cde_substitution"))
+    if np.any(~np.isfinite(b)) or np.any(b <= 0) or np.any(b >= 1):
+        raise ValueError(f"cde_substitution must be in (0, 1) for every commodity, got {b}")
+    eta = np.ones(len(coms))
+    for c, v in (income_elasticities or {}).items():
+        if c in coms:
+            eta[coms.index(c)] = float(v)
+    nh = hh_com.shape[0]
+    E0 = hh_com.sum(axis=1)
+    p0 = 1.0 + ptax
+    e = np.zeros((nh, len(coms)))
+    B = np.zeros((nh, len(coms)))
+    for h in range(nh):
+        w = hh_budget[h]
+        eta_h = eta / float(w @ eta)                    # Engel aggregation
+        r = eta_h - 1.0 + b - float(w @ b)
+        S = (1.0 - float((w * r / b).sum())) / float((w / b).sum())
+        e[h] = (r + S) / b
+        bought = w > 0
+        if np.any(e[h][bought] <= 0):
+            bad = [coms[i] for i in np.where(bought & (e[h] <= 0))[0]]
+            raise ValueError(
+                f"the income elasticities give household {h} nonpositive CDE expansion "
+                f"parameters for {bad}; the CDE is not regular there. Raise those elasticities "
+                f"or lower cde_substitution for them.")
+        theta = np.where(bought, w / b, 0.0)
+        theta = theta / theta.sum()
+        B[h] = theta * (p0 / E0[h]) ** (-b)
+    return dict(b=b, e=e, B=B)
 
 
 def _population_shares(hhs, population) -> np.ndarray:

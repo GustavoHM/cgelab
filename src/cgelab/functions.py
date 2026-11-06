@@ -174,3 +174,46 @@ def cet_domestic_price(export_share: np.ndarray, p_output: np.ndarray, p_export:
         pd = inner ** (1.0 / e)
     interior = (se > 0) & (sd > 0)
     return np.where(interior, pd, p_output)
+
+
+def cde_utility(B: np.ndarray, b: np.ndarray, e: np.ndarray, prices: np.ndarray,
+                spend: float) -> float:
+    """Utility of a CDE household with ``spend`` at ``prices``: the root of
+    ``sum_i B_i u^(e_i b_i) (p_i / E)^b_i = 1``, increasing and convex in ``log u``."""
+    on = B > 0
+    c = B[on] * (prices[on] / spend) ** b[on]
+    k = e[on] * b[on]
+    t = 0.0
+    for _ in range(100):
+        terms = c * np.exp(k * t)
+        f = terms.sum() - 1.0
+        if abs(f) < 1e-15:
+            break
+        t -= f / float((k * terms).sum())
+    return float(np.exp(t))
+
+
+def cde_shares(B: np.ndarray, b: np.ndarray, e: np.ndarray, prices: np.ndarray,
+               spend: float, u: float | None = None) -> np.ndarray:
+    """Budget shares of a CDE household: ``w_i = b_i z_i / sum_k b_k z_k``."""
+    u = cde_utility(B, b, e, prices, spend) if u is None else u
+    with np.errstate(divide="ignore", invalid="ignore"):
+        z = np.where(B > 0, B * u ** (e * b) * (prices / spend) ** b, 0.0)
+    return b * z / float((b * z).sum())
+
+
+def cde_expenditure(B: np.ndarray, b: np.ndarray, e: np.ndarray, prices: np.ndarray,
+                    u: float) -> float:
+    """What a CDE household must spend at ``prices`` to reach ``u``: the root in ``E`` of the
+    same identity, decreasing and convex in ``log E``."""
+    on = B > 0
+    d = B[on] * u ** (e[on] * b[on]) * prices[on] ** b[on]
+    bb = b[on]
+    s = float(np.log(prices[on].mean()))
+    for _ in range(200):
+        terms = d * np.exp(-bb * s)
+        f = terms.sum() - 1.0
+        if abs(f) < 1e-15:
+            break
+        s += f / float((bb * terms).sum())
+    return float(np.exp(s))

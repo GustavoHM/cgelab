@@ -130,8 +130,14 @@ class ModelSpec:
     energy_nest: str = "value_added"         # "value_added" | "capital"
     energy_capital: str = "f_cap"
     sigma_ke: float | Mapping[str, float] = 0.5
-    household_demand: str = "cobb_douglas"   # "cobb_douglas" | "les"
+    household_demand: str = "cobb_douglas"   # "cobb_douglas" | "les" | "cde"
     frisch: float = -1.5                     # LES only: Frisch parameter, sets subsistence
+    #: CDE only (Hanoch; Hertel et al., 1991, the GTAP household): the substitution
+    #: parameter ``b`` by commodity, in (0, 1). With every ``b`` equal and income
+    #: elasticities of one it is a CES with elasticity ``1 - b``. The expansion
+    #: parameters follow from ``calibrate(..., income_elasticities=)``. Required
+    #: under ``household_demand="cde"``: it is not a parameter a SAM supplies.
+    cde_substitution: float | Mapping[str, float] | None = None
     margins: bool = True
 
     #: What to do with an activity whose value added is negative in the base
@@ -239,7 +245,7 @@ class ModelSpec:
         for field_name, allowed in (
             ("value_added", ("ces", "cobb_douglas", "leontief")),
             ("export_rule", ("fixed_shares", "cet")),
-            ("household_demand", ("cobb_douglas", "les")),
+            ("household_demand", ("cobb_douglas", "les", "cde")),
             ("negative_value_added", ("leontief", "net")),
             ("energy_nest", ("value_added", "capital")),
         ):

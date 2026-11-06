@@ -37,6 +37,9 @@ from cgelab.examples import toy
 AQUI = Path(__file__).resolve().parent
 OUT = AQUI / "out"
 TOL = 1e-8
+# As elasticidades-renda com que cada economia foi calibrada, para o enunciado: o Economy
+# guarda os parâmetros de expansão, não as elasticidades de que saíram.
+INCOME_ELASTICITIES: dict = {}
 
 
 def _rel(a, b, piso=1.0):
@@ -56,10 +59,11 @@ def enunciado(sam, econ, scenario, closure) -> dict:
         "sem transferências": zero(econ.hh_gov_transfer) and zero(econ.hh_remit_net),
         "sem renda de fatores ao governo ou ao exterior":
             zero(econ.fac_gov_share) and zero(econ.fac_row_share),
-        "famílias Cobb–Douglas": spec.household_demand == "cobb_douglas",
+        "famílias Cobb–Douglas ou CDE": spec.household_demand in ("cobb_douglas", "cde"),
         "sigma_va único": np.ndim(spec.sigma_va) == 0,
         "sem atividade de conta própria": not econ.own_account.any(),
         "fechamento padrão": closure == cge.Closure(),
+        "sem choque de produtividade": scenario.productivity is None,
     }
     ruins = [k for k, ok in fora.items() if not ok]
     if ruins:
@@ -77,7 +81,10 @@ def enunciado(sam, econ, scenario, closure) -> dict:
         sigma_armington=dict(zip(econ.coms, map(float, spec.sigma_armington_vector(econ.coms)))),
         sigma_armington_falling={c: (float(v) if np.isfinite(v) else None)
                                  for c, v in zip(econ.coms, falling)},
-        export_rule=spec.export_rule,
+        export_rule=spec.export_rule, household_demand=spec.household_demand,
+        cde_substitution=(None if econ.cde is None
+                          else dict(zip(econ.coms, map(float, econ.cde["b"])))),
+        income_elasticities=dict(INCOME_ELASTICITIES.get(id(econ), {})),
         sigma_cet=dict(zip(econ.coms, map(float, spec.sigma_cet_vector(econ.coms)))),
         numeraire_factor=econ.factors[econ.numeraire_index],
         world_price=vec(scenario.world_price, np.ones(nc)),
@@ -117,6 +124,8 @@ def caso(nome, sam, econ, scenario, closure=None) -> dict:
         "savings": _rel(jl["savings"], res.savings),
         "export_tax": _rel(jl["export_tax"], res.government["export_tax"]),
         "sigma": _rel(jl["sigma"], sigma),
+        "hh_quantity": _rel(jl["hh_quantity"],
+                            res.hh_quantity[econ.hh_budget > 0]),
     }
     pior = max(desvios.values())
     campo = max(desvios, key=desvios.get)
@@ -186,6 +195,24 @@ def main() -> int:
                                  cge.Scenario(world_price=com(c_ind=1.25))),
         "assim_fixas_desce": caso("assim_fixas_desce", sam_simples, e_fixas,
                                   cge.Scenario(world_price=com(c_ind=0.75))),
+    }
+    # Famílias CDE: substituição e elasticidades-renda diferentes por bem.
+    eta = {"c_agr": 0.6, "c_ind": 1.2}
+    e_cde = cge.calibrate(sam_simples, toy.spec(export_rule="cet", household_demand="cde",
+                                                cde_substitution={"c_agr": 0.3, "c_ind": 0.6}),
+                          income_elasticities=eta)
+    e_cde_imp = cge.calibrate(sam, dataclasses.replace(
+        econ.spec, household_demand="cde", cde_substitution=0.5), income_elasticities=eta)
+    for e in (e_cde, e_cde_imp):
+        INCOME_ELASTICITIES[id(e)] = eta
+    casos |= {
+        "cde_ano_base": caso("cde_ano_base", sam_simples, e_cde, cge.Scenario()),
+        "cde_oferta": caso("cde_oferta", sam_simples, e_cde,
+                           cge.Scenario(factor_supply=e_cde.fac_supply * [1.1, 0.95])),
+        "cde_preco_mundial": caso("cde_preco_mundial", sam_simples, e_cde,
+                                  cge.Scenario(world_price=com(c_agr=1.3, c_ind=0.8))),
+        "cde_com_impostos": caso("cde_com_impostos", sam, e_cde_imp,
+                                 cge.Scenario(export_tax=np.zeros(nc), tariff=econ.tm0 * 2)),
     }
     pior = max(r["pior"] for r in casos.values())
     if all(r["ok"] for r in casos.values()):

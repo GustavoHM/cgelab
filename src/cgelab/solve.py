@@ -38,8 +38,8 @@ from scipy.optimize import root
 
 from .calibrate import Economy
 from .closure import Closure
-from .functions import (armington, ces_intensity, ces_price, cet, cet_domestic_price,
-                        cobb_douglas_price)
+from .functions import (armington, cde_expenditure, cde_shares, cde_utility, ces_intensity,
+                        ces_price, cet, cet_domestic_price, cobb_douglas_price)
 from .mobility import period_endowments
 from .segments import period_groups
 from .scenario import Scenario, investment_shares
@@ -605,6 +605,15 @@ def solve_period(econ: Economy, closure: Closure | None = None,
     Wg_set = (np.zeros((nh, nc)) if sc.government_wedge is None
               else np.asarray(sc.government_wedge, float))
     base_transfers = np.zeros(nh) if sc.transfers is None else np.asarray(sc.transfers, float)
+    cde = econ.cde if econ.spec.household_demand == "cde" else None
+    if cde is not None and (np.any(W != 0) or np.any(Wg_set != 0) or (
+            sc.carbon_price is not None and econ.emissions is not None
+            and np.any(econ.emissions.household != 0))):
+        raise ValueError(
+            "consumer and government wedges, and a carbon price on household fuel, are not "
+            "in this version under household_demand='cde': their revenue is recycled in "
+            "closed form because LES and Cobb-Douglas demand is affine in spending, and the "
+            "CDE's is not")
     dtax_set = econ.zeros_if_none("hh_dtax", nh)
     if tax_lever and adjusts == "direct_tax" and not np.any(dtax_set != 0):
         raise ValueError("government_adjusts='direct_tax', but no household pays direct tax; "
@@ -990,7 +999,15 @@ def solve_period(econ: Economy, closure: Closure | None = None,
                 raise ValueError(msg)
 
             # --- demand
-            if econ.spec.household_demand == "les":
+            if cde is not None:
+                hh_q = np.zeros((nh, nc))
+                for h in range(nh):
+                    if hh_com_spend[h] <= 0:
+                        continue
+                    share = cde_shares(cde["B"][h], cde["b"], cde["e"][h], eff_p[h],
+                                       float(hh_com_spend[h]))
+                    hh_q[h] = share * hh_com_spend[h] / np.maximum(eff_p[h], 1e-12)
+            elif econ.spec.household_demand == "les":
                 supernum = hh_com_spend - committed_value
                 hh_q = gamma + beta_les * supernum[:, None] / np.maximum(eff_p, 1e-12)
             else:
@@ -1354,8 +1371,9 @@ def solve_period(econ: Economy, closure: Closure | None = None,
                           inv_real=float(p_base_yard @ inv_q),
                           hh_sav_real=lam * hh_sav, gov_sav_real=lam * gov_sav,
                           for_sav_real=lam * foreign_sav,
-                          hh_real_income=hh_com_spend / _price_index(econ, eff_p, beta_les),
-                          hh_price_index=_price_index(econ, eff_p, beta_les),
+                          hh_real_income=hh_com_spend / _household_index(econ, eff_p, beta_les,
+                                                                         hh_com_spend),
+                          hh_price_index=_household_index(econ, eff_p, beta_les, hh_com_spend),
                           hh_committed_value=committed_value),
             employment=employment, unemployment=unemployment,
             real_wage=real_wage_now)
@@ -1643,6 +1661,23 @@ def _price_index(econ: Economy, eff_p: np.ndarray, beta: np.ndarray) -> np.ndarr
     with np.errstate(divide="ignore", invalid="ignore"):
         logs = np.where(beta > 0, beta * np.log(np.maximum(eff_p, 1e-300)), 0.0)
     return np.exp(logs.sum(axis=1))
+
+
+def _household_index(econ: Economy, eff_p: np.ndarray, beta: np.ndarray,
+                     spend: np.ndarray) -> np.ndarray:
+    """Cost of living per household. Under a CDE, spending over what reaching the same utility
+    costs at base-year prices (a money-metric index); otherwise :func:`_price_index`."""
+    if econ.spec.household_demand != "cde":
+        return _price_index(econ, eff_p, beta)
+    cde = econ.cde
+    p0 = 1.0 + econ.ptax
+    out = np.ones(econ.n_hh)
+    for h in range(econ.n_hh):
+        if spend[h] <= 0:
+            continue
+        u = cde_utility(cde["B"][h], cde["b"], cde["e"][h], eff_p[h], float(spend[h]))
+        out[h] = float(spend[h]) / cde_expenditure(cde["B"][h], cde["b"], cde["e"][h], p0, u)
+    return out
 
 
 def _recycle_shares(econ: Economy, sc: Scenario, facshare: np.ndarray,

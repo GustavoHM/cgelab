@@ -30,6 +30,12 @@
 # proporção fixa da produção, em que o produtor recebe PX por unidade a preço do produtor e o
 # preço FOB é PX·(1 − te0)/(1 − te). O governo recebe te·preço FOB·QE.
 #
+# Famílias: Cobb–Douglas, ou CDE (Hertel et al., 1991): Σ_i B_i u^(e_i b_i) (p_i/E)^b_i = 1,
+# com as participações w_i = b_i z_i / Σ_k b_k z_k. O parâmetro de substituição b vem do
+# enunciado; os de expansão e saem das elasticidades-renda (normalizadas pela agregação de
+# Engel e por Σ w e = 1), e B da utilidade um no ano-base. A utilidade de cada família é uma
+# variável, pareada com a identidade.
+#
 # Escopo, recusado pelo script em Python fora dele: um produtor por bem e um bem por atividade,
 # imposto sobre produtos com a mesma alíquota para firmas e famílias, imposto sobre a atividade
 # por unidade, sem margens nem imposto sobre a produção, famílias Cobb–Douglas sem imposto
@@ -111,6 +117,23 @@ pwe = [Float64(E.export_price[Symbol(c)]) for c in COM]
 tm = [Float64(E.tariff[Symbol(c)]) for c in COM]
 te = [Float64(E.export_tax[Symbol(c)]) for c in COM]
 oferta = [Float64(E.factor_supply[Symbol(f)]) for f in FAT]
+cde = haskey(E, :household_demand) && String(E.household_demand) == "cde"
+if cde
+    bcde = [Float64(E.cde_substitution[Symbol(c)]) for c in COM]
+    eta = [Float64(get(E.income_elasticities, Symbol(c), 1.0)) for c in COM]
+    gasto0 = [sum(sam(COM[i], FAM[h]) for i in 1:NC) for h in 1:NH]
+    ecde = zeros(NH, NC)
+    Bcde = zeros(NH, NC)
+    for h in 1:NH
+        w = orc[h, :]
+        et = eta ./ sum(w .* eta)
+        r = et .- 1 .+ bcde .- sum(w .* bcde)
+        Sn = (1 - sum(w .* r ./ bcde)) / sum(w ./ bcde)
+        ecde[h, :] = (r .+ Sn) ./ bcde
+        th = (w ./ bcde) ./ sum(w ./ bcde)
+        Bcde[h, :] = th .* ((1 .+ ptax) ./ gasto0[h]) .^ (-bcde)
+    end
+end
 
 # CET: QX = αt·(δt·QE^ρt + (1 − δt)·QD^ρt)^(1/ρt), com ρt = 1 + 1/σt.
 rt = 1 .+ 1 ./ st
@@ -138,6 +161,8 @@ lo = 1e-8
 @variable(m, Y[h in 1:NH], start = Y0[h])
 @variable(m, poup, start = sum(sam(COM[i], inv) for i in 1:NC))
 @variable(m, sigmaq[i in 1:NC], start = sl[i])
+@variable(m, util[h in 1:NH] >= lo, start = 1.0)
+cde || fix.(util, 1.0; force = true)
 @variable(m, devp[i in 1:NC] >= 0, start = 0.0)
 @variable(m, devn[i in 1:NC] >= 0, start = 0.0)
 for i in 1:NC
@@ -202,9 +227,17 @@ for i in 1:NC
         @constraint(m, sh[i] - sigmaq[i] ⟂ devn[i])                               # (3)
     end
 end
+# Famílias.
+gasto(h) = (1 - pou[h]) * Y[h]
+zc(h, i) = Bcde[h, i] * util[h]^(ecde[h, i] * bcde[i]) * (pc(i) / gasto(h))^bcde[i]
+if cde
+    @constraint(m, [h in 1:NH], sum(zc(h, i) for i in 1:NC if orc[h, i] > 0) - 1 ⟂ util[h])
+end
+consumo(h, i) = cde ? bcde[i] * zc(h, i) / sum(bcde[k] * zc(h, k) for k in 1:NC if orc[h, k] > 0) *
+                      gasto(h) / pc(i) : orc[h, i] * gasto(h) / pc(i)
 # Absorção.
 @constraint(m, [i in 1:NC],
-            QQ[i] - (sum(orc[h, i] * (1 - pou[h]) * Y[h] for h in 1:NH) / pc(i) + gq[i]
+            QQ[i] - (sum(consumo(h, i) for h in 1:NH if orc[h, i] > 0) + gq[i]
                      + vs[i] * poup / pc(i) + sum(io[i, j] * X(j) for j in 1:NA)) ⟂ QQ[i])
 @expression(m, receita,
             sum(pq[i] * ptax[i] * QQ[i] for i in 1:NC) + sum(atax[j] * X(j) for j in 1:NA)
@@ -231,7 +264,8 @@ out = Dict("status" => string(status), "walras" => walras,
            "pe" => [value(pfob(i)) for i in 1:NC],
            "hh_income" => value.(Y)[:], "savings" => value(poup),
            "export_tax" => value(sum(te[i] * pfob(i) * QE[i] for i in 1:NC)),
-           "sigma" => value.(sigmaq)[:])
+           "sigma" => value.(sigmaq)[:],
+           "hh_quantity" => [value(consumo(h, i)) for h in 1:NH for i in 1:NC if orc[h, i] > 0])
 open(SAIDA, "w") do f
     JSON3.write(f, out)
 end

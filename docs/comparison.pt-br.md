@@ -135,7 +135,9 @@ lista até a 1.0; a versão de cada item é a do [`ROADMAP.md`](../ROADMAP.md).
 | Complementaridade (MCP); resolvedores alternativos | 📄 GAMS/MPSGE com PATH; pycge (Pyomo) | **iniciada**: produtores que competem ao menor custo e param (`least_cost`) limites de capacidade com renda de escassez (`Scenario.capacity`) cotas de importação com renda (`Scenario.import_quota`, `quocge` reproduzido), tetos e pisos de preço (`Scenario.price_ceiling`, `price_floor`), piso salarial e tecnologias de reserva (`calibrate(..., backstops=)`), contra o PATH; além do `scipy`, o período pode ser resolvido via Pyomo pelo IPOPT ou, com essas condições, pelo PATH (`solve_period(..., backend=)`) | 0.8, 0.9 |
 | Troca de fechamento genérica | 📄 GEMPACK | **feita** para um período: qualquer variável do período contra qualquer instrumento do cenário, um por um, recusando o instrumento que o fechamento não lê; trocar e destrocar reproduz o fechamento padrão, e a produtividade comum do `calibrate_historical`, a 1e-10 | 0.11 |
 | Estimação de MCS por entropia cruzada; regionalização por quocientes locacionais | 📄 Robinson, Cattaneo e El-Said; Flegg | **feita**: a divergência I mínima sobre os fluxos com totais de contas, células fixas, células-alvo e agregados lineares, mantendo zeros e sinais; o RAS quando todos os totais são dados; o primal resolvido pelo Ipopt concorda a 5e-15. SLQ, CILQ, FLQ e AFLQ, conferidos à mão | 0.11 |
-| EGC intertemporal; concorrência imperfeita; uso da terra; exportar para GAMS e GEMPACK | 📄 MPSGE, GTAP-AEZ | falta | 0.12 a 0.17 |
+| Demanda das famílias além do LES; trabalho e lazer | 📄 GTAP (CDE), IFPRI | **feito**: CDE com os parâmetros de expansão em forma fechada, suas elasticidades e seu caso CES conferidos; escolha entre trabalho e lazer por família; os dois contra uma reescrita independente em Julia resolvida pelo PATH a 1e-14. AIDS em aberto | 0.12 |
+| Uso da terra | 📄 GTAP-AEZ, MAGNET | CET entre usos pelo `factor_mobility` (0.6); CET de terra aninhado em aberto | 0.6, 0.15 |
+| EGC intertemporal; concorrência imperfeita; exportar para GAMS e GEMPACK | 📄 MPSGE | falta | 0.13 a 0.17 |
 
 
 ## Fontes

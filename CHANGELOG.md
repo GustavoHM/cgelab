@@ -3,6 +3,46 @@
 All notable changes to `cgelab`. Versions follow [semantic versioning](https://semver.org/);
 before 1.0, a minor version may add to the API and a patch version only fixes.
 
+## 0.12.1 — 2026-11-06
+
+The regional solver reads `Scenario.investment_mix`, which it refused: each share of the
+investment budget buys the named region's good, so a basket with a given regional content
+keeps that content. Nothing released earlier changes.
+
+### Added
+
+- `Scenario.investment_mix` in the regional solver, which refused it. Each
+  share buys the named region's good (`core:c_serv`) directly, at the origin
+  price plus product tax, so no origin CES or Armington nest splits it again;
+  intermediate inputs and other final demand keep the destination composite.
+  `period.real["inv_origin_quantity"]` reports the purchases by origin. Route
+  margins refuse a mix, and the exact regional Jacobian is set aside for it.
+
+## 0.12.0 — 2026-11-06
+
+Households. CDE household demand, the GTAP household, with its substitution parameters given and
+its expansion parameters calibrated in closed form from income elasticities; and a labour–leisure
+choice by household, solved in closed form inside the period. Both are checked against closed
+forms and against an independent Julia rewrite solved by PATH, to 1e-14. Capital utilization
+and AIDS demand move to 0.15; land allocated by CET has been `factor_mobility` since 0.6. Nothing
+released earlier changes.
+
+### Added
+
+- `ModelSpec(household_demand="cde", cde_substitution=)`: CDE household demand
+  (Hertel et al., 1991), the substitution parameters given and the expansion
+  parameters calibrated in closed form from `income_elasticities`. Its income
+  and price elasticities are checked against their closed forms, and with equal
+  substitution parameters it is a CES. `period.real["hh_price_index"]` is a
+  money-metric index under it. Wedges, `to_jump` and the regional solver refuse
+  it.
+- `ModelSpec.leisure_ratio` and `leisure_factor`: a labour–leisure choice, each
+  household owning its time and choosing labour with a Cobb–Douglas between
+  leisure and spending, solved in closed form inside the period;
+  `PeriodResult.leisure` reports it. `validation/trade_instruments.jl` now
+  writes CDE households and the leisure choice as well, and nine more cases
+  agree to 1e-14.
+
 ## 0.11.0 — 2026-11-06
 
 Closures and data. A generic closure swap in the GEMPACK manner for one period, validated by
@@ -33,7 +73,6 @@ changes.
   cases agree to 5e-15.
 - `location_quotients(regional, national, method=, delta=)` (SLQ, CILQ, FLQ,
   AFLQ) and `regional_coefficients(national, quotients)`.
-
 ## 0.10.0 — 2026-11-05
 
 Trade instruments, the first version of the plan to 1.0 in `ROADMAP.md`. An export tax on the

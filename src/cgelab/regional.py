@@ -30,6 +30,7 @@ from .functions import (armington, ces_intensity, ces_price, cet, cet_domestic_p
                         cobb_douglas_price)
 from . import regional_jacobian
 from .mobility import FactorMobility
+from .scenario import investment_shares
 from .solve import PeriodResult, all_starts_failed, factor_intensity, value_added_price
 from .transport import TransportMargins
 
@@ -663,6 +664,7 @@ def solve_regions(econ, closure, scenario, *, warm_start=None, raise_on_fail: bo
                         if scenario.investment_level is None else float(scenario.investment_level))
     if not np.isfinite(investment_level) or investment_level < 0:
         raise ValueError("investment_level must be finite and nonnegative")
+    inv_mix = _direct_investment_mix(econ, reg, scenario)
     state: dict = {}
 
     def residuals(z):
@@ -681,7 +683,8 @@ def solve_regions(econ, closure, scenario, *, warm_start=None, raise_on_fail: bo
                           foreign_target, tfp, prices, nu,
                           investment_level=investment_level, levy=levy,
                           fixed_investment=fixed_investment, migration=reg.migration,
-                          ptax=ptax_eff, closure=closure, target_value=target_value)
+                          ptax=ptax_eff, closure=closure, target_value=target_value,
+                          inv_mix=inv_mix)
         gaps = (qty["fac_dem"] - supply) / np.maximum(np.abs(supply), 1.0)
         for local, item in reg.migration.items():
             idx = item["indices"]
@@ -715,12 +718,40 @@ def solve_regions(econ, closure, scenario, *, warm_start=None, raise_on_fail: bo
                    gov_tr=gov_tr, foreign_target=foreign_target)
         return regional_jacobian.jacobian(econ, ctx, *state["blocks"])
 
-    exact = jacobian if regional_jacobian.supported(closure) else None
+    # The exact Jacobian sends investment through the destination composite.
+    # Direct purchases by origin are differenced numerically.
+    exact = (jacobian if regional_jacobian.supported(closure) and inv_mix is None
+             else None)
     z_hat, residual, label, message = _solve(residuals, n_unknown, closure.tolerance,
                                              warm_start, raise_on_fail, jac=exact)
     residuals(z_hat)
     return _pack(econ, reg, closure, scenario, state, z_hat, residual, label, message,
                  closure.tolerance)
+
+
+def _direct_investment_mix(econ, reg: Regional, scenario):
+    """``Scenario.investment_mix`` as value shares by origin ``(region, local)``.
+
+    ``None`` keeps the base-year investment accounts, bought through the
+    destination composite. A mix is bought origin by origin: the share on
+    ``core:c_serv`` buys the good sold by ``core``, with no origin CES and no
+    Armington split with imports between the budget and the seller.
+    """
+    if scenario.investment_mix is None:
+        return None
+    if reg.transport is not None:
+        raise ValueError(
+            "Scenario.investment_mix buys each origin good directly, and route "
+            "margins are priced per destination. The two are not combined in this slice.")
+    shares = investment_shares(econ, scenario)[reg.origin_index]
+    unsold = [econ.coms[int(reg.origin_index[r, c])]
+              for r in range(reg.n_reg) for c in range(reg.n_local)
+              if shares[r, c] > 0 and econ.dom0[reg.origin_index[r, c]] <= 0]
+    if unsold:
+        raise ValueError(
+            "Scenario.investment_mix buys commodities with no domestic sales in "
+            f"the base year: {unsold}")
+    return shares
 
 
 def _refuse_unsupported(econ, closure, scenario, reg: Regional):
@@ -749,7 +780,6 @@ def _refuse_unsupported(econ, closure, scenario, reg: Regional):
         "consumer_wedge": scenario.consumer_wedge,
         "government_wedge": scenario.government_wedge,
         "product_tax_firm": scenario.product_tax_firm,
-        "investment_mix": scenario.investment_mix,
         "foreign_factor_share": scenario.foreign_factor_share,
         "tariff": scenario.tariff,
         "output_tax": scenario.output_tax,
@@ -846,9 +876,15 @@ def _prices(econ, reg: Regional, w, er, world, export_world, tfp, nu, ptax):
 def _quantities(econ, reg, w, supply, facshare, fac_gov, fac_row, dtax, transfers,
                 gov_tr, remit, foreign_target, tfp, prices, nu, *,
                 investment_level, levy, fixed_investment, migration=None,
-                ptax=None, closure=None, target_value=0.0):
-    """Solve destination absorption and origin sales in one linear system."""
+                ptax=None, closure=None, target_value=0.0, inv_mix=None):
+    """Solve destination absorption and origin sales in one linear system.
+
+    With ``inv_mix`` (value shares by origin) investment skips the destination
+    composite and buys each origin's domestic sales at that origin's price plus
+    product tax. Its intermediate inputs still go through the composite.
+    """
     K, C = reg.n_dest, reg.n_local
+    direct = inv_mix is not None
     pq, phi, dsh = prices["pq"], prices["phi"], prices["dsh"]
     fac_inc = w * supply
     migration_results = {}
@@ -906,7 +942,10 @@ def _quantities(econ, reg, w, supply, facshare, fac_gov, fac_row, dtax, transfer
     inv_price = np.divide((inv_base_q * pq).sum(axis=0), inv_total,
                           out=np.ones(C), where=inv_total > 0)
     v_channel = inv_share_channel / np.maximum(inv_price[None, :], 1e-12)
-    inv_channel_q = (inv_base_q * investment_level / inv_base_cost
+    if direct:
+        v_channel = np.zeros((K, C))
+    inv_channel_q = (np.zeros((K, C)) if direct
+                     else inv_base_q * investment_level / inv_base_cost
                      if fixed_investment and inv_base_cost > 0
                      else v_channel * available0)
     inv_q = inv_channel_q.sum(axis=0)
@@ -944,6 +983,24 @@ def _quantities(econ, reg, w, supply, facshare, fac_gov, fac_row, dtax, transfer
         raise RuntimeError(
             "the regional quantity system is singular. A commodity is used in "
             "its own production with a coefficient of one or more.") from exc
+    # Direct purchases by origin. Per unit bought of (r, c): activity output
+    # through the make matrix, grossed up by the home share of output; the
+    # composite absorption its inputs need; and the taxes it pays.
+    n_rc = reg.n_reg * C
+    if direct:
+        p_direct = prices["p_ship"] * (1.0 + ptax)[None, :]
+        Mz = (econ.msh[:, reg.origin_index]
+              / np.maximum(prices["dom_frac"], 1e-12)[None, :, :]).reshape(econ.n_act, n_rc)
+        G = IO.reshape(K * C, econ.n_act) @ Mz
+        tax_direct = (prices["p_ship"] * ptax[None, :]).ravel() + (econ.atax * nu) @ Mz
+        z_unit = (inv_mix / np.maximum(p_direct, 1e-12)).ravel()
+        z_fixed = (inv_mix * investment_level / (1.0 + reg.ptax)[None, :]).ravel()
+    else:
+        p_direct = np.zeros((reg.n_reg, C))
+        G = np.zeros((K * C, n_rc))
+        tax_direct = np.zeros(n_rc)
+        z_unit = z_fixed = np.zeros(n_rc)
+    Z = z_fixed if fixed_investment else np.zeros(n_rc)
     if dynamic_gov:
         free = ["gov"] + ([] if fixed_investment else ["sav"])
 
@@ -951,17 +1008,20 @@ def _quantities(econ, reg, w, supply, facshare, fac_gov, fac_row, dtax, transfer
             gov_budget = float(u[0])
             inv_budget = float(u[-1]) if not fixed_investment else 0.0
             gov_q_now = gov_mix * gov_budget / np.maximum(pq, 1e-12)
-            inv_q_now = (inv_base_q * investment_level / inv_base_cost
+            inv_q_now = (np.zeros((K, C)) if direct
+                         else inv_base_q * investment_level / inv_base_cost
                          if fixed_investment and inv_base_cost > 0
                          else v_channel * inv_budget)
-            A_now = (L @ (hh_by + gov_q_now + inv_q_now).ravel()).reshape(K, C)
-            income = income_excl + float((tax_per * A_now).sum())
+            z_now = z_fixed if fixed_investment else z_unit * inv_budget
+            A_now = (L @ ((hh_by + gov_q_now + inv_q_now).ravel() + G @ z_now)).reshape(K, C)
+            income = (income_excl + float((tax_per * A_now).sum())
+                      + float(tax_direct @ z_now))
             spend_now = float((pq * gov_q_now).sum())
             avail = (float(hh_sav.sum()) + levy + foreign_target + income - spend_now)
-            return gov_q_now, inv_q_now, A_now, income, avail
+            return gov_q_now, inv_q_now, A_now, income, avail, z_now
 
         def gap(u):
-            _, _, _, income, avail = flows(u)
+            _, _, _, income, avail, _ = flows(u)
             out = []
             if closure.government == "saving_rate":
                 out.append(u[0] - (1.0 - reg.gov_savrate) * income)
@@ -979,12 +1039,29 @@ def _quantities(econ, reg, w, supply, facshare, fac_gov, fac_row, dtax, transfer
             step[k] = scale
             J[:, k] = (gap(step) - r0) / scale
         u = np.linalg.solve(J, -r0)
-        gov_channel_q, inv_channel_q, A, _, available = flows(u)
+        gov_channel_q, inv_channel_q, A, _, available, Z = flows(u)
         gov_regional_q = gov_channel_q[:reg.n_reg]
         gov_q = gov_channel_q.sum(axis=0)
         gov_spend = float((pq * gov_channel_q).sum())
         inv_q = inv_channel_q.sum(axis=0)
-        savings = float((pq * inv_channel_q).sum()) if fixed_investment else available
+    elif direct:
+        # Investment is z_unit * available, available counts the taxes the
+        # absorption pays, and absorption counts the inputs investment needs:
+        # one scalar fixed point, solved in closed form.
+        a0 = L @ (F0.ravel() + G @ Z)
+        if fixed_investment:
+            A = a0.reshape(K, C)
+            available = available0 + float(tax_per.ravel() @ a0) + float(tax_direct @ Z)
+        else:
+            ag = L @ (G @ z_unit)
+            denom = 1.0 - float(tax_per.ravel() @ ag) - float(tax_direct @ z_unit)
+            if denom <= 1e-12:
+                raise RuntimeError(
+                    "product-tax revenue feeds investment which feeds the tax base, and "
+                    "that loop does not have a finite sum.")
+            available = (available0 + float(tax_per.ravel() @ a0)) / denom
+            A = (a0 + ag * available).reshape(K, C)
+            Z = z_unit * available
     else:
         # Tax receipts fund extra investment only in the savings-driven closure.
         # With fixed quantities they change the financing levy, not demand.
@@ -1000,9 +1077,12 @@ def _quantities(econ, reg, w, supply, facshare, fac_gov, fac_row, dtax, transfer
         if not fixed_investment:
             inv_channel_q = v_channel * available
             inv_q = inv_channel_q.sum(axis=0)
-        savings = float((pq * inv_channel_q).sum()) if fixed_investment else available
+    Z = Z.reshape(reg.n_reg, C)
+    savings = (float((pq * inv_channel_q).sum() + (p_direct * Z).sum())
+               if fixed_investment else available)
+    inv_q = inv_q + Z.sum(axis=0)
     D_rc = phi * (dsh * reg.arm_share * A)[None, :, :]
-    Q_rc = ((D_rc.sum(axis=1) + service_share * (coefficient * D_rc).sum())
+    Q_rc = ((D_rc.sum(axis=1) + Z + service_share * (coefficient * D_rc).sum())
             / np.maximum(prices["dom_frac"], 1e-12))
     E_rc = prices["exp_frac"] * Q_rc
     M_c = prices["msh"] * reg.arm_share * A
@@ -1031,10 +1111,11 @@ def _quantities(econ, reg, w, supply, facshare, fac_gov, fac_row, dtax, transfer
     gov_origin[reg.origin_index] = (origin_mix[:, -1, :] * gov_channel_q[-1][None, :]
                                     + (origin_mix[:, :reg.n_reg, :]
                                        * gov_regional_q[None, :, :]).sum(axis=1))
-    inv_origin[reg.origin_index] = (origin_mix * inv_channel_q[None, :, :]).sum(axis=1)
+    inv_origin[reg.origin_index] = (origin_mix * inv_channel_q[None, :, :]).sum(axis=1) + Z
     government_saving = available - float(hh_sav.sum()) - levy - foreign_target
     gov_account = dict(
-        product_tax=float((prices["pbase"] * ptax * A).sum()),
+        product_tax=float((prices["pbase"] * ptax * A).sum()
+                          + (prices["p_ship"] * ptax[None, :] * Z).sum()),
         activity_tax=float((econ.atax * nu) @ X),
         carbon_production=0.0, carbon_households=0.0, tariff=0.0, output_tax=0.0,
         direct_tax=float((hh_income * dtax).sum()),
@@ -1049,7 +1130,7 @@ def _quantities(econ, reg, w, supply, facshare, fac_gov, fac_row, dtax, transfer
     pe_full = np.zeros(econ.n_com)
     pe_full[reg.origin_index] = export_prices
     domestic_sales = np.zeros(econ.n_com)
-    domestic_sales[reg.origin_index] = D_rc.sum(axis=1)
+    domestic_sales[reg.origin_index] = D_rc.sum(axis=1) + Z
     transport_result = None
     if reg.transport is not None:
         transport_result = reg.transport.evaluate(
@@ -1064,7 +1145,7 @@ def _quantities(econ, reg, w, supply, facshare, fac_gov, fac_row, dtax, transfer
         ND=(dsh * reg.arm_share * A).sum(axis=0), hh_sav=hh_sav,
         government_saving=government_saving,
         gov_regional_q=gov_regional_q, inv_q_reg=inv_channel_q[:reg.n_reg],
-        gov_channel_q=gov_channel_q, inv_channel_q=inv_channel_q,
+        gov_channel_q=gov_channel_q, inv_channel_q=inv_channel_q, inv_direct_q=Z,
         government=gov_account, pe=pe_full, domestic_sales=domestic_sales,
         p_domestic=prices["p_ship"], hh_direct_tax=hh_income * dtax,
         row_fac=float((fac_inc * fac_row).sum()),
@@ -1183,7 +1264,8 @@ def _pack(econ, reg, closure, scenario, state, z, residual, label, message, tole
         real=dict(
             hh_real=float((reg.base_price[reg.household_region] * state["hh_nat"]).sum()),
             gov_real=float((reg.base_price * state["gov_channel_q"]).sum()),
-            inv_real=float((reg.base_price * state["inv_channel_q"]).sum()),
+            inv_real=float((reg.base_price * state["inv_channel_q"]).sum()
+                           + ((1.0 + reg.ptax)[None, :] * state["inv_direct_q"]).sum()),
             hh_real_income=np.where(hh_index > 0, state["spend"] / hh_index, 0.0),
             hh_price_index=hh_index,
             national_absorption=state["A"],
@@ -1193,6 +1275,9 @@ def _pack(econ, reg, closure, scenario, state, z, residual, label, message, tole
             hh_destination_quantity=state["hh_nat"],
             gov_destination_quantity=state["gov_channel_q"],
             inv_destination_quantity=state["inv_channel_q"],
+            # Investment bought origin by origin under Scenario.investment_mix,
+            # (n_reg, n_local); zero without one.
+            inv_origin_quantity=state["inv_direct_q"],
             government_saving=state["government_saving"],
         ),
         gaps={f: float(g) for f, g in zip(econ.factors, state["gaps"])},
@@ -1207,5 +1292,6 @@ def _absorb(reg, state):
     for r in range(reg.n_reg):
         for c in range(reg.n_local):
             i = int(reg.origin_index[r, c])
-            out[i] = state["D"][r, :, c].sum() + state["imports"][i]
+            out[i] = (state["D"][r, :, c].sum() + state["inv_direct_q"][r, c]
+                      + state["imports"][i])
     return out

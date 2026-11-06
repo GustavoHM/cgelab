@@ -27,6 +27,12 @@ released earlier changes.
   `PeriodResult.leisure` reports it. `validation/trade_instruments.jl` now
   writes CDE households and the leisure choice as well, and nine more cases
   agree to 1e-14.
+- `Scenario.investment_mix` in the regional solver, which refused it. Each
+  share buys the named region's good (`core:c_serv`) directly, at the origin
+  price plus product tax, so no origin CES or Armington nest splits it again;
+  intermediate inputs and other final demand keep the destination composite.
+  `period.real["inv_origin_quantity"]` reports the purchases by origin. Route
+  margins refuse a mix, and the exact regional Jacobian is set aside for it.
 
 ## 0.11.0 — 2026-11-06
 

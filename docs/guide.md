@@ -1595,6 +1595,17 @@ purchaser prices, at the national solver's level, and reported world prices are
 in foreign currency. Accounts, price indices, `in_money` and `real_gdp` value
 final demand at the prices each destination pays.
 
+`Scenario.investment_mix` names regional commodities (`core:c_serv`). Its share
+of the investment budget buys that region's good directly, at the origin price
+plus product tax, with no origin CES, Armington split with imports or trade
+margin between budget and seller: a share of 0.75 on `core:c_serv` is 0.75 of
+investment bought from `core`. The intermediate inputs that production needs,
+and household and government demand, still go through the destination
+composite. Under `fixed_real` the shares are valued at base-year purchaser
+prices; savings-driven, they are value shares of saving.
+`period.real["inv_origin_quantity"]` reports the purchases by region and local
+commodity. A mix is refused with route margins (`transport=`).
+
 ### Bilateral origin cells by destination
 
 Every destination calibrates its own origin CES from the SAM. Households and

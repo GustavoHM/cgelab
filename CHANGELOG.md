@@ -3,6 +3,24 @@
 All notable changes to `cgelab`. Versions follow [semantic versioning](https://semver.org/);
 before 1.0, a minor version may add to the API and a patch version only fixes.
 
+## Unreleased
+
+### Added
+
+- `ModelSpec.monopoly`: domestic producers that charge the Lerner markup
+  `sigma / (sigma - 1)` on home sales, with the base-year rent taken out of the
+  activity's factor payments and paid back through them (Hosoe, Gasawa and
+  Hashimoto's `moncge`). `ModelSpec.fixed_costs` and `fixed_cost_factor`: a
+  share of a factor's payment that is a fixed cost, in the unit cost over
+  output (`irscge`). `PeriodResult.monopoly` and `fixed_costs` report them,
+  `national_accounts` books them as value added (`monopoly_rent`,
+  `fixed_costs`), and `welfare_decomposition` gains `allocative_monopoly` and
+  `scale_economies`. `validation/hosoe_market.jl` transcribes both GAMS
+  programs into JuMP; their base year and tariff abolition agree in every
+  displayed variable to 1.9e-13, and `tests/data/hosoe_market.json` lets the
+  suite check it without Julia. `cgelab.examples.hosoe.build_monopoly` and
+  `build_scale`. National only; `to_jump` refuses them.
+
 ## 0.12.1 — 2026-11-06
 
 The regional solver reads `Scenario.investment_mix`, which it refused: each share of the

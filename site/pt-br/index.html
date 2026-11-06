@@ -1163,6 +1163,23 @@ mais_capital.leisure["labour"].round(3)</code></pre>
   <p>Cada família tem o seu tempo e o divide entre trabalho e lazer. Vinte por cento mais capital
   sobe o salário, e o trabalho que cada família oferece responde a ele; o mercado de trabalho
   fecha contra a soma.</p>
+  <h3>49. Monopolistas, como no moncge de Hosoe</h3>
+<pre><code>from cgelab.examples import hosoe
+_, mon = hosoe.build_monopoly()          # markup de Lerner sigma/(sigma-1) = 1,5 nas vendas internas
+livre = cge.solve_period(mon, hosoe.CLOSURE, cge.Scenario(tariff=np.zeros(2)))
+{c: round(m["rent"], 4) for c, m in livre.monopoly.items()}
+w = cge.welfare_decomposition(mon, cge.Scenario(), cge.Scenario(tariff=np.zeros(2)),
+                              closure=hosoe.CLOSURE)
+w[["absorption", "allocative_monopoly"]].round(4)</code></pre>
+<pre class="output" data-label="Saída"><code><span class="out-expr">{c: round(m["rent"], 4) for c, m in livre.monopoly.items()}</span>
+{'c_brd': 22.89, 'c_mlk': 22.73}
+<span class="out-expr">w[["absorption", "allocative_monopoly"]].round(4)</span>
+absorption             0.2277
+allocative_monopoly   -0.2258</code></pre>
+  <p>Os dois bens são feitos por monopolistas que cobram o markup de Lerner nas vendas internas.
+  Abolir as tarifas leva os compradores às importações, e a queda das vendas internas dos
+  monopolistas devolve quase todo o ganho. Toda variável do programa do GAMS, transcrito para
+  JuMP, concorda com isto a 1,9e-13.</p>
 </div></section>
 
 <section id="verificacoes"><div class="wrap">

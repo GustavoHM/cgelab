@@ -988,6 +988,37 @@ binding ceilings and floors, both together, and the wage floor at the base
 year, slack and binding. National models only; the regional solver and
 `to_jump` refuse them.
 
+### Monopoly and fixed costs
+
+```python
+spec = cge.ModelSpec(..., sigma_armington=3.0, monopoly=["c_brd", "c_mlk"])
+spec = cge.ModelSpec(..., fixed_costs={"a_brd": 0.1, "a_mlk": 0.1}, fixed_cost_factor="f_cap")
+result.monopoly        # markup, rent and home sales by commodity
+result.fixed_costs     # fixed cost, output and fixed cost per unit by activity
+```
+
+`monopoly` makes the domestic producer of each commodity named a monopolist that
+charges the Lerner markup `σ / (σ − 1)` on home sales, `σ` the commodity's
+Armington elasticity; exports sell at the world price. Of the base-year value
+buyers pay for home sales, the share `1/σ` is rent. It is taken out of the
+producing activity's factor payments in proportion to them, and its output with
+it, and it is paid back through the same factors, so the base year reproduces.
+`fixed_costs` makes a share of an activity's payment to `fixed_cost_factor` a
+fixed cost, fixed in numeraire units and paid to that factor's owners: the unit
+cost includes it over output, so average cost falls as output rises. These are
+Hosoe, Gasawa and Hashimoto's `moncge` and `irscge` (chapters 10.4 and 10.6).
+`validation/replicate_hosoe_market.py` transcribes both GAMS programs line by
+line into JuMP, and the base year and the tariff abolition agree with cgelab in
+every displayed variable, 45 to 47 of them, to 1.9e-13; the suite checks the
+recorded reference without Julia. `national_accounts` reports the rent and the
+fixed costs as value added (`monopoly_rent`, `fixed_costs`), and
+`welfare_decomposition` has a term for each, `allocative_monopoly` (the markup
+times the change in home sales) and `scale_economies` (the fixed cost per unit
+times the change in output); its identity still closes. In `moncge` almost all of
+the gain from abolishing tariffs is lost to the monopolists' smaller home sales.
+One activity makes each monopoly commodity and nothing else; national only;
+`to_jump` refuses both.
+
 ### An export tax
 
 ```python

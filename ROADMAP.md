@@ -297,7 +297,8 @@ independent replica in Julia (JuMP with Ipopt or PATH), as in `validation/`.
   equilibrium equals the symmetric model at the elasticity its regime selects) and against the
   paper's Table 2.1 written independently in Julia and solved by PATH, to 1e-12. The paper's
   Mongolia SAM is not public, so its tables are not the reference.
-- [ ] **Release**: 0.10.0 on PyPI and archived on Zenodo.
+- [x] **Release**: 0.10.0 on PyPI and archived on Zenodo
+  ([10.5281/zenodo.24005965](https://doi.org/10.5281/zenodo.24005965)).
 
 **0.11 — closures and data.**
 
@@ -311,7 +312,8 @@ independent replica in Julia (JuMP with Ipopt or PATH), as in `validation/`.
 - [x] **Regionalising national coefficients** by location quotients (SLQ, CILQ, FLQ, AFLQ)
   (`location_quotients`, `regional_coefficients`). Validated against the published formulas,
   computed by hand.
-- [ ] **Release**: 0.11.0 on PyPI and archived on Zenodo.
+- [x] **Release**: 0.11.0 on PyPI and archived on Zenodo
+  ([10.5281/zenodo.24006498](https://doi.org/10.5281/zenodo.24006498)).
 
 **0.12 — households, factors and land.**
 
@@ -323,10 +325,12 @@ independent replica in Julia (JuMP with Ipopt or PATH), as in `validation/`.
   0.15: the paper's formulation is not at hand, and guessing it would not be a replication.
 - [x] **Land allocated by CET** across uses: `factor_mobility` on a land factor, since 0.6,
   is GTAP's sluggish endowment. A nested land CET is open, in 0.15.
-- [ ] **Release**: 0.12.0 on PyPI and archived on Zenodo.
+- [x] **Release**: 0.12.0 on PyPI and archived on Zenodo
+  ([10.5281/zenodo.24014846](https://doi.org/10.5281/zenodo.24014846)).
 - [x] **Regional investment basket**: `Scenario.investment_mix` in the regional solver, each
   share bought from the named region, released as 0.12.1.
-- [ ] **Release**: 0.12.1 on PyPI and archived on Zenodo.
+- [x] **Release**: 0.12.1 on PyPI and archived on Zenodo
+  ([10.5281/zenodo.24015090](https://doi.org/10.5281/zenodo.24015090)).
 
 **0.13 — market structure.**
 

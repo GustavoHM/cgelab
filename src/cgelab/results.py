@@ -257,14 +257,20 @@ def national_accounts(period: PeriodResult) -> dict:
                               for c in (getattr(period, "capacity", None) or {}).values()))
     # So is an import quota's premium: in the price paid at home, not at the border.
     quota_rent = float(sum(q["rent"] for q in (getattr(period, "quota", None) or {}).values()))
-    income = (factor_income + capacity_rent + quota_rent + product_taxes
-              + production_taxes)
+    # A monopolist's rent and a fixed cost are value added that no factor's price shows.
+    monopoly_rent = float(sum(m["rent"] for m in (getattr(period, "monopoly", None) or {}).values()))
+    fixed_costs = float(sum(f["fixed_cost"]
+                            for f in (getattr(period, "fixed_costs", None) or {}).values()))
+    income = (factor_income + capacity_rent + quota_rent + monopoly_rent + fixed_costs
+              + product_taxes + production_taxes)
     return {
         **value,
         "gdp_expenditure": expenditure,
         "factor_income": factor_income,
         "capacity_rent": capacity_rent,
         "quota_rent": quota_rent,
+        "monopoly_rent": monopoly_rent,
+        "fixed_costs": fixed_costs,
         "price_subsidy": price_subsidy,
         "price_support": float(g.get("price_support", 0.0)),
         "taxes_on_products": product_taxes,

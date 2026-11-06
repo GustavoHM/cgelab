@@ -138,7 +138,8 @@ the goal is to cover the whole list by 1.0; each item's version is the one in
 | SAM estimation by cross entropy; regionalisation by location quotients | 📄 Robinson, Cattaneo and El-Said; Flegg | **done**: the minimum I-divergence over the flows with account totals, fixed cells, cell targets and linear aggregates, zeros and signs kept; RAS with every total given; the primal solved by Ipopt agrees to 5e-15. SLQ, CILQ, FLQ and AFLQ, checked by hand | 0.11 |
 | Household demand beyond LES; labour–leisure | 📄 GTAP (CDE), IFPRI | **done**: CDE with closed-form expansion parameters, its elasticities and its CES case checked; a labour–leisure choice by household; both against an independent Julia rewrite solved by PATH to 1e-14. AIDS open | 0.12 |
 | Land use | 📄 GTAP-AEZ, MAGNET | a CET across uses through `factor_mobility` (0.6); a nested land CET open | 0.6, 0.15 |
-| Intertemporal CGE; imperfect competition; export to GAMS and GEMPACK | 📄 MPSGE | missing | 0.13 to 0.17 |
+| Monopoly and increasing returns | 📄 Hosoe (`moncge`, `irscge`), GAMS library | **done**: the Lerner markup on home sales with its rent, and fixed costs; the base year and the tariff abolition of both programs, transcribed into JuMP, agree in every displayed variable to 1.9e-13. A second country (`twocge`) and Melitz firms open | 0.13 |
+| Intertemporal CGE; export to GAMS and GEMPACK | 📄 MPSGE | missing | 0.14 to 0.17 |
 
 ## Sources
 

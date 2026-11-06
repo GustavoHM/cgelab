@@ -150,6 +150,8 @@ def _refuse_complementarity(econ: Economy, closure: Closure, sc: Scenario, who: 
         raise ValueError(f"{who} does not write CDE household demand yet")
     if econ.leisure is not None:
         raise ValueError(f"{who} does not write the labour–leisure choice yet")
+    if econ.monopoly is not None or econ.fixed_costs is not None:
+        raise ValueError(f"{who} does not write monopoly markups or fixed costs yet")
 
 
 def _refuse_export_tax(econ: Economy, sc: Scenario, who: str) -> None:

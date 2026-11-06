@@ -334,18 +334,23 @@ independent replica in Julia (JuMP with Ipopt or PATH), as in `validation/`.
 
 **0.13 — market structure.**
 
-- [ ] **Monopoly rent, increasing returns with a fixed cost and a second country**, the GAMS
-  library's `moncge`, `irscge` and `twocge`, transcribed independently into JuMP as `stdcge`
-  was.
+- [x] **Monopoly rent and increasing returns with a fixed cost**, the GAMS library's `moncge`
+  and `irscge` (`ModelSpec.monopoly`, `fixed_costs`), transcribed independently into JuMP as
+  `stdcge` was: every displayed variable agrees to 1.9e-13
+  (`validation/replicate_hosoe_market.py`).
+- [ ] **A second country**, `twocge`: moved to 0.14, since it needs two current accounts and two
+  currencies, which the regional solver, with one national current account, does not have.
 - [ ] **Melitz firms**: heterogeneous firms with a fixed cost of exporting. Reference: the
-  closed forms of the one-sector model and an independent replica.
+  closed forms of the one-sector model and an independent replica. Moved to 0.15.
 
-**0.14 — the regional solver catches up.** What it refuses by name today: trade taxes, output
+**0.14 — the regional solver catches up, and a second country.** `twocge`'s two countries, each
+with its own currency and current account, from 0.13. What the regional solver refuses by name
+today: trade taxes, output
 taxes, carbon prices, government absorption, LES demand, the energy nest, and the
 complementarity conditions of 0.8. Reference: `validation/regional.jl` extended, and the
 one-region model against the national solver.
 
-**0.15 — what released items left open.** AIDS household demand; capital utilization; a
+**0.15 — what released items left open.** Melitz firms, from 0.13; AIDS household demand; capital utilization; a
 nested land CET; employment in persons, unemployment benefits and a
 wage curve by segment; vintages that substitute perfectly with idle capital, the sale of old
 capital, and vintages with the energy nest and in several regions; historical calibration with

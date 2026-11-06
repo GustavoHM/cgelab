@@ -25,7 +25,8 @@ from ..closure import Closure
 from ..sam import SAM
 from ..spec import ModelSpec
 
-__all__ = ["ENTRIES", "CLOSURE", "spec", "build", "variables", "SIMPLE_ENTRIES", "build_simple"]
+__all__ = ["ENTRIES", "CLOSURE", "spec", "build", "build_monopoly", "build_scale", "variables",
+           "SIMPLE_ENTRIES", "build_simple"]
 
 ENTRIES = [
     ("c_brd", "a_brd", 21.0), ("c_brd", "a_mlk", 8.0), ("c_brd", "hh", 20.0),
@@ -65,6 +66,23 @@ def build(large_country: bool = False, model_spec: ModelSpec | None = None):
     sam = SAM.from_long(pd.DataFrame(ENTRIES, columns=["row", "col", "value"]),
                         name="hosoe_stdcge")
     return sam, calibrate(sam, model_spec or spec(large_country))
+
+
+def build_monopoly(model_spec: ModelSpec | None = None):
+    """``moncge`` (chapter 10.4): the same SAM, both goods made by monopolists that charge the
+    Lerner markup on home sales, Armington elasticities of 3."""
+    sam = SAM.from_long(pd.DataFrame(ENTRIES, columns=["row", "col", "value"]),
+                        name="hosoe_moncge")
+    return sam, calibrate(sam, model_spec or spec(sigma_armington=3.0,
+                                                  monopoly=["c_brd", "c_mlk"]))
+
+
+def build_scale(model_spec: ModelSpec | None = None):
+    """``irscge`` (chapter 10.6): the same SAM, a tenth of each activity's capital payment a
+    fixed cost."""
+    sam = SAM.from_long(pd.DataFrame(ENTRIES, columns=["row", "col", "value"]),
+                        name="hosoe_irscge")
+    return sam, calibrate(sam, model_spec or spec(fixed_costs={"a_brd": 0.1, "a_mlk": 0.1}))
 
 
 #: Chapter 5, the GAMS library file ``splcge``: bread and milk, capital and
@@ -121,7 +139,9 @@ def variables(econ, res) -> dict:
         "Z": by_good(res.Q), "Xp": by_good(xp), "Xg": by_good(res.gov_quantity),
         "Xv": by_good(res.investment_quantity), "E": by_good(res.exports),
         "M": by_good(res.imports), "Q": by_good(res.absorption),
-        "D": by_good(res.domestic_sales),
+        # Hosoe's D is at the producer's price; under a monopoly buyers pay the markup over it.
+        "D": by_good(res.domestic_sales / (1.0 if econ.monopoly is None
+                                           else econ.monopoly["markup"])),
         "pf": {h: float(res.factor_prices[fac[h]]) for h in facs},
         "py": by_good(value_added_price(econ, res.factor_prices)),
         "pz": by_good(res.pd), "pq": by_good(res.pq), "pe": by_good(res.pe),
@@ -133,6 +153,8 @@ def variables(econ, res) -> dict:
         "Tz": by_good(tauz * res.pd * res.Q), "Tm": by_good(tm * pm * res.imports),
         "UU": float(np.prod(xp ** alpha)),
     }
+    if econ.monopoly is not None:
+        out["RT"] = by_good([(res.monopoly or {}).get(c, {}).get("rent", 0.0) for c in econ.coms])
     if res.scenario.import_quota:
         # quocge's quasi-rent chi and its rent RT, zero on a good without a quota.
         quota = res.quota or {}

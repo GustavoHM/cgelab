@@ -256,6 +256,14 @@ class PeriodResult:
     #: commodities) and ``wage`` (net of what goes to government and abroad).
     #: None without it.
     leisure: dict | None = None
+    #: Each monopolist (``ModelSpec.monopoly``), ``{commodity: {"markup", "rent",
+    #: "home_sales"}}``: home sales at what buyers pay, and the rent, the markup's
+    #: share of them. None without monopoly.
+    monopoly: dict | None = None
+    #: Each activity with a fixed cost (``ModelSpec.fixed_costs``),
+    #: ``{activity: {"fixed_cost", "output", "average"}}``: the cost in numeraire
+    #: units, output, and the fixed cost per unit of it. None without them.
+    fixed_costs: dict | None = None
 
     def price(self, commodity: str) -> float:
         return float(self.pq[self.econ.commodity(commodity)])
@@ -558,6 +566,21 @@ def solve_period(econ: Economy, closure: Closure | None = None,
         quota_factor = econ.factor(sc.quota_rent_to)
     i_quota = n_unknown
     n_unknown += quota_idx.size
+    # Monopolists: the rent each earns, in logs of its base-year value. It is income, and
+    # income decides the demand the rent is earned on, so it is an outer unknown.
+    mono = econ.monopoly
+    mon_idx = np.zeros(0, dtype=int) if mono is None else mono["index"]
+    markup = np.ones(nc) if mono is None else mono["markup"]
+    i_mon = n_unknown
+    n_unknown += mon_idx.size
+    # Fixed costs: the output of each activity that bears one, in logs of its base year. The
+    # unit cost includes FC / X, so the price system depends on the level it sets.
+    fixed = econ.fixed_costs
+    fc_idx = np.zeros(0, dtype=int) if fixed is None else fixed["index"]
+    i_fc = n_unknown
+    n_unknown += fc_idx.size
+    if (mon_idx.size or fc_idx.size) and (econ.regional is not None):
+        raise ValueError("monopoly and fixed_costs are national for now")
     # Price bounds, both on the purchaser price and both real: a multiple of the
     # base-year purchaser price, indexed to the purchaser price index, as a
     # fixed real wage is. A ceiling holds by a subsidy, ad valorem on the price
@@ -858,6 +881,13 @@ def solve_period(econ: Economy, closure: Closure | None = None,
 
         rent = np.zeros(na)
         rent[capped] = nu * z[i_cap:i_cap + capped.size]
+        mon_rent = np.zeros(nc)
+        mon_rent[mon_idx] = nu * mono["rent0"][mon_idx] * np.exp(z[i_mon:i_mon + mon_idx.size]) \
+            if mon_idx.size else 0.0
+        fc_unit = np.zeros(na)
+        if fc_idx.size:
+            X_guess = econ.X0[fc_idx] * np.exp(z[i_fc:i_fc + fc_idx.size])
+            fc_unit[fc_idx] = nu * fixed["fc"][fc_idx] / X_guess
 
         def commodity_price(pa):
             # A least-cost commodity's price is its own unknown: averaging its
@@ -880,7 +910,7 @@ def solve_period(econ: Economy, closure: Closure | None = None,
         pqf = 1.0 + ptax_f
         for _ in range(_PRICE_ITERS):
             pa, _, _ = production(pqf, Wm, quantities=False, pva=pva)
-            pa = pa + rent
+            pa = pa + rent + fc_unit
             pd_ = commodity_price(pa)
             p_dom_ = domestic_price(pd_ * out_wedge, pe)
             arm, dsh, msh_ = armington(econ.dom_share, p_dom_, pm, arm_sigma(p_dom_, pm))
@@ -900,7 +930,7 @@ def solve_period(econ: Economy, closure: Closure | None = None,
                 break
             pqf = new
         pa, coef, fac_per = production(pqf, Wm, pva=pva)
-        pa = pa + rent
+        pa = pa + rent + fc_unit
         # Supply of each imperfectly mobile factor to each activity, and its
         # income: the pools' prices times their endowments, which is also the
         # activity prices times the supplies.
@@ -957,6 +987,11 @@ def solve_period(econ: Economy, closure: Closure | None = None,
                 fac_inc[rent_owner] += float(rent[capped] @ limits)
             if quota_factor is not None:
                 fac_inc[quota_factor] += quota_rent
+            if mon_idx.size:
+                # The rent goes back through the factors it was taken from at the base year.
+                fac_inc = fac_inc + mono["weights"] @ mon_rent
+            if fc_idx.size:
+                fac_inc[fixed["factor"]] += nu * float(fixed["fc"].sum())
             if leis is not None:
                 # Each household splits its time between labour and leisure. With
                 # C = net Y - direct, Y = w_net S + other, S = T - L and
@@ -1076,7 +1111,9 @@ def solve_period(econ: Economy, closure: Closure | None = None,
             # CET's home share, is output at its tax-inclusive value; over
             # (1 + tauz0) it is commodity output at producer value.
             with np.errstate(divide="ignore", invalid="ignore"):
-                Gp = np.diag(dsh * econ.arm_share / np.maximum(dom_frac * tz0, 1e-12))
+                # Home sales in the Armington nest are at what buyers pay; a monopolist's
+                # output is that over its markup.
+                Gp = np.diag(dsh * econ.arm_share / np.maximum(dom_frac * tz0 * markup, 1e-12))
             Bm = coef @ msh_eff
             fuel_carbon_per_unit = (carb_fuel * coef).sum(axis=0)
             M = np.linalg.inv(np.eye(nc) - Bm @ Gp - econ.mq)
@@ -1285,6 +1322,22 @@ def solve_period(econ: Economy, closure: Closure | None = None,
                        else gov_account["revenue"])
                 out.append((hit - target_value) / sav_scale)
             out.extend(mob_out)
+            if mon_idx.size:
+                home = dsh * econ.arm_share * A
+                earned = (1.0 - 1.0 / markup) * p_dom * home
+                out.extend(np.log(np.maximum(earned[mon_idx], 1e-300)
+                                  / np.maximum(mon_rent[mon_idx], 1e-300)))
+            if fc_idx.size:
+                out.extend(np.log(np.maximum(X[fc_idx], 1e-300) / X_guess))
+            state["monopoly"] = ({econ.coms[i]: dict(markup=float(markup[i]),
+                                                     rent=float(mon_rent[i]),
+                                                     home_sales=float((dsh * econ.arm_share
+                                                                       * A)[i]))
+                                  for i in mon_idx} or None)
+            state["fixed_costs"] = ({econ.acts[j]: dict(fixed_cost=float(nu * fixed["fc"][j]),
+                                                        output=float(X[j]),
+                                                        average=float(fc_unit[j]))
+                                     for j in fc_idx} or None)
             # Harris–Todaro: the informal wage is the expected wage of queueing
             # for a rigid job.
             for k in i_ht:
@@ -1621,7 +1674,8 @@ def solve_period(econ: Economy, closure: Closure | None = None,
         least_cost=state.get("least_cost"), capacity=state.get("capacity"),
         quota=state.get("quota"), price_bounds=state.get("price_bounds"),
         stock_quantity=state.get("stock_q"), armington_sigma=state.get("arm_sigma"),
-        leisure=state.get("leisure"))
+        leisure=state.get("leisure"), monopoly=state.get("monopoly"),
+        fixed_costs=state.get("fixed_costs"))
 
 
 # ---------------------------------------------------------------------------

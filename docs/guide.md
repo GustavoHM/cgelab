@@ -76,6 +76,51 @@ see is evidence about how the table was built, and closing it before diagnosing
 it destroys the evidence. If the routine cannot reach tolerance it **fails**
 rather than returning a SAM that merely looks balanced.
 
+### Estimating by cross entropy
+
+```python
+est = cge.cross_entropy(prior,
+                        totals={"a_agr": 100.0},                 # account totals
+                        fixed=[("f_lab", "a_agr")],              # cells held at the prior
+                        targets={("c_agr", "hh_1"): 33.0},       # cells that must take a value
+                        aggregates=[({("c_agr", "row"): 1, ("c_ind", "row"): 1}, 31.0)])
+est.sam, est.divergence
+est.information_multipliers      # the shadow value of each piece of information
+```
+
+When a SAM has to meet information it was not built from, or two sources disagree,
+`cross_entropy` returns the balanced SAM closest to the prior in the sense of
+information: the minimum of Csiszár's I-divergence over the flows, `Σ T log(T/P) −
+T + P`, subject to every account balancing and to the information given (Golan,
+Judge and Robinson, 1994; Robinson, Cattaneo and El-Said, 2001). The prior's zeros
+stay zero and its signs stay as they are: a negative entry is handled as the
+opposite payment in the transposed cell. With the total of every account given,
+the problem is RAS's, and so is the solution; the suite checks that against
+biproportional scaling written out. The information multipliers say what each
+total, cell or aggregate costs in divergence, which is where to look when two
+sources disagree. Information the prior cannot meet, such as a target on a cell it
+leaves empty, raises instead of returning the nearest miss.
+`validation/replicate_cross_entropy.py` solves the primal problem with Ipopt in
+Julia; in eight cases (the balance alone, every total, some totals, fixed cells, a
+target, an aggregate, all together, a prior with a negative entry) the two agree
+to 8e-12.
+
+### Regional coefficients from national ones
+
+```python
+lq = cge.location_quotients(regional_employment, national_employment, method="flq",
+                            delta=0.3)
+a_region = cge.regional_coefficients(a_national, lq)
+```
+
+`location_quotients` returns the simple (`"slq"`), cross-industry (`"cilq"`),
+Flegg (`"flq"`) or augmented Flegg (`"aflq"`) quotients by supplying and
+purchasing sector, and `regional_coefficients` scales the national coefficients by
+`min(1, LQ)`: what the region does not supply itself it imports. The FLQ's
+`delta` shrinks the quotients of a small region; 0.3 is the value Flegg and Webber
+(2000) and later studies found typical, and an applied model should say which one
+it used. The formulas are the published ones and the suite checks them by hand.
+
 ---
 
 ## 2. Specifying the model

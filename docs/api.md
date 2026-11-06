@@ -35,6 +35,31 @@ missing long-form flow as NaN, so this gate sees it; an empty cell of
 `from_square` is a zero flow. `calibrate` refuses nonfinite flows even with
 `check_balance=False`.
 
+### `cross_entropy(prior, *, totals=None, fixed=(), targets=None, aggregates=(), tol=1e-12, max_iter=200, name=None) -> CrossEntropy`
+
+The balanced SAM closest to `prior` in Csiszár's I-divergence over the flows,
+`Σ T log(T/P) − T + P`, meeting the information given: `totals` (account ->
+total), `fixed` cells (held at the prior), `targets` ((row, col) -> value, on a
+cell the prior fills) and `aggregates` (a list of `(weights, value)`, `weights`
+mapping (row, col) to a coefficient). Zeros and signs of the prior are kept; a
+negative entry is the opposite payment in the transposed cell. With every total
+given it is RAS. Raises `BalanceError` when the information cannot be met. The
+result has `sam`, `divergence`, `balance_multipliers` (by account, the first
+zero), `information_multipliers` (labelled `total:<account>`,
+`cell:<row><-<col>`, `aggregate:<k>`) and `iterations`.
+
+### `location_quotients(regional, national, *, method="flq", delta=0.3) -> DataFrame`
+
+Quotients by supplying (rows) and purchasing (columns) sector, from a size measure
+by sector in the region and the nation: `"slq"` (the same in every column),
+`"cilq"` (`SLQ_i / SLQ_j`, the SLQ on the diagonal), `"flq"` (the CILQ times
+`log2(1 + E^r/E^n) ** delta`) and `"aflq"` (the FLQ times `log2(1 + SLQ_j)` in
+columns with `SLQ_j > 1`).
+
+### `regional_coefficients(national, quotients) -> DataFrame`
+
+`national * min(1, quotients)`, cell by cell, with the same labels.
+
 ### `sam_distance(sam, other) -> float`
 
 Kullback–Leibler divergence `D_KL(sam || other)` after aligning accounts and

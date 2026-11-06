@@ -136,7 +136,9 @@ the goal is to cover the whole list by 1.0; each item's version is the one in
 | Complementarity (MCP); alternative solvers | 📄 GAMS/MPSGE with PATH; pycge (Pyomo) | **started**: producers that compete at least cost and shut down (`least_cost`) capacity limits with scarcity rents (`Scenario.capacity`) import quotas with rents (`Scenario.import_quota`, `quocge` reproduced), price ceilings and floors (`Scenario.price_ceiling`, `price_floor`), a wage floor and backstop technologies (`calibrate(..., backstops=)`), against PATH; besides `scipy`, the period can be solved through Pyomo by IPOPT or, with these conditions, by PATH (`solve_period(..., backend=)`) | 0.8, 0.9 |
 | Generic closure swap | 📄 GEMPACK | **done** for a period: any period variable against any scenario instrument, one for one, an instrument the closure does not read refused; swapping and swapping back reproduce the standard closure, and `calibrate_historical`'s common productivity, to 1e-10 | 0.11 |
 | SAM estimation by cross entropy; regionalisation by location quotients | 📄 Robinson, Cattaneo and El-Said; Flegg | **done**: the minimum I-divergence over the flows with account totals, fixed cells, cell targets and linear aggregates, zeros and signs kept; RAS with every total given; the primal solved by Ipopt agrees to 5e-15. SLQ, CILQ, FLQ and AFLQ, checked by hand | 0.11 |
-| Intertemporal CGE; imperfect competition; land use; export to GAMS and GEMPACK | 📄 MPSGE, GTAP-AEZ | missing | 0.12 to 0.17 |
+| Household demand beyond LES; labour–leisure | 📄 GTAP (CDE), IFPRI | **done**: CDE with closed-form expansion parameters, its elasticities and its CES case checked; a labour–leisure choice by household; both against an independent Julia rewrite solved by PATH to 1e-14. AIDS open | 0.12 |
+| Land use | 📄 GTAP-AEZ, MAGNET | a CET across uses through `factor_mobility` (0.6); a nested land CET open | 0.6, 0.15 |
+| Intertemporal CGE; imperfect competition; export to GAMS and GEMPACK | 📄 MPSGE | missing | 0.13 to 0.17 |
 
 ## Sources
 

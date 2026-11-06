@@ -174,6 +174,16 @@ class Economy:
     #: commodity, ``nan`` where one elasticity holds. ``sigma_arm`` is the one
     #: where they get dearer. None: one elasticity everywhere.
     sigma_arm_falling: np.ndarray | None = None
+    #: CDE household demand (``household_demand="cde"``): the substitution
+    #: parameters ``b`` (n_com,), the expansion parameters ``e`` (n_hh, n_com),
+    #: and the scale ``B`` (n_hh, n_com), calibrated so that base-year utility is
+    #: one: ``sum_i B_i u^(e_i b_i) (p_i / E)^b_i = 1``. None for other demand.
+    cde: dict | None = field(default=None, repr=False)
+    #: Labour–leisure choice (``ModelSpec.leisure_ratio``): the factor index,
+    #: each household's time endowment ``T`` and the ratio ``k`` of the value of
+    #: leisure to commodity spending (``(1 - alpha) / alpha`` of its Cobb–Douglas
+    #: between leisure and spending). None without it.
+    leisure: dict | None = field(default=None, repr=False)
     #: Government saving over government income at the base year, income net
     #: of transfers to households. Read by ``Closure(government="saving_rate")``.
     gov_savrate: float = 0.0
@@ -623,6 +633,7 @@ def calibrate(sam: SAM, spec: ModelSpec | None = None, *,
     inv_dem = sam.block(coms, [inv]).ravel()
 
     pop_share = _population_shares(hhs, population)
+    cde = _cde(spec, hh_com, hh_budget, ptax, income_elasticities, coms)
     hh_committed = _les_subsistence(spec, hh_com, hh_budget, ptax,
                                     income_elasticities, coms)
 
@@ -667,7 +678,7 @@ def calibrate(sam: SAM, spec: ModelSpec | None = None, *,
         fac_gov_share=fac_gov_share, fac_row_share=fac_row_share,
         hh_spend0=hh_com.sum(axis=1), hh_gross0=gross0,
         tm0=tm0, tauz0=tauz0, te0=te0, gov_savrate=gov_savrate,
-        sigma_arm_falling=_asymmetric_armington(spec, coms),
+        sigma_arm_falling=_asymmetric_armington(spec, coms), cde=cde,
         energy_nest=energy_nest, vintage=vintage,
         mobility=build_mobility(spec, facs, acts, aunit * X0[None, :], factor_pools),
         segments=build_segments(spec, facs, fac_supply),
@@ -683,6 +694,7 @@ def calibrate(sam: SAM, spec: ModelSpec | None = None, *,
                                           spec.indirect_tax_account,
                                           spec.export_tax_account) if a])),
     )
+    econ.leisure = _leisure(spec, econ)
     if backstops:
         econ = _add_backstops(econ, backstops)
     econ.least_cost = _least_cost(spec, econ.coms, econ.acts, econ.msh, vintage,
@@ -850,6 +862,99 @@ def _energy_nest(spec, coms, acts, io, ptax, vunit, leontief, aunit, facs):
                       sigma_vae=sig_vae, sigma_energy=sig_e, mode="capital", capital=k,
                       free=free, top_share=top, ke_share=ke_share, k_share=k_share,
                       sigma_ke=sig_ke, sigma_top=np.where(free, sig_top, 0.0))
+
+
+def _cde(spec, hh_com, hh_budget, ptax, income_elasticities, coms):
+    """CDE parameters: b given, e from the income elasticities, B from the base year.
+
+    With ``z_i = B_i u^(e_i b_i) (p_i / E)^b_i`` summing to one, shares are
+    ``w_i = b_i z_i / sum_k b_k z_k`` and the income elasticity is
+    ``eta_i = 1 - b_i + sum w b + (e_i b_i - sum w e b) / sum w e``. Normalising
+    ``sum w e = 1``, the expansion parameters that give the elasticities are
+    ``e_i = (eta_i - 1 + b_i - sum w b + S) / b_i`` with ``S`` fixed by the
+    normalisation; the elasticities are first scaled to Engel aggregation,
+    ``sum w eta = 1``, as the LES's are.
+    """
+    if spec.household_demand != "cde":
+        return None
+    if spec.cde_substitution is None:
+        raise ValueError("household_demand='cde' needs ModelSpec.cde_substitution, the "
+                         "substitution parameter b by commodity, in (0, 1): a SAM does not "
+                         "supply it")
+    from .spec import _as_vector
+    b = (np.full(len(coms), float(spec.cde_substitution))
+         if not isinstance(spec.cde_substitution, Mapping)
+         else _as_vector(spec.cde_substitution, coms, "cde_substitution"))
+    if np.any(~np.isfinite(b)) or np.any(b <= 0) or np.any(b >= 1):
+        raise ValueError(f"cde_substitution must be in (0, 1) for every commodity, got {b}")
+    eta = np.ones(len(coms))
+    for c, v in (income_elasticities or {}).items():
+        if c in coms:
+            eta[coms.index(c)] = float(v)
+    nh = hh_com.shape[0]
+    E0 = hh_com.sum(axis=1)
+    p0 = 1.0 + ptax
+    e = np.zeros((nh, len(coms)))
+    B = np.zeros((nh, len(coms)))
+    for h in range(nh):
+        w = hh_budget[h]
+        eta_h = eta / float(w @ eta)                    # Engel aggregation
+        r = eta_h - 1.0 + b - float(w @ b)
+        S = (1.0 - float((w * r / b).sum())) / float((w / b).sum())
+        e[h] = (r + S) / b
+        bought = w > 0
+        if np.any(e[h][bought] <= 0):
+            bad = [coms[i] for i in np.where(bought & (e[h] <= 0))[0]]
+            raise ValueError(
+                f"the income elasticities give household {h} nonpositive CDE expansion "
+                f"parameters for {bad}; the CDE is not regular there. Raise those elasticities "
+                f"or lower cde_substitution for them.")
+        theta = np.where(bought, w / b, 0.0)
+        theta = theta / theta.sum()
+        B[h] = theta * (p0 / E0[h]) ** (-b)
+    return dict(b=b, e=e, B=B)
+
+
+def _leisure(spec, econ):
+    """Time endowments and leisure parameters, or None without a leisure choice.
+
+    A household's base labour is its share of the factor; leisure is ``ratio`` times
+    that. With leisure priced at what an hour of it gives up in commodity spending,
+    ``net w_net``, the Cobb–Douglas between leisure and spending gives
+    ``net w_net L = k C``: ``k`` is calibrated on the base year.
+    """
+    if spec.leisure_ratio is None:
+        return None
+    if spec.regions:
+        raise ValueError("leisure_ratio is national for now")
+    if spec.leisure_factor not in econ.factors:
+        raise KeyError(f"leisure_factor {spec.leisure_factor!r} is not a factor: "
+                       f"{list(econ.factors)}")
+    i = econ.factors.index(spec.leisure_factor)
+    if i == econ.numeraire_index:
+        raise ValueError(f"leisure_factor {spec.leisure_factor!r} is the numeraire. Its market "
+                         f"is left to Walras' law, and with an endogenous supply the check "
+                         f"would be an identity; set ModelSpec.numeraire_factor to another factor")
+    if i in econ.mobility or any(i in g.index for g in econ.segments.values()):
+        raise ValueError(f"leisure_factor {spec.leisure_factor!r} is imperfectly mobile or a "
+                         f"labour segment; the leisure choice needs one wage")
+    if isinstance(spec.leisure_ratio, Mapping):
+        unknown = [h for h in spec.leisure_ratio if h not in econ.hhs]
+        if unknown:
+            raise KeyError(f"leisure_ratio names {unknown}, which are not households")
+        ratio = np.array([float(spec.leisure_ratio.get(h, 0.0)) for h in econ.hhs])
+    else:
+        ratio = np.full(econ.n_hh, float(spec.leisure_ratio))
+    if np.any(~np.isfinite(ratio)) or np.any(ratio < 0):
+        raise ValueError("leisure_ratio must be finite and nonnegative")
+    labour = econ.hh_facshare[:, i] * econ.fac_supply[i]
+    keep = 1.0 - econ.zeros_if_none("fac_gov_share", econ.n_fac)[i] \
+        - econ.zeros_if_none("fac_row_share", econ.n_fac)[i]
+    net = (1.0 - econ.zeros_if_none("hh_dtax", econ.n_hh)) * (1.0 - econ.hh_savrate)
+    spend = np.asarray(econ.hh_spend0, float)
+    leisure0 = ratio * labour
+    k = np.where(spend > 0, net * keep * leisure0 / np.maximum(spend, 1e-300), 0.0)
+    return dict(factor=i, T=labour + leisure0, k=k, ratio=ratio)
 
 
 def _population_shares(hhs, population) -> np.ndarray:

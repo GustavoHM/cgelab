@@ -294,7 +294,7 @@ base-year queue as a share of its supply, one rate or `{factor: rate}`.
 | `government_absorbs` | scalar | cost charged to the budget |
 | `world_price` | `(nc,)` | import price multipliers; under `ModelSpec.import_supply`, the shift of the supply curve |
 | `export_price` | `(nc,)` | world export price multipliers; `export_rule="cet"` only, refused otherwise; under `ModelSpec.export_demand`, the shift of the demand curve |
-| `investment_mix` | `(nc,)` | commodity shares of the investment budget, summing to one; absent, the base-year mix |
+| `investment_mix` | `(nc,)` | commodity shares of the investment budget, summing to one; absent, the base-year mix. In a regional model each share buys its origin's good directly, not the destination composite |
 | `foreign_factor_share` | `(nf,)` | share of each factor owned abroad, overriding the SAM's; `run_path` sets it from the capital it tracks |
 | `carbon_price` | scalar | price per unit of emissions, numeraire units; needs an emissions account |
 | `fdi` | mapping | `{capital factor: amount}` in numeraire units: raises foreign saving, and `run_path` adds the capital it buys to the foreign-owned stock |

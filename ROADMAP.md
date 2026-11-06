@@ -273,22 +273,82 @@ GTAP data and sparse algebra moved to 0.10.
 - [x] **Release**: 0.9.0 on PyPI and archived on Zenodo
   ([10.5281/zenodo.23934696](https://doi.org/10.5281/zenodo.23934696)).
 
-**0.10 — what 0.9 left, then the frontier.** First the items moved from 0.9, in this order:
+### Versions to 1.0
+
+Plan set on 5 November 2026. Each version is released when its items meet the six conditions
+of *What counts as done*, and not before; a version whose last item stalls goes out with
+what is done, and the rest moves to the next one. The order puts first what extends the
+national model, whose references are at hand, and last what depends on it. Every reference
+below runs without a licence: a closed form, a known solution, a published result, or an
+independent replica in Julia (JuMP with Ipopt or PATH), as in `validation/`.
+
+**0.10 — trade instruments.**
+
+- [ ] **An export tax**: ad valorem on the export price, distinct from the tariff and the
+  product tax, calibrated from a named account or from reference rates, in the government
+  accounts and the national accounts.
+- [ ] **Asymmetric Armington** (Cicowiez and Lofgren, 2019, 2022): a low elasticity when the
+  import price rises relative to the domestic price and a high one when it falls, the regime
+  chosen by a complementarity condition at the base-year ratio. Reference: a known solution
+  (each commodity's equilibrium equals the symmetric model at the elasticity its regime
+  selects) and the paper's complementarity form written independently and solved by PATH.
+  The paper's Mongolia SAM is not public, so its tables are not the reference.
+
+**0.11 — closures and data.**
+
+- [ ] **A generic closure swap** in the GEMPACK manner: any variable exogenous against any
+  shifter, of which `calibrate_historical` is a case. Reference: swap and swap back reproduce
+  the standard closure, and the historical closure's results.
+- [ ] **SAM balancing by cross entropy** beside RAS (Robinson, Cattaneo and El-Said, 2001).
+  Reference: their published example, and RAS as the special case it contains.
+- [ ] **Regionalising national coefficients** by location quotients (SLQ, CILQ, FLQ). Reference:
+  the published formulas on a published worked example.
+
+**0.12 — households, factors and land.**
+
+- [ ] **AIDS and CDE household demand**, and a **labour–leisure choice**. Reference: closed-form
+  elasticities and an independent JuMP replica.
+- [ ] **Capital utilization** that responds to its price (Galindev and Decaluwé, 2022).
+- [ ] **Land allocated by CET** across uses.
+
+**0.13 — market structure.**
+
+- [ ] **Monopoly rent, increasing returns with a fixed cost and a second country**, the GAMS
+  library's `moncge`, `irscge` and `twocge`, transcribed independently into JuMP as `stdcge`
+  was.
+- [ ] **Melitz firms**: heterogeneous firms with a fixed cost of exporting. Reference: the
+  closed forms of the one-sector model and an independent replica.
+
+**0.14 — the regional solver catches up.** What it refuses by name today: trade taxes, output
+taxes, carbon prices, government absorption, LES demand, the energy nest, and the
+complementarity conditions of 0.8. Reference: `validation/regional.jl` extended, and the
+one-region model against the national solver.
+
+**0.15 — what released items left open.** Employment in persons, unemployment benefits and a
+wage curve by segment; vintages that substitute perfectly with idle capital, the sale of old
+capital, and vintages with the energy nest and in several regions; historical calibration with
+employment, the investment rate and exports as unknowns; quotas on exports and output, and a
+floor on the producer price; analytic derivatives for the national solver.
+
+**0.16 — forward-looking.** Risk-adjusted welfare and forward-looking migration on the
+dsgelab bridge, and an intertemporal CGE with expectations.
+
+**0.17 — exports and the site.** Writing a model as GAMS/MPSGE and as GEMPACK TABLO input
+(validating either needs a licence, and stays open for whoever has one); the Markdown
+documents rendered on the site; the whitepaper and the validation comments in English.
+
+**Waiting on a licence or on a need**, outside the sequence:
 
 - [ ] **GTAP aggregation against GTAPAgg/FlexAgg**: the same aggregation of the same database,
   value headers and weighted parameters compared cell by cell. Needs licensed GTAP data.
 - [ ] **Regional equilibria against GTAP or ORANI-G/TERM**: a reference simulation reproduced,
   with every difference explained by a stated difference in the model. Needs the same data.
+- [ ] **The backends and the Hosoe transcriptions against GAMS itself.** Needs a GAMS licence.
 - [ ] **Sparse algebra**, when a model is large enough to need it: at 819 accounts the dense
   systems of one equation per destination and good are a small part of a solve.
 
-Then the frontier: a generic closure swap in the GEMPACK manner (the historical closure of
-0.6 is its first case); SAM estimation by cross
-entropy; an intertemporal CGE with expectations, on the dsgelab bridge; imperfect competition
-and Melitz firms; asymmetric Armington; export taxes; capital utilization; AIDS and CDE demand;
-land use allocated by CET; export to GAMS/MPSGE and GEMPACK.
-
-**1.0.** All of the above, the API frozen, strict semantic versioning from then on.
+**1.0.** All of the above, the API frozen, strict semantic versioning from then on. Whether
+1.0 waits on the items that need a licence is decided at 0.17.
 
 ## Next: gaps an applied model hit
 
@@ -367,11 +427,12 @@ them. Still open: other unknowns (employment through labour supply, the investme
 saving, exports through world prices) and the generic closure swap of 0.9.
 
 **Asymmetric Armington.** The substitution elasticity is one number per commodity. Cicowiez and
-Lofgren (2022) make it depend on the origin of the import. Their Mongolia 2015 workbook also
-holds the symmetric tariff experiments; the published result is the asymmetric one.
+Lofgren (2019, 2022) make it depend on the direction of the relative price: buyers substitute
+imports for domestic goods more easily than the reverse, so the elasticity is low when the
+import price rises against the domestic price and high when it falls. Planned for 0.10.
 
 **Export tax.** An ad valorem tax on exports, distinct from the import tariff and from the
-product tax. The same Mongolia model carries it as `te(c)`.
+product tax, as in the IFPRI standard model's `te(c)`. Planned for 0.10.
 
 **Capital utilization.** Utilization is fixed at the base-year rate. Galindev and Decaluwé
 (2022) compare a standard PEP-1-1 run with one in which utilization responds. The standard run,

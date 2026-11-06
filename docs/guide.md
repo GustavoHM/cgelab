@@ -884,6 +884,73 @@ binding ceilings and floors, both together, and the wage floor at the base
 year, slack and binding. National models only; the regional solver and
 `to_jump` refuse them.
 
+### An export tax
+
+```python
+spec = cge.ModelSpec(..., tariff_account="trf", export_tax_account="etx", export_rule="cet")
+econ = cge.calibrate(sam, spec)            # or calibrate(sam, spec, export_taxes=rates)
+econ.te0                                   # revenue over exports at the border
+result = cge.solve_period(econ, scenario=cge.Scenario(export_tax=np.zeros(econ.n_com)))
+result.government["export_tax"]
+```
+
+An export tax is a rate on the border (FOB) price: the rest of the world pays
+the border price, and the producer receives it net of the tax, as in the IFPRI
+standard model's `te`. Its revenue is read from its own account, or set by
+reference rates when the SAM keeps it in the product tax; either way it leaves
+the product tax on absorption, which would otherwise charge it to domestic
+buyers. Exports are measured in base-year border units, so `result.exports` is
+what the rest of the world buys and `result.pe` what it pays. Under a CET the
+producer's export price is the border price times `(1 - te) / (1 - te0)`, and
+the tax moves output between home sales and exports. Under fixed export shares
+exports fetch the output price, and the tax is passed on to the border price,
+which is the output price over the same factor.
+
+The revenue is `export_tax` in `government_account`, a tax on products in
+`national_accounts`, and `welfare_decomposition` has a term for it,
+`allocative_export_tax`, the rate times the border price times the change in
+exports. `validation/replicate_trade_instruments.py` compares the model with an
+independent Julia rewrite, calibrated in the IFPRI model's units and solved by
+PATH, under a CET and under fixed shares, with the tax abolished, raised, on
+one commodity and beside a tariff cut, to 1e-11. National only; the regional
+solver and `to_jump` refuse it.
+
+### Asymmetric Armington
+
+```python
+spec = cge.ModelSpec(..., sigma_armington=0.9, sigma_armington_falling=3.0)
+result = cge.solve_period(cge.calibrate(sam, spec), scenario=scenario)
+result.armington_sigma      # the elasticity each commodity was solved at
+```
+
+Cicowiez and Lofgren (2019, 2022) argue that buyers substitute imports for
+domestic goods more easily than the reverse: abroad there is a closer
+substitute for most domestic products than at home for most imports. The
+Armington elasticity is then `sigma_armington` where the import price has risen
+against the price of the domestic variety, relative to their base-year ratio,
+and `sigma_armington_falling` where it has fallen. Both branches pass through
+the base year, so the composite is continuous and the base year reproduces. The
+regime is a complementarity condition on the relative price: in the paper's
+form, the ratio's rise and fall above and below its base-year value, each
+paired with the elasticity sitting at its bound. A commodity the shock did not
+touch can land on either side, since the exchange rate and its own domestic
+price move its ratio too. A mapping sets the elasticities by commodity; a
+commodity left out keeps one elasticity. The falling elasticity must be at
+least the rising one.
+
+Each commodity's equilibrium is the symmetric model's at the elasticity its
+regime selects, and the suite checks that identity.
+`validation/replicate_trade_instruments.py` writes the paper's equations (its
+Table 2.1, the CES parameters recalibrated to the base year for the elasticity
+in force) in Julia and solves them with PATH: import prices up and down 25% as
+in the paper's experiments, two commodities moving in opposite directions,
+beside the trade taxes and under fixed export shares, to 1e-12. The paper's
+Mongolia SAM is not public, so its tables are not the reference. Under fixed
+export shares the current account adjusts through the Armington alone, and an
+elasticity below one leaves the exchange rate badly determined, as the
+Cobb–Douglas case does: there both elasticities should exceed one. National
+only; the regional solver and `to_jump` refuse it.
+
 ### A baseline calibrated to GDP
 
 A baseline built from assumed rates makes GDP whatever the rates give. The

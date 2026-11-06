@@ -437,7 +437,7 @@ parts[["tariff", "world", "tax", "change", "residual"]]
 # gdp  -0.723  -0.125  -0.007   -0.855   ~1e-10      as parcelas somam a variação total</code></pre>
 <pre class="output" data-label="Saída"><code><span class="out-expr">parts[["tariff", "world", "tax", "change", "residual"]]</span>
      tariff   world       tax  change   residual
-gdp -0.7235 -0.1245 -0.006899 -0.8549 -2.806e-10</code></pre>
+gdp -0.7235 -0.1245 -0.006899 -0.8549 -2.054e-10</code></pre>
   <p>É a decomposição que o GEMPACK chama de <em>subtotals</em>. Todos os choques avançam juntos
   ao longo do segmento que liga a referência à alternativa, e o termo de cada grupo é integrado
   separadamente; assim, as parcelas somam o total sem depender da ordem dos choques.</p>
@@ -682,7 +682,7 @@ dois = cge.calibrate(partida, toy.spec(factors=("f_cap", "f_for", "f_inf"),
                                        labour_segments={"labour": ["f_for", "f_inf"]}))
 cge.solve_period(dois).residual                    # o ano-base, à precisão de máquina</code></pre>
 <pre class="output" data-label="Saída"><code><span class="out-expr">cge.solve_period(dois).residual</span>
-3.384e-16</code></pre>
+5.075e-16</code></pre>
   <p>O trabalho é partido em formal e informal em cada atividade por parcelas de uma pesquisa, e as
   duas contas viram um grupo de segmentos. Com um só salário, o modelo partido tem exatamente o
   equilíbrio do fator único; um salário formal rígido é que faz a diferença.
@@ -872,7 +872,7 @@ sigma_armington   2.2
 <span class="out-expr">ajuste.achieved</span>
 pib_pct   -0.161
 <span class="out-expr">ajuste.distance</span>
-4.93e-28</code></pre>
+1.109e-27</code></pre>
   <p>O alvo vem de um coeficiente externo; o parâmetro tem limites e cada avaliação recalibra e
   resolve o modelo. O ajuste recupera 2.2. A ponderação pela covariância usa pseudo-inversa em
   sistemas singulares, e <code>evaluations</code> conserva toda a trilha da otimização.</p>
@@ -889,7 +889,7 @@ efeito[["treated_change", "control_change", "effect"]]</code></pre>
 <pre class="output" data-label="Saída"><code><span class="out-expr">efeito[["treated_change", "control_change", "effect"]]</span>
          treated_change  control_change  effect
 outcome
-output               20       1.421e-14      20</code></pre>
+output               20      -1.421e-14      20</code></pre>
   <p>O efeito é a variação do produto de r1 menos a de r2. Um choque comum e simétrico se cancela.
   Os controles podem ter pesos, e as medidas incluem produto, renda real, demanda de fatores,
   fluxos bilaterais ou uma função própria. É um contraste auditável de equilíbrios; o desenho da
@@ -1053,6 +1053,44 @@ deficit.government["consumption"]</code></pre>
   <p>A regra de taxa de poupança divide a receita entre consumo e poupança. Com meta de poupança
   12, o gasto residual é 8. Metas e taxas consolidam contas nacionais e regionais mapeadas; os
   ajustes por imposto direto e sobre produto usam a mesma solução afim do solver nacional.</p>
+
+  <h3>42. Um imposto sobre exportações</h3>
+<pre><code>mcs_t, economia_t = toy.build_with_export_tax()  # contas da tarifa e do imposto sobre exportações, CET
+economia_t.te0
+base_t = cge.solve_period(economia_t)
+livre = cge.solve_period(economia_t, scenario=cge.Scenario(export_tax=np.zeros(2)))
+(livre.exports / base_t.exports).round(4)
+livre.government["export_tax"]</code></pre>
+<pre class="output" data-label="Saída"><code><span class="out-expr">economia_t.te0</span>
+[0.05 0.05]
+<span class="out-expr">(livre.exports / base_t.exports).round(4)</span>
+[1.048 1.05]
+<span class="out-expr">livre.government["export_tax"]</span>
+0</code></pre>
+  <p>O imposto sobre exportações é uma alíquota sobre o preço na fronteira, lida da sua própria
+  conta: o produtor recebe esse preço líquido do imposto, então aboli-lo aumenta o que exportar
+  rende e as exportações sobem. As exportações são medidas na fronteira, onde o resto do mundo as
+  paga, e a receita aparece como <code>export_tax</code> na conta do governo e entre os impostos
+  sobre produtos nas contas nacionais.</p>
+
+  <h3>43. Importações mais fáceis de adotar que de largar</h3>
+<pre><code>assimetrico = cge.calibrate(mcs_t, toy.spec(
+    tariff_account="trf", export_tax_account="etx", export_rule="cet",
+    sigma_armington=0.9, sigma_armington_falling=3.0))
+mais_cara = cge.solve_period(assimetrico, scenario=cge.Scenario(world_price=np.array([1.0, 1.25])))
+mais_barata = cge.solve_period(assimetrico, scenario=cge.Scenario(world_price=np.array([1.0, 0.75])))
+mais_cara.armington_sigma
+mais_barata.armington_sigma</code></pre>
+<pre class="output" data-label="Saída"><code><span class="out-expr">mais_cara.armington_sigma</span>
+[0.9 0.9]
+<span class="out-expr">mais_barata.armington_sigma</span>
+[0.9 3]</code></pre>
+  <p>Com o Armington assimétrico (Cicowiez e Lofgren), cada bem substitui a 0,9 onde o preço da
+  importação subiu em relação ao da variedade doméstica e a 3 onde caiu. O regime é escolhido pelo
+  preço relativo, então em equilíbrio geral um bem que o choque não tocou pode cair de qualquer
+  lado. O preço mundial da agricultura é o mesmo nas duas rodadas, e nas duas o câmbio deprecia
+  (1,8% e 8,1%), então o preço da sua importação sobe em relação ao doméstico e ela substitui a
+  0,9.</p>
 </div></section>
 
 <section id="verificacoes"><div class="wrap">

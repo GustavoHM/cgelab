@@ -51,6 +51,7 @@ _DEFAULTS = {
     "world_price": lambda e: np.ones(e.n_com),
     "tariff": lambda e: e.tm0,
     "output_tax": lambda e: e.tauz0,
+    "export_tax": lambda e: e.te0,
     "export_price": lambda e: np.ones(e.n_com),
     "factor_ownership": lambda e: e.hh_facshare,
     "foreign_factor_share": lambda e: e.zeros_if_none("fac_row_share", e.n_fac),
@@ -269,11 +270,12 @@ def _rates(econ, period):
           else np.asarray(sc.government_wedge, float))
     tm = econ.tm0 if sc.tariff is None else np.asarray(sc.tariff, float)
     tauz = econ.tauz0 if sc.output_tax is None else np.asarray(sc.output_tax, float)
+    te = econ.te0 if sc.export_tax is None else np.asarray(sc.export_tax, float)
     tfp = np.ones(econ.n_act) if sc.productivity is None else np.asarray(sc.productivity, float)
     scale = np.ones(econ.n_act)
     for name, mult in sc.activity_scale.items():
         scale[econ.activity(name) if isinstance(name, str) else int(name)] = float(mult)
-    return dict(ptax_a=ptax_a, ptax_f=ptax_f, W=W, Wg=Wg, tm=tm, tauz=tauz, tfp=tfp,
+    return dict(ptax_a=ptax_a, ptax_f=ptax_f, W=W, Wg=Wg, tm=tm, tauz=tauz, te=te, tfp=tfp,
                 own=econ.hh_direct.sum(axis=0) * scale)
 
 
@@ -318,13 +320,14 @@ def _welfare_state(period) -> dict:
         carb_proc=carb_proc,
         pqf=period.pqf, pbase=period.pbase, pd=period.pd, w=period.factor_prices,
         ptax_a=r["ptax_a"], ptax_f=r["ptax_f"], wedge=r["W"] + r["Wg"], tm=r["tm"],
-        tauz=r["tauz"], atax=econ.atax * nu,
+        tauz=r["tauz"], te=r["te"], atax=econ.atax * nu,
     )
 
 
 _WELFARE_TERMS = ["endowment", "technology", "allocative_product_tax",
                   "allocative_consumer_wedge", "allocative_activity_tax", "allocative_carbon_tax",
-                  "allocative_tariff", "allocative_output_tax", "factor_reallocation",
+                  "allocative_tariff", "allocative_output_tax", "allocative_export_tax",
+                  "factor_reallocation",
                   "terms_of_trade", "external_account"]
 
 
@@ -368,6 +371,10 @@ def _welfare_integrand(s: dict, d: dict) -> dict:
                               else float((s["tm"] * pm_b) @ d["M"])),
         "allocative_output_tax": (0.0 if s["tauz"] is None
                                   else float((s["tauz"] * s["pd"]) @ d["Q"])),
+        # The export tax: its rate times the border price, in the units exports
+        # are measured in, times the change in exports.
+        "allocative_export_tax": (0.0 if s["te"] is None
+                                  else float((s["te"] * s["er"] * s["pWe"]) @ d["E"])),
         "terms_of_trade": float(s["er"] * (s["E"] @ d["pWe"] - s["M"] @ d["pWm"])),
         "external_account": float(d["FS"] + (s["pWe"] @ s["E"] - s["pWm"] @ s["M"]) * d["er"]
                                   - d["row"]),

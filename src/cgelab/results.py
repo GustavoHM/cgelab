@@ -227,7 +227,8 @@ def national_accounts(period: PeriodResult) -> dict:
     Expenditure: household consumption at what households pay (consumer wedges
     and own-account purchases included), government consumption, investment,
     exports, less imports at the border. Income: factor income, taxes on
-    products (the product tax, tariff, output tax and both consumer wedges) and
+    products (the product tax, tariff, output tax, export tax and both consumer
+    wedges) and
     the activity tax, and the scarcity rent of any binding capacity limit
     (``capacity_rent``) and the premium of any binding import quota (``quota_rent``),
     whoever holds the licences. Taxes on products are net of the subsidy that
@@ -245,7 +246,8 @@ def national_accounts(period: PeriodResult) -> dict:
     g = period.government
     wedges = float((period.hh_quantity * (W + Wg) * period.pq[None, :]).sum())
     price_subsidy = float(g.get("price_subsidy", 0.0))
-    product_taxes = (g["product_tax"] + g["tariff"] + g["output_tax"] + wedges
+    product_taxes = (g["product_tax"] + g["tariff"] + g["output_tax"]
+                     + g.get("export_tax", 0.0) + wedges
                      + g["carbon_households"] - price_subsidy)
     factor_income = float(period.factor_prices @ period.factor_demand)
     production_taxes = g["activity_tax"] + g["carbon_production"]
@@ -323,7 +325,7 @@ def government_account(period: PeriodResult) -> pd.Series:
     investment with.
     """
     order = ["product_tax", "activity_tax", "carbon_production", "carbon_households",
-             "tariff", "output_tax", "direct_tax",
+             "tariff", "output_tax", "export_tax", "direct_tax",
              "factor_income", "wedge", "quota_rent", "revenue", "transfers", "consumption",
              "absorbed", "price_subsidy", "price_support", "saving"]
     # The regional solver has no quotas or price bounds and books neither.

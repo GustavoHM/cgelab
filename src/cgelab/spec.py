@@ -72,6 +72,14 @@ class ModelSpec:
     #: falls on all of output, inside the gross price the CET splits, so
     #: exports carry it as they do in Hosoe's ``stdcge``.
     indirect_tax_account: str | None = None
+
+    #: Account that collects the export tax from commodities (the IFPRI
+    #: standard model's ``te``). Absent, there is no export tax unless
+    #: ``calibrate(..., export_taxes=)`` supplies rates. The rate is on the
+    #: export price at the border (FOB), and the producer receives that price
+    #: net of it: the tax is inside the export price the CET was calibrated on,
+    #: not in the product tax on absorption.
+    export_tax_account: str | None = None
     activities: Sequence[str] | None = None
     commodities: Sequence[str] | None = None
     households: Sequence[str] | None = None
@@ -80,6 +88,16 @@ class ModelSpec:
     value_added: str = "ces"                 # "ces" | "cobb_douglas" | "leontief"
     sigma_va: float | Mapping[str, float] = 0.5
     sigma_armington: float | Mapping[str, float] = 2.0
+    #: Asymmetric Armington (Cicowiez and Lofgren, 2019, 2022): the elasticity
+    #: where the import price FALLS relative to the price of the domestic
+    #: variety, below its base-year ratio. ``sigma_armington`` is then the one
+    #: where it rises. Buyers turn to imports more easily than away from them,
+    #: so this elasticity must be at least ``sigma_armington``. The regime is
+    #: chosen by the relative price itself, a complementarity condition at the
+    #: base-year ratio, and both branches pass through the base year. None:
+    #: one elasticity. A mapping by commodity in which a missing commodity
+    #: (and no ``"__default__"``) keeps one elasticity.
+    sigma_armington_falling: float | Mapping[str, float] | None = None
     export_rule: str = "fixed_shares"        # "fixed_shares" | "cet"
     sigma_cet: float | Mapping[str, float] = 2.0
     #: Export-demand elasticity. None: the economy is a price taker abroad and
@@ -491,6 +509,14 @@ class ModelSpec:
 
     def sigma_armington_vector(self, commodities: Sequence[str]):
         return _as_vector(self.sigma_armington, commodities, "sigma_armington")
+
+    def sigma_armington_falling_vector(self, commodities: Sequence[str]):
+        """The elasticity where imports get cheaper, by commodity; ``nan`` keeps one."""
+        import numpy as np
+        if self.sigma_armington_falling is None:
+            return np.full(len(commodities), np.nan)
+        return _as_vector(self.sigma_armington_falling, commodities,
+                          "sigma_armington_falling")
 
     def sigma_cet_vector(self, commodities: Sequence[str]):
         import numpy as np

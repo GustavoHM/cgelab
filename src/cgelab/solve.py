@@ -179,7 +179,7 @@ class PeriodResult:
     p_domestic: np.ndarray | None = None
     #: The government account, in current prices: revenue by instrument
     #: (``product_tax``, ``activity_tax``, ``carbon_production``,
-    #: ``carbon_households``, ``tariff``, ``output_tax``,
+    #: ``carbon_households``, ``tariff``, ``output_tax``, ``export_tax``,
     #: ``direct_tax``, ``factor_income``, ``wedge``), their sum ``revenue``,
     #: outlays (``transfers``, ``consumption``, ``absorbed``) and ``saving``.
     government: dict | None = None
@@ -246,6 +246,11 @@ class PeriodResult:
     #: the ``value_added`` of ``real_gdp`` is; productivity is not in it. None
     #: without vintages.
     vintage_value_added: np.ndarray | None = None
+    #: The Armington elasticity each commodity was solved at under an
+    #: asymmetric Armington (``ModelSpec.sigma_armington_falling``):
+    #: ``sigma_armington`` where the import price rose against the domestic
+    #: variety's, the falling one where it fell. None with one elasticity.
+    armington_sigma: np.ndarray | None = None
 
     def price(self, commodity: str) -> float:
         return float(self.pq[self.econ.commodity(commodity)])
@@ -410,6 +415,31 @@ def solve_period(econ: Economy, closure: Closure | None = None,
     tz0 = np.ones(nc) if tauz0 is None else 1.0 + tauz0
     if tauz is not None and tauz.shape != (nc,):
         raise ValueError(f"output_tax must have length {nc}, got shape {tauz.shape}")
+    te0 = econ.te0
+    if sc.export_tax is not None and te0 is None:
+        raise ValueError(
+            "Scenario.export_tax is read only when a base-year export tax was calibrated, "
+            "via calibrate(..., export_taxes=) or ModelSpec.export_tax_account.")
+    te = te0 if sc.export_tax is None else np.asarray(sc.export_tax, dtype=float)
+    if te is not None and te.shape != (nc,):
+        raise ValueError(f"export_tax must have length {nc}, got shape {te.shape}")
+    if te is not None and np.any(te >= 1.0):
+        raise ValueError("an export tax must be below 1 of the border price")
+    # Exports are in base-year border (FOB) units; the producer's export price
+    # is the border price times (1 - te) / (1 - te0), one at the base year.
+    te_base = np.zeros(nc) if te0 is None else te0
+    ex_wedge = np.ones(nc) if te is None else (1.0 - te) / (1.0 - te_base)
+    # Asymmetric Armington: the low elasticity where the import price has risen
+    # against the domestic variety's, the high one where it has fallen. Both
+    # are one at the base year, so the base-year ratio is one, and at it the
+    # two branches give the same shares.
+    sig_fall = econ.sigma_arm_falling
+    asym = None if sig_fall is None else np.isfinite(sig_fall)
+
+    def arm_sigma(p_dom, pm):
+        if asym is None:
+            return econ.sigma_arm
+        return np.where(asym & (pm < p_dom), sig_fall, econ.sigma_arm)
     cet_on = econ.spec.export_rule == "cet"
     if sc.export_price is not None and not cet_on:
         raise ValueError(
@@ -802,7 +832,8 @@ def solve_period(econ: Economy, closure: Closure | None = None,
                 pd_[i] = p_lc[i]
             return pd_
         out_wedge = 1.0 if tauz is None else (1.0 + tauz) / tz0
-        pe = er * world_pe_now
+        pe_fob = er * world_pe_now
+        pe = pe_fob * ex_wedge                 # what the producer receives for an export
 
         # --- prices: a fixed point, because margins are themselves delivered goods.
         # A fixed real wage joins the same loop: the wage is the purchaser-price
@@ -816,8 +847,8 @@ def solve_period(econ: Economy, closure: Closure | None = None,
             pa, _, _ = production(pqf, Wm, quantities=False, pva=pva)
             pa = pa + rent
             pd_ = commodity_price(pa)
-            arm, dsh, msh_ = armington(
-                econ.dom_share, domestic_price(pd_ * out_wedge, pe), pm, econ.sigma_arm)
+            p_dom_ = domestic_price(pd_ * out_wedge, pe)
+            arm, dsh, msh_ = armington(econ.dom_share, p_dom_, pm, arm_sigma(p_dom_, pm))
             pbase = arm * econ.arm_share + pqf @ econ.mq
             new = pbase * (1 + ptax_f)
             wage_settled = True
@@ -849,15 +880,19 @@ def solve_period(econ: Economy, closure: Closure | None = None,
                       if g.transform is not None}
         pd_ = commodity_price(pa)
         p_dom = domestic_price(pd_ * out_wedge, pe)
-        arm, dsh, msh_ = armington(econ.dom_share, p_dom, pm, econ.sigma_arm)
+        sigma_now = arm_sigma(p_dom, pm)
+        arm, dsh, msh_ = armington(econ.dom_share, p_dom, pm, sigma_now)
         # How output splits between the home market and exports. Under CET the
         # split answers to the export price relative to the domestic one; under
         # fixed shares it is the base-year split and exports fetch the output price.
+        # ``p_exp`` is the border (FOB) price of an export, in the units exports
+        # are measured in; the producer receives it net of the export tax.
         if cet_on:
             _, dom_frac, exp_frac = cet(econ.exp_share, p_dom, pe, sigma_cet)
-            p_exp = pe
+            p_exp = pe_fob
         else:
-            dom_frac, exp_frac, p_exp = 1.0 - econ.exp_share, econ.exp_share, pd_ * out_wedge
+            dom_frac, exp_frac = 1.0 - econ.exp_share, econ.exp_share
+            p_exp = pd_ * out_wedge / ex_wedge
         pbase = arm * econ.arm_share + pqf @ econ.mq
         pqf = pbase * (1 + ptax_f)
         pq = pbase * (1 + ptax_a)
@@ -990,6 +1025,9 @@ def solve_period(econ: Economy, closure: Closure | None = None,
                     duty += float((tm * pm_border * msh_ * econ.arm_share * a_vec / tf0).sum())
                 if tauz is not None:
                     duty += float((tauz * pd_ * (Gp @ a_vec)).sum())
+                if te is not None:
+                    duty += float((te * p_exp * exp_frac * tz0 * (Gp @ a_vec)
+                                   / (1.0 - te_base)).sum())
                 return duty
 
             def tax_of(a_vec, fin_c):
@@ -1089,6 +1127,8 @@ def solve_period(econ: Economy, closure: Closure | None = None,
                 tariff=(0.0 if tm is None else
                         float((tm * pm_border * msh_ * econ.arm_share * A / tf0).sum())),
                 output_tax=0.0 if tauz is None else float((tauz * pd_ * Q).sum()),
+                export_tax=(0.0 if te is None else
+                            float((te * p_exp * exp_frac * tz0 * Q / (1.0 - te_base)).sum())),
                 direct_tax=float(hh_dtax_paid.sum()), factor_income=gov_fac,
                 wedge=float((hh_q * Wg_set * pq[None, :]).sum()),   # negative for a refund
                 transfers=float(gov_tr.sum()), consumption=gov_spend,
@@ -1097,14 +1137,15 @@ def solve_period(econ: Economy, closure: Closure | None = None,
                 price_subsidy=subsidy_cost, price_support=support)
             gov_account["revenue"] = sum(gov_account[k] for k in (
                 "product_tax", "activity_tax", "carbon_production", "carbon_households",
-                "tariff", "output_tax", "direct_tax", "factor_income", "wedge", "quota_rent"))
+                "tariff", "output_tax", "export_tax", "direct_tax", "factor_income", "wedge",
+                "quota_rent"))
             gov_account["saving"] = (gov_account["revenue"] - gov_account["transfers"]
                                      - gov_account["consumption"] - gov_account["absorbed"]
                                      - subsidy_cost - support)
 
             arm_q = econ.arm_share * A
             imports = msh_ * arm_q / tf0                  # at the border
-            exports = exp_frac * tz0 * Q
+            exports = exp_frac * tz0 * Q / (1.0 - te_base)      # at the border
             fac_by_act = fac_per * X[None, :]
             fac_dem = fac_by_act.sum(axis=1)
             # Each imperfectly mobile factor clears activity by activity. Its
@@ -1301,6 +1342,7 @@ def solve_period(econ: Economy, closure: Closure | None = None,
                 imports=imports, exports=exports, trade=trade, gaps=gaps,
                 world_pe=world_pe_now, world_pm=world_p_now,
                 dom_sales=dsh * econ.arm_share * A, p_dom=p_dom,
+                arm_sigma=None if asym is None else np.asarray(sigma_now, float).copy(),
                 walras=float(gaps[num]), levy=levy, foreign_sav=foreign_sav, pe=p_exp,
                 hh_dtax_paid=hh_dtax_paid, row_fac=row_fac, gov_fac=gov_fac,
                 gov_account=gov_account, hh_sav=hh_sav, tax_scale=tax_scale,
@@ -1507,7 +1549,7 @@ def solve_period(econ: Economy, closure: Closure | None = None,
         value_added_per_unit=state["va_per"], vintage_value_added=state["vintage_va"],
         least_cost=state.get("least_cost"), capacity=state.get("capacity"),
         quota=state.get("quota"), price_bounds=state.get("price_bounds"),
-        stock_quantity=state.get("stock_q"))
+        stock_quantity=state.get("stock_q"), armington_sigma=state.get("arm_sigma"))
 
 
 # ---------------------------------------------------------------------------

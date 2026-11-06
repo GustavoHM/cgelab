@@ -112,6 +112,14 @@ class Scenario:
     #: or the product tax on absorption. Home sales and exports both carry it.
     output_tax: np.ndarray | None = None
 
+    #: Export tax, ad valorem on the export price at the border (FOB), one rate
+    #: per commodity. Same rule as ``tariff``: read only when a base-year export
+    #: tax was calibrated (``calibrate(..., export_taxes=)`` or
+    #: ``ModelSpec.export_tax_account``). The producer receives the border price
+    #: net of it, so zero abolishes it; it does not touch the tariff, the output
+    #: tax or the product tax.
+    export_tax: np.ndarray | None = None
+
     #: World price of each EXPORTED commodity, as a multiple of the base year.
     #: Read only under ``export_rule="cet"``: with fixed export shares exports
     #: are a fixed fraction of output whatever they fetch abroad, and the field

@@ -141,12 +141,29 @@ def _refuse_complementarity(econ: Economy, closure: Closure, sc: Scenario, who: 
             f"{who} does not write least-cost producers (ModelSpec.least_cost). Their "
             "complementarity conditions need a complementarity solver; exporting fixed "
             "market shares instead would describe another model.")
+    if econ.sigma_arm_falling is not None:
+        raise ValueError(
+            f"{who} does not write the asymmetric Armington "
+            "(ModelSpec.sigma_armington_falling). Its regime is a complementarity "
+            "condition; exporting one elasticity would describe another model.")
+
+
+def _refuse_export_tax(econ: Economy, sc: Scenario, who: str) -> None:
+    if econ.te0 is not None or sc.export_tax is not None:
+        raise ValueError(
+            f"{who} does not write the export tax (ModelSpec.export_tax_account, "
+            "calibrate(..., export_taxes=)); dropping it would describe another model.")
 
 
 def _replica_data(econ: Economy, closure: Closure, sc: Scenario, who: str,
                   complementarity: bool) -> dict:
     if not complementarity:
         _refuse_complementarity(econ, closure, sc, who)
+    elif econ.sigma_arm_falling is not None:
+        raise ValueError(
+            f"{who} does not write the asymmetric Armington "
+            "(ModelSpec.sigma_armington_falling) yet.")
+    _refuse_export_tax(econ, sc, who)
     if econ.regional is not None and len(econ.regional.regions) > 1:
         raise ValueError(
             f"{who} does not write the interregional nest. Exporting the "

@@ -87,7 +87,8 @@ def _endogenous(sam: SAM, endogenous, exogenous, spec) -> list:
                 "ModelSpec, whose government, investment and rest-of-world accounts "
                 "(and tariff and indirect-tax accounts) are then exogenous")
         exogenous = [spec.government, spec.investment, spec.rest_of_world]
-        exogenous += [a for a in (spec.tariff_account, spec.indirect_tax_account) if a]
+        exogenous += [a for a in (spec.tariff_account, spec.indirect_tax_account,
+                                  spec.export_tax_account) if a]
     exogenous = list(exogenous)
     missing = [a for a in exogenous if a not in acc]
     if missing:

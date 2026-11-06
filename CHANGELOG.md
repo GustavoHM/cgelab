@@ -3,7 +3,16 @@
 All notable changes to `cgelab`. Versions follow [semantic versioning](https://semver.org/);
 before 1.0, a minor version may add to the API and a patch version only fixes.
 
-## Unreleased
+## 0.10.0 — 2026-11-05
+
+Trade instruments, the first version of the plan to 1.0 in `ROADMAP.md`. An export tax on the
+border price, which the producer receives net of, and an asymmetric Armington (Cicowiez and
+Lofgren), with one elasticity where the import price rises against the domestic one and another
+where it falls. Both are validated against an independent Julia rewrite solved by PATH, in 18
+cases to 3.4e-12; the asymmetric Armington also against a known solution, the symmetric model at
+the elasticity each commodity's regime selects. Every result that uses neither is unchanged:
+`government_account` gains `export_tax` and `welfare_decomposition` gains
+`allocative_export_tax`, both zero without the tax.
 
 ### Added
 

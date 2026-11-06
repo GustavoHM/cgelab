@@ -342,6 +342,7 @@ independent replica in Julia (JuMP with Ipopt or PATH), as in `validation/`.
   currencies, which the regional solver, with one national current account, does not have.
 - [ ] **Melitz firms**: heterogeneous firms with a fixed cost of exporting. Reference: the
   closed forms of the one-sector model and an independent replica. Moved to 0.15.
+- [ ] **Release**: 0.13.0 on PyPI and archived on Zenodo.
 
 **0.14 — the regional solver catches up, and a second country.** `twocge`'s two countries, each
 with its own currency and current account, from 0.13. What the regional solver refuses by name

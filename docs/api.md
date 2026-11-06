@@ -768,6 +768,25 @@ gives `f(year, t) -> Scenario` for `run_path`, with the policy (a `Scenario` or
 `f(year, t)`, the whole scenario for the year) at the calibrated productivity,
 and `run(policy=None)` runs it.
 
+### `solve_swapped(econ, closure=None, scenario=None, *, exogenous, endogenous, start=None, tol=1e-11, backend="scipy") -> Swapped`
+
+A period with variables made exogenous and as many instruments made endogenous.
+`exogenous` maps a variable to its value: `"attr[account]"` for `X`, `pa` (by
+activity), `Q`, `pd`, `pq`, `imports`, `exports`, `pe`, `p_domestic`,
+`absorption` (by commodity), `factor_prices`, `factor_demand` (by factor),
+`hh_income` (by household); the scalars `exchange_rate`, `employment`,
+`unemployment`, `real_wage`, `savings`, `foreign_saving`, `household_saving`;
+`"real_gdp"` (expenditure side), `"government.<key>"`, or a callable on the
+result. `endogenous` lists Scenario entries: `productivity` (by activity),
+`factor_supply` (by factor), `world_price`, `export_price`, `product_tax`,
+`product_tax_firm`, `tariff`, `output_tax`, `export_tax` (by commodity),
+`transfers` (by household), `investment_level`, `carbon_price`,
+`government_absorbs`, each as `"field[account]"`, `"field[*]"` (a common
+multiplier) or bare for a scalar. Positive multipliers are solved in logs. An
+instrument that does not move the targets raises `ValueError`; targets not
+reached raise `RuntimeError`. The result has `period`, `instruments`,
+`scenario`, `achieved` (target and achieved by variable) and `iterations`.
+
 ### `calibrate_historical(econ, closure=None, *, years, targets, shifters, kind="level", growth=None, scenario=None, economy=None, pattern=None, preference_reference=None, tol=1e-12) -> Historical`
 
 A limited historical closure: observed variables are targets, and technology or

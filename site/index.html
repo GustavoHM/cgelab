@@ -1082,6 +1082,51 @@ cheaper.armington_sigma</code></pre>
   touch can land on either side. Agriculture's world price is the same in both runs, and both
   times the currency depreciates (by 1.8% and 8.1%), so its import price rises against its
   domestic one and it substitutes at 0.9.</p>
+  <h3>44. A SAM estimated by cross entropy</h3>
+<pre><code>noisy = cge.SAM(frame=sam.frame.assign(
+    value=sam.frame.value * np.random.default_rng(7).uniform(0.8, 1.25, len(sam.frame))))
+est = cge.cross_entropy(noisy, totals={"a_agr": 100.0},
+                        targets={("c_agr", "hh_1"): 33.0})
+round(float(noisy.imbalance().abs().max()), 3)
+round(float(est.sam.imbalance().abs().max()), 12)
+est.information_multipliers.round(4)</code></pre>
+<pre class="output" data-label="Output"><code><span class="out-expr">round(float(noisy.imbalance().abs().max()), 3)</span>
+36.65
+<span class="out-expr">round(float(est.sam.imbalance().abs().max()), 12)</span>
+0
+<span class="out-expr">est.information_multipliers.round(4)</span>
+total:a_agr          0.097
+cell:c_agr&lt;-hh_1   -0.0691</code></pre>
+  <p>A prior that does not balance, and two pieces of information it was not built from, become
+  the balanced SAM closest to it in the sense of information. The prior's zeros and signs stay as
+  they are. Each multiplier says how much its piece of information costs in divergence, which is
+  where to look when two sources disagree. With the total of every account given, the estimate is
+  RAS's.</p>
+
+  <h3>45. Regional coefficients by location quotients</h3>
+<pre><code>lq = cge.location_quotients({"agr": 10.0, "ind": 30.0, "svc": 60.0},
+                            {"agr": 200.0, "ind": 300.0, "svc": 500.0}, method="flq")
+lq.round(3)</code></pre>
+<pre class="output" data-label="Output"><code><span class="out-expr">lq.round(3)</span>
+      agr   ind   svc
+agr 0.276 0.276  0.23
+ind 1.103 0.551  0.46
+svc 1.323 0.662 0.662</code></pre>
+  <p>Flegg's quotient shrinks a small region's quotients by <code>log2(1 + E^r/E^n)</code>
+  raised to <code>delta</code>; <code>regional_coefficients</code> then scales the national
+  coefficients by <code>min(1, LQ)</code>, and the rest is imported.</p>
+
+  <h3>46. Swapping the closure</h3>
+<pre><code>cet_econ = cge.calibrate(sam, toy.spec(export_rule="cet"))
+target = cge.solve_period(cet_econ, scenario=cge.Scenario(export_price=np.array([1.2, 1.0])))
+swapped = cge.solve_swapped(cet_econ, exogenous={"exports[c_agr]": target.exports[0]},
+                            endogenous=["export_price[c_agr]"])
+swapped.instruments.round(10)</code></pre>
+<pre class="output" data-label="Output"><code><span class="out-expr">swapped.instruments.round(10)</span>
+export_price[c_agr]   1.2</code></pre>
+  <p>Exports of agriculture are made exogenous and its world export price endogenous, a GEMPACK
+  swap within the period. Set to what a 20% rise in that price produced, the swap finds the 20%.
+  An instrument the closure does not read is refused rather than reported as solved.</p>
 </div></section>
 
 <section id="gates"><div class="wrap">

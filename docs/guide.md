@@ -1026,7 +1026,7 @@ the commodity named in `preference_reference` is fixed at one, which sets the
 scale: only relative preferences are identified. Moving that reference
 commodity, omitting the reference or reusing a shifter is refused. Every target
 must be positive because the root is in logs. This is the limited historical
-closure, not the generic closure swap of 0.10. `calibrate_baseline` uses the same
+closure, not the generic closure swap of 0.11. `calibrate_baseline` uses the same
 scalar and joint root routines, with its existing API and results.
 
 ### Reading a path

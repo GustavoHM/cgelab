@@ -284,15 +284,20 @@ independent replica in Julia (JuMP with Ipopt or PATH), as in `validation/`.
 
 **0.10 — trade instruments.**
 
-- [ ] **An export tax**: ad valorem on the export price, distinct from the tariff and the
+- [x] **An export tax**: ad valorem on the export price, distinct from the tariff and the
   product tax, calibrated from a named account or from reference rates, in the government
-  accounts and the national accounts.
-- [ ] **Asymmetric Armington** (Cicowiez and Lofgren, 2019, 2022): a low elasticity when the
+  accounts and the national accounts (`ModelSpec.export_tax_account`,
+  `calibrate(..., export_taxes=)`, `Scenario.export_tax`). Validated against an independent
+  Julia rewrite solved by PATH, under a CET and fixed export shares, to 1e-11
+  (`validation/replicate_trade_instruments.py`).
+- [x] **Asymmetric Armington** (Cicowiez and Lofgren, 2019, 2022): a low elasticity when the
   import price rises relative to the domestic price and a high one when it falls, the regime
-  chosen by a complementarity condition at the base-year ratio. Reference: a known solution
-  (each commodity's equilibrium equals the symmetric model at the elasticity its regime
-  selects) and the paper's complementarity form written independently and solved by PATH.
-  The paper's Mongolia SAM is not public, so its tables are not the reference.
+  chosen by a complementarity condition at the base-year ratio
+  (`ModelSpec.sigma_armington_falling`). Validated against a known solution (each commodity's
+  equilibrium equals the symmetric model at the elasticity its regime selects) and against the
+  paper's Table 2.1 written independently in Julia and solved by PATH, to 1e-12. The paper's
+  Mongolia SAM is not public, so its tables are not the reference.
+- [ ] **Release**: 0.10.0 on PyPI and archived on Zenodo.
 
 **0.11 — closures and data.**
 
@@ -353,7 +358,7 @@ documents rendered on the site; the whitepaper and the validation comments in En
 ## Next: gaps an applied model hit
 
 Nothing from 0.2 to 0.8 is open as a feature; what 0.7 still owes is validation against GTAP
-and ORANI-G/TERM, listed under 0.9.
+and ORANI-G/TERM, listed under *Waiting on a licence or on a need*.
 
 Done, and no longer gaps:
 

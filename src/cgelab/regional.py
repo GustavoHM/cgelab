@@ -286,6 +286,7 @@ _WHY = {
                               "price per national commodity",
     "household demand": "regional households buy the national composite with "
                         "Cobb-Douglas shares",
+    "asymmetric Armington": "the origin nest has one elasticity per commodity",
 }
 
 
@@ -352,6 +353,10 @@ def _slice_issues(econ, sam) -> list:
         issues.append(("trade or output tax", "tariffs", "calibrated tariffs"))
     if econ.tauz0 is not None:
         issues.append(("trade or output tax", "output_taxes", "calibrated output taxes"))
+    if econ.te0 is not None:
+        issues.append(("trade or output tax", "export_taxes", "calibrated export taxes"))
+    if econ.sigma_arm_falling is not None:
+        issues.append(("asymmetric Armington", "ModelSpec.sigma_armington_falling", ""))
     if spec.energy:
         issues.append(("energy nest", "ModelSpec.energy", ""))
     if spec.export_demand is not None:
@@ -748,6 +753,7 @@ def _refuse_unsupported(econ, closure, scenario, reg: Regional):
         "foreign_factor_share": scenario.foreign_factor_share,
         "tariff": scenario.tariff,
         "output_tax": scenario.output_tax,
+        "export_tax": scenario.export_tax,
         "carbon_price": scenario.carbon_price,
         "pool_supply": scenario.pool_supply,
         "labour_force": scenario.labour_force,

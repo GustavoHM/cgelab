@@ -3,6 +3,41 @@
 All notable changes to `cgelab`. Versions follow [semantic versioning](https://semver.org/);
 before 1.0, a minor version may add to the API and a patch version only fixes.
 
+## Unreleased
+
+### Added
+
+- `ModelSpec.export_tax_account` and `calibrate(..., export_taxes=)`: an export
+  tax, ad valorem on the border (FOB) price, which the producer receives net of
+  it (the IFPRI standard model's `te`). Calibrated as revenue over exports at the
+  border, it leaves the product tax on absorption; `Scenario.export_tax` moves
+  it, `Economy.te0` holds the base rates. Exports are then measured in base-year
+  border units. Under a CET the producer's export price is the border price
+  times `(1 - te) / (1 - te0)`; under fixed export shares the tax is passed on to
+  the border price. The revenue is `export_tax` in `government_account` and a
+  tax on products in `national_accounts`, and `welfare_decomposition` gains
+  `allocative_export_tax`. National only: the regional preflight lists it, and
+  `to_jump` and the Pyomo backends refuse it.
+- `ModelSpec.sigma_armington_falling`: an asymmetric Armington (Cicowiez and
+  Lofgren, 2019, 2022), `sigma_armington` where the import price rises against
+  the domestic variety's, relative to their base-year ratio, and this elasticity,
+  at least as large, where it falls. Both branches pass through the base year.
+  `PeriodResult.armington_sigma` reports the elasticity each commodity was solved
+  at. National only; `to_jump` and the Pyomo backends refuse it.
+- `validation/trade_instruments.jl` and `replicate_trade_instruments.py`: both
+  features written independently in Julia, in the IFPRI model's units, the
+  asymmetric Armington as the paper's Table 2.1 (the ratio's rise and fall
+  paired with the elasticity, the CES parameters recalibrated for the elasticity
+  in force), solved by PATH. 18 cases agree with cgelab to 3.4e-12.
+- `toy.build_with_export_tax()`: the toy SAM with a tariff and an export-tax
+  account.
+
+### Changed
+
+- `ROADMAP.md`: a version plan from 0.10 to 1.0. The asymmetric Armington was
+  described there as depending on the origin of imports; it depends on the
+  direction of the relative price.
+
 ## 0.9.0 — 2026-11-03
 
 The PATH backend and reports on failed solves. `solve_period(..., backend="path")` writes the

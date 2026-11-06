@@ -17,6 +17,9 @@ where a real SAM breaks a naive calibration:
   production, own-account work.
 * :func:`build_with_trade_taxes` -- part of the product tax moved onto a tariff
   account and an indirect tax on output, the TRF and IDT of Hosoe's ``stdcge``.
+* :func:`build_with_export_tax` -- part of the product tax moved onto a tariff
+  account and an export-tax account, the ``tm`` and ``te`` of the IFPRI
+  standard model.
 * :func:`build_with_segmented_labour` -- labour split into a formal and an
   informal account that share one population of workers.
 * :func:`build_with_technologies` -- industry made by two technologies, one
@@ -33,7 +36,7 @@ from ..spec import ModelSpec
 
 __all__ = ["build", "build_with_margins", "build_with_own_production", "build_with_twin_accounts",
            "build_with_institutions", "build_with_specific_capital", "build_with_trade_taxes",
-           "build_with_segmented_labour", "build_with_technologies", "survey", "persons",
+           "build_with_export_tax", "build_with_segmented_labour", "build_with_technologies", "survey", "persons",
            "build_one_good", "spec"]
 
 
@@ -250,6 +253,31 @@ def build_with_trade_taxes(model_spec: ModelSpec | None = None, **kwargs):
     sam = _frame(entries)
     econ = calibrate(sam, model_spec or spec(tariff_account="trf", indirect_tax_account="idt"),
                      **kwargs)
+    return sam, econ
+
+
+def build_with_export_tax(model_spec: ModelSpec | None = None, **kwargs):
+    """The plain economy with a tariff account and an export-tax account.
+
+    Of the product tax on agriculture (5) and industry (10), 1 and 2 become
+    tariff on imports of 15 and 25, and 0.5 and 1 become export tax on exports
+    of 10 and 20, so both rates on exports are 5% of the border value. The
+    rest of the world still pays the border value; government receives both
+    accounts whole. Exports are on a CET (``export_rule="cet"``) unless
+    ``model_spec`` says otherwise.
+    """
+    moved = {"c_agr": (1.0, 0.5), "c_ind": (2.0, 1.0)}
+    entries = []
+    for row, col, value in _BASE:
+        if row == "gov" and col in moved:
+            trf, etx = moved[col]
+            entries += [("gov", col, value - trf - etx), ("trf", col, trf), ("etx", col, etx)]
+        else:
+            entries.append((row, col, value))
+    entries += [("gov", "trf", 3.0), ("gov", "etx", 1.5)]
+    sam = _frame(entries)
+    econ = calibrate(sam, model_spec or spec(tariff_account="trf", export_tax_account="etx",
+                                             export_rule="cet"), **kwargs)
     return sam, econ
 
 

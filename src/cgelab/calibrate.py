@@ -164,6 +164,16 @@ class Economy:
     #: worth ``(1 + tauz0)`` times its producer value. None means the
     #: instrument was not calibrated.
     tauz0: np.ndarray | None = None
+    #: Export tax at the base year, ``revenue / exports`` at the border (FOB).
+    #: Exports are measured in base-year FOB units and the CET splits output at
+    #: the producer's export price, the border price times ``(1 - te0)`` at the
+    #: base year. None means the instrument was not calibrated.
+    te0: np.ndarray | None = None
+    #: Asymmetric Armington: the elasticity where imports get cheaper relative
+    #: to the domestic variety (``ModelSpec.sigma_armington_falling``), by
+    #: commodity, ``nan`` where one elasticity holds. ``sigma_arm`` is the one
+    #: where they get dearer. None: one elasticity everywhere.
+    sigma_arm_falling: np.ndarray | None = None
     #: Government saving over government income at the base year, income net
     #: of transfers to households. Read by ``Closure(government="saving_rate")``.
     gov_savrate: float = 0.0
@@ -286,6 +296,52 @@ def _tariff_and_output_tax(sam, spec, coms, gov, imp0, Q0, tariffs, output_taxes
     return tm0, tauz0
 
 
+def _export_tax(sam, spec, coms, gov, exp0, export_taxes):
+    """Base-year export-tax rates on the FOB value, or None when the instrument is absent."""
+    if spec.export_tax_account is not None and export_taxes is not None:
+        raise ValueError(
+            "pass ModelSpec.export_tax_account or calibrate(..., export_taxes=), not both")
+    if spec.export_tax_account is not None:
+        if spec.export_tax_account not in sam.accounts:
+            raise KeyError(
+                f"export tax account {spec.export_tax_account!r} is not in the SAM")
+        revenue = sam.block([spec.export_tax_account], coms).ravel()
+        te0 = _rates_from_revenue(revenue, exp0, coms, "export tax", "is not exported")
+    elif export_taxes is not None:
+        te0 = _reference_rates(export_taxes, len(coms), "export_taxes")
+        gov_com = sam.block([gov], coms).ravel()
+        bad = [coms[i] for i in np.where(te0 * exp0 > gov_com + 1e-8)[0]]
+        if bad:
+            raise ValueError(
+                "export-tax revenue implied by the rate exceeds what government already "
+                f"receives from the commodity, for {bad}")
+    else:
+        return None
+    if np.any(te0 >= 1.0):
+        bad = [coms[i] for i in np.where(te0 >= 1.0)[0]]
+        raise ValueError(f"an export tax must be below 1 of the border price, for {bad}")
+    return te0
+
+
+def _asymmetric_armington(spec, coms):
+    """The elasticity where imports get cheaper, checked; None when every commodity has one."""
+    if spec.sigma_armington_falling is None:
+        return None
+    high = spec.sigma_armington_falling_vector(coms)
+    low = spec.sigma_armington_vector(coms)
+    on = np.isfinite(high)
+    if not on.any():
+        return None
+    bad = [coms[i] for i in np.where(on & ((high < low) | (high < 0)))[0]]
+    if bad:
+        raise ValueError(
+            f"sigma_armington_falling is below sigma_armington for {bad}. The asymmetric "
+            f"Armington has buyers turn to imports at least as easily as away from them; "
+            f"with the two reversed the regime would not be the one the relative price "
+            f"selects.")
+    return np.where(on, high, np.nan)
+
+
 def _reference_rates(rates, n, label):
     out = np.asarray(rates, dtype=float)
     if out.shape != (n,):
@@ -359,6 +415,7 @@ def calibrate(sam: SAM, spec: ModelSpec | None = None, *,
               population: Mapping[str, float] | None = None,
               tariffs=None,
               output_taxes=None,
+              export_taxes=None,
               factor_pools: Mapping | None = None,
               transport=None,
               backstops: Mapping[str, Backstop] | None = None,
@@ -383,6 +440,11 @@ def calibrate(sam: SAM, spec: ModelSpec | None = None, *,
         and enters the import price and the gross output price, as in Hosoe's
         ``stdcge``. At those rates the base year is unchanged. A scenario then
         moves one instrument.
+    export_taxes : array, optional
+        Reference export-tax rates on the border (FOB) value, one per commodity,
+        when the SAM has no separate export-tax account
+        (``ModelSpec.export_tax_account``). Their revenue leaves the product
+        tax and the producer receives the border price net of them.
     factor_pools : mapping, optional
         Factor -> DataFrame of base-year use, pools of origin by activities:
         the proximity matrix of a factor in ``ModelSpec.factor_mobility``. Each
@@ -481,7 +543,10 @@ def calibrate(sam: SAM, spec: ModelSpec | None = None, *,
     # to government is that same receipt, not a second one.
     tm0, tauz0 = _tariff_and_output_tax(
         sam, spec, coms, gov, imp0, Q0, tariffs, output_taxes)
+    te0 = _export_tax(sam, spec, coms, gov, exp0, export_taxes)
     tax_c = sam.block([gov], coms).ravel()
+    if spec.export_tax_account is not None:
+        tax_c = tax_c + sam.block([spec.export_tax_account], coms).ravel()
     if spec.tariff_account is not None:
         tax_c = tax_c + sam.block([spec.tariff_account], coms).ravel()
     if spec.indirect_tax_account is not None:
@@ -495,11 +560,15 @@ def calibrate(sam: SAM, spec: ModelSpec | None = None, *,
     # abolished tariff.
     tariff_rev0 = np.zeros(nc) if tm0 is None else tm0 * imp0
     output_rev0 = np.zeros(nc) if tauz0 is None else tauz0 * Q0
+    # The export tax is paid out of the border price: the producer's export
+    # receipts are exports net of it, and the CET splits output at that value.
+    export_rev0 = np.zeros(nc) if te0 is None else te0 * exp0
     tax_all_c = tax_c.copy()
-    tax_c = tax_c - tariff_rev0 - output_rev0
+    tax_c = tax_c - tariff_rev0 - output_rev0 - export_rev0
     gross_out0 = Q0 + output_rev0                 # output at tax-inclusive value
-    exp_share = np.where(gross_out0 > 0, exp0 / np.maximum(gross_out0, 1e-12), 0.0)
-    dom0 = gross_out0 - exp0
+    exp_prod0 = exp0 - export_rev0                # exports at the producer's value
+    exp_share = np.where(gross_out0 > 0, exp_prod0 / np.maximum(gross_out0, 1e-12), 0.0)
+    dom0 = gross_out0 - exp_prod0
     imp_arm0 = imp0 + tariff_rev0                 # imports at tariff-inclusive value
     if np.any(dom0 < -1e-9):
         bad = [coms[i] for i in np.where(dom0 < -1e-9)[0]]
@@ -597,7 +666,8 @@ def calibrate(sam: SAM, spec: ModelSpec | None = None, *,
         hh_dtax=hh_dtax, hh_gov_transfer=gov_tr, hh_remit_net=remit_in - remit_out,
         fac_gov_share=fac_gov_share, fac_row_share=fac_row_share,
         hh_spend0=hh_com.sum(axis=1), hh_gross0=gross0,
-        tm0=tm0, tauz0=tauz0, gov_savrate=gov_savrate,
+        tm0=tm0, tauz0=tauz0, te0=te0, gov_savrate=gov_savrate,
+        sigma_arm_falling=_asymmetric_armington(spec, coms),
         energy_nest=energy_nest, vintage=vintage,
         mobility=build_mobility(spec, facs, acts, aunit * X0[None, :], factor_pools),
         segments=build_segments(spec, facs, fac_supply),
@@ -610,7 +680,8 @@ def calibrate(sam: SAM, spec: ModelSpec | None = None, *,
                          unmodelled_flows=_unmodelled_flows(
                              sam, layout,
                              [a for a in (spec.tariff_account,
-                                          spec.indirect_tax_account) if a])),
+                                          spec.indirect_tax_account,
+                                          spec.export_tax_account) if a])),
     )
     if backstops:
         econ = _add_backstops(econ, backstops)

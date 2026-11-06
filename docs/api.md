@@ -57,6 +57,7 @@ gives `inf`; negative or nonfinite entries and zero total flow are refused.
 | `numeraire_factor` | first factor | its price is fixed and its market left to Walras |
 | `value_added` | `"ces"` | `"ces"`, `"cobb_douglas"` or `"leontief"` |
 | `sigma_va`, `sigma_armington` | `0.5`, `2.0` | scalar or mapping by account name |
+| `sigma_armington_falling` | `None` | asymmetric Armington (Cicowiez and Lofgren): the elasticity where the import price falls against the domestic variety's, below its base-year ratio; `sigma_armington` is then the one where it rises. At least `sigma_armington`. Scalar or mapping; a commodity left out keeps one elasticity. National only; `to_jump` refuses it |
 | `export_rule`, `sigma_cet` | `"fixed_shares"`, `2.0` | `"cet"` is a robustness variant; `sigma_cet` scalar or mapping by commodity |
 | `export_demand` | `None` | export-demand elasticity η, `E / E0 = (pWe / export_price)^(-η)`; scalar or mapping by commodity, a missing commodity stays a price taker; `export_rule="cet"` only |
 | `import_supply` | `None` | import-supply elasticity ψ, `M / M0 = (pWm / world_price)^ψ`; scalar or mapping by commodity |
@@ -71,6 +72,7 @@ gives `inf`; negative or nonfinite entries and zero total flow are refused.
 | `sigma_interregional` | `2.0` | CES across regions of origin, under the Armington. Scalar or mapping by local commodity. Regional models carry the margin block and accept `export_rule="cet"`; `world_price` and `export_price` then have one value per local commodity |
 | `tariff_account` | `None` | account that collects the import tariff from commodities (Hosoe's TRF). The tariff goes inside the Armington import price |
 | `indirect_tax_account` | `None` | account that collects the indirect tax on all of output (Hosoe's IDT). The tax goes inside the gross output price the CET splits, so exports carry it |
+| `export_tax_account` | `None` | account that collects the export tax from commodities (the IFPRI model's `te`), a rate on the border (FOB) price that the producer receives net of it. National only; `to_jump` refuses it |
 | `factor_mobility` | `None` | `{factor: ω}`, ω ≥ 0: the factor's endowment is transformed across the activities that use it, and each activity pays its own price. Zero holds the base-year allocation. A factor left out is perfectly mobile. Not the numeraire; not with `regions` |
 | `labour_segments` | `None` | `{group: [factor, ...]}`: labour accounts that share one population of workers; how they clear is `Closure.labour_markets`. Two or more factors each, not the numeraire, not in `factor_mobility` |
 | `segment_mobility` | `None` | `{group: ω}`: each household's workforce in a group of `labour_segments` split among its segments by a CET or a logit (`factor_mobility_form`, by group name); each flexible segment clears, each rigid one has a queue. A group left out has perfect mobility between its segments |
@@ -81,7 +83,8 @@ gives `inf`; negative or nonfinite entries and zero total flow are refused.
 | `factor_mobility_form` | `"cet"` | `"cet"` (a CET frontier, GTAP's sluggish endowments) or `"logit"` (shares of a fixed head count); one form, or a mapping by factor |
 
 Methods: `classify(sam) -> AccountLayout`, `prepare(sam)` (expands regional
-accounts), `sigma_va_vector(activities)`, `sigma_armington_vector(commodities)`.
+accounts), `sigma_va_vector(activities)`, `sigma_armington_vector(commodities)`,
+`sigma_armington_falling_vector(commodities)` (`nan` where one elasticity holds).
 
 With `regions` set, the numeraire is one factor in one region (`"r1:f_lab"`).
 Factors may be passed as local names and are expanded to every region. Each
@@ -99,7 +102,7 @@ SAM in one `RegionalSliceError` (a `ValueError`, with the list in `issues`): mak
 cells across regions, own-account activities, product-tax rates that differ across
 origins, missing origins and the features the slice does not carry.
 `regional_preflight(sam, spec)` returns the same list as a table.
-Regional scenarios also refuse `tariff`, `output_tax`, `carbon_price`,
+Regional scenarios also refuse `tariff`, `output_tax`, `export_tax`, `carbon_price`,
 `pool_supply`, `labour_force` and nonzero `government_absorbs`. Household price
 indices are the exact Cobb–Douglas index of destination purchaser prices, at the
 level the national solver reports. Trade-price fields named `world_*` remain in foreign currency.
@@ -126,7 +129,7 @@ contains the solved GTAP flows.
 
 ## Calibration
 
-### `calibrate(sam, spec=None, *, income_elasticities=None, population=None, tariffs=None, output_taxes=None, factor_pools=None, transport=None, backstops=None, check_balance=True) -> Economy`
+### `calibrate(sam, spec=None, *, income_elasticities=None, population=None, tariffs=None, output_taxes=None, export_taxes=None, factor_pools=None, transport=None, backstops=None, check_balance=True) -> Economy`
 
 `income_elasticities` maps commodity to income elasticity (LES only).
 `population` maps household account to a household count — the weight of a per
@@ -134,7 +137,10 @@ capita transfer, and neither the income nor the expenditure share.
 `tariffs` and `output_taxes` are reference rates, one per commodity, when the
 SAM has no separate account for them. Their revenue leaves the product tax and
 enters the import price and the gross output price; at those rates the base year
-is unchanged.
+is unchanged. `export_taxes` are reference export-tax rates on the border
+value, when the SAM has no export-tax account; the calibrated rates are
+`econ.te0`, and `econ.sigma_arm_falling` holds the asymmetric Armington's
+falling elasticity by commodity (`None` without it).
 `factor_pools` maps a factor in `ModelSpec.factor_mobility` to a DataFrame of
 base-year use, pools of origin by activities: a proximity matrix. Each column must
 add up to what the SAM pays the factor in that activity. Absent, the endowment is
@@ -254,6 +260,7 @@ base-year queue as a share of its supply, one rate or `{factor: rate}`.
 | `product_tax`, `product_tax_firm` | `(nc,)` | consumer rate; non-creditable part facing firms. Does not move the tariff or the output tax |
 | `tariff` | `(nc,)` | import tariff, ad valorem. Only if a base-year tariff was calibrated. Zero abolishes it |
 | `output_tax` | `(nc,)` | indirect tax on all of output, ad valorem; exports carry it too. Only if a base rate was calibrated (`output_taxes=` or `indirect_tax_account`) |
+| `export_tax` | `(nc,)` | export tax, ad valorem on the border price, below one. Only if a base rate was calibrated (`export_taxes=` or `export_tax_account`). Zero abolishes it |
 | `consumer_wedge`, `government_wedge` | `(nh, nc)` | ad valorem wedges; the first is recycled to households, the second to the budget |
 | `wedge_revenue_to`, `wedge_revenue_factor` | str/float/callable, str | who receives the recycled revenue |
 | `transfers` | `(nh,)` | lump sum, positive for a receipt |
@@ -340,7 +347,8 @@ is deducted from households. `savings_driven` remains the default.
 | `domestic_sales`, `p_domestic` | home sales of domestic output, at tax-inclusive base value, and their price. Off the base year a CET does not add up in quantities, so this is not output less exports |
 | `world_export_price`, `world_import_price` | world prices in foreign currency, as multiples of the base year: the scenario's, moved along the curves of `export_demand` and `import_supply` |
 | `hh_direct_tax`, `factor_income_abroad`, `foreign_saving` | direct tax by household; factor income paid abroad; the period's foreign saving, FDI included |
-| `Q`, `X`, `absorption`, `imports`, `exports` | the quantity system; `imports` at the border, `exports` at their tax-inclusive value |
+| `Q`, `X`, `absorption`, `imports`, `exports` | the quantity system; `imports` at the border, `exports` at their tax-inclusive value, and at the border when an export tax was calibrated |
+| `armington_sigma` | `(nc,)` the elasticity each commodity was solved at under an asymmetric Armington; `None` with one elasticity |
 | `hh_quantity`, `hh_income`, `hh_commodity_spend`, `hh_direct_outlay`, `hh_wedge_paid` | the household block |
 | `gov_quantity`, `investment_quantity`, `savings`, `factor_demand` | the rest of final demand; for an imperfectly mobile factor, `factor_demand` is its endowment and `factor_prices` its income over that endowment |
 | `factor_demand_by_activity`, `factor_prices_by_activity` | `(nf, na)` factor use and the price each activity pays. Under a CET the use does not add up to the endowment off the base year |
@@ -432,7 +440,7 @@ default the calibrated base year.
 
 ### `government_account(period) -> Series`
 
-`product_tax`, `activity_tax`, `tariff`, `output_tax`, `direct_tax`,
+`product_tax`, `activity_tax`, `tariff`, `output_tax`, `export_tax`, `direct_tax`,
 `factor_income`, `wedge`, `revenue`; `transfers`, `consumption`, `absorbed`,
 `saving`. Also `PeriodResult.government`.
 
@@ -507,7 +515,7 @@ prices along the path): `absorption` and its four components
 (`absorption_households`, `_own_account`, `_government`, `_investment`);
 `endowment`, `technology`, `allocative_product_tax`, `allocative_consumer_wedge`,
 `allocative_activity_tax`, `allocative_carbon_tax`, `allocative_tariff`,
-`allocative_output_tax`, `factor_reallocation`, `terms_of_trade`,
+`allocative_output_tax`, `allocative_export_tax`, `factor_reallocation`, `terms_of_trade`,
 `external_account`; `sum_of_terms` and `residual`. For an imperfectly mobile
 factor, `endowment` prices each pool's endowment, and `factor_reallocation` is
 the activity prices times the change in use less that: zero under a CET, the

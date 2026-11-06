@@ -432,7 +432,7 @@ parts[["tariff", "world", "tax", "change", "residual"]]
 # gdp  -0.723  -0.125  -0.007   -0.855   ~1e-10      the parts add up to the solved change</code></pre>
 <pre class="output" data-label="Output"><code><span class="out-expr">parts[["tariff", "world", "tax", "change", "residual"]]</span>
      tariff   world       tax  change   residual
-gdp -0.7235 -0.1245 -0.006899 -0.8549 -2.806e-10</code></pre>
+gdp -0.7235 -0.1245 -0.006899 -0.8549 -2.054e-10</code></pre>
   <p>The decomposition GEMPACK calls subtotals. Every shock moves together along the straight line
   from the reference to the alternative, and each group's term is integrated on its own, so the
   parts add up to the total without depending on any order.</p>
@@ -676,7 +676,7 @@ two = cge.calibrate(split, toy.spec(factors=("f_cap", "f_for", "f_inf"),
                                     labour_segments={"labour": ["f_for", "f_inf"]}))
 cge.solve_period(two).residual                     # the base year, at machine precision</code></pre>
 <pre class="output" data-label="Output"><code><span class="out-expr">cge.solve_period(two).residual</span>
-3.384e-16</code></pre>
+5.075e-16</code></pre>
   <p>Labour is split into formal and informal in each activity by survey shares, and the two
   accounts become a group of segments. With one wage for both, the split model has exactly the
   single factor's equilibrium; a rigid formal wage then makes the difference.
@@ -864,7 +864,7 @@ sigma_armington   2.2
 <span class="out-expr">fit.achieved</span>
 gdp_pct   -0.161
 <span class="out-expr">fit.distance</span>
-4.93e-28</code></pre>
+1.109e-27</code></pre>
   <p>The target comes from an external coefficient; the parameter is bounded and every evaluation
   recalibrates and solves the model. The fit recovers 2.2. Covariance weighting and singular
   systems use a pseudo-inverse, and <code>evaluations</code> keeps the whole optimisation trail.</p>
@@ -881,7 +881,7 @@ effect[["treated_change", "control_change", "effect"]]</code></pre>
 <pre class="output" data-label="Output"><code><span class="out-expr">effect[["treated_change", "control_change", "effect"]]</span>
          treated_change  control_change  effect
 outcome
-output               20       1.421e-14      20</code></pre>
+output               20      -1.421e-14      20</code></pre>
   <p>The effect is r1's output change less r2's. A common symmetric shock cancels. Controls can be
   weighted, and measures cover output, real household income, factor demand, bilateral outflows
   or a custom function. This is an auditable contrast of equilibria; the research design stays
@@ -1044,6 +1044,44 @@ deficit.government["consumption"]</code></pre>
   12, spending is the residual 8. Targets and rates consolidate national and mapped regional
   accounts; direct- and product-tax levers use the same affine budget solution as the national
   solver.</p>
+
+  <h3>42. An export tax</h3>
+<pre><code>sam_t, econ_t = toy.build_with_export_tax()      # tariff and export-tax accounts, CET exports
+econ_t.te0
+base_t = cge.solve_period(econ_t)
+free = cge.solve_period(econ_t, scenario=cge.Scenario(export_tax=np.zeros(2)))
+(free.exports / base_t.exports).round(4)
+free.government["export_tax"]</code></pre>
+<pre class="output" data-label="Output"><code><span class="out-expr">econ_t.te0</span>
+[0.05 0.05]
+<span class="out-expr">(free.exports / base_t.exports).round(4)</span>
+[1.048 1.05]
+<span class="out-expr">free.government["export_tax"]</span>
+0</code></pre>
+  <p>The export tax is a rate on the border price, read from its own account: the producer
+  receives the border price net of it, so abolishing it raises what exporting pays and exports
+  rise. Exports are measured at the border, where the rest of the world pays for them, and the
+  revenue is booked as <code>export_tax</code> in the government account and among taxes on
+  products in the national accounts.</p>
+
+  <h3>43. Imports that are easier to take up than to give up</h3>
+<pre><code>asym = cge.calibrate(sam_t, toy.spec(
+    tariff_account="trf", export_tax_account="etx", export_rule="cet",
+    sigma_armington=0.9, sigma_armington_falling=3.0))
+dearer = cge.solve_period(asym, scenario=cge.Scenario(world_price=np.array([1.0, 1.25])))
+cheaper = cge.solve_period(asym, scenario=cge.Scenario(world_price=np.array([1.0, 0.75])))
+dearer.armington_sigma
+cheaper.armington_sigma</code></pre>
+<pre class="output" data-label="Output"><code><span class="out-expr">dearer.armington_sigma</span>
+[0.9 0.9]
+<span class="out-expr">cheaper.armington_sigma</span>
+[0.9 3]</code></pre>
+  <p>With an asymmetric Armington (Cicowiez and Lofgren), each commodity substitutes at 0.9 where
+  the import price has risen against the domestic variety's and at 3 where it has fallen. The
+  regime is chosen by the relative price, so in general equilibrium a commodity the shock did not
+  touch can land on either side. Agriculture's world price is the same in both runs, and both
+  times the currency depreciates (by 1.8% and 8.1%), so its import price rises against its
+  domestic one and it substitutes at 0.9.</p>
 </div></section>
 
 <section id="gates"><div class="wrap">

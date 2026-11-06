@@ -23,6 +23,12 @@ CASES = {
                                         government_wedge=cge.consumer_wedge(PLAIN, {"c_agr": 0.05}))),
     "own_account": (toy.build_with_own_production()[1], None,
                     cge.Scenario(activity_scale={"a_own": 1.5})),
+    "export_tax_cet": (toy.build_with_export_tax()[1], None, "export_tax"),
+    "export_tax_fixed_shares": (toy.build_with_export_tax(
+        toy.spec(tariff_account="trf", export_tax_account="etx"))[1], None, "export_tax"),
+    "asymmetric_armington": (toy.build(toy.spec(export_rule="cet", sigma_armington=0.9,
+                                                sigma_armington_falling=3.0))[1], None,
+                             cge.Scenario(world_price=np.array([1.3, 0.8]))),
     "les_closures": (toy.build_with_institutions(model_spec=toy.spec(household_demand="les"))[1],
                      cge.Closure(investment="fixed_real", government="saving_rate",
                                  foreign_saving_unit="foreign_currency"), "ptax"),
@@ -32,6 +38,8 @@ CASES = {
 def _scenario(econ, sc):
     if sc == "ptax":
         return cge.Scenario(product_tax=econ.ptax * 1.4)
+    if sc == "export_tax":
+        return cge.Scenario(export_tax=econ.te0 * np.array([4.0, 0.0]), tariff=econ.tm0 * 0.5)
     if sc == "tariff_and_idt":
         return cge.Scenario(tariff=np.zeros(2), output_tax=econ.tauz0 * 2)
     return sc

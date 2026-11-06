@@ -112,6 +112,8 @@ the goal is to cover the whole list by 1.0; each item's version is the one in
 | Labour-market closures | 📄 IFPRI, ORANI | **done**: fixed real wage, wage curve, elastic supply | 0.2 |
 | Tariff and indirect tax separate from the product tax | 📄 Hosoe (`stdcge`), IFPRI | **done**: the tariff inside the import price and the indirect tax on all of output, as in `stdcge`; the tariff abolition of `stdcge` and `lrgcge` reproduces the transcription of the GAMS programs to 2.4e-12 | 0.2 |
 | JuMP replica converging cold at applied scale | — | **done**, on an applied SAM that is not public yet | 0.2 |
+| Export tax | 📄 IFPRI (`te`) | **done**: a rate on the border price that the producer receives net of, from its own account or reference rates, in the government and national accounts and the welfare decomposition; against an independent Julia rewrite solved by PATH, under a CET and fixed export shares, to 1e-11 | 0.10 |
+| Asymmetric Armington | 📄 Cicowiez and Lofgren (2019, 2022) | **done**: a low elasticity where the import price rises against the domestic one and a high one where it falls, the regime a complementarity condition at the base-year ratio; the paper's equations written in Julia and solved by PATH agree to 1e-12, and each commodity is the symmetric model at the elasticity selected | 0.10 |
 | Export demand and import supply with finite elasticities | 📄 Hosoe (`lrgcge`) | **done**: the equations of `lrgcge`; its tariff abolition reproduces the transcription | 0.2 |
 | Foreign saving fixed in foreign currency | 📄 Hosoe, IFPRI | **done** | 0.2 |
 | Decomposition of results by shock (subtotals) | 📄 GEMPACK | **done**: Harrison, Horridge and Pearson, integrated along the straight path | 0.3 |
@@ -132,7 +134,7 @@ the goal is to cover the whole list by 1.0; each item's version is the one in
 | Several regions | 📄 GTAP, TERM, ORANI-G | destination-specific origin nests and bilateral SAM cells, delivered margins and CET exports, route transport and a global service pool, institution maps and consolidated government closures, fixed-real investment, factor migration, regional capital and a simulated panel done; trade taxes missing | 0.7 |
 | GTAP data | 📄 GTAPAgg, FlexAgg | HAR reading and writing exact against harpy3; declared aggregation with explicit parameter weights and a one-region SAM done and solved on synthetic data; independent GTAPAgg/FlexAgg comparison planned for 0.10 | 0.7 |
 | Complementarity (MCP); alternative solvers | 📄 GAMS/MPSGE with PATH; pycge (Pyomo) | **started**: producers that compete at least cost and shut down (`least_cost`) capacity limits with scarcity rents (`Scenario.capacity`) import quotas with rents (`Scenario.import_quota`, `quocge` reproduced), price ceilings and floors (`Scenario.price_ceiling`, `price_floor`), a wage floor and backstop technologies (`calibrate(..., backstops=)`), against PATH; besides `scipy`, the period can be solved through Pyomo by IPOPT or, with these conditions, by PATH (`solve_period(..., backend=)`) | 0.8, 0.9 |
-| Generic closure swap; cross entropy; intertemporal CGE; imperfect competition; land use; export to GAMS and GEMPACK | 📄 GEMPACK, MPSGE, GTAP-AEZ | missing | 0.10 |
+| Generic closure swap; cross entropy; intertemporal CGE; imperfect competition; land use; export to GAMS and GEMPACK | 📄 GEMPACK, MPSGE, GTAP-AEZ | missing | 0.11 to 0.17 |
 
 ## Sources
 

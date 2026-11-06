@@ -103,7 +103,7 @@ leaves empty, raises instead of returning the nearest miss.
 `validation/replicate_cross_entropy.py` solves the primal problem with Ipopt in
 Julia; in eight cases (the balance alone, every total, some totals, fixed cells, a
 target, an aggregate, all together, a prior with a negative entry) the two agree
-to 8e-12.
+to 5e-15.
 
 ### Regional coefficients from national ones
 

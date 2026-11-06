@@ -307,7 +307,7 @@ independent replica in Julia (JuMP with Ipopt or PATH), as in `validation/`.
   common productivity, to 1e-10.
 - [x] **SAM balancing by cross entropy** beside RAS (Robinson, Cattaneo and El-Said, 2001)
   (`cross_entropy`). Validated against RAS, the special case it contains, and against the
-  primal problem solved by Ipopt in Julia, to 8e-12 (`validation/replicate_cross_entropy.py`).
+  primal problem solved by Ipopt in Julia, to 5e-15 (`validation/replicate_cross_entropy.py`).
 - [x] **Regionalising national coefficients** by location quotients (SLQ, CILQ, FLQ, AFLQ)
   (`location_quotients`, `regional_coefficients`). Validated against the published formulas,
   computed by hand.

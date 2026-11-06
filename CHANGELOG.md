@@ -23,7 +23,7 @@ before 1.0, a minor version may add to the API and a patch version only fixes.
   the prior are kept, and the information multipliers report what each piece
   of information costs. With every total given it is RAS, which the suite
   checks; `validation/cross_entropy.jl` solves the primal with Ipopt and eight
-  cases agree to 8e-12.
+  cases agree to 5e-15.
 - `location_quotients(regional, national, method=, delta=)` (SLQ, CILQ, FLQ,
   AFLQ) and `regional_coefficients(national, quotients)`.
 

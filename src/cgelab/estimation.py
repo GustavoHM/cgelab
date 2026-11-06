@@ -182,11 +182,11 @@ def cross_entropy(prior: SAM, *, totals: Mapping[str, float] | None = None,
         if np.max(np.abs(grad)) <= tol * scale:
             break
         H = (A * t[None, :]) @ A.T
-        # The dual's gradient is rhs - A T and its Hessian A diag(T) A'.
-        try:
-            step = -np.linalg.solve(H, grad)
-        except np.linalg.LinAlgError:
-            step = -np.linalg.lstsq(H, grad, rcond=None)[0]
+        # The dual's gradient is rhs - A T and its Hessian A diag(T) A'. The constraints can
+        # be redundant (every total given, with the balances, determines one of them twice), so
+        # the Hessian can be singular: the minimum-norm step is the one that does not depend on
+        # how a linear-algebra library resolves the redundancy.
+        step = -np.linalg.lstsq(H, grad, rcond=1e-12)[0]
         f0, alpha, slope = dual(x), 1.0, float(grad @ step)
         gnorm = float(np.max(np.abs(grad)))
         while alpha > 1e-12:

@@ -3,6 +3,21 @@
 All notable changes to `cgelab`. Versions follow [semantic versioning](https://semver.org/);
 before 1.0, a minor version may add to the API and a patch version only fixes.
 
+## 0.12.1 — 2026-11-06
+
+The regional solver reads `Scenario.investment_mix`, which it refused: each share of the
+investment budget buys the named region's good, so a basket with a given regional content
+keeps that content. Nothing released earlier changes.
+
+### Added
+
+- `Scenario.investment_mix` in the regional solver, which refused it. Each
+  share buys the named region's good (`core:c_serv`) directly, at the origin
+  price plus product tax, so no origin CES or Armington nest splits it again;
+  intermediate inputs and other final demand keep the destination composite.
+  `period.real["inv_origin_quantity"]` reports the purchases by origin. Route
+  margins refuse a mix, and the exact regional Jacobian is set aside for it.
+
 ## 0.12.0 — 2026-11-06
 
 Households. CDE household demand, the GTAP household, with its substitution parameters given and
@@ -27,12 +42,6 @@ released earlier changes.
   `PeriodResult.leisure` reports it. `validation/trade_instruments.jl` now
   writes CDE households and the leisure choice as well, and nine more cases
   agree to 1e-14.
-- `Scenario.investment_mix` in the regional solver, which refused it. Each
-  share buys the named region's good (`core:c_serv`) directly, at the origin
-  price plus product tax, so no origin CES or Armington nest splits it again;
-  intermediate inputs and other final demand keep the destination composite.
-  `period.real["inv_origin_quantity"]` reports the purchases by origin. Route
-  margins refuse a mix, and the exact regional Jacobian is set aside for it.
 
 ## 0.11.0 — 2026-11-06
 

@@ -146,6 +146,10 @@ def _refuse_complementarity(econ: Economy, closure: Closure, sc: Scenario, who: 
             f"{who} does not write the asymmetric Armington "
             "(ModelSpec.sigma_armington_falling). Its regime is a complementarity "
             "condition; exporting one elasticity would describe another model.")
+    if econ.spec.household_demand == "cde":
+        raise ValueError(f"{who} does not write CDE household demand yet")
+    if econ.leisure is not None:
+        raise ValueError(f"{who} does not write the labour–leisure choice yet")
 
 
 def _refuse_export_tax(econ: Economy, sc: Scenario, who: str) -> None:

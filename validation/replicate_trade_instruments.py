@@ -85,6 +85,9 @@ def enunciado(sam, econ, scenario, closure) -> dict:
         cde_substitution=(None if econ.cde is None
                           else dict(zip(econ.coms, map(float, econ.cde["b"])))),
         income_elasticities=dict(INCOME_ELASTICITIES.get(id(econ), {})),
+        leisure_ratio=(None if econ.leisure is None
+                       else dict(zip(econ.hhs, map(float, econ.leisure["ratio"])))),
+        leisure_factor=spec.leisure_factor,
         sigma_cet=dict(zip(econ.coms, map(float, spec.sigma_cet_vector(econ.coms)))),
         numeraire_factor=econ.factors[econ.numeraire_index],
         world_price=vec(scenario.world_price, np.ones(nc)),
@@ -124,6 +127,8 @@ def caso(nome, sam, econ, scenario, closure=None) -> dict:
         "savings": _rel(jl["savings"], res.savings),
         "export_tax": _rel(jl["export_tax"], res.government["export_tax"]),
         "sigma": _rel(jl["sigma"], sigma),
+        "labour": _rel(jl["labour"], np.zeros(econ.n_hh) if res.leisure is None
+                       else res.leisure["labour"]),
         "hh_quantity": _rel(jl["hh_quantity"],
                             res.hh_quantity[econ.hh_budget > 0]),
     }
@@ -213,6 +218,25 @@ def main() -> int:
                                   cge.Scenario(world_price=com(c_agr=1.3, c_ind=0.8))),
         "cde_com_impostos": caso("cde_com_impostos", sam, e_cde_imp,
                                  cge.Scenario(export_tax=np.zeros(nc), tariff=econ.tm0 * 2)),
+    }
+    # Escolha entre trabalho e lazer, com o capital de numerário.
+    e_lazer = cge.calibrate(sam_simples, toy.spec(export_rule="cet", numeraire_factor="f_cap",
+                                                  leisure_ratio={"hh_1": 0.5, "hh_2": 0.8}))
+    e_lazer_cde = cge.calibrate(sam_simples, toy.spec(
+        export_rule="cet", numeraire_factor="f_cap", leisure_ratio=0.6,
+        household_demand="cde", cde_substitution={"c_agr": 0.3, "c_ind": 0.6}),
+        income_elasticities=eta)
+    INCOME_ELASTICITIES[id(e_lazer_cde)] = eta
+    casos |= {
+        "lazer_ano_base": caso("lazer_ano_base", sam_simples, e_lazer, cge.Scenario()),
+        "lazer_capital": caso("lazer_capital", sam_simples, e_lazer,
+                              cge.Scenario(factor_supply=e_lazer.fac_supply * [1.0, 1.2])),
+        "lazer_tempo": caso("lazer_tempo", sam_simples, e_lazer,
+                            cge.Scenario(factor_supply=e_lazer.fac_supply * [1.1, 1.0])),
+        "lazer_preco_mundial": caso("lazer_preco_mundial", sam_simples, e_lazer,
+                                    cge.Scenario(world_price=com(c_agr=1.3, c_ind=0.8))),
+        "lazer_cde": caso("lazer_cde", sam_simples, e_lazer_cde,
+                          cge.Scenario(factor_supply=e_lazer_cde.fac_supply * [1.0, 1.2])),
     }
     pior = max(r["pior"] for r in casos.values())
     if all(r["ok"] for r in casos.values()):

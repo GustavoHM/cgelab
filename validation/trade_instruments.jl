@@ -36,6 +36,11 @@
 # Engel e por Σ w e = 1), e B da utilidade um no ano-base. A utilidade de cada família é uma
 # variável, pareada com a identidade.
 #
+# Lazer: com uma razão lazer/trabalho no ano-base por família, cada família tem tempo T =
+# trabalho0·(1 + razão), oferta T − lazer e uma Cobb–Douglas entre lazer e gasto, cuja condição
+# (1 − poupança)·w·lazer = k·gasto vai pareada com o lazer. A renda do trabalho de cada família é
+# a sua própria oferta vezes o salário, e o mercado de trabalho fecha contra a soma das ofertas.
+#
 # Escopo, recusado pelo script em Python fora dele: um produtor por bem e um bem por atividade,
 # imposto sobre produtos com a mesma alíquota para firmas e famílias, imposto sobre a atividade
 # por unidade, sem margens nem imposto sobre a produção, famílias Cobb–Douglas sem imposto
@@ -118,6 +123,15 @@ tm = [Float64(E.tariff[Symbol(c)]) for c in COM]
 te = [Float64(E.export_tax[Symbol(c)]) for c in COM]
 oferta = [Float64(E.factor_supply[Symbol(f)]) for f in FAT]
 cde = haskey(E, :household_demand) && String(E.household_demand) == "cde"
+lazer = haskey(E, :leisure_ratio) && E.leisure_ratio !== nothing
+if lazer
+    il = findfirst(==(String(E.leisure_factor)), FAT)
+    razao = [Float64(get(E.leisure_ratio, Symbol(h), 0.0)) for h in FAM]
+    trab0 = [dono[h, il] * L0[il] for h in 1:NH]
+    tempo = trab0 .* (1 .+ razao) .* (oferta[il] / L0[il])
+    gasto0l = [sum(sam(COM[i], FAM[h]) for i in 1:NC) for h in 1:NH]
+    kl = [(1 - pou[h]) * razao[h] * trab0[h] / gasto0l[h] for h in 1:NH]
+end
 if cde
     bcde = [Float64(E.cde_substitution[Symbol(c)]) for c in COM]
     eta = [Float64(get(E.income_elasticities, Symbol(c), 1.0)) for c in COM]
@@ -162,6 +176,8 @@ lo = 1e-8
 @variable(m, poup, start = sum(sam(COM[i], inv) for i in 1:NC))
 @variable(m, sigmaq[i in 1:NC], start = sl[i])
 @variable(m, util[h in 1:NH] >= lo, start = 1.0)
+@variable(m, ocio[h in 1:NH] >= 0, start = lazer ? razao[h] * trab0[h] : 0.0)
+lazer || fix.(ocio, 0.0; force = true)
 cde || fix.(util, 1.0; force = true)
 @variable(m, devp[i in 1:NC] >= 0, start = 0.0)
 @variable(m, devn[i in 1:NC] >= 0, start = 0.0)
@@ -244,11 +260,18 @@ consumo(h, i) = cde ? bcde[i] * zc(h, i) / sum(bcde[k] * zc(h, k) for k in 1:NC 
             + sum(tm[i] * pwm[i] * er * QM[i] for i in 1:NC)
             + sum(te[i] * pfob(i) * QE[i] for i in 1:NC))
 @expression(m, gasto_gov, sum(pc(i) * gq[i] for i in 1:NC))
-@constraint(m, [h in 1:NH], Y[h] - sum(dono[h, f] * w[f] * oferta[f] for f in 1:NF) ⟂ Y[h])
+if lazer
+    @constraint(m, [h in 1:NH], Y[h] - sum(dono[h, f] * w[f] * oferta[f] for f in 1:NF if f != il)
+                                - w[il] * (tempo[h] - ocio[h]) ⟂ Y[h])
+    @constraint(m, [h in 1:NH], (1 - pou[h]) * w[il] * ocio[h] - kl[h] * gasto(h) ⟂ ocio[h])
+else
+    @constraint(m, [h in 1:NH], Y[h] - sum(dono[h, f] * w[f] * oferta[f] for f in 1:NF) ⟂ Y[h])
+end
+ofertaf(f) = lazer && f == il ? sum(tempo[h] - ocio[h] for h in 1:NH) : oferta[f]
 @constraint(m, poup - (sum(pou[h] * Y[h] for h in 1:NH) + receita - gasto_gov + FS0) ⟂ poup)
 for f in 1:NF
     f == num && continue
-    @constraint(m, sum(fd[f, j] for j in 1:NA) - oferta[f] ⟂ w[f])
+    @constraint(m, sum(fd[f, j] for j in 1:NA) - ofertaf(f) ⟂ w[f])
 end
 @constraint(m, sum(pwm[i] * er * QM[i] for i in 1:NC) - sum(pfob(i) * QE[i] for i in 1:NC) - FS0 ⟂ er)
 
@@ -265,6 +288,7 @@ out = Dict("status" => string(status), "walras" => walras,
            "hh_income" => value.(Y)[:], "savings" => value(poup),
            "export_tax" => value(sum(te[i] * pfob(i) * QE[i] for i in 1:NC)),
            "sigma" => value.(sigmaq)[:],
+           "labour" => [lazer ? value(tempo[h] - ocio[h]) : 0.0 for h in 1:NH],
            "hh_quantity" => [value(consumo(h, i)) for h in 1:NH for i in 1:NC if orc[h, i] > 0])
 open(SAIDA, "w") do f
     JSON3.write(f, out)

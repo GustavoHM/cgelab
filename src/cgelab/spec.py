@@ -138,6 +138,16 @@ class ModelSpec:
     #: parameters follow from ``calibrate(..., income_elasticities=)``. Required
     #: under ``household_demand="cde"``: it is not a parameter a SAM supplies.
     cde_substitution: float | Mapping[str, float] | None = None
+    #: Labour–leisure choice: leisure over labour supplied at the base year, by
+    #: household (a scalar or a mapping; a household left out has none). Each
+    #: household then owns its time, ``T = labour (1 + ratio)``, and splits it
+    #: between labour, paid the wage net of what goes to government and abroad,
+    #: and leisure, with a Cobb–Douglas between leisure and its commodity
+    #: spending. Its labour income follows its own supply. None: labour supply
+    #: is fixed, or set by ``Closure.labour``.
+    leisure_ratio: float | Mapping[str, float] | None = None
+    #: The labour factor the leisure choice supplies.
+    leisure_factor: str = "f_lab"
     margins: bool = True
 
     #: What to do with an activity whose value added is negative in the base

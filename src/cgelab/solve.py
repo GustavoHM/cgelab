@@ -251,6 +251,11 @@ class PeriodResult:
     #: ``sigma_armington`` where the import price rose against the domestic
     #: variety's, the falling one where it fell. None with one elasticity.
     armington_sigma: np.ndarray | None = None
+    #: The labour–leisure choice (``ModelSpec.leisure_ratio``), by household:
+    #: ``time``, ``leisure``, ``labour`` (supplied), ``spending`` (on
+    #: commodities) and ``wage`` (net of what goes to government and abroad).
+    #: None without it.
+    leisure: dict | None = None
 
     def price(self, commodity: str) -> float:
         return float(self.pq[self.econ.commodity(commodity)])
@@ -606,6 +611,27 @@ def solve_period(econ: Economy, closure: Closure | None = None,
               else np.asarray(sc.government_wedge, float))
     base_transfers = np.zeros(nh) if sc.transfers is None else np.asarray(sc.transfers, float)
     cde = econ.cde if econ.spec.household_demand == "cde" else None
+    leis = econ.leisure
+    if leis is not None:
+        il = leis["factor"]
+        if closure.labour != "full_employment":
+            raise ValueError(
+                f"ModelSpec.leisure_ratio makes households choose their labour supply, and "
+                f"closure.labour={closure.labour!r} would set it a second way; use "
+                f"'full_employment', which then clears against the supply they choose")
+        if np.any(W != 0) or np.any(Wg_set != 0) or (
+                sc.carbon_price is not None and econ.emissions is not None
+                and np.any(econ.emissions.household != 0)):
+            raise ValueError(
+                "consumer and government wedges, and a carbon price on household fuel, are "
+                "not in this version with a leisure choice: the wedge revenue would feed back "
+                "on labour supply outside the closed form")
+        if sc.factor_ownership is not None:
+            raise ValueError("with a leisure choice each household's labour income follows its "
+                             "own supply; Scenario.factor_ownership would contradict it")
+        # Scenario.factor_supply scales the time endowment of the leisure factor.
+        time_scale = float(supply[il] / econ.fac_supply[il]) if econ.fac_supply[il] > 0 else 1.0
+        facshare_eff[:, il] = 0.0
     if cde is not None and (np.any(W != 0) or np.any(Wg_set != 0) or (
             sc.carbon_price is not None and econ.emissions is not None
             and np.any(econ.emissions.household != 0))):
@@ -931,10 +957,32 @@ def solve_period(econ: Economy, closure: Closure | None = None,
                 fac_inc[rent_owner] += float(rent[capped] @ limits)
             if quota_factor is not None:
                 fac_inc[quota_factor] += quota_rent
+            if leis is not None:
+                # Each household splits its time between labour and leisure. With
+                # C = net Y - direct, Y = w_net S + other, S = T - L and
+                # net w_net L = k C, spending is affine in what is given:
+                # C = (net (w_net T + other) - direct) / (1 + k).
+                keep_l = 1.0 - fac_gov_sh[il] - fac_row_sh[il]
+                w_net = w[il] * keep_l
+                other = facshare_eff @ (fac_inc * (1.0 - fac_gov_sh - fac_row_sh)) + transfers
+                net_l = (1.0 - dtax) * (1.0 - econ.hh_savrate)
+                T_l = leis["T"] * time_scale
+                direct_l = econ.hh_direct @ (pa * act_scale)
+                C_l = (net_l * (w_net * T_l + other) - direct_l) / (1.0 + leis["k"])
+                with np.errstate(divide="ignore", invalid="ignore"):
+                    L_l = np.where(T_l > 0, leis["k"] * C_l / (net_l * w_net), 0.0)
+                S_l = T_l - L_l
+                paid = paid.copy()
+                paid[il] = float(S_l.sum())
+                fac_inc[il] = w[il] * paid[il]
+                state["leisure_now"] = dict(time=T_l, leisure=L_l, labour=S_l,
+                                            spending=C_l, wage=w_net)
             gov_fac = float(fac_inc @ fac_gov_sh)
             row_fac = float(fac_inc @ fac_row_sh)
             base_income = (facshare_eff @ (fac_inc * (1.0 - fac_gov_sh - fac_row_sh))
                            + transfers)
+            if leis is not None:
+                base_income = base_income + w_net * S_l
             # Each household's workers in a segment group, and what they earn.
             seg_households = []
             for k, g in enumerate(groups):
@@ -1187,6 +1235,8 @@ def solve_period(econ: Economy, closure: Closure | None = None,
             reference = supply.copy()
             if closure.labour == "elastic_supply":
                 reference[lab] = paid[lab]
+            if leis is not None:
+                reference[il] = paid[il]
             # A segment's market is against what it pays: its employment, and for
             # the informal one the rest of the labour force.
             for g in groups:
@@ -1359,6 +1409,9 @@ def solve_period(econ: Economy, closure: Closure | None = None,
                 imports=imports, exports=exports, trade=trade, gaps=gaps,
                 world_pe=world_pe_now, world_pm=world_p_now,
                 dom_sales=dsh * econ.arm_share * A, p_dom=p_dom,
+                leisure=(None if leis is None else
+                         {k: (v.copy() if isinstance(v, np.ndarray) else v)
+                          for k, v in state["leisure_now"].items()}),
                 arm_sigma=None if asym is None else np.asarray(sigma_now, float).copy(),
                 walras=float(gaps[num]), levy=levy, foreign_sav=foreign_sav, pe=p_exp,
                 hh_dtax_paid=hh_dtax_paid, row_fac=row_fac, gov_fac=gov_fac,
@@ -1567,7 +1620,8 @@ def solve_period(econ: Economy, closure: Closure | None = None,
         value_added_per_unit=state["va_per"], vintage_value_added=state["vintage_va"],
         least_cost=state.get("least_cost"), capacity=state.get("capacity"),
         quota=state.get("quota"), price_bounds=state.get("price_bounds"),
-        stock_quantity=state.get("stock_q"), armington_sigma=state.get("arm_sigma"))
+        stock_quantity=state.get("stock_q"), armington_sigma=state.get("arm_sigma"),
+        leisure=state.get("leisure"))
 
 
 # ---------------------------------------------------------------------------
@@ -1624,7 +1678,14 @@ def _trade_curves(econ: Economy):
 
 
 def _marginal_budget_shares(econ: Economy) -> np.ndarray:
-    """Marginal budget shares: the LES betas, or the Cobb-Douglas shares themselves."""
+    """Marginal budget shares: the LES betas, the CDE's at the base year (budget shares times
+    income elasticities), or the Cobb-Douglas shares themselves."""
+    if econ.spec.household_demand == "cde":
+        w, b, e = econ.hh_budget, econ.cde["b"][None, :], econ.cde["e"]
+        we = (w * e).sum(axis=1, keepdims=True)
+        eta = (1.0 - b + (w * b).sum(axis=1, keepdims=True)
+               + (e * b - (w * e * b).sum(axis=1, keepdims=True)) / we)
+        return w * eta
     if econ.spec.household_demand != "les":
         return econ.hh_budget
     # Recovered from the calibration: p*gamma = p*q - beta*Y*, so beta = (p*q - p*gamma)/Y*.

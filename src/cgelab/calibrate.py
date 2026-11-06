@@ -179,6 +179,11 @@ class Economy:
     #: and the scale ``B`` (n_hh, n_com), calibrated so that base-year utility is
     #: one: ``sum_i B_i u^(e_i b_i) (p_i / E)^b_i = 1``. None for other demand.
     cde: dict | None = field(default=None, repr=False)
+    #: Labour–leisure choice (``ModelSpec.leisure_ratio``): the factor index,
+    #: each household's time endowment ``T`` and the ratio ``k`` of the value of
+    #: leisure to commodity spending (``(1 - alpha) / alpha`` of its Cobb–Douglas
+    #: between leisure and spending). None without it.
+    leisure: dict | None = field(default=None, repr=False)
     #: Government saving over government income at the base year, income net
     #: of transfers to households. Read by ``Closure(government="saving_rate")``.
     gov_savrate: float = 0.0
@@ -689,6 +694,7 @@ def calibrate(sam: SAM, spec: ModelSpec | None = None, *,
                                           spec.indirect_tax_account,
                                           spec.export_tax_account) if a])),
     )
+    econ.leisure = _leisure(spec, econ)
     if backstops:
         econ = _add_backstops(econ, backstops)
     econ.least_cost = _least_cost(spec, econ.coms, econ.acts, econ.msh, vintage,
@@ -907,6 +913,48 @@ def _cde(spec, hh_com, hh_budget, ptax, income_elasticities, coms):
         theta = theta / theta.sum()
         B[h] = theta * (p0 / E0[h]) ** (-b)
     return dict(b=b, e=e, B=B)
+
+
+def _leisure(spec, econ):
+    """Time endowments and leisure parameters, or None without a leisure choice.
+
+    A household's base labour is its share of the factor; leisure is ``ratio`` times
+    that. With leisure priced at what an hour of it gives up in commodity spending,
+    ``net w_net``, the Cobb–Douglas between leisure and spending gives
+    ``net w_net L = k C``: ``k`` is calibrated on the base year.
+    """
+    if spec.leisure_ratio is None:
+        return None
+    if spec.regions:
+        raise ValueError("leisure_ratio is national for now")
+    if spec.leisure_factor not in econ.factors:
+        raise KeyError(f"leisure_factor {spec.leisure_factor!r} is not a factor: "
+                       f"{list(econ.factors)}")
+    i = econ.factors.index(spec.leisure_factor)
+    if i == econ.numeraire_index:
+        raise ValueError(f"leisure_factor {spec.leisure_factor!r} is the numeraire. Its market "
+                         f"is left to Walras' law, and with an endogenous supply the check "
+                         f"would be an identity; set ModelSpec.numeraire_factor to another factor")
+    if i in econ.mobility or any(i in g.index for g in econ.segments.values()):
+        raise ValueError(f"leisure_factor {spec.leisure_factor!r} is imperfectly mobile or a "
+                         f"labour segment; the leisure choice needs one wage")
+    if isinstance(spec.leisure_ratio, Mapping):
+        unknown = [h for h in spec.leisure_ratio if h not in econ.hhs]
+        if unknown:
+            raise KeyError(f"leisure_ratio names {unknown}, which are not households")
+        ratio = np.array([float(spec.leisure_ratio.get(h, 0.0)) for h in econ.hhs])
+    else:
+        ratio = np.full(econ.n_hh, float(spec.leisure_ratio))
+    if np.any(~np.isfinite(ratio)) or np.any(ratio < 0):
+        raise ValueError("leisure_ratio must be finite and nonnegative")
+    labour = econ.hh_facshare[:, i] * econ.fac_supply[i]
+    keep = 1.0 - econ.zeros_if_none("fac_gov_share", econ.n_fac)[i] \
+        - econ.zeros_if_none("fac_row_share", econ.n_fac)[i]
+    net = (1.0 - econ.zeros_if_none("hh_dtax", econ.n_hh)) * (1.0 - econ.hh_savrate)
+    spend = np.asarray(econ.hh_spend0, float)
+    leisure0 = ratio * labour
+    k = np.where(spend > 0, net * keep * leisure0 / np.maximum(spend, 1e-300), 0.0)
+    return dict(factor=i, T=labour + leisure0, k=k, ratio=ratio)
 
 
 def _population_shares(hhs, population) -> np.ndarray:

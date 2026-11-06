@@ -103,3 +103,17 @@ def test_cde_needs_its_parameter_and_refuses_wedges():
     with pytest.raises(ValueError, match="affine"):
         cge.solve_period(ECON, scenario=cge.Scenario(
             consumer_wedge=cge.consumer_wedge(ECON, {"c_ind": 0.1})))
+
+
+def test_marginal_budget_shares_are_shares_times_income_elasticities():
+    from cgelab.solve import _marginal_budget_shares
+    m = _marginal_budget_shares(ECON)
+    eta = np.array([ETA["c_agr"], ETA["c_ind"]])
+    w = ECON.hh_budget
+    np.testing.assert_allclose(m, w * eta[None, :] / (w @ eta)[:, None], rtol=1e-12)
+    np.testing.assert_allclose(m.sum(axis=1), 1.0, rtol=1e-12)
+
+
+def test_the_replica_refuses_cde():
+    with pytest.raises(ValueError, match="CDE"):
+        cge.to_jump(ECON)

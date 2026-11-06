@@ -3,7 +3,14 @@
 All notable changes to `cgelab`. Versions follow [semantic versioning](https://semver.org/);
 before 1.0, a minor version may add to the API and a patch version only fixes.
 
-## Unreleased
+## 0.13.0 — 2026-11-06
+
+Market structure. Monopolists that charge the Lerner markup on home sales, with their rent, and
+fixed costs that give increasing returns: Hosoe, Gasawa and Hashimoto's `moncge` and `irscge`,
+whose GAMS programs, transcribed into JuMP, agree with cgelab in every displayed variable to
+1.9e-13. A second country (`twocge`) moves to 0.14 and Melitz firms to 0.15. Nothing released
+earlier changes: `national_accounts` and `welfare_decomposition` gain keys that are zero without
+the new features.
 
 ### Added
 

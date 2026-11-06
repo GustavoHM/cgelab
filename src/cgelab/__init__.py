@@ -56,6 +56,9 @@ from .multipliers import (Multipliers, accounting_multipliers, fixed_price_multi
 from .results import (factor_demand_by_activity, government_account, national_accounts,
                       price_indices, real_gdp, real_value_added, sectoral_path)
 from .sam import SAM, BalanceError, sam_distance
+from .swap import Swapped, solve_swapped
+from .estimation import (CrossEntropy, cross_entropy, location_quotients,
+                         regional_coefficients)
 from .sam_uncertainty import SAMDraws, sam_draws, sam_sweep
 from .scenario import Scenario, consumer_wedge
 from .robustness import ClosureSweep, closure_grid, closure_sweep, in_money
@@ -70,7 +73,8 @@ from .welfare import compensating_variation, equivalent_variation, ev_by_group
 __version__ = "0.10.0"
 
 __all__ = [
-    "SAM", "BalanceError", "sam_distance", "SAMDraws", "sam_draws", "sam_sweep",
+    "SAM", "BalanceError", "sam_distance", "CrossEntropy", "cross_entropy",
+    "location_quotients", "regional_coefficients", "Swapped", "solve_swapped", "SAMDraws", "sam_draws", "sam_sweep",
     "ModelSpec", "AccountLayout", "TransportMargins",
     "calibrate", "Economy", "Backstop",
     "Closure", "LabourMarket", "Scenario", "consumer_wedge",

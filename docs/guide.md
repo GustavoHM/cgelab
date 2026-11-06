@@ -76,6 +76,51 @@ see is evidence about how the table was built, and closing it before diagnosing
 it destroys the evidence. If the routine cannot reach tolerance it **fails**
 rather than returning a SAM that merely looks balanced.
 
+### Estimating by cross entropy
+
+```python
+est = cge.cross_entropy(prior,
+                        totals={"a_agr": 100.0},                 # account totals
+                        fixed=[("f_lab", "a_agr")],              # cells held at the prior
+                        targets={("c_agr", "hh_1"): 33.0},       # cells that must take a value
+                        aggregates=[({("c_agr", "row"): 1, ("c_ind", "row"): 1}, 31.0)])
+est.sam, est.divergence
+est.information_multipliers      # the shadow value of each piece of information
+```
+
+When a SAM has to meet information it was not built from, or two sources disagree,
+`cross_entropy` returns the balanced SAM closest to the prior in the sense of
+information: the minimum of Csiszár's I-divergence over the flows, `Σ T log(T/P) −
+T + P`, subject to every account balancing and to the information given (Golan,
+Judge and Robinson, 1994; Robinson, Cattaneo and El-Said, 2001). The prior's zeros
+stay zero and its signs stay as they are: a negative entry is handled as the
+opposite payment in the transposed cell. With the total of every account given,
+the problem is RAS's, and so is the solution; the suite checks that against
+biproportional scaling written out. The information multipliers say what each
+total, cell or aggregate costs in divergence, which is where to look when two
+sources disagree. Information the prior cannot meet, such as a target on a cell it
+leaves empty, raises instead of returning the nearest miss.
+`validation/replicate_cross_entropy.py` solves the primal problem with Ipopt in
+Julia; in eight cases (the balance alone, every total, some totals, fixed cells, a
+target, an aggregate, all together, a prior with a negative entry) the two agree
+to 5e-15.
+
+### Regional coefficients from national ones
+
+```python
+lq = cge.location_quotients(regional_employment, national_employment, method="flq",
+                            delta=0.3)
+a_region = cge.regional_coefficients(a_national, lq)
+```
+
+`location_quotients` returns the simple (`"slq"`), cross-industry (`"cilq"`),
+Flegg (`"flq"`) or augmented Flegg (`"aflq"`) quotients by supplying and
+purchasing sector, and `regional_coefficients` scales the national coefficients by
+`min(1, LQ)`: what the region does not supply itself it imports. The FLQ's
+`delta` shrinks the quotients of a small region; 0.3 is the value Flegg and Webber
+(2000) and later studies found typical, and an applied model should say which one
+it used. The formulas are the published ones and the suite checks them by hand.
+
 ---
 
 ## 2. Specifying the model
@@ -1026,8 +1071,46 @@ the commodity named in `preference_reference` is fixed at one, which sets the
 scale: only relative preferences are identified. Moving that reference
 commodity, omitting the reference or reusing a shifter is refused. Every target
 must be positive because the root is in logs. This is the limited historical
-closure, not the generic closure swap of 0.11. `calibrate_baseline` uses the same
+closure; the generic swap is the next section. `calibrate_baseline` uses the same
 scalar and joint root routines, with its existing API and results.
+
+### Swapping the closure
+
+```python
+swapped = cge.solve_swapped(
+    econ, closure, scenario,
+    exogenous={"exports[c_ind]": 21.0, "employment": 108.0},
+    endogenous=["export_price[c_ind]", "factor_supply[f_lab]"])
+swapped.instruments          # the value each instrument took
+swapped.scenario             # the scenario that gives this period under the standard closure
+swapped.achieved             # each variable against its target
+```
+
+In GEMPACK a closure is a choice of which variables are exogenous, and a swap
+exchanges one exogenous variable for one endogenous one. `solve_swapped` does this
+for a period: each variable in `exogenous` is set to a value, and as many
+instruments in `endogenous` become the unknowns that achieve it. A variable is a
+period result by name (`"X[a_agr]"`, `"imports[c_ind]"`, `"exchange_rate"`,
+`"employment"`, `"real_gdp"`, `"government.saving"`) or any function of the
+result. An instrument is a scenario entry: `"productivity[a_agr]"`,
+`"world_price[c_ind]"`, `"export_price[c_ind]"`, `"factor_supply[f_lab]"`, a tax
+rate such as `"tariff[c_agr]"`, `"transfers[hh_1]"`, `"investment_level"`,
+`"carbon_price"`, or `"field[*]"` for one common multiplier on all of a field's
+entries. Multipliers are solved in logs, rates and amounts in levels. The period
+equations do not change: the swap is a root around `solve_period`, so every
+closure and every check holds at the answer.
+
+An instrument the closure does not read is refused rather than reported as
+solved: `investment_level` under savings-driven investment, for instance, leaves
+every target where it was. A target the instruments cannot reach raises.
+
+The suite swaps and swaps back. It solves a scenario under the standard closure,
+sets the variables to what that solution gave, and swaps the instruments in. The
+instruments come back as the scenario had them, and the period is the same, to
+1e-10. `calibrate_historical`'s common productivity against real GDP is
+`"productivity[*]"` against `"real_gdp"`, and the two give the same multiplier.
+`calibrate_historical` remains the tool for a path, where years are solved in
+sequence and preferences can shift.
 
 ### Reading a path
 

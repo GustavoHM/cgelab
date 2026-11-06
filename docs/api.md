@@ -35,6 +35,31 @@ missing long-form flow as NaN, so this gate sees it; an empty cell of
 `from_square` is a zero flow. `calibrate` refuses nonfinite flows even with
 `check_balance=False`.
 
+### `cross_entropy(prior, *, totals=None, fixed=(), targets=None, aggregates=(), tol=1e-12, max_iter=200, name=None) -> CrossEntropy`
+
+The balanced SAM closest to `prior` in Csiszár's I-divergence over the flows,
+`Σ T log(T/P) − T + P`, meeting the information given: `totals` (account ->
+total), `fixed` cells (held at the prior), `targets` ((row, col) -> value, on a
+cell the prior fills) and `aggregates` (a list of `(weights, value)`, `weights`
+mapping (row, col) to a coefficient). Zeros and signs of the prior are kept; a
+negative entry is the opposite payment in the transposed cell. With every total
+given it is RAS. Raises `BalanceError` when the information cannot be met. The
+result has `sam`, `divergence`, `balance_multipliers` (by account, the first
+zero), `information_multipliers` (labelled `total:<account>`,
+`cell:<row><-<col>`, `aggregate:<k>`) and `iterations`.
+
+### `location_quotients(regional, national, *, method="flq", delta=0.3) -> DataFrame`
+
+Quotients by supplying (rows) and purchasing (columns) sector, from a size measure
+by sector in the region and the nation: `"slq"` (the same in every column),
+`"cilq"` (`SLQ_i / SLQ_j`, the SLQ on the diagonal), `"flq"` (the CILQ times
+`log2(1 + E^r/E^n) ** delta`) and `"aflq"` (the FLQ times `log2(1 + SLQ_j)` in
+columns with `SLQ_j > 1`).
+
+### `regional_coefficients(national, quotients) -> DataFrame`
+
+`national * min(1, quotients)`, cell by cell, with the same labels.
+
 ### `sam_distance(sam, other) -> float`
 
 Kullback–Leibler divergence `D_KL(sam || other)` after aligning accounts and
@@ -742,6 +767,25 @@ calibrated `PathResult`), `target`, `achieved`, `measure`; `scenario(policy=None
 gives `f(year, t) -> Scenario` for `run_path`, with the policy (a `Scenario` or
 `f(year, t)`, the whole scenario for the year) at the calibrated productivity,
 and `run(policy=None)` runs it.
+
+### `solve_swapped(econ, closure=None, scenario=None, *, exogenous, endogenous, start=None, tol=1e-11, backend="scipy") -> Swapped`
+
+A period with variables made exogenous and as many instruments made endogenous.
+`exogenous` maps a variable to its value: `"attr[account]"` for `X`, `pa` (by
+activity), `Q`, `pd`, `pq`, `imports`, `exports`, `pe`, `p_domestic`,
+`absorption` (by commodity), `factor_prices`, `factor_demand` (by factor),
+`hh_income` (by household); the scalars `exchange_rate`, `employment`,
+`unemployment`, `real_wage`, `savings`, `foreign_saving`, `household_saving`;
+`"real_gdp"` (expenditure side), `"government.<key>"`, or a callable on the
+result. `endogenous` lists Scenario entries: `productivity` (by activity),
+`factor_supply` (by factor), `world_price`, `export_price`, `product_tax`,
+`product_tax_firm`, `tariff`, `output_tax`, `export_tax` (by commodity),
+`transfers` (by household), `investment_level`, `carbon_price`,
+`government_absorbs`, each as `"field[account]"`, `"field[*]"` (a common
+multiplier) or bare for a scalar. Positive multipliers are solved in logs. An
+instrument that does not move the targets raises `ValueError`; targets not
+reached raise `RuntimeError`. The result has `period`, `instruments`,
+`scenario`, `achieved` (target and achieved by variable) and `iterations`.
 
 ### `calibrate_historical(econ, closure=None, *, years, targets, shifters, kind="level", growth=None, scenario=None, economy=None, pattern=None, preference_reference=None, tol=1e-12) -> Historical`
 

@@ -1091,6 +1091,52 @@ mais_barata.armington_sigma</code></pre>
   lado. O preço mundial da agricultura é o mesmo nas duas rodadas, e nas duas o câmbio deprecia
   (1,8% e 8,1%), então o preço da sua importação sobe em relação ao doméstico e ela substitui a
   0,9.</p>
+  <h3>44. Uma MCS estimada por entropia cruzada</h3>
+<pre><code>ruidosa = cge.SAM(frame=sam.frame.assign(
+    value=sam.frame.value * np.random.default_rng(7).uniform(0.8, 1.25, len(sam.frame))))
+est = cge.cross_entropy(ruidosa, totals={"a_agr": 100.0},
+                        targets={("c_agr", "hh_1"): 33.0})
+round(float(ruidosa.imbalance().abs().max()), 3)
+round(float(est.sam.imbalance().abs().max()), 12)
+est.information_multipliers.round(4)</code></pre>
+<pre class="output" data-label="Saída"><code><span class="out-expr">round(float(ruidosa.imbalance().abs().max()), 3)</span>
+36.65
+<span class="out-expr">round(float(est.sam.imbalance().abs().max()), 12)</span>
+0
+<span class="out-expr">est.information_multipliers.round(4)</span>
+total:a_agr          0.097
+cell:c_agr&lt;-hh_1   -0.0691</code></pre>
+  <p>Uma MCS a priori que não fecha, e duas informações que não estavam nela, viram a MCS
+  balanceada mais próxima dela no sentido da informação. Os zeros e os sinais da MCS a priori
+  ficam como estão. Cada multiplicador diz quanto a sua informação custa em divergência, que é
+  onde olhar quando duas fontes discordam. Com o total de todas as contas dado, a estimativa é a
+  do RAS.</p>
+
+  <h3>45. Coeficientes regionais por quocientes locacionais</h3>
+<pre><code>qa = cge.location_quotients({"agr": 10.0, "ind": 30.0, "svc": 60.0},
+                            {"agr": 200.0, "ind": 300.0, "svc": 500.0}, method="flq")
+qa.round(3)</code></pre>
+<pre class="output" data-label="Saída"><code><span class="out-expr">qa.round(3)</span>
+      agr   ind   svc
+agr 0.276 0.276  0.23
+ind 1.103 0.551  0.46
+svc 1.323 0.662 0.662</code></pre>
+  <p>O quociente de Flegg encolhe os quocientes de uma região pequena por
+  <code>log2(1 + E^r/E^n)</code> elevado a <code>delta</code>; <code>regional_coefficients</code>
+  então multiplica os coeficientes nacionais por <code>min(1, QL)</code>, e o resto é importado.</p>
+
+  <h3>46. Trocando o fechamento</h3>
+<pre><code>economia_cet = cge.calibrate(sam, toy.spec(export_rule="cet"))
+alvo = cge.solve_period(economia_cet, scenario=cge.Scenario(export_price=np.array([1.2, 1.0])))
+trocado = cge.solve_swapped(economia_cet, exogenous={"exports[c_agr]": alvo.exports[0]},
+                            endogenous=["export_price[c_agr]"])
+trocado.instruments.round(10)</code></pre>
+<pre class="output" data-label="Saída"><code><span class="out-expr">trocado.instruments.round(10)</span>
+export_price[c_agr]   1.2</code></pre>
+  <p>As exportações da agricultura viram exógenas e o seu preço mundial de exportação endógeno,
+  uma troca à moda do GEMPACK dentro do período. Fixadas no que uma alta de 20% desse preço
+  produziu, a troca encontra os 20%. Um instrumento que o fechamento não lê é recusado em vez de
+  aparecer como resolvido.</p>
 </div></section>
 
 <section id="verificacoes"><div class="wrap">

@@ -57,6 +57,7 @@ from .results import (factor_demand_by_activity, government_account, national_ac
                       price_indices, real_gdp, real_value_added, sectoral_path)
 from .sam import SAM, BalanceError, sam_distance
 from .swap import Swapped, solve_swapped
+from .twocountry import TwoCountry, solve_two_countries
 from .estimation import (CrossEntropy, cross_entropy, location_quotients,
                          regional_coefficients)
 from .sam_uncertainty import SAMDraws, sam_draws, sam_sweep
@@ -74,7 +75,7 @@ __version__ = "0.14.0"
 
 __all__ = [
     "SAM", "BalanceError", "sam_distance", "CrossEntropy", "cross_entropy",
-    "location_quotients", "regional_coefficients", "Swapped", "solve_swapped", "SAMDraws", "sam_draws", "sam_sweep",
+    "location_quotients", "regional_coefficients", "Swapped", "solve_swapped", "TwoCountry", "solve_two_countries", "SAMDraws", "sam_draws", "sam_sweep",
     "ModelSpec", "AccountLayout", "TransportMargins",
     "calibrate", "Economy", "Backstop",
     "Closure", "LabourMarket", "Scenario", "consumer_wedge",

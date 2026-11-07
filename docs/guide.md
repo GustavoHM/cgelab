@@ -1616,13 +1616,25 @@ per regional account. Fixed export shares reject an export-price shock instead
 of ignoring it. Tests compare a labelled one-region model directly with the
 national solver, including margins, productivity and external-price shocks.
 `validation/replicate_regional.py` compares the multi-region model with an
-independent JuMP rewrite that calibrates itself from the SAM, in twelve cases
-covering asymmetric imports, transport margins, regional investment, migration
-and regional institutions.
-The regional solver refuses unsupported `tariff`, `output_tax`, `carbon_price`,
-`pool_supply`, `labour_force` and nonzero `government_absorbs` scenarios by name.
+independent JuMP rewrite that calibrates itself from the SAM, in nineteen cases
+covering asymmetric imports, transport margins, regional investment, migration,
+regional institutions, product, activity and direct taxes, a cost charged to
+government and LES households.
+Households can have LES demand (`household_demand="les"`): committed quantities
+and marginal shares are summed over origins by local commodity, and a one-region
+model matches the national solver. `government_absorbs` is a cost charged to
+government, as in the national solver.
+A tariff, output taxes and export taxes work as in the national model. The
+tariff is one rate per local commodity (as `world_price` is), because imports
+reach every region at one national price per good, so a SAM whose origins carry
+different tariffs is refused; output and export taxes are by origin account.
+Route transport margins with any of them are refused. A one-region model matches
+the national solver, and `validation/replicate_regional.py` checks two regions
+against the JuMP rewrite under fixed export shares and a CET.
+The regional solver refuses unsupported `carbon_price`, `pool_supply` and
+`labour_force` scenarios by name.
 Its household price indices are exact Cobb–Douglas indices of destination
-purchaser prices, at the national solver's level, and reported world prices are
+purchaser prices (the marginal index under LES), at the national solver's level, and reported world prices are
 in foreign currency. Accounts, price indices, `in_money` and `real_gdp` value
 final demand at the prices each destination pays.
 

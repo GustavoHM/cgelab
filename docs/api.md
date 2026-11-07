@@ -131,10 +131,12 @@ SAM in one `RegionalSliceError` (a `ValueError`, with the list in `issues`): mak
 cells across regions, own-account activities, product-tax rates that differ across
 origins, missing origins and the features the slice does not carry.
 `regional_preflight(sam, spec)` returns the same list as a table.
-Regional scenarios also refuse `tariff`, `output_tax`, `export_tax`, `carbon_price`,
-`pool_supply`, `labour_force` and nonzero `government_absorbs`. Household price
-indices are the exact Cobb–Douglas index of destination purchaser prices, at the
-level the national solver reports. Trade-price fields named `world_*` remain in foreign currency.
+Regional scenarios read `tariff` (one rate per local commodity), `output_tax` and
+`export_tax` (one per origin account), without route margins; they refuse
+`carbon_price`, `pool_supply` and `labour_force`; they read `government_absorbs`, and regional
+households can be LES (`Regional.hh_committed`, `hh_beta`, by local commodity).
+Household price indices are the exact Cobb–Douglas index of destination purchaser
+prices (the marginal index under LES), at the level the national solver reports. Trade-price fields named `world_*` remain in foreign currency.
 `run_path` supports full `region:factor` names; `to_jump` still refuses regional
 models.
 

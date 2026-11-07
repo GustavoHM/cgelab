@@ -33,6 +33,9 @@ from cgelab.examples import regions
 AQUI = Path(__file__).resolve().parent
 OUT = AQUI / "out"
 TOL = 1e-8
+# As elasticidades-renda por bem local com que uma economia LES foi calibrada: o Economy guarda
+# as quantidades comprometidas, não as elasticidades de que saíram.
+ELASTICIDADES: dict = {}
 
 
 def _rel(a, b, piso=1.0):
@@ -45,14 +48,11 @@ def _fora_do_escopo(econ):
     """O que regional.jl não escreve. Recusado em vez de comparado pela metade."""
     zero = lambda x: x is None or not np.any(np.asarray(x, float) != 0)  # noqa: E731
     checks = {
-        "imposto sobre produtos": zero(econ.ptax),
-        "imposto sobre a atividade": zero(econ.atax),
-        "imposto direto": zero(econ.hh_dtax),
         "transferências do governo": zero(econ.hh_gov_transfer),
         "remessas": zero(econ.hh_remit_net),
         "renda de fatores ao exterior": zero(econ.fac_row_share),
         "margens fora das rotas": econ.regional.transport is not None or zero(econ.regional.mq),
-        "famílias Cobb–Douglas": econ.spec.household_demand == "cobb_douglas",
+        "famílias Cobb–Douglas ou LES": econ.spec.household_demand in ("cobb_douglas", "les"),
     }
     ruins = [k for k, ok in checks.items() if not ok]
     if ruins:
@@ -101,7 +101,10 @@ def enunciado(sam, econ, closure, scenario) -> dict:
         sigma_interregional={g: float(s) for g, s in zip(goods, reg.sigma)},
         sigma_armington={g: float(s) for g, s in zip(goods, reg.sigma_arm)},
         sigma_cet={g: float(s) for g, s in zip(goods, reg.sigma_cet[0])},
-        export_rule=spec.export_rule,
+        export_rule=spec.export_rule, household_demand=spec.household_demand,
+        tariff_account=spec.tariff_account, indirect_tax_account=spec.indirect_tax_account,
+        export_tax_account=spec.export_tax_account,
+        frisch=float(spec.frisch), income_elasticities=dict(ELASTICIDADES.get(id(econ), {})),
         transport=transport, migration=migration,
         population_share={h: float(p) for h, p in zip(econ.hhs, econ.pop_share)},
         closure=dict(investment=closure.investment, government=closure.government,
@@ -110,7 +113,14 @@ def enunciado(sam, econ, closure, scenario) -> dict:
         scenario=dict(productivity=dict(zip(econ.acts, map(float, tfp))),
                       world_price=dict(zip(goods, map(float, world))),
                       export_price=dict(zip(goods, map(float, export))),
-                      investment_level=scenario.investment_level),
+                      investment_level=scenario.investment_level,
+                      government_absorbs=float(scenario.government_absorbs),
+                      tariff=(None if scenario.tariff is None else
+                              dict(zip(goods, map(float, scenario.tariff)))),
+                      output_tax=(None if scenario.output_tax is None else
+                                  dict(zip(econ.coms, map(float, scenario.output_tax)))),
+                      export_tax=(None if scenario.export_tax is None else
+                                  dict(zip(econ.coms, map(float, scenario.export_tax))))),
     )
 
 
@@ -137,6 +147,9 @@ def lado_cgelab(econ, res) -> dict:
         "pq_rel": pq_rel,
         "hh_income": res.hh_income, "hh_spend": res.hh_commodity_spend,
         "savings": res.savings,
+        "tax_revenue": sum(res.government[k] for k in ("product_tax", "activity_tax",
+                                                        "direct_tax", "tariff", "output_tax",
+                                                        "export_tax")),
         "qst": None if res.transport is None else res.transport["qst"],
     }
 
@@ -158,6 +171,7 @@ def compara(econ, jl, cg) -> dict:
     lados = {
         "w": (jl["w"], cg["w"]), "er": (jl["er"], cg["er"]),
         "X": (jl["X"], cg["X"]), "exports": (jl["exports"], cg["exports"]),
+        "tax_revenue": (jl["tax_revenue"], cg["tax_revenue"]),
         "domestic_sales": (jl["domestic_sales"], cg["domestic_sales"]),
         "bilateral": (np.reshape(jl["bilateral"], (nr, nr, nl), order="F"), cg["bilateral"]),
         "imports_total": (jl["imports_total"], cg["imports_total"]),
@@ -265,6 +279,50 @@ def main() -> int:
     casos["instituicoes_investimento_fixo"] = caso(
         "instituicoes_investimento_fixo", sam, econ, cge.Closure(investment="fixed_real"),
         cge.Scenario(productivity=np.array([1.1, 1.0]), investment_level=45.0))
+
+    # Impostos sobre produtos, sobre a atividade e diretos.
+    sam, econ = regions.build(taxes=True)
+    choque_imp = cge.Scenario(productivity=np.array([1.1, 1.0]), world_price=np.array([1.2]))
+    casos["impostos"] = caso("impostos", sam, econ, scenario=choque_imp)
+    casos["impostos_investimento_fixo"] = caso(
+        "impostos_investimento_fixo", sam, econ, cge.Closure(investment="fixed_real"),
+        choque_imp.with_(investment_level=35.0))
+    casos["impostos_poupanca_do_governo"] = caso(
+        "impostos_poupanca_do_governo", sam, econ, cge.Closure(government="saving_rate"),
+        choque_imp)
+    # Tarifa, imposto sobre a produção e sobre exportações, de contas próprias.
+    contas = dict(tariff_account="trf", indirect_tax_account="idt", export_tax_account="etx")
+    for regra in ("fixed_shares", "cet"):
+        sam_t, econ_t = regions.build(regions.spec(export_rule=regra, **contas), trade_taxes=True)
+        casos[f"comercio_{regra}"] = caso(
+            f"comercio_{regra}", sam_t, econ_t, scenario=cge.Scenario(
+                productivity=np.array([1.1, 1.0]), world_price=np.array([1.2]),
+                tariff=np.array([0.0]), output_tax=np.array([0.03, 0.0]),
+                export_tax=np.array([0.0, 0.1])))
+    casos["comercio_poupanca_do_governo"] = caso(
+        "comercio_poupanca_do_governo", sam_t, econ_t, cge.Closure(government="saving_rate"),
+        cge.Scenario(world_price=np.array([0.9]), tariff=np.array([0.15])))
+
+    # Um custo cobrado do governo, que sai da economia.
+    casos["governo_absorve"] = caso("governo_absorve", sam, econ, scenario=choque_imp.with_(
+        government_absorbs=3.0))
+    casos["governo_absorve_poupanca"] = caso(
+        "governo_absorve_poupanca", sam, econ, cge.Closure(government="saving_rate"),
+        choque_imp.with_(government_absorbs=3.0))
+
+    # Famílias LES, com dois bens e elasticidades-renda diferentes.
+    eta = {"c": 0.7, "m": 1.0, "g": 1.4}
+    sam, econ = regions.build_with_transport(
+        unrouted_good=True, household_demand="les", frisch=-2.0,
+        income_elasticities={f"{r}:{g}": v for r in ("r1", "r2") for g, v in eta.items()})
+    ELASTICIDADES[id(econ)] = eta
+    tfp3 = np.ones(econ.n_act)
+    tfp3[0] = 1.1
+    casos["les_transporte"] = caso("les_transporte", sam, econ, scenario=cge.Scenario(
+        productivity=tfp3, world_price=np.array([1.2, 1.0, 0.8])))
+    casos["les_investimento_fixo"] = caso(
+        "les_investimento_fixo", sam, econ, cge.Closure(investment="fixed_real"),
+        cge.Scenario(productivity=tfp3, investment_level=55.0))
 
     print(f"\n{'=' * 78}")
     for nome, r in casos.items():

@@ -345,14 +345,25 @@ independent replica in Julia (JuMP with Ipopt or PATH), as in `validation/`.
 - [x] **Release**: 0.13.0 on PyPI and archived on Zenodo
   ([10.5281/zenodo.24021464](https://doi.org/10.5281/zenodo.24021464)).
 
-**0.14 — the regional solver catches up, and a second country.** `twocge`'s two countries, each
-with its own currency and current account, from 0.13. What the regional solver refuses by name
-today: trade taxes, output
-taxes, carbon prices, government absorption, LES demand, the energy nest, and the
-complementarity conditions of 0.8. Reference: `validation/regional.jl` extended, and the
-one-region model against the national solver.
+**0.14 — the regional solver catches up, and a second country.** Reference:
+`validation/regional.jl` extended, and the one-region model against the national solver.
 
-**0.15 — what released items left open.** Melitz firms, from 0.13; AIDS household demand; capital utilization; a
+- [x] **Taxes in the regional reference**: `validation/regional.jl` calibrates product,
+  activity and direct taxes itself, which the regional solver already read, and checks them.
+- [x] **Government absorption and LES households** in the regional solver, against the
+  one-region national model and the extended reference.
+- [x] **The tariff and output and export taxes** in the regional solver, without route margins:
+  the tariff one rate per local commodity, output and export taxes by origin. Against the
+  one-region national model and the extended reference, to 1e-15.
+- [ ] **Carbon prices and the energy nest** in the regional solver: moved to 0.15, together,
+  since carbon on fuel goes through the nest.
+- [ ] **The complementarity conditions of 0.8** in the regional solver: 0.15.
+- [ ] **A second country**, `twocge`, with its own currency and current account: a separate
+  solver around `solve_period`, not the regional model, which assumes one exchange rate, one
+  current account, one numeraire and one government. Moved to 0.15.
+
+**0.15 — what released items left open.** From 0.14: carbon prices and the energy nest in the
+regional solver, its complementarity conditions, and `twocge`. Melitz firms, from 0.13; AIDS household demand; capital utilization; a
 nested land CET; employment in persons, unemployment benefits and a
 wage curve by segment; vintages that substitute perfectly with idle capital, the sale of old
 capital, and vintages with the energy nest and in several regions; historical calibration with
@@ -484,10 +495,10 @@ with domestic and imported content reported separately. Route transport and the
 Cobb–Douglas global service pool are calibrated and solved, with GTAP FOB/CIF and
 supply identities tested against a hand-written SAM. Regional government closures
 match the national solver, including saving-rate and tax/spending targets, with fixed-real
-investment as well (0.7.1). Trade taxes, output taxes, carbon prices and government
-absorption remain open; the regional solver refuses them by name.
-Regional capital accumulation and a tidy simulated panel are in. The
-regional solver refuses a calibrated `tm0` or `tauz0`. A GTAP-style global bank is further
+investment as well (0.7.1). Government absorption, LES households, the tariff and the
+output and export taxes came in 0.14 (the taxes without route margins); carbon prices remain
+open, and the regional solver refuses them by name.
+Regional capital accumulation and a tidy simulated panel are in. A GTAP-style global bank is further
 out. Today a single region plus a "rest of the country" account remains the way a
 national model stands in for the regions it does not have.
 

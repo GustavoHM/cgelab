@@ -55,15 +55,38 @@ ASYMMETRIC_IMPORTS = [("row", "r1:c", 5.0), ("r1:c", "r1:hh", 5.0), ("s_i", "r1:
                       ("row", "r2:c", -5.0), ("r2:c", "s_i", -5.0)]
 
 
+#: Taxes on the two-region SAM. A product tax of 5% of the basic value on both origins (5 on
+#: each), which households pay by buying 5 more and saving 5 less; an activity tax of 4 in
+#: r1, taken from its capital payment, which r1's household feels as 4 less saved; and a
+#: direct tax of 6 on r2's household, also out of its saving. Government saves all of it.
+TAXES = [("gov", "r1:c", 5.0), ("gov", "r2:c", 5.0),
+         ("r1:c", "r1:hh", 5.0), ("r2:c", "r2:hh", 5.0),
+         ("s_i", "r1:hh", -5.0), ("s_i", "r2:hh", -5.0),
+         ("gov", "r1:a", 4.0), ("r1:f_cap", "r1:a", -4.0), ("r1:hh", "r1:f_cap", -4.0),
+         ("s_i", "r1:hh", -4.0),
+         ("gov", "r2:hh", 6.0), ("s_i", "r2:hh", -6.0),
+         ("s_i", "gov", 20.0)]
+
+
+#: On top of :data:`TAXES`, part of each origin's product tax moved onto a tariff account (0.5
+#: on imports of 10), an output-tax account (1 on output of 100) and an export-tax account (0.4
+#: on exports of 10), so that what is left of the product tax is the same rate in both origins.
+TRADE_TAXES = [(a, f"{r}:c", v) for r in ("r1", "r2")
+               for a, v in (("trf", 0.5), ("idt", 1.0), ("etx", 0.4), ("gov", -1.9))] + [
+    ("gov", "trf", 1.0), ("gov", "idt", 2.0), ("gov", "etx", 0.8)]
+
+
 def build(model_spec: ModelSpec | None = None, *, rename=None,
-          asymmetric_imports: bool = False):
+          asymmetric_imports: bool = False, taxes: bool = False, trade_taxes: bool = False):
     """Balanced two-region SAM and its calibrated economy.
 
     ``rename`` is a pair ``(old, new)`` applied to both region labels, so the
     same matrix can be solved under swapped names. ``asymmetric_imports``
-    applies :data:`ASYMMETRIC_IMPORTS`.
+    applies :data:`ASYMMETRIC_IMPORTS`, ``taxes`` :data:`TAXES`, ``trade_taxes`` both
+    :data:`TAXES` and :data:`TRADE_TAXES` (pass a spec with the three accounts).
     """
-    rows = ENTRIES + (ASYMMETRIC_IMPORTS if asymmetric_imports else [])
+    rows = (ENTRIES + (ASYMMETRIC_IMPORTS if asymmetric_imports else [])
+            + (TAXES if taxes or trade_taxes else []) + (TRADE_TAXES if trade_taxes else []))
     if rename is not None:
         a, b = rename
 
@@ -83,7 +106,7 @@ def build(model_spec: ModelSpec | None = None, *, rename=None,
 
 def build_with_transport(*, regional_investment: bool = False, service_exports: bool = False,
                          intermediates: bool = False, unrouted_good: bool = False,
-                         **spec_overrides):
+                         income_elasticities=None, **spec_overrides):
     """Two goods and two regions with hand-written route and service margins.
 
     ``regional_investment`` gives each region its own investment account, so
@@ -153,4 +176,5 @@ def build_with_transport(*, regional_investment: bool = False, service_exports: 
     supply[:, 1] = 12.0
     margins = TransportMargins(("r1", "r2"), goods,
                                ("r1", "r2", "national"), fob, transport, supply)
-    return sam, calibrate(sam, model_spec, transport=margins)
+    return sam, calibrate(sam, model_spec, transport=margins,
+                          income_elasticities=income_elasticities)

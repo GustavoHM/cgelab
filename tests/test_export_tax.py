@@ -116,8 +116,9 @@ def test_the_replica_refuses_it():
         cge.to_jump(ECON)
 
 
-def test_the_regional_preflight_lists_it():
+def test_the_regional_preflight_no_longer_lists_it():
+    """The regional solver reads export taxes since 0.14 (tests/test_regional_catch_up.py)."""
     from cgelab.regional import _slice_issues
     issues = _slice_issues(dataclasses.replace(ECON, spec=dataclasses.replace(
         ECON.spec, regions=("r1",))), SAM)
-    assert ("trade or output tax", "export_taxes", "calibrated export taxes") in issues
+    assert not any("export_taxes" in str(i) for i in issues)

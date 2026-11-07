@@ -12,7 +12,16 @@
 # quantidade a preço básico. Por isso a comparação usa níveis de fatores, câmbio, produção,
 # remessas bilaterais e valores, e os preços ao comprador relativos ao ano-base.
 #
-# Escopo, recusado pelo script em Python fora dele: sem impostos, sem margens fora das rotas,
+# Impostos: sobre produtos, uma alíquota por bem comum a todas as origens, sobre o valor básico,
+# e as quantidades calibradas a preço básico; sobre a atividade, por unidade produzida, no custo
+# unitário; diretos, uma alíquota sobre a renda de cada família. A receita é do governo.
+#
+# Tarifa, uma alíquota por bem sobre o valor na fronteira, comum a todas as origens: as importações
+# entram no Armington pelo valor com tarifa. Imposto sobre a produção, por origem, sobre o produto
+# a preço do produtor: a CET reparte o produto bruto dele. Imposto sobre exportações, por origem,
+# sobre o preço FOB: o produtor recebe esse preço líquido do imposto. Cada um sai da sua conta.
+#
+# Escopo, recusado pelo script em Python fora dele: sem transferências, sem margens fora das rotas,
 # uma atividade por bem de origem, famílias Cobb–Douglas, valor adicionado CES (Cobb–Douglas em
 # sigma = 1), exportações em proporção fixa ou CET, migração CET ou logit, contas regionais de
 # governo e de investimento, fechamentos de investimento savings_driven e fixed_real e de
@@ -59,10 +68,33 @@ compra(r, d, c, quem) = sum((sam(conta(r, c), b) for b in quem); init = 0.0)
 # Calibração, toda a partir da MCS
 # ---------------------------------------------------------------------------------------------
 X0 = [sam(atv(r, c), conta(r, c)) for r in 1:NR, c in 1:NL]
-E0 = [sam(conta(r, c), row) for r in 1:NR, c in 1:NL]
-M0 = [sam(row, conta(r, c)) for r in 1:NR, c in 1:NL]
-DS0 = X0 .- E0                                # vendas internas de cada origem
-uso = [compra(r, d, c, compradores(d)) for r in 1:NR, d in 1:ND, c in 1:NL]
+E0 = [sam(conta(r, c), row) for r in 1:NR, c in 1:NL]                 # na fronteira
+M0 = [sam(row, conta(r, c)) for r in 1:NR, c in 1:NL]                 # na fronteira
+conta_imp(k) = haskey(E, k) && E[k] !== nothing ? String(E[k]) : ""
+trf, idt, etx = conta_imp(:tariff_account), conta_imp(:indirect_tax_account), conta_imp(:export_tax_account)
+receita_de(a, r, c) = a == "" ? 0.0 : sam(a, conta(r, c))
+tz0 = [X0[r, c] > 0 ? receita_de(idt, r, c) / X0[r, c] : 0.0 for r in 1:NR, c in 1:NL]
+te0 = [E0[r, c] > 0 ? receita_de(etx, r, c) / E0[r, c] : 0.0 for r in 1:NR, c in 1:NL]
+tm0 = zeros(NL)
+for c in 1:NL
+    taxas = [receita_de(trf, r, c) / M0[r, c] for r in 1:NR if M0[r, c] > 0]
+    isempty(taxas) || (tm0[c] = taxas[1])
+    @assert all(abs(t - tm0[c]) < 1e-9 for t in taxas) "tarifas diferentes entre origens de $(L[c])"
+end
+XG0 = X0 .* (1 .+ tz0)                        # produto a valor com o imposto sobre a produção
+EXP0 = E0 .* (1 .- te0)                       # exportações a valor do produtor
+DS0 = XG0 .- EXP0                             # vendas internas de cada origem
+uso_pc = [compra(r, d, c, compradores(d)) for r in 1:NR, d in 1:ND, c in 1:NL]
+# Imposto sobre produtos: a receita de cada conta de origem sobre o que ela vende a preço básico,
+# a mesma alíquota em todas as origens de um bem.
+tp0 = [sum(sam(g, conta(r, c)) for g in contas_gov) for r in 1:NR, c in 1:NL]
+tprod = zeros(NL)
+for c in 1:NL
+    taxas = [tp0[r, c] / (sum(uso_pc[r, :, c]) - tp0[r, c]) for r in 1:NR if sum(uso_pc[r, :, c]) > 0]
+    isempty(taxas) || (tprod[c] = taxas[1])
+    @assert all(abs(t - tprod[c]) < 1e-9 for t in taxas) "alíquotas diferentes entre origens de $(L[c])"
+end
+uso = [uso_pc[r, d, c] / (1 + tprod[c]) for r in 1:NR, d in 1:ND, c in 1:NL]
 
 transporte = E.transport !== nothing
 if transporte
@@ -74,7 +106,7 @@ if transporte
 else
     # Sem rotas, cada célula de uma conta de origem divide-se entre produção da região e
     # importação na proporção dessa conta.
-    casa = [DS0[r, c] + M0[r, c] > 0 ? DS0[r, c] / (DS0[r, c] + M0[r, c]) : 1.0
+    casa = [DS0[r, c] + M0[r, c] > 0 ? DS0[r, c] / (DS0[r, c] + M0[r, c] * (1 + tm0[c])) : 1.0
             for r in 1:NR, c in 1:NL]
     dom = [uso[r, d, c] * casa[r, c] for r in 1:NR, d in 1:ND, c in 1:NL]
     trn = zeros(NR, ND, NL)
@@ -108,13 +140,14 @@ end
 beta = [ativo[d, c] ? DD0[d, c] / A0[d, c] : 0.0 for d in 1:ND, c in 1:NL]
 
 # Produção: insumos a preço de comprador do destino da atividade, valor adicionado.
-io = [sum(sam(conta(r2, c2), atv(r, c)) for r2 in 1:NR) / X0[r, c]
+io = [sum(sam(conta(r2, c2), atv(r, c)) for r2 in 1:NR) / (1 + tprod[c2]) / X0[r, c]
       for c2 in 1:NL, r in 1:NR, c in 1:NL]
+atax = [sum(sam(g, atv(r, c)) for g in contas_gov) / X0[r, c] for r in 1:NR, c in 1:NL]
 F0 = [sam(fator(r, l), atv(r, c)) for l in 1:NF, r in 1:NR, c in 1:NL]
 VA0 = [sum(F0[:, r, c]) for r in 1:NR, c in 1:NL]
 vcoef = VA0 ./ X0
 theta = [F0[l, r, c] / VA0[r, c] for l in 1:NF, r in 1:NR, c in 1:NL]
-delta = [X0[r, c] > 0 ? DS0[r, c] / X0[r, c] : 1.0 for r in 1:NR, c in 1:NL]
+delta = [XG0[r, c] > 0 ? DS0[r, c] / XG0[r, c] : 1.0 for r in 1:NR, c in 1:NL]
 
 # Renda dos fatores e seus destinos.
 fi0 = [sum(sam(fator(r, l), atv(r, c)) for c in 1:NL) for r in 1:NR, l in 1:NF]
@@ -123,16 +156,35 @@ ao_gov = [fi0[r, l] > 0 ? sum(sam(g, fator(r, l)) for g in contas_gov) / fi0[r, 
           for r in 1:NR, l in 1:NF]
 Y0 = [sum(sam(H[h], fator(r, l)) for r in 1:NR, l in 1:NF) for h in 1:NH]
 pou = [sum(sam(i, H[h]) for i in contas_inv) / Y0[h] for h in 1:NH]
+tdir = [sum(sam(g, H[h]) for g in contas_gov) / Y0[h] for h in 1:NH]
 gasto0 = [sum(sam(conta(r, c), H[h]) for r in 1:NR) for h in 1:NH, c in 1:NL]
 orc = gasto0 ./ sum(gasto0; dims = 2)
 pop = [Float64(E.population_share[Symbol(h)]) for h in H]
+# LES: parcelas marginais das participações e das elasticidades-renda, normalizadas; renda
+# supranumerária −gasto/Frisch; quantidade comprometida o gasto menos a parcela marginal dela,
+# ao preço do comprador no ano-base.
+les = haskey(E, :household_demand) && String(E.household_demand) == "les"
+beta_les = zeros(NH, NL)
+gama = zeros(NH, NL)
+if les
+    eta = [Float64(get(E.income_elasticities, Symbol(L[c]), 1.0)) for c in 1:NL]
+    for h in 1:NH
+        tot = sum(gasto0[h, :])
+        b = orc[h, :] .* eta
+        beta_les[h, :] = b ./ sum(b)
+        ystar = -tot / Float64(E.frisch)
+        gama[h, :] = (gasto0[h, :] .- beta_les[h, :] .* ystar) ./ (1 .+ tprod)
+    end
+end
 
 G0 = [compra(r, d, c, compradores_gov(d)) for r in 1:NR, d in 1:ND, c in 1:NL]
-G0 = [sum(G0[:, d, c]) for d in 1:ND, c in 1:NL]
+G0 = [sum(G0[:, d, c]) / (1 + tprod[c]) for d in 1:ND, c in 1:NL]
 I0 = [compra(r, d, c, compradores_inv(d)) for r in 1:NR, d in 1:ND, c in 1:NL]
-I0 = [sum(I0[:, d, c]) for d in 1:ND, c in 1:NL]
-rec0 = sum(fi0 .* ao_gov)
-sg = rec0 > 0 ? (rec0 - sum(G0)) / rec0 : 0.0
+I0 = [sum(I0[:, d, c]) / (1 + tprod[c]) for d in 1:ND, c in 1:NL]
+pq0 = [1 + tprod[c] for d in 1:ND, c in 1:NL]                 # preço ao comprador no ano-base
+rec0 = (sum(fi0 .* ao_gov) + sum(tp0) + sum(atax .* X0) + sum(tdir .* Y0) +
+        sum(tm0[c] * M0[r, c] for r in 1:NR, c in 1:NL) + sum(tz0 .* X0) + sum(te0 .* E0))
+sg = rec0 > 0 ? (rec0 - sum(pq0 .* G0)) / rec0 : 0.0
 FS0 = sum(M0) - sum(E0)                        # poupança externa, na moeda doméstica
 
 # Migração: pools por região de origem, com a matriz de proximidade.
@@ -153,7 +205,13 @@ gov_dinamico = String(E.closure.government) == "saving_rate"
 tfp = [Float64(E.scenario.productivity[Symbol(atv(r, c))]) for r in 1:NR, c in 1:NL]
 mundo = [Float64(E.scenario.world_price[Symbol(l)]) for l in L]
 mundo_x = [Float64(E.scenario.export_price[Symbol(l)]) for l in L]
-nivel = E.scenario.investment_level === nothing ? sum(I0) : Float64(E.scenario.investment_level)
+taxa_cena(campo, chave, base) = haskey(E.scenario, campo) && E.scenario[campo] !== nothing ?
+                                Float64(E.scenario[campo][Symbol(chave)]) : base
+tm = [taxa_cena(:tariff, L[c], tm0[c]) for c in 1:NL]
+tz = [taxa_cena(:output_tax, conta(r, c), tz0[r, c]) for r in 1:NR, c in 1:NL]
+te = [taxa_cena(:export_tax, conta(r, c), te0[r, c]) for r in 1:NR, c in 1:NL]
+absorve = haskey(E.scenario, :government_absorbs) ? Float64(E.scenario.government_absorbs) : 0.0
+nivel = E.scenario.investment_level === nothing ? sum(pq0 .* I0) : Float64(E.scenario.investment_level)
 dot = fi0                                      # dotação de cada fator a preço 1
 
 # ---------------------------------------------------------------------------------------------
@@ -176,7 +234,7 @@ lo = 1e-8
 @variable(m, pt >= lo, start = nu)
 @variable(m, X[r in 1:NR, c in 1:NL] >= 0, start = X0[r, c])
 @variable(m, DS[r in 1:NR, c in 1:NL] >= 0, start = DS0[r, c])
-@variable(m, EX[r in 1:NR, c in 1:NL] >= 0, start = E0[r, c])
+@variable(m, EX[r in 1:NR, c in 1:NL] >= 0, start = EXP0[r, c])   # a valor do produtor
 @variable(m, D[r in 1:NR, d in 1:ND, c in 1:NL] >= 0, start = dom[r, d, c])
 @variable(m, DD[d in 1:ND, c in 1:NL] >= 0, start = DD0[d, c])
 @variable(m, MM[d in 1:ND, c in 1:NL] >= 0, start = MM0[d, c])
@@ -199,9 +257,15 @@ fixo_inv || fix(levy, 0.0; force = true)
 transporte || fix(pt, nu; force = true)
 transporte || fix(QT, 0.0; force = true)
 
-pm(c) = er * mundo[c]
-pe(c) = er * mundo_x[c]
+pm(c) = er * mundo[c] * (1 + tm[c]) / (1 + tm0[c])            # no Armington, com a tarifa
+pmb(c) = er * mundo[c]                                          # na fronteira
+pe(c) = er * mundo_x[c]                                         # FOB
+pex(r, c) = pe(c) * (1 - te[r, c]) / (1 - te0[r, c])            # o que o produtor recebe
+pg(r, c) = pa[r, c] * (1 + tz[r, c]) / (1 + tz0[r, c])          # preço do produto bruto
+XG(r, c) = X[r, c] * (1 + tz0[r, c])
+pfob(r, c) = cet ? pe(c) : pg(r, c) * (1 - te0[r, c]) / (1 - te[r, c])
 pdel(r, d, c) = ps[r, c] + tau[r, d, c] * pt
+pc(d, c) = (1 + tprod[c]) * pq[d, c]                          # o que o comprador paga
 
 # Valor adicionado e custo unitário.
 for r in 1:NR, c in 1:NL
@@ -228,22 +292,22 @@ for r in 1:NR, c in 1:NL
             end
         end
     end
-    @constraint(m, pa[r, c] == sum(io[c2, r, c] / tfp[r, c] * pq[r, c2] for c2 in 1:NL) +
-                               vcoef[r, c] / tfp[r, c] * pva[r, c])
+    @constraint(m, pa[r, c] == sum(io[c2, r, c] / tfp[r, c] * pc(r, c2) for c2 in 1:NL) +
+                               vcoef[r, c] / tfp[r, c] * pva[r, c] + atax[r, c] * nu)
 end
 
 # Vendas internas e exportações.
 for r in 1:NR, c in 1:NL
     if cet && 0 < delta[r, c] < 1
         s = sigT[c]
-        @constraint(m, pa[r, c]^(1 + s) == delta[r, c] * ps[r, c]^(1 + s) +
-                                          (1 - delta[r, c]) * pe(c)^(1 + s))
-        @constraint(m, DS[r, c] == delta[r, c] * (ps[r, c] / pa[r, c])^s * X[r, c])
-        @constraint(m, EX[r, c] == (1 - delta[r, c]) * (pe(c) / pa[r, c])^s * X[r, c])
+        @constraint(m, pg(r, c)^(1 + s) == delta[r, c] * ps[r, c]^(1 + s) +
+                                           (1 - delta[r, c]) * pex(r, c)^(1 + s))
+        @constraint(m, DS[r, c] == delta[r, c] * (ps[r, c] / pg(r, c))^s * XG(r, c))
+        @constraint(m, EX[r, c] == (1 - delta[r, c]) * (pex(r, c) / pg(r, c))^s * XG(r, c))
     else
-        @constraint(m, ps[r, c] == pa[r, c])
-        @constraint(m, DS[r, c] == delta[r, c] * X[r, c])
-        @constraint(m, EX[r, c] == (1 - delta[r, c]) * X[r, c])
+        @constraint(m, ps[r, c] == pg(r, c))
+        @constraint(m, DS[r, c] == delta[r, c] * XG(r, c))
+        @constraint(m, EX[r, c] == (1 - delta[r, c]) * XG(r, c))
     end
     # Quem vende internamente vende aos destinos e, se presta o serviço, ao pool.
     @constraint(m, DS[r, c] == sum(D[r, d, c] for d in 1:ND) + QS[r, c])
@@ -342,12 +406,18 @@ for (l, mg) in migra, o in 1:NR
 end
 @constraint(m, [h in 1:NH], Y[h] == sum(dono[h, r, l] * renda_f[(r, l)]
                                         for r in 1:NR, l in 1:NF) - levy * pop[h])
-receita = @expression(m, sum(ao_gov[r, l] * renda_f[(r, l)] for r in 1:NR, l in 1:NF))
+receita = @expression(m, sum(ao_gov[r, l] * renda_f[(r, l)] for r in 1:NR, l in 1:NF) +
+                        sum(tprod[c] * pq[d, c] * A[d, c] for d in 1:ND, c in 1:NL) +
+                        sum(atax[r, c] * nu * X[r, c] for r in 1:NR, c in 1:NL) +
+                        sum(tdir[h] * Y[h] for h in 1:NH) - absorve +
+                        sum(tm[c] * pmb(c) * MM[d, c] / (1 + tm0[c]) for d in 1:ND, c in 1:NL) +
+                        sum(tz[r, c] * pa[r, c] * X[r, c] for r in 1:NR, c in 1:NL) +
+                        sum(te[r, c] * pfob(r, c) * EX[r, c] / (1 - te0[r, c]) for r in 1:NR, c in 1:NL))
 if gov_dinamico
     @constraint(m, gasto_gov == (1 - sg) * receita)
     for d in 1:ND, c in 1:NL
         if G0[d, c] > 0
-            @constraint(m, G[d, c] * pq[d, c] == G0[d, c] / sum(G0) * gasto_gov)
+            @constraint(m, G[d, c] * pc(d, c) == pq0[d, c] * G0[d, c] / sum(pq0 .* G0) * gasto_gov)
         else
             fix(G[d, c], 0.0; force = true)
         end
@@ -356,7 +426,7 @@ else
     for d in 1:ND, c in 1:NL
         fix(G[d, c], G0[d, c]; force = true)
     end
-    @constraint(m, gasto_gov == sum(pq[d, c] * G[d, c] for d in 1:ND, c in 1:NL))
+    @constraint(m, gasto_gov == sum(pc(d, c) * G[d, c] for d in 1:ND, c in 1:NL))
 end
 
 # Poupança e investimento. Fixa a quantidade, um gravame sobre as famílias fecha a poupança;
@@ -366,11 +436,11 @@ end
                            FS0 * nu + levy)
 if fixo_inv
     for d in 1:ND, c in 1:NL
-        fix(I[d, c], I0[d, c] * nivel / sum(I0); force = true)
+        fix(I[d, c], I0[d, c] * nivel / sum(pq0 .* I0); force = true)
     end
-    @constraint(m, poupanca == sum(pq[d, c] * I[d, c] for d in 1:ND, c in 1:NL))
+    @constraint(m, poupanca == sum(pc(d, c) * I[d, c] for d in 1:ND, c in 1:NL))
 else
-    vs = [sum(I0[:, c]) / sum(I0) for c in 1:NL]
+    vs = [sum(pq0[:, c] .* I0[:, c]) / sum(pq0 .* I0) for c in 1:NL]
     for c in 1:NL
         canais = [d for d in 1:ND if I0[d, c] > 0]
         if isempty(canais)
@@ -380,7 +450,7 @@ else
             continue
         end
         k = canais[1]
-        @constraint(m, sum(pq[d, c] * I[d, c] for d in canais) == vs[c] * poupanca)
+        @constraint(m, sum(pc(d, c) * I[d, c] for d in canais) == vs[c] * poupanca)
         for d in 1:ND
             if I0[d, c] > 0 && d != k
                 @constraint(m, I[d, c] * I0[k, c] == I[k, c] * I0[d, c])
@@ -395,7 +465,10 @@ end
 for d in 1:ND, c in 1:NL
     ativo[d, c] || continue
     consumo = d > NR ? 0.0 :
-              sum((orc[h, c] * (1 - pou[h]) * Y[h] / pq[d, c] for h in 1:NH if hreg[h] == d);
+              les ? sum((gama[h, c] + beta_les[h, c] * ((1 - pou[h] - tdir[h]) * Y[h] -
+                                                        sum(pc(d, k) * gama[h, k] for k in 1:NL)) /
+                                       pc(d, c) for h in 1:NH if hreg[h] == d); init = 0.0) :
+              sum((orc[h, c] * (1 - pou[h] - tdir[h]) * Y[h] / pc(d, c) for h in 1:NH if hreg[h] == d);
                   init = 0.0)
     insumos = d > NR ? 0.0 :
               sum(io[c, d, c2] / tfp[d, c2] * X[d, c2] for c2 in 1:NL)
@@ -422,9 +495,8 @@ for r in 1:NR, l in 1:NF
     end
 end
 # Conta corrente: a poupança externa fixa na moeda doméstica.
-preco_x(r, c) = cet ? pe(c) : pa[r, c]
-@constraint(m, sum(pm(c) * MM[d, c] for d in 1:ND, c in 1:NL) -
-               sum(preco_x(r, c) * EX[r, c] for r in 1:NR, c in 1:NL) == FS0 * nu)
+@constraint(m, sum(pmb(c) * MM[d, c] / (1 + tm0[c]) for d in 1:ND, c in 1:NL) -
+               sum(pfob(r, c) * EX[r, c] / (1 - te0[r, c]) for r in 1:NR, c in 1:NL) == FS0 * nu)
 
 @objective(m, Min, 0.0)
 optimize!(m)
@@ -443,13 +515,14 @@ out = Dict(
     "w" => [value(w[r, l]) for r in 1:NR for l in 1:NF],
     "er" => value(er),
     "X" => pares(X, (r, c) -> value(X[r, c])),
-    "exports" => pares(EX, (r, c) -> value(EX[r, c])),
+    "exports" => pares(EX, (r, c) -> value(EX[r, c]) / (1 - te0[r, c])),
     "domestic_sales" => pares(D, (r, c) -> sum(value(D[r, d, c]) for d in 1:ND)),
     "bilateral" => [value(D[r, d, c]) for r in 1:NR, d in 1:NR, c in 1:NL][:],
-    "imports_total" => sum(v(MM)),
+    "imports_total" => sum(value(MM[d, c]) / (1 + tm0[c]) for d in 1:ND, c in 1:NL),
     "pq_rel" => [value(pq[d, c]) for d in 1:ND, c in 1:NL][:],
+    "tax_revenue" => value(receita) + absorve - sum(ao_gov[r, l] * value(renda_f[(r, l)]) for r in 1:NR, l in 1:NF),
     "hh_income" => [value(Y[h]) for h in 1:NH],
-    "hh_spend" => [(1 - pou[h]) * value(Y[h]) for h in 1:NH],
+    "hh_spend" => [(1 - pou[h] - tdir[h]) * value(Y[h]) for h in 1:NH],
     "savings" => value(poupanca),
     "qst" => [value(QS[r, c]) for r in 1:NR, c in 1:NL][:],
     "ativo" => [ativo[d, c] for d in 1:ND, c in 1:NL][:],

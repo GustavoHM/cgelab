@@ -104,7 +104,6 @@ def test_household_price_index_matches_cobb_douglas_and_national_model():
 
 
 @pytest.mark.parametrize("field, value", [
-    ("government_absorbs", 10.0),
     ("tariff", np.array([0.5])),
     ("output_tax", np.array([0.5])),
     ("carbon_price", 10.0),

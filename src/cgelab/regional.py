@@ -684,7 +684,7 @@ def solve_regions(econ, closure, scenario, *, warm_start=None, raise_on_fail: bo
                           investment_level=investment_level, levy=levy,
                           fixed_investment=fixed_investment, migration=reg.migration,
                           ptax=ptax_eff, closure=closure, target_value=target_value,
-                          inv_mix=inv_mix)
+                          inv_mix=inv_mix, absorbs=float(scenario.government_absorbs))
         gaps = (qty["fac_dem"] - supply) / np.maximum(np.abs(supply), 1.0)
         for local, item in reg.migration.items():
             idx = item["indices"]
@@ -789,8 +789,6 @@ def _refuse_unsupported(econ, closure, scenario, reg: Regional):
         "labour_force": scenario.labour_force,
     }
     named = [k for k, v in blocked.items() if v is not None]
-    if scenario.government_absorbs != 0.0:
-        named.append("government_absorbs")
     if scenario.capacity:
         named.append("capacity")
     if scenario.import_quota:
@@ -876,7 +874,7 @@ def _prices(econ, reg: Regional, w, er, world, export_world, tfp, nu, ptax):
 def _quantities(econ, reg, w, supply, facshare, fac_gov, fac_row, dtax, transfers,
                 gov_tr, remit, foreign_target, tfp, prices, nu, *,
                 investment_level, levy, fixed_investment, migration=None,
-                ptax=None, closure=None, target_value=0.0, inv_mix=None):
+                ptax=None, closure=None, target_value=0.0, inv_mix=None, absorbs=0.0):
     """Solve destination absorption and origin sales in one linear system.
 
     With ``inv_mix`` (value shares by origin) investment skips the destination
@@ -912,7 +910,8 @@ def _quantities(econ, reg, w, supply, facshare, fac_gov, fac_row, dtax, transfer
     gov_mix = gov_values / gov_total if gov_total > 0 else gov_values
     income_excl = (float((fac_inc * fac_gov).sum())
                    + float((fac_inc * reg.fac_gov_regional).sum())
-                   + float((hh_income * dtax).sum()) - float(gov_tr.sum()))
+                   + float((hh_income * dtax).sum()) - float(gov_tr.sum())
+                   - float(absorbs))
     dynamic_gov = (closure.government == "saving_rate"
                    or (closure.government_target == "saving"
                        and closure.government_adjusts == "spending"))
@@ -1121,7 +1120,8 @@ def _quantities(econ, reg, w, supply, facshare, fac_gov, fac_row, dtax, transfer
         direct_tax=float((hh_income * dtax).sum()),
         factor_income=float((fac_inc * fac_gov).sum()
                             + (fac_inc * reg.fac_gov_regional).sum()),
-        wedge=0.0, transfers=float(gov_tr.sum()), consumption=gov_spend, absorbed=0.0)
+        wedge=0.0, transfers=float(gov_tr.sum()), consumption=gov_spend,
+        absorbed=float(absorbs))
     gov_account["revenue"] = sum(gov_account[k] for k in (
         "product_tax", "activity_tax", "carbon_production", "carbon_households",
         "tariff", "output_tax", "direct_tax", "factor_income", "wedge"))

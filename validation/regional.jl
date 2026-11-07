@@ -170,6 +170,7 @@ gov_dinamico = String(E.closure.government) == "saving_rate"
 tfp = [Float64(E.scenario.productivity[Symbol(atv(r, c))]) for r in 1:NR, c in 1:NL]
 mundo = [Float64(E.scenario.world_price[Symbol(l)]) for l in L]
 mundo_x = [Float64(E.scenario.export_price[Symbol(l)]) for l in L]
+absorve = haskey(E.scenario, :government_absorbs) ? Float64(E.scenario.government_absorbs) : 0.0
 nivel = E.scenario.investment_level === nothing ? sum(pq0 .* I0) : Float64(E.scenario.investment_level)
 dot = fi0                                      # dotação de cada fator a preço 1
 
@@ -363,7 +364,7 @@ end
 receita = @expression(m, sum(ao_gov[r, l] * renda_f[(r, l)] for r in 1:NR, l in 1:NF) +
                         sum(tprod[c] * pq[d, c] * A[d, c] for d in 1:ND, c in 1:NL) +
                         sum(atax[r, c] * nu * X[r, c] for r in 1:NR, c in 1:NL) +
-                        sum(tdir[h] * Y[h] for h in 1:NH))
+                        sum(tdir[h] * Y[h] for h in 1:NH) - absorve)
 if gov_dinamico
     @constraint(m, gasto_gov == (1 - sg) * receita)
     for d in 1:ND, c in 1:NL
@@ -469,7 +470,7 @@ out = Dict(
     "bilateral" => [value(D[r, d, c]) for r in 1:NR, d in 1:NR, c in 1:NL][:],
     "imports_total" => sum(v(MM)),
     "pq_rel" => [value(pq[d, c]) for d in 1:ND, c in 1:NL][:],
-    "tax_revenue" => value(receita) - sum(ao_gov[r, l] * value(renda_f[(r, l)]) for r in 1:NR, l in 1:NF),
+    "tax_revenue" => value(receita) + absorve - sum(ao_gov[r, l] * value(renda_f[(r, l)]) for r in 1:NR, l in 1:NF),
     "hh_income" => [value(Y[h]) for h in 1:NH],
     "hh_spend" => [(1 - pou[h] - tdir[h]) * value(Y[h]) for h in 1:NH],
     "savings" => value(poupanca),

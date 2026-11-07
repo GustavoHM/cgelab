@@ -107,7 +107,8 @@ def enunciado(sam, econ, closure, scenario) -> dict:
         scenario=dict(productivity=dict(zip(econ.acts, map(float, tfp))),
                       world_price=dict(zip(goods, map(float, world))),
                       export_price=dict(zip(goods, map(float, export))),
-                      investment_level=scenario.investment_level),
+                      investment_level=scenario.investment_level,
+                      government_absorbs=float(scenario.government_absorbs)),
     )
 
 
@@ -276,6 +277,12 @@ def main() -> int:
     casos["impostos_poupanca_do_governo"] = caso(
         "impostos_poupanca_do_governo", sam, econ, cge.Closure(government="saving_rate"),
         choque_imp)
+    # Um custo cobrado do governo, que sai da economia.
+    casos["governo_absorve"] = caso("governo_absorve", sam, econ, scenario=choque_imp.with_(
+        government_absorbs=3.0))
+    casos["governo_absorve_poupanca"] = caso(
+        "governo_absorve_poupanca", sam, econ, cge.Closure(government="saving_rate"),
+        choque_imp.with_(government_absorbs=3.0))
 
     print(f"\n{'=' * 78}")
     for nome, r in casos.items():

@@ -45,9 +45,6 @@ def _fora_do_escopo(econ):
     """O que regional.jl não escreve. Recusado em vez de comparado pela metade."""
     zero = lambda x: x is None or not np.any(np.asarray(x, float) != 0)  # noqa: E731
     checks = {
-        "imposto sobre produtos": zero(econ.ptax),
-        "imposto sobre a atividade": zero(econ.atax),
-        "imposto direto": zero(econ.hh_dtax),
         "transferências do governo": zero(econ.hh_gov_transfer),
         "remessas": zero(econ.hh_remit_net),
         "renda de fatores ao exterior": zero(econ.fac_row_share),
@@ -137,6 +134,8 @@ def lado_cgelab(econ, res) -> dict:
         "pq_rel": pq_rel,
         "hh_income": res.hh_income, "hh_spend": res.hh_commodity_spend,
         "savings": res.savings,
+        "tax_revenue": sum(res.government[k] for k in ("product_tax", "activity_tax",
+                                                        "direct_tax")),
         "qst": None if res.transport is None else res.transport["qst"],
     }
 
@@ -158,6 +157,7 @@ def compara(econ, jl, cg) -> dict:
     lados = {
         "w": (jl["w"], cg["w"]), "er": (jl["er"], cg["er"]),
         "X": (jl["X"], cg["X"]), "exports": (jl["exports"], cg["exports"]),
+        "tax_revenue": (jl["tax_revenue"], cg["tax_revenue"]),
         "domestic_sales": (jl["domestic_sales"], cg["domestic_sales"]),
         "bilateral": (np.reshape(jl["bilateral"], (nr, nr, nl), order="F"), cg["bilateral"]),
         "imports_total": (jl["imports_total"], cg["imports_total"]),
@@ -265,6 +265,17 @@ def main() -> int:
     casos["instituicoes_investimento_fixo"] = caso(
         "instituicoes_investimento_fixo", sam, econ, cge.Closure(investment="fixed_real"),
         cge.Scenario(productivity=np.array([1.1, 1.0]), investment_level=45.0))
+
+    # Impostos sobre produtos, sobre a atividade e diretos.
+    sam, econ = regions.build(taxes=True)
+    choque_imp = cge.Scenario(productivity=np.array([1.1, 1.0]), world_price=np.array([1.2]))
+    casos["impostos"] = caso("impostos", sam, econ, scenario=choque_imp)
+    casos["impostos_investimento_fixo"] = caso(
+        "impostos_investimento_fixo", sam, econ, cge.Closure(investment="fixed_real"),
+        choque_imp.with_(investment_level=35.0))
+    casos["impostos_poupanca_do_governo"] = caso(
+        "impostos_poupanca_do_governo", sam, econ, cge.Closure(government="saving_rate"),
+        choque_imp)
 
     print(f"\n{'=' * 78}")
     for nome, r in casos.items():

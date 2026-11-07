@@ -96,7 +96,7 @@ def build(model_spec: ModelSpec | None = None, *, rename=None,
 
 def build_with_transport(*, regional_investment: bool = False, service_exports: bool = False,
                          intermediates: bool = False, unrouted_good: bool = False,
-                         **spec_overrides):
+                         income_elasticities=None, **spec_overrides):
     """Two goods and two regions with hand-written route and service margins.
 
     ``regional_investment`` gives each region its own investment account, so
@@ -166,4 +166,5 @@ def build_with_transport(*, regional_investment: bool = False, service_exports: 
     supply[:, 1] = 12.0
     margins = TransportMargins(("r1", "r2"), goods,
                                ("r1", "r2", "national"), fob, transport, supply)
-    return sam, calibrate(sam, model_spec, transport=margins)
+    return sam, calibrate(sam, model_spec, transport=margins,
+                          income_elasticities=income_elasticities)

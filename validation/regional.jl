@@ -142,6 +142,22 @@ tdir = [sum(sam(g, H[h]) for g in contas_gov) / Y0[h] for h in 1:NH]
 gasto0 = [sum(sam(conta(r, c), H[h]) for r in 1:NR) for h in 1:NH, c in 1:NL]
 orc = gasto0 ./ sum(gasto0; dims = 2)
 pop = [Float64(E.population_share[Symbol(h)]) for h in H]
+# LES: parcelas marginais das participações e das elasticidades-renda, normalizadas; renda
+# supranumerária −gasto/Frisch; quantidade comprometida o gasto menos a parcela marginal dela,
+# ao preço do comprador no ano-base.
+les = haskey(E, :household_demand) && String(E.household_demand) == "les"
+beta_les = zeros(NH, NL)
+gama = zeros(NH, NL)
+if les
+    eta = [Float64(get(E.income_elasticities, Symbol(L[c]), 1.0)) for c in 1:NL]
+    for h in 1:NH
+        tot = sum(gasto0[h, :])
+        b = orc[h, :] .* eta
+        beta_les[h, :] = b ./ sum(b)
+        ystar = -tot / Float64(E.frisch)
+        gama[h, :] = (gasto0[h, :] .- beta_les[h, :] .* ystar) ./ (1 .+ tprod)
+    end
+end
 
 G0 = [compra(r, d, c, compradores_gov(d)) for r in 1:NR, d in 1:ND, c in 1:NL]
 G0 = [sum(G0[:, d, c]) / (1 + tprod[c]) for d in 1:ND, c in 1:NL]
@@ -417,6 +433,9 @@ end
 for d in 1:ND, c in 1:NL
     ativo[d, c] || continue
     consumo = d > NR ? 0.0 :
+              les ? sum((gama[h, c] + beta_les[h, c] * ((1 - pou[h] - tdir[h]) * Y[h] -
+                                                        sum(pc(d, k) * gama[h, k] for k in 1:NL)) /
+                                       pc(d, c) for h in 1:NH if hreg[h] == d); init = 0.0) :
               sum((orc[h, c] * (1 - pou[h] - tdir[h]) * Y[h] / pc(d, c) for h in 1:NH if hreg[h] == d);
                   init = 0.0)
     insumos = d > NR ? 0.0 :

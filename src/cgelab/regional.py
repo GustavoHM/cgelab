@@ -86,6 +86,11 @@ class Regional:
     gov_revenue0: float = 0.0
     gov_savrate: float = 0.0
     transport: TransportMargins | None = None
+    #: LES households (``household_demand="les"``): committed quantities, in units of the
+    #: composite at its base-year purchaser price in the household's region, and marginal
+    #: budget shares, both by local commodity. None under Cobb-Douglas.
+    hh_committed: np.ndarray | None = None    # (n_hh, n_local)
+    hh_beta: np.ndarray | None = None         # (n_hh, n_local)
 
     @property
     def n_reg(self) -> int:
@@ -291,6 +296,23 @@ _WHY = {
 }
 
 
+def _les_by_local(econ, origin_index, base_price, household_region) -> dict:
+    """LES committed quantities and marginal shares by local commodity, or nothing."""
+    if econ.spec.household_demand != "les":
+        return {}
+    from .solve import _marginal_budget_shares
+    beta = _marginal_budget_shares(econ)
+    value = econ.hh_committed * (1.0 + econ.ptax)[None, :]       # at base purchaser prices
+    n_loc = origin_index.shape[1]
+    committed = np.zeros((econ.n_hh, n_loc))
+    beta_local = np.zeros((econ.n_hh, n_loc))
+    for c in range(n_loc):
+        cols = origin_index[:, c]
+        committed[:, c] = value[:, cols].sum(axis=1) / base_price[household_region, c]
+        beta_local[:, c] = beta[:, cols].sum(axis=1)
+    return dict(hh_committed=committed, hh_beta=beta_local)
+
+
 class RegionalSliceError(ValueError):
     """A SAM outside the regional slice, with every issue found, not only the first.
 
@@ -364,7 +386,7 @@ def _slice_issues(econ, sam) -> list:
         issues.append(("world demand or supply", "ModelSpec.export_demand", ""))
     if spec.import_supply is not None:
         issues.append(("world demand or supply", "ModelSpec.import_supply", ""))
-    if spec.household_demand != "cobb_douglas":
+    if spec.household_demand not in ("cobb_douglas", "les"):
         issues.append(("household demand", "ModelSpec.household_demand",
                        f"{spec.household_demand!r} is not in this slice"))
     return issues
@@ -523,6 +545,7 @@ def build_regional(econ, sam, *, migration_pools=None, transport=None) -> Region
         gov_dem_regional=gov_regional, inv_dem_regional=inv_regional,
         fac_gov_regional=fac_gov_regional, migration=migration,
         gov_saving0=saving0, gov_revenue0=revenue0, gov_savrate=savrate,
+        **_les_by_local(econ, origin_index, base_price, household_region),
         transport=transport)
 
 
@@ -897,7 +920,13 @@ def _quantities(econ, reg, w, supply, facshare, fac_gov, fac_row, dtax, transfer
     disposable = hh_income * (1.0 - dtax)
     hh_sav = disposable * econ.hh_savrate
     spend = disposable - hh_sav
-    hh_q = reg.hh_budget * spend[:, None] / np.maximum(pq[reg.household_region], 1e-12)
+    p_hh = np.maximum(pq[reg.household_region], 1e-12)
+    if reg.hh_committed is not None:
+        # LES: committed quantities, and the marginal shares of what is left.
+        supernum = spend - (p_hh * reg.hh_committed).sum(axis=1)
+        hh_q = reg.hh_committed + reg.hh_beta * supernum[:, None] / p_hh
+    else:
+        hh_q = reg.hh_budget * spend[:, None] / p_hh
     hh_by = np.zeros((K, C))
     for h in range(econ.n_hh):
         hh_by[reg.household_region[h]] += hh_q[h]
@@ -1238,7 +1267,9 @@ def _pack(econ, reg, closure, scenario, state, z, residual, label, message, tole
     # The exact Cobb–Douglas index of the destination purchaser prices, the
     # same object the national solver reports: a one-region model gives the
     # national level, not only the national change.
-    hh_index = cobb_douglas_price(reg.hh_budget.T, state["pq"][reg.household_region].T)
+    # Under LES the marginal index, as the national solver reports it.
+    hh_index = cobb_douglas_price((reg.hh_budget if reg.hh_beta is None else reg.hh_beta).T,
+                                  state["pq"][reg.household_region].T)
     ok = residual < tolerance
     return PeriodResult(
         econ=econ, closure=closure, scenario=scenario, z=z,

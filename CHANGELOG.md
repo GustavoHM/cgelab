@@ -3,7 +3,14 @@
 All notable changes to `cgelab`. Versions follow [semantic versioning](https://semver.org/);
 before 1.0, a minor version may add to the API and a patch version only fixes.
 
-## Unreleased
+## 0.14.0 — 2026-11-07
+
+The regional solver catches up. It reads a cost charged to government, LES households, the
+tariff and output and export taxes, which it refused; the taxes without route margins. Its
+independent JuMP reference now calibrates and writes every tax itself, and 22 cases agree with
+cgelab to 5.1e-15; a one-region model matches the national solver in each new feature. Carbon
+prices, the energy nest and the complementarity conditions in the regional solver, and a second
+country (`twocge`), move to 0.15. Nothing released earlier changes.
 
 ### Added
 

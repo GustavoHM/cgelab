@@ -68,15 +68,25 @@ TAXES = [("gov", "r1:c", 5.0), ("gov", "r2:c", 5.0),
          ("s_i", "gov", 20.0)]
 
 
+#: On top of :data:`TAXES`, part of each origin's product tax moved onto a tariff account (0.5
+#: on imports of 10), an output-tax account (1 on output of 100) and an export-tax account (0.4
+#: on exports of 10), so that what is left of the product tax is the same rate in both origins.
+TRADE_TAXES = [(a, f"{r}:c", v) for r in ("r1", "r2")
+               for a, v in (("trf", 0.5), ("idt", 1.0), ("etx", 0.4), ("gov", -1.9))] + [
+    ("gov", "trf", 1.0), ("gov", "idt", 2.0), ("gov", "etx", 0.8)]
+
+
 def build(model_spec: ModelSpec | None = None, *, rename=None,
-          asymmetric_imports: bool = False, taxes: bool = False):
+          asymmetric_imports: bool = False, taxes: bool = False, trade_taxes: bool = False):
     """Balanced two-region SAM and its calibrated economy.
 
     ``rename`` is a pair ``(old, new)`` applied to both region labels, so the
     same matrix can be solved under swapped names. ``asymmetric_imports``
-    applies :data:`ASYMMETRIC_IMPORTS`, ``taxes`` :data:`TAXES`.
+    applies :data:`ASYMMETRIC_IMPORTS`, ``taxes`` :data:`TAXES`, ``trade_taxes`` both
+    :data:`TAXES` and :data:`TRADE_TAXES` (pass a spec with the three accounts).
     """
-    rows = ENTRIES + (ASYMMETRIC_IMPORTS if asymmetric_imports else []) + (TAXES if taxes else [])
+    rows = (ENTRIES + (ASYMMETRIC_IMPORTS if asymmetric_imports else [])
+            + (TAXES if taxes or trade_taxes else []) + (TRADE_TAXES if trade_taxes else []))
     if rename is not None:
         a, b = rename
 

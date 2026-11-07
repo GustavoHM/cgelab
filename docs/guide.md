@@ -1624,8 +1624,15 @@ Households can have LES demand (`household_demand="les"`): committed quantities
 and marginal shares are summed over origins by local commodity, and a one-region
 model matches the national solver. `government_absorbs` is a cost charged to
 government, as in the national solver.
-The regional solver refuses unsupported `tariff`, `output_tax`, `export_tax`,
-`carbon_price`, `pool_supply` and `labour_force` scenarios by name.
+A tariff, output taxes and export taxes work as in the national model. The
+tariff is one rate per local commodity (as `world_price` is), because imports
+reach every region at one national price per good, so a SAM whose origins carry
+different tariffs is refused; output and export taxes are by origin account.
+Route transport margins with any of them are refused. A one-region model matches
+the national solver, and `validation/replicate_regional.py` checks two regions
+against the JuMP rewrite under fixed export shares and a CET.
+The regional solver refuses unsupported `carbon_price`, `pool_supply` and
+`labour_force` scenarios by name.
 Its household price indices are exact Cobb–Douglas indices of destination
 purchaser prices (the marginal index under LES), at the national solver's level, and reported world prices are
 in foreign currency. Accounts, price indices, `in_money` and `real_gdp` value

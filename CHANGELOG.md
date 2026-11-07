@@ -12,6 +12,13 @@ before 1.0, a minor version may add to the API and a patch version only fixes.
   quantities and marginal shares are summed over origins by local commodity
   (`Regional.hh_committed`, `hh_beta`). A one-region model matches the
   national solver in both.
+- The tariff, output taxes and export taxes in the regional solver, which
+  refused them: the tariff is one rate per local commodity, inside the import
+  price of every destination's Armington nest; output and export taxes are by
+  origin account, before the CET and on the border price. A one-region model
+  matches the national solver under two closures, and `validation/regional.jl`
+  writes all three, agreeing in three more cases to 1e-15. Route transport
+  margins with any of them are refused. `regions.build(trade_taxes=True)`.
 - `validation/regional.jl` calibrates and writes product, activity and direct
   taxes, a cost charged to government and LES households; seven new cases
   agree with cgelab to 5.6e-15, tax revenue included.

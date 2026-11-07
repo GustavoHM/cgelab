@@ -172,7 +172,9 @@ def _transport_calibration(econ, transport, regions, local, origin_index, use,
         # each destination its own import share; one national share misses the
         # base year whenever regions import different shares of a good.
         dom0 = econ.dom0[origin_index]
-        through = dom0 + econ.imp0[origin_index]
+        # Imports at their tariff-inclusive value, as the Armington nest weighs them.
+        tariff = np.zeros_like(dom0) if econ.tm0 is None else econ.tm0[origin_index]
+        through = dom0 + econ.imp0[origin_index] * (1.0 + tariff)
         home = np.divide(dom0, through, out=np.ones_like(dom0), where=through > 0)
         arm = use / yard[None, None, :] * arm_share[None, None, :]
         domestic = arm * home[:, None, :]
@@ -296,6 +298,56 @@ _WHY = {
 }
 
 
+def _local_tariff(econ, origin_index, local) -> np.ndarray:
+    """The base-year tariff by local commodity: the national import price is one per good."""
+    if econ.tm0 is None:
+        return np.zeros(origin_index.shape[1])
+    rates = econ.tm0[origin_index]                       # (n_reg, n_local)
+    differ = [local[c] for c in range(rates.shape[1])
+              if np.max(np.abs(rates[:, c] - rates[0, c])) > 1e-9]
+    if differ:
+        raise ValueError(f"tariffs differ across the origins of {differ}: imports reach every "
+                         f"region at one national price per good")
+    return rates[0].copy()
+
+
+def _trade_wedges(econ, reg, scenario) -> dict:
+    """Tariff by local commodity; output and export taxes by origin, from the scenario."""
+    nl, idx = reg.n_local, reg.origin_index
+    tm0 = _local_tariff(econ, idx, reg.local_commodities)
+    if scenario.tariff is not None:
+        if econ.tm0 is None:
+            raise ValueError("Scenario.tariff is read only when a base-year tariff was "
+                             "calibrated, via calibrate(..., tariffs=) or ModelSpec.tariff_account")
+        tm = np.asarray(scenario.tariff, float)
+        if tm.shape != (nl,):
+            raise ValueError(f"tariff in a regional model is one rate per local commodity "
+                             f"({reg.local_commodities}), got shape {tm.shape}")
+    else:
+        tm = tm0
+
+    def by_origin(base, given, name, what):
+        b = np.zeros(econ.n_com) if base is None else np.asarray(base, float)
+        if given is None:
+            return b[idx], b[idx]
+        if base is None:
+            raise ValueError(f"Scenario.{name} is read only when a base-year {what} was "
+                             f"calibrated")
+        g = np.asarray(given, float)
+        if g.shape != (econ.n_com,):
+            raise ValueError(f"{name} must have one rate per origin account ({econ.n_com}), "
+                             f"got shape {g.shape}")
+        return b[idx], g[idx]
+
+    tauz0, tauz = by_origin(econ.tauz0, scenario.output_tax, "output_tax", "output tax")
+    te0, te = by_origin(econ.te0, scenario.export_tax, "export_tax", "export tax")
+    if np.any(te >= 1.0):
+        raise ValueError("an export tax must be below 1 of the border price")
+    return dict(tm0=tm0, tm=tm, tz0=1.0 + tauz0, tauz=tauz,
+                out_wedge=(1.0 + tauz) / (1.0 + tauz0), te0=te0, te=te,
+                ex_wedge=(1.0 - te) / (1.0 - te0))
+
+
 def _les_by_local(econ, origin_index, base_price, household_region) -> dict:
     """LES committed quantities and marginal shares by local commodity, or nothing."""
     if econ.spec.household_demand != "les":
@@ -372,12 +424,6 @@ def _slice_issues(econ, sam) -> list:
             issues.append(("product tax across regions", loc,
                            ", ".join(f"{c} {r:.6g}" for c, r in rates)))
 
-    if econ.tm0 is not None:
-        issues.append(("trade or output tax", "tariffs", "calibrated tariffs"))
-    if econ.tauz0 is not None:
-        issues.append(("trade or output tax", "output_taxes", "calibrated output taxes"))
-    if econ.te0 is not None:
-        issues.append(("trade or output tax", "export_taxes", "calibrated export taxes"))
     if econ.sigma_arm_falling is not None:
         issues.append(("asymmetric Armington", "ModelSpec.sigma_armington_falling", ""))
     if spec.energy:
@@ -453,7 +499,13 @@ def build_regional(econ, sam, *, migration_pools=None, transport=None) -> Region
     dom_total = dom.sum(axis=0)
     with np.errstate(divide="ignore", invalid="ignore"):
         origin_share = np.where(dom_total > 0, dom / np.maximum(dom_total, 1e-12), 0.0)
-    absorbed = dom_total + imp.sum(axis=0)
+    tariff0 = _local_tariff(econ, origin_index, local)
+    if transport is not None and (econ.tm0 is not None or econ.tauz0 is not None
+                                  or econ.te0 is not None):
+        raise ValueError("trade and output taxes with route transport margins are not in this "
+                         "version: the route data are at border and FOB values")
+    # The Armington nest weighs imports at their tariff-inclusive value.
+    absorbed = dom_total + (imp * (1.0 + tariff0)[None, :]).sum(axis=0)
     dom_share = np.where(absorbed > 0, dom_total / np.maximum(absorbed, 1e-12), 1.0)
     # One tax rate on the composite (_slice_issues refused different origin
     # rates: pooling them would move the mix for a reason that is not the elasticity).
@@ -523,9 +575,13 @@ def build_regional(econ, sam, *, migration_pools=None, transport=None) -> Region
     transfers = float(econ.zeros_if_none("hh_gov_transfer", econ.n_hh).sum())
     factor_gov = float((econ.fac_supply * (econ.zeros_if_none("fac_gov_share", econ.n_fac)
                                            + fac_gov_regional.sum(axis=0))).sum())
+    # Trade and output taxes at the base year: each rate times its base.
+    trade0 = (float(econ.zeros_if_none("tm0", econ.n_com) @ econ.imp0)
+              + float(econ.zeros_if_none("tauz0", econ.n_com) @ econ.Q0)
+              + float(econ.zeros_if_none("te0", econ.n_com) @ econ.exp0))
     revenue0 = (float(ptax @ econ.A0[origin_index].sum(axis=0))
                 + float(econ.atax @ econ.X0)
-                + direct + factor_gov)
+                + direct + factor_gov + trade0)
     consumption0 = float(nat_gov.sum() + gov_regional.sum())
     saving0 = revenue0 - transfers - consumption0
     net_revenue = revenue0 - transfers
@@ -690,6 +746,8 @@ def solve_regions(econ, closure, scenario, *, warm_start=None, raise_on_fail: bo
     inv_mix = _direct_investment_mix(econ, reg, scenario)
     state: dict = {}
 
+    trade = _trade_wedges(econ, reg, scenario)
+
     def residuals(z):
         z = np.atleast_1d(np.asarray(z, dtype=float))
         w = np.full(nf, nu)
@@ -700,14 +758,15 @@ def solve_regions(econ, closure, scenario, *, warm_start=None, raise_on_fail: bo
         tax_scale = float(np.exp(z[i_tax])) if tax_lever else 1.0
         dtax_eff = dtax * (tax_scale if adjusts == "direct_tax" and tax_lever else 1.0)
         ptax_eff = ptax_set * (tax_scale if adjusts == "product_tax" and tax_lever else 1.0)
-        prices = _prices(econ, reg, w, er, world, export_world, tfp, nu, ptax_eff)
+        prices = _prices(econ, reg, w, er, world, export_world, tfp, nu, ptax_eff, trade)
         qty = _quantities(econ, reg, w, supply, facshare, fac_gov, fac_row, dtax_eff,
                           transfers - levy * econ.pop_share, gov_tr, remit,
                           foreign_target, tfp, prices, nu,
                           investment_level=investment_level, levy=levy,
                           fixed_investment=fixed_investment, migration=reg.migration,
                           ptax=ptax_eff, closure=closure, target_value=target_value,
-                          inv_mix=inv_mix, absorbs=float(scenario.government_absorbs))
+                          inv_mix=inv_mix, absorbs=float(scenario.government_absorbs),
+                          wedges=trade)
         gaps = (qty["fac_dem"] - supply) / np.maximum(np.abs(supply), 1.0)
         for local, item in reg.migration.items():
             idx = item["indices"]
@@ -804,9 +863,6 @@ def _refuse_unsupported(econ, closure, scenario, reg: Regional):
         "government_wedge": scenario.government_wedge,
         "product_tax_firm": scenario.product_tax_firm,
         "foreign_factor_share": scenario.foreign_factor_share,
-        "tariff": scenario.tariff,
-        "output_tax": scenario.output_tax,
-        "export_tax": scenario.export_tax,
         "carbon_price": scenario.carbon_price,
         "pool_supply": scenario.pool_supply,
         "labour_force": scenario.labour_force,
@@ -833,7 +889,7 @@ def _refuse_unsupported(econ, closure, scenario, reg: Regional):
         raise ValueError("regional model has no regions")
 
 
-def _prices(econ, reg: Regional, w, er, world, export_world, tfp, nu, ptax):
+def _prices(econ, reg: Regional, w, er, world, export_world, tfp, nu, ptax, trade=None):
     """CET origin sales and a delivered Armington composite in each destination."""
     io = reg.io / tfp[None, :]
     vunit = econ.vunit / tfp
@@ -847,8 +903,17 @@ def _prices(econ, reg: Regional, w, er, world, export_world, tfp, nu, ptax):
     phi = reg.destination_share.copy()
     dsh = reg.dom_share_dest.copy()
     msh = 1.0 - dsh
-    pe = er * export_world
-    pm = er * world
+    pe = er * export_world                                # at the border (FOB)
+    pm = er * world                                       # at the border
+    if trade is None:
+        out_wedge = np.ones((reg.n_reg, C))
+        ex_wedge = np.ones((reg.n_reg, C))
+        pm_arm = pm
+    else:
+        out_wedge, ex_wedge = trade["out_wedge"], trade["ex_wedge"]
+        # Imports enter the Armington nest at their tariff-inclusive base value.
+        pm_arm = pm * (1.0 + trade["tm"]) / (1.0 + trade["tm0"])
+    pe_prod = pe[None, :] * ex_wedge                      # what the producer receives
     shares = reg.destination_share.reshape(reg.n_reg, K * C)
     sigma_col = np.tile(reg.sigma, K)
     sigma_arm = np.broadcast_to(reg.sigma_arm, (K, C))
@@ -856,9 +921,9 @@ def _prices(econ, reg: Regional, w, er, world, export_world, tfp, nu, ptax):
         pva = value_added_price(econ, w)
         pa = (io.T * pq[reg.activity_region]).sum(axis=1) + pva * vunit + atax
         p_origin = econ.msh.T @ pa
-        p_rc = p_origin[reg.origin_index]
+        p_rc = p_origin[reg.origin_index] * out_wedge
         if reg.cet:
-            p_rc = cet_domestic_price(reg.exp_share, p_rc, pe[None, :], reg.sigma_cet)
+            p_rc = cet_domestic_price(reg.exp_share, p_rc, pe_prod, reg.sigma_cet)
         if reg.transport is None:
             transport_price = 0.0
             p_deliver = np.tile(p_rc[:, None, :], (1, K, 1))
@@ -872,7 +937,7 @@ def _prices(econ, reg: Regional, w, er, world, export_world, tfp, nu, ptax):
         pd_dest = ces_price(shares, prices, sigma_col).reshape(K, C)
         phi = ces_intensity(shares, prices, pd_dest.ravel(), sigma_col).reshape(phi.shape)
         arm_price, dsh, msh = armington(reg.dom_share_dest, pd_dest,
-                                        np.broadcast_to(pm, (K, C)), sigma_arm)
+                                        np.broadcast_to(pm_arm, (K, C)), sigma_arm)
         pbase = arm_price * reg.arm_share + pq @ reg.mq
         new = pbase * (1.0 + ptax)
         converged = np.max(np.abs(new - pq)) < 1e-14
@@ -882,22 +947,26 @@ def _prices(econ, reg: Regional, w, er, world, export_world, tfp, nu, ptax):
     else:
         raise RuntimeError(f"regional price fixed point did not converge in {_PRICE_ITERS} iterations")
     p_origin = econ.msh.T @ pa
-    p_rc = p_origin[reg.origin_index]
+    p_rc = p_origin[reg.origin_index] * out_wedge
     if reg.cet:
-        p_rc = cet_domestic_price(reg.exp_share, p_rc, pe[None, :], reg.sigma_cet)
-        _, dom_frac, exp_frac = cet(reg.exp_share, p_rc, pe[None, :], reg.sigma_cet)
+        p_rc = cet_domestic_price(reg.exp_share, p_rc, pe_prod, reg.sigma_cet)
+        _, dom_frac, exp_frac = cet(reg.exp_share, p_rc, pe_prod, reg.sigma_cet)
+        p_fob = np.tile(pe, (reg.n_reg, 1))
     else:
         dom_frac, exp_frac = 1.0 - reg.exp_share, reg.exp_share
+        # Exports fetch the output price, and the export tax is passed on to the border.
+        p_fob = p_origin[reg.origin_index] * out_wedge / ex_wedge
     return dict(pa=pa, p_origin=p_origin, pd_dest=pd_dest, phi=phi, pq=pq,
                 pbase=pq / np.maximum(1.0 + ptax, 1e-12), dsh=dsh, msh=msh,
-                pm=pm, pe=pe, dom_frac=dom_frac, exp_frac=exp_frac,
+                pm=pm, pe=pe, dom_frac=dom_frac, exp_frac=exp_frac, p_fob=p_fob,
                 p_ship=p_rc, p_deliver=p_deliver, transport_price=transport_price)
 
 
 def _quantities(econ, reg, w, supply, facshare, fac_gov, fac_row, dtax, transfers,
                 gov_tr, remit, foreign_target, tfp, prices, nu, *,
                 investment_level, levy, fixed_investment, migration=None,
-                ptax=None, closure=None, target_value=0.0, inv_mix=None, absorbs=0.0):
+                ptax=None, closure=None, target_value=0.0, inv_mix=None, absorbs=0.0,
+                wedges=None):
     """Solve destination absorption and origin sales in one linear system.
 
     With ``inv_mix`` (value shares by origin) investment skips the destination
@@ -991,8 +1060,11 @@ def _quantities(econ, reg, w, supply, facshare, fac_gov, fac_row, dtax, transfer
     transport_link = (coefficient * link).sum(axis=0)
     # Service supply to the pool is part of home sales, so it is grossed up by
     # the home share of output like the bilateral sales are.
+    # Output is at its tax-inclusive base value over (1 + tauz0), as nationally.
+    tz0 = np.ones((reg.n_reg, C)) if wedges is None else wedges["tz0"]
+    gross = prices["dom_frac"] * tz0
     output_link = ((link + service_share[:, None, :] * transport_link[None, :, :])
-                   / np.maximum(prices["dom_frac"][:, None, :], 1e-12))
+                   / np.maximum(gross[:, None, :], 1e-12))
     # Output of each activity per unit of absorption in (d, c), through the
     # origins that supply it.
     M = np.einsum("arc,rdc->adc", econ.msh[:, reg.origin_index], output_link)
@@ -1004,6 +1076,15 @@ def _quantities(econ, reg, w, supply, facshare, fac_gov, fac_row, dtax, transfer
     ptax = reg.ptax if ptax is None else ptax
     tax_per = prices["pbase"] * ptax + (M.reshape(econ.n_act, K * C).T
                                          @ (econ.atax * nu)).reshape(K, C)
+    # Trade and output taxes, per unit of output of each origin and per unit of absorption.
+    if wedges is not None:
+        p_out = prices["p_origin"][reg.origin_index]
+        per_output = (wedges["tauz"] * p_out
+                      + wedges["te"] * prices["p_fob"] * prices["exp_frac"] * tz0
+                      / (1.0 - wedges["te0"]))
+        tax_per = tax_per + np.einsum("rdc,rc->dc", output_link, per_output)
+        tax_per = tax_per + (wedges["tm"] * prices["pm"] / (1.0 + wedges["tm0"]))[None, :] \
+            * prices["msh"] * reg.arm_share[None, :]
     eye = np.eye(K * C)
     try:
         L = np.linalg.solve(eye - B, eye)
@@ -1018,9 +1099,11 @@ def _quantities(econ, reg, w, supply, facshare, fac_gov, fac_row, dtax, transfer
     if direct:
         p_direct = prices["p_ship"] * (1.0 + ptax)[None, :]
         Mz = (econ.msh[:, reg.origin_index]
-              / np.maximum(prices["dom_frac"], 1e-12)[None, :, :]).reshape(econ.n_act, n_rc)
+              / np.maximum(gross, 1e-12)[None, :, :]).reshape(econ.n_act, n_rc)
         G = IO.reshape(K * C, econ.n_act) @ Mz
         tax_direct = (prices["p_ship"] * ptax[None, :]).ravel() + (econ.atax * nu) @ Mz
+        if wedges is not None:
+            tax_direct = tax_direct + (per_output / np.maximum(gross, 1e-12)).ravel()
         z_unit = (inv_mix / np.maximum(p_direct, 1e-12)).ravel()
         z_fixed = (inv_mix * investment_level / (1.0 + reg.ptax)[None, :]).ravel()
     else:
@@ -1111,9 +1194,11 @@ def _quantities(econ, reg, w, supply, facshare, fac_gov, fac_row, dtax, transfer
     inv_q = inv_q + Z.sum(axis=0)
     D_rc = phi * (dsh * reg.arm_share * A)[None, :, :]
     Q_rc = ((D_rc.sum(axis=1) + Z + service_share * (coefficient * D_rc).sum())
-            / np.maximum(prices["dom_frac"], 1e-12))
-    E_rc = prices["exp_frac"] * Q_rc
-    M_c = prices["msh"] * reg.arm_share * A
+            / np.maximum(gross, 1e-12))
+    te0_rc = np.zeros((reg.n_reg, C)) if wedges is None else wedges["te0"]
+    E_rc = prices["exp_frac"] * tz0 * Q_rc / (1.0 - te0_rc)      # at the border
+    tf0 = np.ones(C) if wedges is None else 1.0 + wedges["tm0"]
+    M_c = prices["msh"] * reg.arm_share * A / tf0[None, :]       # at the border
     origin_mix = (phi if reg.transport is None else
                   phi * dsh[None, :, :] + reg.import_share * prices["msh"][None, :, :])
     Q = np.zeros(econ.n_com)
@@ -1127,8 +1212,7 @@ def _quantities(econ, reg, w, supply, facshare, fac_gov, fac_row, dtax, transfer
     fac_by = fi * ((econ.vunit / tfp) * X)[None, :]
     fac_dem = fac_by.sum(axis=1)
 
-    export_prices = (np.tile(prices["pe"], (reg.n_reg, 1)) if reg.cet
-                     else prices["p_origin"][reg.origin_index])
+    export_prices = prices["p_fob"]
     trade = float(prices["pm"] @ M_c.sum(axis=0) - export_prices.ravel() @ exports)
     current = trade + float((fac_inc * fac_row).sum()) - float(remit.sum())
     hh_origin = np.zeros((econ.n_hh, econ.n_com))
@@ -1145,7 +1229,13 @@ def _quantities(econ, reg, w, supply, facshare, fac_gov, fac_row, dtax, transfer
         product_tax=float((prices["pbase"] * ptax * A).sum()
                           + (prices["p_ship"] * ptax[None, :] * Z).sum()),
         activity_tax=float((econ.atax * nu) @ X),
-        carbon_production=0.0, carbon_households=0.0, tariff=0.0, output_tax=0.0,
+        carbon_production=0.0, carbon_households=0.0,
+        tariff=(0.0 if wedges is None else
+                float((wedges["tm"] * prices["pm"] * M_c.sum(axis=0)).sum())),
+        output_tax=(0.0 if wedges is None else
+                    float((wedges["tauz"] * prices["p_origin"][reg.origin_index] * Q_rc).sum())),
+        export_tax=(0.0 if wedges is None else
+                    float((wedges["te"] * prices["p_fob"] * E_rc).sum())),
         direct_tax=float((hh_income * dtax).sum()),
         factor_income=float((fac_inc * fac_gov).sum()
                             + (fac_inc * reg.fac_gov_regional).sum()),
@@ -1153,7 +1243,7 @@ def _quantities(econ, reg, w, supply, facshare, fac_gov, fac_row, dtax, transfer
         absorbed=float(absorbs))
     gov_account["revenue"] = sum(gov_account[k] for k in (
         "product_tax", "activity_tax", "carbon_production", "carbon_households",
-        "tariff", "output_tax", "direct_tax", "factor_income", "wedge"))
+        "tariff", "output_tax", "export_tax", "direct_tax", "factor_income", "wedge"))
     gov_account["saving"] = (gov_account["revenue"] - gov_account["transfers"]
                              - gov_account["consumption"] - gov_account["absorbed"])
     pe_full = np.zeros(econ.n_com)

@@ -219,8 +219,9 @@ where it stands. Things to know before relying on it:
 - **Several regions** use destination-specific origin nests under the Armington,
   with bilateral domestic and imported flows, delivered margins, CET exports,
   factor migration, regional capital accumulation, route transport, a global
-  service pool and consolidated government closures. LES, trade taxes, energy
-  nests and unsupported labour closures are refused by name. A GTAP-style global
+  service pool, consolidated government closures, LES households, and a tariff,
+  output and export taxes (without route margins). Carbon prices, energy nests
+  and unsupported labour closures are refused by name. A GTAP-style global
   savings bank remains future work.
 - **Complementarity has only started**: producers of a commodity can compete at
   least cost and shut down (`ModelSpec.least_cost`) and activities can face

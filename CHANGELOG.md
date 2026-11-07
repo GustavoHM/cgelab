@@ -3,7 +3,7 @@
 All notable changes to `cgelab`. Versions follow [semantic versioning](https://semver.org/);
 before 1.0, a minor version may add to the API and a patch version only fixes.
 
-## 0.14.0 — 2026-11-06
+## 0.14.0 — 2026-11-07
 
 The regional solver catches up. It reads a cost charged to government, LES households, the
 tariff and output and export taxes, which it refused; the taxes without route margins. Its

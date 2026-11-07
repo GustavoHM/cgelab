@@ -319,12 +319,12 @@ independent replica in Julia (JuMP with Ipopt or PATH), as in `validation/`.
 
 - [x] **CDE household demand** and a **labour–leisure choice** (`household_demand="cde"`,
   `leisure_ratio`). Validated against closed-form elasticities, the CES case, and an
-  independent Julia rewrite solved by PATH, to 1e-14. AIDS moved to 0.15: its price parameters
+  independent Julia rewrite solved by PATH, to 1e-14. AIDS moved to 0.16: its price parameters
   need a calibration a SAM does not give, and the CDE covers non-homothetic demand.
 - [ ] **Capital utilization** that responds to its price (Galindev and Decaluwé, 2022). Moved to
-  0.15: the paper's formulation is not at hand, and guessing it would not be a replication.
+  0.16: the paper's formulation is not at hand, and guessing it would not be a replication.
 - [x] **Land allocated by CET** across uses: `factor_mobility` on a land factor, since 0.6,
-  is GTAP's sluggish endowment. A nested land CET is open, in 0.15.
+  is GTAP's sluggish endowment. A nested land CET is open, in 0.16.
 - [x] **Release**: 0.12.0 on PyPI and archived on Zenodo
   ([10.5281/zenodo.24014846](https://doi.org/10.5281/zenodo.24014846)).
 - [x] **Regional investment basket**: `Scenario.investment_mix` in the regional solver, each
@@ -341,7 +341,7 @@ independent replica in Julia (JuMP with Ipopt or PATH), as in `validation/`.
 - [ ] **A second country**, `twocge`: moved to 0.14, since it needs two current accounts and two
   currencies, which the regional solver, with one national current account, does not have.
 - [ ] **Melitz firms**: heterogeneous firms with a fixed cost of exporting. Reference: the
-  closed forms of the one-sector model and an independent replica. Moved to 0.15.
+  closed forms of the one-sector model and an independent replica. Moved to 0.16.
 - [x] **Release**: 0.13.0 on PyPI and archived on Zenodo
   ([10.5281/zenodo.24021464](https://doi.org/10.5281/zenodo.24021464)).
 
@@ -355,26 +355,31 @@ independent replica in Julia (JuMP with Ipopt or PATH), as in `validation/`.
 - [x] **The tariff and output and export taxes** in the regional solver, without route margins:
   the tariff one rate per local commodity, output and export taxes by origin. Against the
   one-region national model and the extended reference, to 1e-15.
-- [ ] **Carbon prices and the energy nest** in the regional solver: moved to 0.15, together,
+- [ ] **Carbon prices and the energy nest** in the regional solver: moved to 0.16, together,
   since carbon on fuel goes through the nest.
-- [ ] **The complementarity conditions of 0.8** in the regional solver: 0.15.
-- [ ] **A second country**, `twocge`, with its own currency and current account: a separate
-  solver around `solve_period`, not the regional model, which assumes one exchange rate, one
-  current account, one numeraire and one government. Moved to 0.15.
+- [ ] **The complementarity conditions of 0.8** in the regional solver: 0.16.
+- [x] **A second country**, `twocge`, with its own currency and current account: a separate
+  solver around `solve_period` (`solve_two_countries`), not the regional model, which assumes
+  one exchange rate, one current account, one numeraire and one government. Done in 0.15: every
+  displayed variable of `twocge`, transcribed into JuMP, agrees to 1.8e-12.
 - [ ] **Release**: 0.14.0 on PyPI and archived on Zenodo.
 
-**0.15 — what released items left open.** From 0.14: carbon prices and the energy nest in the
-regional solver, its complementarity conditions, and `twocge`. Melitz firms, from 0.13; AIDS household demand; capital utilization; a
-nested land CET; employment in persons, unemployment benefits and a
+**0.15 — a second country.** `twocge`, from 0.14 (see 0.14 above): two national economies
+that trade with each other, `solve_two_countries`. Released alone, so it does not wait on the
+items below, which became 0.16; the versions after it move up by one.
+
+**0.16 — what released items left open.** From 0.14: carbon prices and the energy nest in the
+regional solver, and its complementarity conditions. Melitz firms, from 0.13; AIDS household
+demand; capital utilization; a nested land CET; employment in persons, unemployment benefits and a
 wage curve by segment; vintages that substitute perfectly with idle capital, the sale of old
 capital, and vintages with the energy nest and in several regions; historical calibration with
 employment, the investment rate and exports as unknowns; quotas on exports and output, and a
 floor on the producer price; analytic derivatives for the national solver.
 
-**0.16 — forward-looking.** Risk-adjusted welfare and forward-looking migration on the
+**0.17 — forward-looking.** Risk-adjusted welfare and forward-looking migration on the
 dsgelab bridge, and an intertemporal CGE with expectations.
 
-**0.17 — exports and the site.** Writing a model as GAMS/MPSGE and as GEMPACK TABLO input
+**0.18 — exports and the site.** Writing a model as GAMS/MPSGE and as GEMPACK TABLO input
 (validating either needs a licence, and stays open for whoever has one); the Markdown
 documents rendered on the site; the whitepaper and the validation comments in English.
 
@@ -389,7 +394,7 @@ documents rendered on the site; the whitepaper and the validation comments in En
   systems of one equation per destination and good are a small part of a solve.
 
 **1.0.** All of the above, the API frozen, strict semantic versioning from then on. Whether
-1.0 waits on the items that need a licence is decided at 0.17.
+1.0 waits on the items that need a licence is decided at 0.18.
 
 ## Next: gaps an applied model hit
 

@@ -136,9 +136,9 @@ lista até a 1.0; a versão de cada item é a do [`ROADMAP.md`](../ROADMAP.md).
 | Troca de fechamento genérica | 📄 GEMPACK | **feita** para um período: qualquer variável do período contra qualquer instrumento do cenário, um por um, recusando o instrumento que o fechamento não lê; trocar e destrocar reproduz o fechamento padrão, e a produtividade comum do `calibrate_historical`, a 1e-10 | 0.11 |
 | Estimação de MCS por entropia cruzada; regionalização por quocientes locacionais | 📄 Robinson, Cattaneo e El-Said; Flegg | **feita**: a divergência I mínima sobre os fluxos com totais de contas, células fixas, células-alvo e agregados lineares, mantendo zeros e sinais; o RAS quando todos os totais são dados; o primal resolvido pelo Ipopt concorda a 5e-15. SLQ, CILQ, FLQ e AFLQ, conferidos à mão | 0.11 |
 | Demanda das famílias além do LES; trabalho e lazer | 📄 GTAP (CDE), IFPRI | **feito**: CDE com os parâmetros de expansão em forma fechada, suas elasticidades e seu caso CES conferidos; escolha entre trabalho e lazer por família; os dois contra uma reescrita independente em Julia resolvida pelo PATH a 1e-14. AIDS em aberto | 0.12 |
-| Uso da terra | 📄 GTAP-AEZ, MAGNET | CET entre usos pelo `factor_mobility` (0.6); CET de terra aninhado em aberto | 0.6, 0.15 |
-| Monopólio e retornos crescentes | 📄 Hosoe (`moncge`, `irscge`), biblioteca do GAMS | **feito**: o markup de Lerner nas vendas internas com a sua renda, e custos fixos; o ano-base e a abolição das tarifas dos dois programas, transcritos para JuMP, concordam em toda variável exibida a 1,9e-13. Um segundo país (`twocge`) e firmas à Melitz em aberto | 0.13 |
-| EGC intertemporal; exportar para GAMS e GEMPACK | 📄 MPSGE | falta | 0.14 a 0.17 |
+| Uso da terra | 📄 GTAP-AEZ, MAGNET | CET entre usos pelo `factor_mobility` (0.6); CET de terra aninhado em aberto | 0.6, 0.16 |
+| Monopólio e retornos crescentes | 📄 Hosoe (`moncge`, `irscge`), biblioteca do GAMS | **feito**: o markup de Lerner nas vendas internas com a sua renda, e custos fixos; o ano-base e a abolição das tarifas dos dois programas, transcritos para JuMP, concordam em toda variável exibida a 1,9e-13. Um segundo país (`twocge`) na 0.15; firmas à Melitz na 0.16 | 0.13, 0.15 |
+| EGC intertemporal; exportar para GAMS e GEMPACK | 📄 MPSGE | falta | 0.17, 0.18 |
 
 
 ## Fontes

@@ -1019,6 +1019,31 @@ the gain from abolishing tariffs is lost to the monopolists' smaller home sales.
 One activity makes each monopoly commodity and nothing else; national only;
 `to_jump` refuses both.
 
+### Two countries
+
+```python
+(_, jpn), (_, usa) = hosoe.build_two_countries()
+r = cge.solve_two_countries(jpn, usa, closure_a=hosoe.CLOSURE, closure_b=hosoe.CLOSURE,
+                            scenario_a=sc, scenario_b=sc, names=("JPN", "USA"))
+r.periods["JPN"], r.world_prices, r.trade
+```
+
+Two national economies that trade only with each other, each with its own
+currency, government, saving and balance of payments, as in Hosoe, Gasawa and
+Hashimoto's `twocge`. Each country is solved by `solve_period` with the dollar
+prices of its exports and imports given, and the solver finds the prices at which
+one country's exports of each good are the other's imports. Every national
+feature holds in each country. With both balances of payments and every market
+but one, the last market clears by Walras' law, so one country's exchange rate
+is held (`numeraire`, the second by default, as `twocge` holds the United
+States'). That choice is not neutral when foreign saving is fixed in dollars:
+the dollar is the unit of the foreign saving, so holding one exchange rate or the
+other changes what it is worth. `validation/replicate_hosoe_two.py` transcribes
+the GAMS program into JuMP, and the base year and the abolition of both
+countries' tariffs agree with cgelab in all 48 displayed variables of each
+country to 1.8e-12. Both countries need CET exports and the same commodities,
+and their base-year trade must be each other's.
+
 ### An export tax
 
 ```python

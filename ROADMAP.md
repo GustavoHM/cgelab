@@ -361,6 +361,7 @@ independent replica in Julia (JuMP with Ipopt or PATH), as in `validation/`.
 - [ ] **A second country**, `twocge`, with its own currency and current account: a separate
   solver around `solve_period`, not the regional model, which assumes one exchange rate, one
   current account, one numeraire and one government. Moved to 0.15.
+- [ ] **Release**: 0.14.0 on PyPI and archived on Zenodo.
 
 **0.15 — what released items left open.** From 0.14: carbon prices and the energy nest in the
 regional solver, its complementarity conditions, and `twocge`. Melitz firms, from 0.13; AIDS household demand; capital utilization; a

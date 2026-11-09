@@ -362,7 +362,8 @@ independent replica in Julia (JuMP with Ipopt or PATH), as in `validation/`.
   solver around `solve_period` (`solve_two_countries`), not the regional model, which assumes
   one exchange rate, one current account, one numeraire and one government. Done in 0.15: every
   displayed variable of `twocge`, transcribed into JuMP, agrees to 1.8e-12.
-- [ ] **Release**: 0.14.0 on PyPI and archived on Zenodo.
+- [x] **Release**: 0.14.0 on PyPI and archived on Zenodo
+  ([10.5281/zenodo.24033932](https://doi.org/10.5281/zenodo.24033932)).
 
 **0.15 — a second country.** `twocge`, from 0.14 (see 0.14 above): two national economies
 that trade with each other, `solve_two_countries`. Released alone, so it does not wait on the

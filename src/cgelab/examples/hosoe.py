@@ -25,8 +25,8 @@ from ..closure import Closure
 from ..sam import SAM
 from ..spec import ModelSpec
 
-__all__ = ["ENTRIES", "CLOSURE", "spec", "build", "build_monopoly", "build_scale", "variables",
-           "SIMPLE_ENTRIES", "build_simple"]
+__all__ = ["ENTRIES", "USA_ENTRIES", "CLOSURE", "spec", "build", "build_monopoly", "build_scale",
+           "build_two_countries", "variables", "SIMPLE_ENTRIES", "build_simple"]
 
 ENTRIES = [
     ("c_brd", "a_brd", 21.0), ("c_brd", "a_mlk", 8.0), ("c_brd", "hh", 20.0),
@@ -83,6 +83,37 @@ def build_scale(model_spec: ModelSpec | None = None):
     sam = SAM.from_long(pd.DataFrame(ENTRIES, columns=["row", "col", "value"]),
                         name="hosoe_irscge")
     return sam, calibrate(sam, model_spec or spec(fixed_costs={"a_brd": 0.1, "a_mlk": 0.1}))
+
+
+#: ``twocge`` (chapter 10.3): the second country, the United States, in the same layout as
+#: :data:`ENTRIES`, which is Japan. Its exports are Japan's imports and its foreign saving, -12,
+#: mirrors Japan's 12.
+USA_ENTRIES = [
+    ("c_brd", "a_brd", 40.0), ("c_brd", "a_mlk", 1.0), ("c_brd", "hh", 30.0),
+    ("c_brd", "gov", 20.0), ("c_brd", "s_i", 20.0), ("c_brd", "row", 13.0),
+    ("c_mlk", "a_brd", 17.0), ("c_mlk", "a_mlk", 29.0), ("c_mlk", "hh", 30.0),
+    ("c_mlk", "gov", 14.0), ("c_mlk", "s_i", 15.0), ("c_mlk", "row", 11.0),
+    ("f_cap", "a_brd", 33.0), ("f_cap", "a_mlk", 30.0),
+    ("f_lab", "a_brd", 15.0), ("f_lab", "a_mlk", 31.0),
+    ("a_brd", "c_brd", 105.0), ("a_mlk", "c_mlk", 91.0),
+    ("idt", "c_brd", 10.0), ("idt", "c_mlk", 20.0),
+    ("trf", "c_brd", 1.0), ("trf", "c_mlk", 1.0),
+    ("row", "c_brd", 8.0), ("row", "c_mlk", 4.0),
+    ("hh", "f_cap", 63.0), ("hh", "f_lab", 46.0),
+    ("gov", "idt", 30.0), ("gov", "trf", 2.0), ("gov", "hh", 29.0),
+    ("s_i", "hh", 20.0), ("s_i", "gov", 27.0), ("s_i", "row", -12.0),
+]
+
+
+def build_two_countries():
+    """``twocge``: Japan (:data:`ENTRIES`) and the United States (:data:`USA_ENTRIES`), each with
+    ``stdcge``'s forms. Returns ``((sam_jpn, econ_jpn), (sam_usa, econ_usa))``; solve them with
+    :func:`cgelab.solve_two_countries` under :data:`CLOSURE`."""
+    out = []
+    for name, entries in (("hosoe_twocge_jpn", ENTRIES), ("hosoe_twocge_usa", USA_ENTRIES)):
+        sam = SAM.from_long(pd.DataFrame(entries, columns=["row", "col", "value"]), name=name)
+        out.append((sam, calibrate(sam, spec())))
+    return tuple(out)
 
 
 #: Chapter 5, the GAMS library file ``splcge``: bread and milk, capital and

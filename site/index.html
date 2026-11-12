@@ -1169,6 +1169,23 @@ allocative_monopoly   -0.2258</code></pre>
   the tariffs moves buyers to imports, and the monopolists' smaller home sales take back almost
   all of the gain. Every variable of the GAMS program, transcribed into JuMP, agrees with this to
   1.9e-13.</p>
+  <h3>50. Two countries, as in Hosoe's twocge</h3>
+<pre><code>(_, jpn), (_, usa) = hosoe.build_two_countries()
+two = cge.solve_two_countries(jpn, usa, closure_a=hosoe.CLOSURE, closure_b=hosoe.CLOSURE,
+                              scenario_a=cge.Scenario(tariff=np.zeros(2)),
+                              scenario_b=cge.Scenario(tariff=np.zeros(2)), names=("JPN", "USA"))
+two.world_prices.round(4)
+round(two.periods["JPN"].exchange_rate, 4)</code></pre>
+<pre class="output" data-label="Output"><code><span class="out-expr">two.world_prices.round(4)</span>
+        JPN   USA
+c_brd 1.029 1.009
+c_mlk 1.093 1.057
+<span class="out-expr">round(two.periods["JPN"].exchange_rate, 4)</span>
+1.022</code></pre>
+  <p>Japan and the United States, each a complete national model, trade only with each other.
+  When both abolish their tariffs, the dollar prices of each country's exports adjust until what
+  one exports the other imports, with the United States' exchange rate held. Every variable of
+  the GAMS program, transcribed into JuMP, agrees with this to 1.8e-12.</p>
 </div></section>
 
 <section id="gates"><div class="wrap">

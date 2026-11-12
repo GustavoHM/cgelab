@@ -1180,6 +1180,23 @@ allocative_monopoly   -0.2258</code></pre>
   Abolir as tarifas leva os compradores às importações, e a queda das vendas internas dos
   monopolistas devolve quase todo o ganho. Toda variável do programa do GAMS, transcrito para
   JuMP, concorda com isto a 1,9e-13.</p>
+  <h3>50. Dois países, como no twocge de Hosoe</h3>
+<pre><code>(_, jpn), (_, usa) = hosoe.build_two_countries()
+dois = cge.solve_two_countries(jpn, usa, closure_a=hosoe.CLOSURE, closure_b=hosoe.CLOSURE,
+                               scenario_a=cge.Scenario(tariff=np.zeros(2)),
+                               scenario_b=cge.Scenario(tariff=np.zeros(2)), names=("JPN", "USA"))
+dois.world_prices.round(4)
+round(dois.periods["JPN"].exchange_rate, 4)</code></pre>
+<pre class="output" data-label="Saída"><code><span class="out-expr">dois.world_prices.round(4)</span>
+        JPN   USA
+c_brd 1.029 1.009
+c_mlk 1.093 1.057
+<span class="out-expr">round(dois.periods["JPN"].exchange_rate, 4)</span>
+1.022</code></pre>
+  <p>Japão e EUA, cada um um modelo nacional completo, comerciam só entre si. Quando os dois
+  abolem as tarifas, os preços em dólar das exportações de cada país se ajustam até que o que um
+  exporta o outro importe, com o câmbio dos EUA fixo. Toda variável do programa do GAMS,
+  transcrito para JuMP, concorda com isto a 1,8e-12.</p>
 </div></section>
 
 <section id="verificacoes"><div class="wrap">

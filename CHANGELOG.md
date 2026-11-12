@@ -3,6 +3,20 @@
 All notable changes to `cgelab`. Versions follow [semantic versioning](https://semver.org/);
 before 1.0, a minor version may add to the API and a patch version only fixes.
 
+## Unreleased
+
+### Added
+
+- `solve_two_countries(econ_a, econ_b, ...)` and `TwoCountry`: two national
+  economies that trade only with each other, each solved by `solve_period`
+  with world prices that the solver finds so that one country's exports are
+  the other's imports; one country's exchange rate is held, as in Hosoe,
+  Gasawa and Hashimoto's `twocge`. `validation/hosoe_two.jl` transcribes
+  `twocge` into JuMP, and its base year and tariff abolition agree with cgelab
+  in all 48 displayed variables of each country to 1.8e-12;
+  `tests/data/hosoe_twocge.json` lets the suite check it without Julia.
+  `cgelab.examples.hosoe.build_two_countries` and `USA_ENTRIES`.
+
 ## 0.14.0 — 2026-11-07
 
 The regional solver catches up. It reads a cost charged to government, LES households, the

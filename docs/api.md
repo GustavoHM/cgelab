@@ -797,6 +797,17 @@ instrument that does not move the targets raises `ValueError`; targets not
 reached raise `RuntimeError`. The result has `period`, `instruments`,
 `scenario`, `achieved` (target and achieved by variable) and `iterations`.
 
+### `solve_two_countries(econ_a, econ_b, *, closure_a=None, closure_b=None, scenario_a=None, scenario_b=None, names=("a", "b"), numeraire=1, tol=1e-12) -> TwoCountry`
+
+Two national economies that trade only with each other (`twocge`). Each is solved
+by `solve_period` with its world export and import prices set by the solver,
+which finds the dollar prices at which each country's exports are the other's
+imports. Closures default to foreign saving fixed in foreign currency;
+`numeraire` is the country whose exchange rate is held. Both need CET exports, the
+same commodities and mirrored base-year trade; scenarios cannot set world prices.
+The result has `periods` (by name), `world_prices` (goods by exporter), `trade`,
+`iterations` and `residual`.
+
 ### `calibrate_historical(econ, closure=None, *, years, targets, shifters, kind="level", growth=None, scenario=None, economy=None, pattern=None, preference_reference=None, tol=1e-12) -> Historical`
 
 A limited historical closure: observed variables are targets, and technology or

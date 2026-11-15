@@ -3,7 +3,20 @@
 All notable changes to `cgelab`. Versions follow [semantic versioning](https://semver.org/);
 before 1.0, a minor version may add to the API and a patch version only fixes.
 
-## Unreleased
+## 0.15.0 — 2026-11-15
+
+A second country. `solve_two_countries` solves two national economies that trade only with each
+other, each with its own currency, government and balance of payments, as in Hosoe, Gasawa and
+Hashimoto's `twocge`, whose GAMS program, transcribed into JuMP, agrees with cgelab in every
+displayed variable to 1.8e-12. The items that were to come with it in 0.15 are now 0.16. Nothing
+released earlier changes.
+
+### Fixed
+
+- The 0.12.0 to 0.14.0 wheels carried a stray module, `cgelab/backends 2.py`, an
+  older copy of `backends.py` that a file sync left beside it and that was
+  committed by mistake; no one could import it by name. It is gone, with two
+  other copies outside the package.
 
 ### Added
 

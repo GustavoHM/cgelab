@@ -1197,6 +1197,25 @@ c_mlk 1.093 1.057
   abolem as tarifas, os preços em dólar das exportações de cada país se ajustam até que o que um
   exporta o outro importe, com o câmbio dos EUA fixo. Toda variável do programa do GAMS,
   transcrito para JuMP, concorda com isto a 1,8e-12.</p>
+  <h3>51. Um preço do carbono num modelo regional</h3>
+<pre><code>from cgelab.examples import regions
+_, duas = regions.build(taxes=True)
+duas = cge.add_emissions(duas, process={"r1:a": 10.0, "r2:a": 6.0},
+                         household={"r1:c": 5.0, "r2:c": 5.0})
+tarifado = cge.solve_period(duas, scenario=cge.Scenario(carbon_price=0.5))
+cge.emissions(tarifado).round(3)
+round(tarifado.government["carbon_production"] + tarifado.government["carbon_households"], 3)</code></pre>
+<pre class="output" data-label="Saída"><code><span class="out-expr">cge.emissions(tarifado).round(3)</span>
+intermediate       0
+household      9.324
+government         0
+process           16
+total          25.32
+<span class="out-expr">round(tarifado.government["carbon_production"] + tarifado.government["carbon_households"], 3)</span>
+12.66</code></pre>
+  <p>O carbono na atividade de cada região é um imposto por unidade produzida, e as famílias o
+  pagam além do preço ao comprador do bem que queimam. As emissões caem onde o imposto pesa, e a
+  receita vai para o governo. Um modelo de uma região dá o resultado do solver nacional.</p>
 </div></section>
 
 <section id="verificacoes"><div class="wrap">

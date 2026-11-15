@@ -1186,6 +1186,25 @@ c_mlk 1.093 1.057
   When both abolish their tariffs, the dollar prices of each country's exports adjust until what
   one exports the other imports, with the United States' exchange rate held. Every variable of
   the GAMS program, transcribed into JuMP, agrees with this to 1.8e-12.</p>
+  <h3>51. A carbon price in a regional model</h3>
+<pre><code>from cgelab.examples import regions
+_, two = regions.build(taxes=True)
+two = cge.add_emissions(two, process={"r1:a": 10.0, "r2:a": 6.0},
+                        household={"r1:c": 5.0, "r2:c": 5.0})
+priced = cge.solve_period(two, scenario=cge.Scenario(carbon_price=0.5))
+cge.emissions(priced).round(3)
+round(priced.government["carbon_production"] + priced.government["carbon_households"], 3)</code></pre>
+<pre class="output" data-label="Output"><code><span class="out-expr">cge.emissions(priced).round(3)</span>
+intermediate       0
+household      9.324
+government         0
+process           16
+total          25.32
+<span class="out-expr">round(priced.government["carbon_production"] + priced.government["carbon_households"], 3)</span>
+12.66</code></pre>
+  <p>Carbon on each region's activity is a tax per unit of output, and households pay it on top
+  of the purchaser price of the good they burn. Emissions fall where the tax bites, and the
+  revenue goes to government. A one-region model gives the national solver's result.</p>
 </div></section>
 
 <section id="gates"><div class="wrap">

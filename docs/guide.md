@@ -1656,8 +1656,13 @@ different tariffs is refused; output and export taxes are by origin account.
 Route transport margins with any of them are refused. A one-region model matches
 the national solver, and `validation/replicate_regional.py` checks two regions
 against the JuMP rewrite under fixed export shares and a CET.
-The regional solver refuses unsupported `carbon_price`, `pool_supply` and
-`labour_force` scenarios by name.
+A carbon price works without an energy nest: on activities it is a tax per unit
+of output, as nationally, and households pay it on top of the purchaser price,
+which needs one household emission coefficient per good across its origins. A
+one-region model matches the national solver, emissions included, and
+`validation/replicate_regional.py` checks two regions against the JuMP rewrite.
+The regional solver refuses unsupported `pool_supply` and `labour_force`
+scenarios by name.
 Its household price indices are exact Cobb–Douglas indices of destination
 purchaser prices (the marginal index under LES), at the national solver's level, and reported world prices are
 in foreign currency. Accounts, price indices, `in_money` and `real_gdp` value

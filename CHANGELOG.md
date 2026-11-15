@@ -3,6 +3,25 @@
 All notable changes to `cgelab`. Versions follow [semantic versioning](https://semver.org/);
 before 1.0, a minor version may add to the API and a patch version only fixes.
 
+## Unreleased
+
+### Added
+
+- Carbon prices in the regional solver, which refused them. On activities the
+  carbon is a tax per unit of output, as nationally without an energy nest;
+  households pay it on top of the purchaser price, with one emission
+  coefficient per good across origins, and its revenue is government income.
+  A one-region model matches the national solver under three closures,
+  emissions included, and `validation/regional.jl`, which now calibrates
+  carbon from the raw emission totals, agrees in two cases to 2.7e-15.
+  Regional consumption in `national_accounts` is valued at what households
+  pay, carbon included (`real["hh_destination_price"]`).
+
+### Changed
+
+- `ROADMAP.md`: after 0.16, an ordered list of what is left instead of version
+  numbers assigned ahead.
+
 ## 0.15.0 — 2026-11-15
 
 A second country. `solve_two_countries` solves two national economies that trade only with each

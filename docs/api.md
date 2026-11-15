@@ -132,8 +132,8 @@ cells across regions, own-account activities, product-tax rates that differ acro
 origins, missing origins and the features the slice does not carry.
 `regional_preflight(sam, spec)` returns the same list as a table.
 Regional scenarios read `tariff` (one rate per local commodity), `output_tax` and
-`export_tax` (one per origin account), without route margins; they refuse
-`carbon_price`, `pool_supply` and `labour_force`; they read `government_absorbs`, and regional
+`export_tax` (one per origin account), without route margins; they read `carbon_price` (one household emission coefficient per good across
+origins; no energy nest); they refuse `pool_supply` and `labour_force`; they read `government_absorbs`, and regional
 households can be LES (`Regional.hh_committed`, `hh_beta`, by local commodity).
 Household price indices are the exact Cobb–Douglas index of destination purchaser
 prices (the marginal index under LES), at the level the national solver reports. Trade-price fields named `world_*` remain in foreign currency.

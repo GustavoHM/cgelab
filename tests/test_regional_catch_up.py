@@ -143,3 +143,35 @@ def test_regional_trade_taxes_are_refused_where_they_would_not_hold():
     _, plain = regions.build(taxes=True)
     with pytest.raises(ValueError, match="calibrated"):
         cge.solve_period(plain, scenario=cge.Scenario(tariff=np.zeros(1)))
+
+
+def _emissions(econ, prefix=""):
+    coms, acts = [c for c in econ.coms], [a for a in econ.acts]
+    inter = pd.DataFrame(0.0, index=coms, columns=acts)
+    inter.loc[f"{prefix}c_ind", f"{prefix}a_agr"] = 4.0
+    inter.loc[f"{prefix}c_ind", f"{prefix}a_ind"] = 9.0
+    return cge.add_emissions(econ, intermediate=inter,
+                             household={f"{prefix}c_ind": 6.0},
+                             process={f"{prefix}a_ind": 3.0})
+
+
+@pytest.mark.parametrize("closure", [cge.Closure(), cge.Closure(government="saving_rate"),
+                                     cge.Closure(investment="fixed_real")])
+def test_carbon_on_activities_and_households_matches_the_national_solver(closure):
+    national, regional = one_region()
+    national, regional = _emissions(national), _emissions(regional, "br:")
+    sc = cge.Scenario(carbon_price=0.4, productivity=np.full(national.n_act, 1.05))
+    a, b = cge.solve_period(national, closure, sc), cge.solve_period(regional, closure, sc)
+    assert_same(a, b)
+    for key in ("carbon_production", "carbon_households"):
+        assert b.government[key] == pytest.approx(a.government[key], rel=1e-8)
+    np.testing.assert_allclose(cge.emissions(b).to_numpy(), cge.emissions(a).to_numpy(),
+                               rtol=1e-8)
+    assert abs(cge.national_accounts(b)["gap"]) < 1e-9
+
+
+def test_household_carbon_must_be_one_coefficient_per_good():
+    sam, econ = regions.build(taxes=True)
+    econ = cge.add_emissions(econ, household={"r1:c": 5.0, "r2:c": 1.0})
+    with pytest.raises(ValueError, match="differ across the origins"):
+        cge.solve_period(econ, scenario=cge.Scenario(carbon_price=0.5))

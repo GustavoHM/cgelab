@@ -348,6 +348,31 @@ def _trade_wedges(econ, reg, scenario) -> dict:
                 ex_wedge=(1.0 - te) / (1.0 - te0))
 
 
+def _carbon(econ, reg, scenario, nu, tfp):
+    """Carbon per unit of each activity's output and per unit households buy, or None.
+
+    Without an energy nest every input is Leontief, so carbon on an activity's fuel is a tax
+    per unit of its output, as nationally. Households buy a composite of each local good; their
+    coefficient is per unit of the national quantity (basic value), which must be the same in
+    every origin, and per regional unit it is that times the basic price in the destination.
+    """
+    if scenario.carbon_price is None:
+        return None
+    if econ.emissions is None:
+        raise ValueError("Scenario.carbon_price needs an emissions account: see add_emissions")
+    price = float(scenario.carbon_price) * nu
+    em = econ.emissions
+    act = price * ((em.intermediate * econ.io / tfp[None, :]).sum(axis=0) + em.process)
+    coef = em.household[reg.origin_index]                 # (n_reg, n_local)
+    differ = [reg.local_commodities[c] for c in range(reg.n_local)
+              if np.max(np.abs(coef[:, c] - coef[0, c])) > 1e-12]
+    if differ:
+        raise ValueError(f"household emissions per unit differ across the origins of {differ}; "
+                         f"households buy one composite of each good")
+    basic = reg.base_price / (1.0 + reg.ptax)[None, :]
+    return dict(act=act, hh=price * coef[0][None, :] * basic)
+
+
 def _les_by_local(econ, origin_index, base_price, household_region) -> dict:
     """LES committed quantities and marginal shares by local commodity, or nothing."""
     if econ.spec.household_demand != "les":
@@ -747,6 +772,7 @@ def solve_regions(econ, closure, scenario, *, warm_start=None, raise_on_fail: bo
     state: dict = {}
 
     trade = _trade_wedges(econ, reg, scenario)
+    carbon = _carbon(econ, reg, scenario, nu, tfp)
 
     def residuals(z):
         z = np.atleast_1d(np.asarray(z, dtype=float))
@@ -758,7 +784,8 @@ def solve_regions(econ, closure, scenario, *, warm_start=None, raise_on_fail: bo
         tax_scale = float(np.exp(z[i_tax])) if tax_lever else 1.0
         dtax_eff = dtax * (tax_scale if adjusts == "direct_tax" and tax_lever else 1.0)
         ptax_eff = ptax_set * (tax_scale if adjusts == "product_tax" and tax_lever else 1.0)
-        prices = _prices(econ, reg, w, er, world, export_world, tfp, nu, ptax_eff, trade)
+        prices = _prices(econ, reg, w, er, world, export_world, tfp, nu, ptax_eff, trade,
+                         carb_act=None if carbon is None else carbon["act"])
         qty = _quantities(econ, reg, w, supply, facshare, fac_gov, fac_row, dtax_eff,
                           transfers - levy * econ.pop_share, gov_tr, remit,
                           foreign_target, tfp, prices, nu,
@@ -766,7 +793,7 @@ def solve_regions(econ, closure, scenario, *, warm_start=None, raise_on_fail: bo
                           fixed_investment=fixed_investment, migration=reg.migration,
                           ptax=ptax_eff, closure=closure, target_value=target_value,
                           inv_mix=inv_mix, absorbs=float(scenario.government_absorbs),
-                          wedges=trade)
+                          wedges=trade, carbon=carbon)
         gaps = (qty["fac_dem"] - supply) / np.maximum(np.abs(supply), 1.0)
         for local, item in reg.migration.items():
             idx = item["indices"]
@@ -863,7 +890,6 @@ def _refuse_unsupported(econ, closure, scenario, reg: Regional):
         "government_wedge": scenario.government_wedge,
         "product_tax_firm": scenario.product_tax_firm,
         "foreign_factor_share": scenario.foreign_factor_share,
-        "carbon_price": scenario.carbon_price,
         "pool_supply": scenario.pool_supply,
         "labour_force": scenario.labour_force,
     }
@@ -889,11 +915,12 @@ def _refuse_unsupported(econ, closure, scenario, reg: Regional):
         raise ValueError("regional model has no regions")
 
 
-def _prices(econ, reg: Regional, w, er, world, export_world, tfp, nu, ptax, trade=None):
+def _prices(econ, reg: Regional, w, er, world, export_world, tfp, nu, ptax, trade=None,
+            carb_act=None):
     """CET origin sales and a delivered Armington composite in each destination."""
     io = reg.io / tfp[None, :]
     vunit = econ.vunit / tfp
-    atax = econ.atax * nu
+    atax = econ.atax * nu + (0.0 if carb_act is None else carb_act)
     K, C = reg.n_dest, reg.n_local
     pq = reg.base_price.copy() if reg.transport is not None else np.ones((K, C))
     p_origin = np.ones(econ.n_com)
@@ -966,7 +993,7 @@ def _quantities(econ, reg, w, supply, facshare, fac_gov, fac_row, dtax, transfer
                 gov_tr, remit, foreign_target, tfp, prices, nu, *,
                 investment_level, levy, fixed_investment, migration=None,
                 ptax=None, closure=None, target_value=0.0, inv_mix=None, absorbs=0.0,
-                wedges=None):
+                wedges=None, carbon=None):
     """Solve destination absorption and origin sales in one linear system.
 
     With ``inv_mix`` (value shares by origin) investment skips the destination
@@ -989,7 +1016,9 @@ def _quantities(econ, reg, w, supply, facshare, fac_gov, fac_row, dtax, transfer
     disposable = hh_income * (1.0 - dtax)
     hh_sav = disposable * econ.hh_savrate
     spend = disposable - hh_sav
-    p_hh = np.maximum(pq[reg.household_region], 1e-12)
+    # Households pay the carbon on what they buy on top of the purchaser price.
+    carb_hh = (np.zeros((K, C)) if carbon is None else carbon["hh"])[reg.household_region]
+    p_hh = np.maximum(pq[reg.household_region] + carb_hh, 1e-12)
     if reg.hh_committed is not None:
         # LES: committed quantities, and the marginal shares of what is left.
         supernum = spend - (p_hh * reg.hh_committed).sum(axis=1)
@@ -1009,7 +1038,7 @@ def _quantities(econ, reg, w, supply, facshare, fac_gov, fac_row, dtax, transfer
     income_excl = (float((fac_inc * fac_gov).sum())
                    + float((fac_inc * reg.fac_gov_regional).sum())
                    + float((hh_income * dtax).sum()) - float(gov_tr.sum())
-                   - float(absorbs))
+                   - float(absorbs) + float((carb_hh * hh_q).sum()))
     dynamic_gov = (closure.government == "saving_rate"
                    or (closure.government_target == "saving"
                        and closure.government_adjusts == "spending"))
@@ -1074,8 +1103,9 @@ def _quantities(econ, reg, w, supply, facshare, fac_gov, fac_row, dtax, transfer
     B = IO.reshape(K * C, econ.n_act) @ M.reshape(econ.n_act, K * C)
     B += np.kron(np.eye(K), reg.mq)
     ptax = reg.ptax if ptax is None else ptax
+    atax_all = econ.atax * nu + (0.0 if carbon is None else carbon["act"])
     tax_per = prices["pbase"] * ptax + (M.reshape(econ.n_act, K * C).T
-                                         @ (econ.atax * nu)).reshape(K, C)
+                                         @ atax_all).reshape(K, C)
     # Trade and output taxes, per unit of output of each origin and per unit of absorption.
     if wedges is not None:
         p_out = prices["p_origin"][reg.origin_index]
@@ -1101,7 +1131,7 @@ def _quantities(econ, reg, w, supply, facshare, fac_gov, fac_row, dtax, transfer
         Mz = (econ.msh[:, reg.origin_index]
               / np.maximum(gross, 1e-12)[None, :, :]).reshape(econ.n_act, n_rc)
         G = IO.reshape(K * C, econ.n_act) @ Mz
-        tax_direct = (prices["p_ship"] * ptax[None, :]).ravel() + (econ.atax * nu) @ Mz
+        tax_direct = (prices["p_ship"] * ptax[None, :]).ravel() + atax_all @ Mz
         if wedges is not None:
             tax_direct = tax_direct + (per_output / np.maximum(gross, 1e-12)).ravel()
         z_unit = (inv_mix / np.maximum(p_direct, 1e-12)).ravel()
@@ -1229,7 +1259,8 @@ def _quantities(econ, reg, w, supply, facshare, fac_gov, fac_row, dtax, transfer
         product_tax=float((prices["pbase"] * ptax * A).sum()
                           + (prices["p_ship"] * ptax[None, :] * Z).sum()),
         activity_tax=float((econ.atax * nu) @ X),
-        carbon_production=0.0, carbon_households=0.0,
+        carbon_production=0.0 if carbon is None else float(carbon["act"] @ X),
+        carbon_households=float((carb_hh * hh_q).sum()),
         tariff=(0.0 if wedges is None else
                 float((wedges["tm"] * prices["pm"] * M_c.sum(axis=0)).sum())),
         output_tax=(0.0 if wedges is None else
@@ -1260,7 +1291,7 @@ def _quantities(econ, reg, w, supply, facshare, fac_gov, fac_row, dtax, transfer
         fac_dem=fac_dem, fac_by=fac_by, savings=savings, available=available, current=current,
         bilateral=D_rc[:, :reg.n_reg, :],
         bilateral_imports=(reg.import_share * M_c[None, :, :])[:, :reg.n_reg, :],
-        hh_nat=hh_q, gov_nat=gov_q, inv_nat=inv_q,
+        hh_nat=hh_q, gov_nat=gov_q, inv_nat=inv_q, p_hh=p_hh,
         ND=(dsh * reg.arm_share * A).sum(axis=0), hh_sav=hh_sav,
         government_saving=government_saving,
         gov_regional_q=gov_regional_q, inv_q_reg=inv_channel_q[:reg.n_reg],
@@ -1359,7 +1390,7 @@ def _pack(econ, reg, closure, scenario, state, z, residual, label, message, tole
     # national level, not only the national change.
     # Under LES the marginal index, as the national solver reports it.
     hh_index = cobb_douglas_price((reg.hh_budget if reg.hh_beta is None else reg.hh_beta).T,
-                                  state["pq"][reg.household_region].T)
+                                  state["p_hh"].T)
     ok = residual < tolerance
     return PeriodResult(
         econ=econ, closure=closure, scenario=scenario, z=z,
@@ -1394,6 +1425,7 @@ def _pack(econ, reg, closure, scenario, state, z, residual, label, message, tole
             # Final demand by destination channel, at the prices each one pays.
             destination_price=state["pq"],
             hh_destination_quantity=state["hh_nat"],
+            hh_destination_price=state["p_hh"],
             gov_destination_quantity=state["gov_channel_q"],
             inv_destination_quantity=state["inv_channel_q"],
             # Investment bought origin by origin under Scenario.investment_mix,

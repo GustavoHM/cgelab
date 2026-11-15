@@ -71,7 +71,7 @@ from .spec import AccountLayout, ModelSpec
 from .transport import TransportMargins
 from .welfare import compensating_variation, equivalent_variation, ev_by_group
 
-__version__ = "0.14.0"
+__version__ = "0.15.0"
 
 __all__ = [
     "SAM", "BalanceError", "sam_distance", "CrossEntropy", "cross_entropy",

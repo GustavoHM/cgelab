@@ -369,6 +369,8 @@ independent replica in Julia (JuMP with Ipopt or PATH), as in `validation/`.
 that trade with each other, `solve_two_countries`. Released alone, so it does not wait on the
 items below, which became 0.16; the versions after it move up by one.
 
+- [ ] **Release**: 0.15.0 on PyPI and archived on Zenodo.
+
 **0.16 — what released items left open.** From 0.14: carbon prices and the energy nest in the
 regional solver, and its complementarity conditions. Melitz firms, from 0.13; AIDS household
 demand; capital utilization; a nested land CET; employment in persons, unemployment benefits and a

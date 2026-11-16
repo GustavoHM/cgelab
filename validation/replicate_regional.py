@@ -36,6 +36,9 @@ TOL = 1e-8
 # As elasticidades-renda por bem local com que uma economia LES foi calibrada: o Economy guarda
 # as quantidades comprometidas, não as elasticidades de que saíram.
 ELASTICIDADES: dict = {}
+# Os totais de emissões com que add_emissions calibrou cada economia, por conta: a referência
+# calibra os coeficientes a partir deles, não dos do cgelab.
+EMISSOES: dict = {}
 
 
 def _rel(a, b, piso=1.0):
@@ -105,6 +108,8 @@ def enunciado(sam, econ, closure, scenario) -> dict:
         tariff_account=spec.tariff_account, indirect_tax_account=spec.indirect_tax_account,
         export_tax_account=spec.export_tax_account,
         frisch=float(spec.frisch), income_elasticities=dict(ELASTICIDADES.get(id(econ), {})),
+        carbon=(None if scenario.carbon_price is None else
+                dict(price=float(scenario.carbon_price), **EMISSOES[id(econ)])),
         transport=transport, migration=migration,
         population_share={h: float(p) for h, p in zip(econ.hhs, econ.pop_share)},
         closure=dict(investment=closure.investment, government=closure.government,
@@ -149,7 +154,8 @@ def lado_cgelab(econ, res) -> dict:
         "savings": res.savings,
         "tax_revenue": sum(res.government[k] for k in ("product_tax", "activity_tax",
                                                         "direct_tax", "tariff", "output_tax",
-                                                        "export_tax")),
+                                                        "export_tax", "carbon_production",
+                                                        "carbon_households")),
         "qst": None if res.transport is None else res.transport["qst"],
     }
 
@@ -302,6 +308,18 @@ def main() -> int:
     casos["comercio_poupanca_do_governo"] = caso(
         "comercio_poupanca_do_governo", sam_t, econ_t, cge.Closure(government="saving_rate"),
         cge.Scenario(world_price=np.array([0.9]), tariff=np.array([0.15])))
+
+    # Preço do carbono: emissões dos insumos e do processo nas atividades, e das famílias.
+    sam_c, econ_c = regions.build(taxes=True)
+    econ_c = cge.add_emissions(econ_c, process={"r1:a": 10.0, "r2:a": 6.0},
+                               household={"r1:c": 5.0, "r2:c": 5.0})
+    # Por atividade, a soma dos insumos e do processo; por bem local, a das famílias.
+    EMISSOES[id(econ_c)] = dict(activity={"r1:a": 10.0, "r2:a": 6.0}, household={"c": 10.0})
+    casos["carbono"] = caso("carbono", sam_c, econ_c, scenario=cge.Scenario(
+        carbon_price=0.5, productivity=np.array([1.1, 1.0])))
+    casos["carbono_poupanca_do_governo"] = caso(
+        "carbono_poupanca_do_governo", sam_c, econ_c, cge.Closure(government="saving_rate"),
+        cge.Scenario(carbon_price=0.8))
 
     # Um custo cobrado do governo, que sai da economia.
     casos["governo_absorve"] = caso("governo_absorve", sam, econ, scenario=choque_imp.with_(

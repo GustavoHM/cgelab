@@ -319,12 +319,12 @@ independent replica in Julia (JuMP with Ipopt or PATH), as in `validation/`.
 
 - [x] **CDE household demand** and a **labour–leisure choice** (`household_demand="cde"`,
   `leisure_ratio`). Validated against closed-form elasticities, the CES case, and an
-  independent Julia rewrite solved by PATH, to 1e-14. AIDS moved to 0.16: its price parameters
+  independent Julia rewrite solved by PATH, to 1e-14. AIDS moved to the list after 0.16: its price parameters
   need a calibration a SAM does not give, and the CDE covers non-homothetic demand.
 - [ ] **Capital utilization** that responds to its price (Galindev and Decaluwé, 2022). Moved to
-  0.16: the paper's formulation is not at hand, and guessing it would not be a replication.
+  the list after 0.16: the paper's formulation is not at hand, and guessing it would not be a replication.
 - [x] **Land allocated by CET** across uses: `factor_mobility` on a land factor, since 0.6,
-  is GTAP's sluggish endowment. A nested land CET is open, in 0.16.
+  is GTAP's sluggish endowment. A nested land CET is open, in the list after 0.16.
 - [x] **Release**: 0.12.0 on PyPI and archived on Zenodo
   ([10.5281/zenodo.24014846](https://doi.org/10.5281/zenodo.24014846)).
 - [x] **Regional investment basket**: `Scenario.investment_mix` in the regional solver, each
@@ -341,7 +341,7 @@ independent replica in Julia (JuMP with Ipopt or PATH), as in `validation/`.
 - [ ] **A second country**, `twocge`: moved to 0.14, since it needs two current accounts and two
   currencies, which the regional solver, with one national current account, does not have.
 - [ ] **Melitz firms**: heterogeneous firms with a fixed cost of exporting. Reference: the
-  closed forms of the one-sector model and an independent replica. Moved to 0.16.
+  closed forms of the one-sector model and an independent replica. Moved to the list after 0.16.
 - [x] **Release**: 0.13.0 on PyPI and archived on Zenodo
   ([10.5281/zenodo.24021464](https://doi.org/10.5281/zenodo.24021464)).
 
@@ -355,7 +355,7 @@ independent replica in Julia (JuMP with Ipopt or PATH), as in `validation/`.
 - [x] **The tariff and output and export taxes** in the regional solver, without route margins:
   the tariff one rate per local commodity, output and export taxes by origin. Against the
   one-region national model and the extended reference, to 1e-15.
-- [ ] **Carbon prices and the energy nest** in the regional solver: moved to 0.16, together,
+- [ ] **Carbon prices and the energy nest** in the regional solver: carbon came in 0.16; the nest is first in the list after it, with carbon on fuel,
   since carbon on fuel goes through the nest.
 - [ ] **The complementarity conditions of 0.8** in the regional solver: 0.16.
 - [x] **A second country**, `twocge`, with its own currency and current account: a separate
@@ -372,20 +372,35 @@ items below, which became 0.16; the versions after it move up by one.
 - [x] **Release**: 0.15.0 on PyPI and archived on Zenodo
   ([10.5281/zenodo.24256005](https://doi.org/10.5281/zenodo.24256005)).
 
-**0.16 — what released items left open.** From 0.14: carbon prices and the energy nest in the
-regional solver, and its complementarity conditions. Melitz firms, from 0.13; AIDS household
-demand; capital utilization; a nested land CET; employment in persons, unemployment benefits and a
-wage curve by segment; vintages that substitute perfectly with idle capital, the sale of old
-capital, and vintages with the energy nest and in several regions; historical calibration with
-employment, the investment rate and exports as unknowns; quotas on exports and output, and a
-floor on the producer price; analytic derivatives for the national solver.
+**0.16 — carbon in the regional solver.**
 
-**0.17 — forward-looking.** Risk-adjusted welfare and forward-looking migration on the
-dsgelab bridge, and an intertemporal CGE with expectations.
+- [x] **Carbon prices in the regional solver**: on activities, a tax per unit of output as
+  nationally without an energy nest; on households, on top of the purchaser price, one
+  coefficient per good across origins. Against the one-region national model under three
+  closures and against `validation/regional.jl`, which calibrates carbon from the raw emission
+  totals, to 2.7e-15.
 
-**0.18 — exports and the site.** Writing a model as GAMS/MPSGE and as GEMPACK TABLO input
-(validating either needs a licence, and stays open for whoever has one); the Markdown
-documents rendered on the site; the whitepaper and the validation comments in English.
+**After 0.16: what is left, in order.** From 0.16 on, each version takes the next items of
+this list that are done and validated, and goes out; the list says the order, not the version
+numbers, which numbering every version ahead kept having to shift.
+
+1. The energy nest in the regional solver, and with it carbon on fuel that answers to prices.
+2. The complementarity conditions of 0.8 in the regional solver: capacity limits and import
+   quotas, then price bounds, then least cost and the wage floor.
+3. Melitz firms: heterogeneous firms with a fixed cost of exporting. Reference: the closed
+   forms of the one-sector model and an independent replica.
+4. AIDS household demand; capital utilization (Galindev and Decaluwé, 2022, once its
+   formulation is at hand); a nested land CET.
+5. Employment in persons, unemployment benefits and a wage curve by segment; vintages that
+   substitute perfectly with idle capital, the sale of old capital, and vintages with the
+   energy nest and in several regions; historical calibration with employment, the investment
+   rate and exports as unknowns; quotas on exports and output, and a floor on the producer
+   price; analytic derivatives for the national solver.
+6. Forward-looking: risk-adjusted welfare and forward-looking migration on the dsgelab bridge,
+   and an intertemporal CGE with expectations.
+7. Exports and the site: writing a model as GAMS/MPSGE and as GEMPACK TABLO input (validating
+   either needs a licence, and stays open for whoever has one); the Markdown documents rendered
+   on the site; the whitepaper and the validation comments in English.
 
 **Waiting on a licence or on a need**, outside the sequence:
 
@@ -398,7 +413,7 @@ documents rendered on the site; the whitepaper and the validation comments in En
   systems of one equation per destination and good are a small part of a solve.
 
 **1.0.** All of the above, the API frozen, strict semantic versioning from then on. Whether
-1.0 waits on the items that need a licence is decided at 0.18.
+1.0 waits on the items that need a licence is decided when item 7 is done.
 
 ## Next: gaps an applied model hit
 

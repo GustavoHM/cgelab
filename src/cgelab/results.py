@@ -163,7 +163,8 @@ def _components(period) -> dict:
     if econ.regional is not None:
         real = period.real
         prices = real["destination_price"]
-        hh_prices = prices[econ.regional.household_region]
+        # What households pay, carbon on their fuel included.
+        hh_prices = real.get("hh_destination_price", prices[econ.regional.household_region])
         return {
             "consumption": (hh_prices.ravel(), real["hh_destination_quantity"].ravel()),
             "government": (prices.ravel(), real["gov_destination_quantity"].ravel()),

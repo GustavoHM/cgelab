@@ -21,6 +21,10 @@
 # a preço do produtor: a CET reparte o produto bruto dele. Imposto sobre exportações, por origem,
 # sobre o preço FOB: o produtor recebe esse preço líquido do imposto. Cada um sai da sua conta.
 #
+# Carbono: um preço por tonelada. Nas atividades, sem ninho de energia, é um imposto por unidade
+# produzida igual às emissões do ano-base (dos insumos e do processo) sobre o produto; nas
+# famílias, um acréscimo por unidade comprada igual às emissões sobre a quantidade básica do bem.
+#
 # Escopo, recusado pelo script em Python fora dele: sem transferências, sem margens fora das rotas,
 # uma atividade por bem de origem, famílias Cobb–Douglas, valor adicionado CES (Cobb–Douglas em
 # sigma = 1), exportações em proporção fixa ou CET, migração CET ou logit, contas regionais de
@@ -210,6 +214,20 @@ taxa_cena(campo, chave, base) = haskey(E.scenario, campo) && E.scenario[campo] !
 tm = [taxa_cena(:tariff, L[c], tm0[c]) for c in 1:NL]
 tz = [taxa_cena(:output_tax, conta(r, c), tz0[r, c]) for r in 1:NR, c in 1:NL]
 te = [taxa_cena(:export_tax, conta(r, c), te0[r, c]) for r in 1:NR, c in 1:NL]
+carbono = haskey(E, :carbon) && E.carbon !== nothing
+carb_a = zeros(NR, NL)
+carb_h = zeros(NL)
+if carbono
+    preco_c = Float64(E.carbon.price) * Float64(E.closure.numeraire)
+    for r in 1:NR, c in 1:NL
+        carb_a[r, c] = preco_c * Float64(get(E.carbon.activity, Symbol(atv(r, c)), 0.0)) / X0[r, c]
+    end
+    q_hh = [sum(gasto0[h, c] for h in 1:NH) / (1 + tprod[c]) for c in 1:NL]
+    for c in 1:NL
+        tot = Float64(get(E.carbon.household, Symbol(L[c]), 0.0))
+        carb_h[c] = tot > 0 ? preco_c * tot / q_hh[c] : 0.0
+    end
+end
 absorve = haskey(E.scenario, :government_absorbs) ? Float64(E.scenario.government_absorbs) : 0.0
 nivel = E.scenario.investment_level === nothing ? sum(pq0 .* I0) : Float64(E.scenario.investment_level)
 dot = fi0                                      # dotação de cada fator a preço 1
@@ -266,6 +284,14 @@ XG(r, c) = X[r, c] * (1 + tz0[r, c])
 pfob(r, c) = cet ? pe(c) : pg(r, c) * (1 - te0[r, c]) / (1 - te[r, c])
 pdel(r, d, c) = ps[r, c] + tau[r, d, c] * pt
 pc(d, c) = (1 + tprod[c]) * pq[d, c]                          # o que o comprador paga
+phh(d, c) = pc(d, c) + carb_h[c]                                 # o que a família paga
+# Consumo das famílias de cada destino, ao preço que elas pagam.
+consumo_dc(d, c) = d > NR ? 0.0 :
+    les ? sum((gama[h, c] + beta_les[h, c] * ((1 - pou[h] - tdir[h]) * Y[h] -
+                                              sum(phh(d, k) * gama[h, k] for k in 1:NL)) /
+                             phh(d, c) for h in 1:NH if hreg[h] == d); init = 0.0) :
+    sum((orc[h, c] * (1 - pou[h] - tdir[h]) * Y[h] / phh(d, c) for h in 1:NH if hreg[h] == d);
+        init = 0.0)
 
 # Valor adicionado e custo unitário.
 for r in 1:NR, c in 1:NL
@@ -293,7 +319,7 @@ for r in 1:NR, c in 1:NL
         end
     end
     @constraint(m, pa[r, c] == sum(io[c2, r, c] / tfp[r, c] * pc(r, c2) for c2 in 1:NL) +
-                               vcoef[r, c] / tfp[r, c] * pva[r, c] + atax[r, c] * nu)
+                               vcoef[r, c] / tfp[r, c] * pva[r, c] + atax[r, c] * nu + carb_a[r, c])
 end
 
 # Vendas internas e exportações.
@@ -410,6 +436,8 @@ receita = @expression(m, sum(ao_gov[r, l] * renda_f[(r, l)] for r in 1:NR, l in 
                         sum(tprod[c] * pq[d, c] * A[d, c] for d in 1:ND, c in 1:NL) +
                         sum(atax[r, c] * nu * X[r, c] for r in 1:NR, c in 1:NL) +
                         sum(tdir[h] * Y[h] for h in 1:NH) - absorve +
+                        sum(carb_a[r, c] * X[r, c] for r in 1:NR, c in 1:NL) +
+                        sum(carb_h[c] * consumo_dc(d, c) for d in 1:NR, c in 1:NL) +
                         sum(tm[c] * pmb(c) * MM[d, c] / (1 + tm0[c]) for d in 1:ND, c in 1:NL) +
                         sum(tz[r, c] * pa[r, c] * X[r, c] for r in 1:NR, c in 1:NL) +
                         sum(te[r, c] * pfob(r, c) * EX[r, c] / (1 - te0[r, c]) for r in 1:NR, c in 1:NL))
@@ -464,12 +492,7 @@ end
 # Absorção em cada destino.
 for d in 1:ND, c in 1:NL
     ativo[d, c] || continue
-    consumo = d > NR ? 0.0 :
-              les ? sum((gama[h, c] + beta_les[h, c] * ((1 - pou[h] - tdir[h]) * Y[h] -
-                                                        sum(pc(d, k) * gama[h, k] for k in 1:NL)) /
-                                       pc(d, c) for h in 1:NH if hreg[h] == d); init = 0.0) :
-              sum((orc[h, c] * (1 - pou[h] - tdir[h]) * Y[h] / pc(d, c) for h in 1:NH if hreg[h] == d);
-                  init = 0.0)
+    consumo = consumo_dc(d, c)
     insumos = d > NR ? 0.0 :
               sum(io[c, d, c2] / tfp[d, c2] * X[d, c2] for c2 in 1:NL)
     @constraint(m, A[d, c] == consumo + G[d, c] + I[d, c] + insumos)

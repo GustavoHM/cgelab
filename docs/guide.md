@@ -1064,6 +1064,56 @@ countries' tariffs agree with cgelab in all 48 displayed variables of each
 country to 1.8e-12. Both countries need CET exports and the same commodities,
 and their base-year trade must be each other's.
 
+### Heterogeneous firms and export selection (Melitz)
+
+```python
+from dataclasses import replace
+
+spec = cge.MelitzSpec(sigma=4.0, pareto_shape=5.0, iceberg_cost=1.5,
+                      domestic_fixed_cost=1.0, export_fixed_cost=1.0)
+base = cge.solve_melitz(spec)
+freer = cge.solve_melitz(replace(spec, iceberg_cost=1.2))
+base.export_cutoff, base.exporters, base.export_share
+freer.welfare / base.welfare
+(freer.domestic_share / base.domestic_share) ** (-1 / spec.pareto_shape)   # the same number
+```
+
+`solve_melitz` is a model of its own, not a feature of the SAM-based equilibrium: two identical
+countries, one sector and one factor, as in Melitz (2003) with Pareto productivity. It reads no
+SAM, no `ModelSpec` and no `Scenario`, and `solve_period` does not use it. Entrants pay an entry
+cost in labour and draw productivity from a Pareto distribution. Firms above the domestic cutoff
+produce; those above the higher export cutoff also pay a fixed export cost and an iceberg trade
+cost. CES monopolistic competition sets the markup, free entry exhausts expected profits, labour
+is the numeraire and trade balances by symmetry. The model is static: with no death shock,
+`entry_cost` is the per-period equivalent of the sunk cost. `pareto_shape` must exceed
+`sigma - 1`. With Pareto draws the cutoffs, the firm masses and the price index have closed
+forms, and the function evaluates them; it solves nothing.
+
+`MelitzResult` reports both cutoffs, the masses of entrants, domestic firms and exporters, the
+CES price index, aggregate domestic and export revenues, Melitz's average productivity of the
+firms in each market, the real wage and welfare. `revenue(phi, market=)` and
+`operating_profit(phi, market=)` evaluate one firm; `export_share`, `entry_probability`,
+`domestic_share` and `varieties` summarise selection and trade; `residual` and `residuals` report
+the zero-profit conditions and the free-entry, labour and revenue identities. Use
+`dataclasses.replace` for a counterfactual, as above.
+
+Selection must be interior: some but not all active firms export, and the domestic cutoff is
+above the Pareto minimum. The cases in which every active firm exports or every entrant produces
+are refused by name, and so is autarky, which a large `iceberg_cost` approaches. Asymmetric
+countries, several sectors, intermediate inputs, other productivity distributions and firm
+heterogeneity as a sectoral block of the CGE (Balistreri and Rutherford; Dixon, Jerie and
+Rimmer) are not implemented.
+
+`validation/melitz.jl` writes the firm's problem and five equilibrium conditions, does every
+integral by Gauss-Legendre quadrature and solves them with Ipopt; it uses no Pareto closed form
+and does not impose that expenditure equals labour income, which the solution returns. Nine
+cases, with a heavy tail and selection close to the all-exporters corner among them, agree with
+`solve_melitz` to 1.8e-13 (`validation/replicate_melitz.py`). The suite integrates the firm's
+problem again with scipy and checks four published results the module does not use: Melitz's
+welfare as a function of the domestic cutoff, his price index of the representative firm, the
+gains from trade of Arkolakis, Costinot and Rodríguez-Clare (the last line above) and Chaney's
+trade elasticity, the Pareto shape and not `sigma - 1`.
+
 ### An export tax
 
 ```python

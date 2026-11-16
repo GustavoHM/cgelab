@@ -1205,6 +1205,33 @@ total          25.32
   <p>Carbon on each region's activity is a tax per unit of output, and households pay it on top
   of the purchaser price of the good they burn. Emissions fall where the tax bites, and the
   revenue goes to government. A one-region model gives the national solver's result.</p>
+  <h3>52. Heterogeneous firms and export selection</h3>
+<pre><code>from dataclasses import replace
+melitz = cge.solve_melitz(cge.MelitzSpec(sigma=4.0, pareto_shape=5.0, iceberg_cost=1.5))
+freer = cge.solve_melitz(replace(melitz.spec, iceberg_cost=1.2))
+{"exporters (%)": round(100 * melitz.export_share, 2),
+ "domestic cutoff": round(melitz.domestic_cutoff, 4), "real wage": round(melitz.real_wage, 4)}
+{"exporters (%)": round(100 * freer.export_share, 2),
+ "domestic cutoff": round(freer.domestic_cutoff, 4), "real wage": round(freer.real_wage, 4)}
+round(freer.welfare / melitz.welfare, 6)
+round((freer.domestic_share / melitz.domestic_share) ** (-1 / 5.0), 6)</code></pre>
+<pre class="output" data-label="Output"><code><span class="out-expr">{"exporters (%)": round(100 * melitz.export_share, 2),</span>
+ "domestic cutoff": round(melitz.domestic_cutoff, 4), "real wage": round(melitz.real_wage, 4)}
+{'exporters (%)': 13.17, 'domestic cutoff': 1.112, 'real wage': 2.438}
+<span class="out-expr">{"exporters (%)": round(100 * freer.export_share, 2),</span>
+ "domestic cutoff": round(freer.domestic_cutoff, 4), "real wage": round(freer.real_wage, 4)}
+{'exporters (%)': 40.19, 'domestic cutoff': 1.16, 'real wage': 2.545}
+<span class="out-expr">round(freer.welfare / melitz.welfare, 6)</span>
+1.044
+<span class="out-expr">round((freer.domestic_share / melitz.domestic_share) ** (-1 / 5.0), 6)</span>
+1.044</code></pre>
+  <p>A model of its own, not part of the SAM-based equilibrium: two identical countries and one
+  sector, as in Melitz (2003) with Pareto productivity, evaluated in closed form. Entrants draw
+  their productivity and only firms above the export cutoff pay the fixed cost of exporting.
+  Lowering the iceberg cost from 1.5 to 1.2 lets more firms export, raises the domestic cutoff
+  and the real wage, and the gain is the one that the formula of Arkolakis, Costinot and
+  Rodríguez-Clare gives from the domestic expenditure share. Nine cases agree to 1.8e-13 with
+  the equilibrium solved in Julia from the firm's problem by quadrature.</p>
 </div></section>
 
 <section id="gates"><div class="wrap">

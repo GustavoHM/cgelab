@@ -142,6 +142,7 @@ period.
 | Baselines calibrated to real GDP and limited historical closures with technology and relative-preference shifters | `calibrate_baseline`, `calibrate_historical`, `Baseline`, `Historical` |
 | Microsimulation: survey households reconciled with the SAM; Gini, FGT, generalised entropy, Atkinson and their decompositions; reweighting; a behavioural model (BRR) | `microsimulate`, `inequality`, `poverty`, `Behaviour` |
 | Building a SAM from supply and use tables, with the provenance of every block; splitting households and labour by surveys; readers for the IBGE's tables, PNAD Contínua and POF | `sut_to_sam`, `split_households`, `split_factor`, `read_tru`, `pnadc`, `pof` |
+| Heterogeneous firms: a standalone one-sector Melitz model in closed form, with Pareto productivity, a fixed cost of exporting and export selection (not a block of the CGE) | `MelitzSpec`, `solve_melitz` |
 | Forward-looking investment (a Ramsey CGE solved by dsgelab) | `cgelab.bridge` |
 | Accounts: GDP from both sides, Laspeyres, Paasche and Fisher indices, terms of trade, the government account | `national_accounts`, `price_indices`, `government_account` |
 | Decompositions: subtotals by shock, Huff-Hertel welfare decomposition | `subtotals`, `welfare_decomposition` |

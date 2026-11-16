@@ -160,9 +160,9 @@ def test_the_exact_jacobian_reaches_the_same_equilibrium(monkeypatch, case):
     for name in ("factor_prices", "pq", "Q", "X", "absorption", "imports", "exports",
                  "gov_quantity", "investment_quantity", "hh_income"):
         np.testing.assert_allclose(getattr(exact, name), getattr(numeric, name),
-                                   rtol=1e-12, atol=1e-12, err_msg=name)
-    assert exact.exchange_rate == pytest.approx(numeric.exchange_rate, rel=1e-12)
-    assert exact.savings == pytest.approx(numeric.savings, rel=1e-12)
+                                   rtol=1e-13, atol=1e-13, err_msg=name)
+    assert exact.exchange_rate == pytest.approx(numeric.exchange_rate, rel=1e-13)
+    assert exact.savings == pytest.approx(numeric.savings, rel=1e-13)
 
 
 def test_the_base_year_is_reproduced():

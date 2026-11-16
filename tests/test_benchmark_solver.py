@@ -33,3 +33,18 @@ def test_measure_reports_every_solve():
     # The base year is its own start point: no root-finder evaluation at all.
     assert rows[0]["evaluations"] == 0 and rows[0]["base_gap"] < 1e-8
     assert rows[1]["evaluations"] > 0
+
+
+def test_a_variant_with_more_unknowns_counts_exact_jacobians():
+    import dataclasses
+    sam, model_spec = bench.national(8)
+    curves = dataclasses.replace(model_spec, **bench.VARIANTS["curves"])
+    exact = bench.measure("national-8-curves", sam, curves, len(sam.accounts))[1]
+    with bench._finite_differences():
+        finite = bench.measure("national-8-curves", sam, curves, len(sam.accounts))[1]
+    # Two factors less the numeraire, the exchange rate, and two world prices per commodity.
+    assert exact["unknowns"] == finite["unknowns"] == 2 + 2 * 8
+    assert exact["converged"] and finite["converged"]
+    assert exact["jacobians"] > 0 and finite["jacobians"] == 0
+    # One finite-difference Jacobian alone costs an evaluation per unknown.
+    assert exact["evaluations"] < finite["evaluations"]

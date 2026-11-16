@@ -41,6 +41,7 @@ from .closure import Closure
 from .functions import (armington, cde_expenditure, cde_shares, cde_utility, ces_intensity,
                         ces_price, cet, cet_domestic_price, cobb_douglas_price)
 from .mobility import period_endowments
+from . import national_jacobian
 from .segments import period_groups
 from .scenario import Scenario, investment_shares
 
@@ -1522,7 +1523,31 @@ def solve_period(econ: Economy, closure: Closure | None = None,
             _, out = quantities(paid_of(np.linalg.solve(A_fix, d0 - J @ x0)))
         else:
             _, out = quantities(paid_of(np.zeros(0)))
+        state["at"] = z.copy()
         return out
+
+    # The exact Jacobian, where every option in play is one it derives. The
+    # decision is national_jacobian.unsupported's alone: an option it does not
+    # list keeps finite differences.
+    period = dict(
+        closure=closure, n_unknown=n_unknown, others=others, i_ext=i_ext, i_inv=i_inv,
+        i_curve=i_curve, curve_x=curve_x, curve_m=curve_m, eta_x=eta_x, psi_m=psi_m,
+        i_mob=i_mob, endow=endow, base_use=base_use, nu=nu, lab=lab, tfp=tfp, supply=supply,
+        ptax_a=ptax_a_set, ptax_f=ptax_f_set, world_p=world_p, world_pe=world_pe,
+        tm=tm, tauz=tauz, te=te, tf0=tf0, tz0=tz0, te_base=te_base, ex_wedge=ex_wedge,
+        cet_on=cet_on, sigma_cet=sigma_cet, trade_target=trade_target,
+        in_dollars=in_dollars, ext_scale=ext_scale, sav_scale=sav_scale,
+        facshare=facshare_eff, fac_gov=fac_gov_sh, fac_row=fac_row_sh, dtax=dtax_set,
+        act_scale=act_scale, gov_w=gov_w, gov_savrate=gov_savrate, inv_share=inv_share,
+        beta_les=beta_les)
+
+    def jacobian(z):
+        z = np.atleast_1d(np.asarray(z, dtype=float))
+        if "at" not in state or not np.array_equal(state["at"], z):
+            residuals(z)
+        return national_jacobian.jacobian(econ, period, state)
+
+    exact = jacobian if national_jacobian.unsupported(econ, closure, sc) is None else None
 
     # Convergence is judged on the residual, never on the solver's success flag:
     # `hybr` reports failure whenever its finite-difference Jacobian stops
@@ -1601,7 +1626,7 @@ def solve_period(econ: Economy, closure: Closure | None = None,
                 best = (float(np.max(np.abs(first))) if first.size else 0.0,
                         np.asarray(start, dtype=float), label, "the start point solves the system")
                 break
-            sol = root(residuals, start, method=method,
+            sol = root(residuals, start, method=method, jac=exact,
                        options={"xtol": 1e-14} if method == "hybr"
                        else {"xtol": 1e-14, "ftol": 1e-14})
         except ValueError as exc:

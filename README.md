@@ -236,10 +236,14 @@ where it stands. Things to know before relying on it:
   needs Rosetta on Apple silicon, and its authors' free licence string above 300
   variables), or by IPOPT without them (`backend="ipopt"`), in `to_jump`'s scope.
 - **The solver** works on a few unknowns, with an exact Jacobian in the regional
-  model and finite differences elsewhere. On the synthetic SAMs of
+  model and, for the options it derives, in the national one; the others (among
+  them energy nests, wedges, labour segments and the complementarity conditions)
+  use finite differences. On the synthetic SAMs of
   `tools/benchmark_solver.py`, a national model of 647 accounts solves a shock in
-  0.3 s and a regional one of 819 accounts (16 regions of 24 goods) in about 1 s. Each commodity put on a trade curve adds an unknown, and so
-  does each activity that uses an imperfectly mobile factor or each regional factor.
+  0.1 s and a regional one of 819 accounts (16 regions of 24 goods) in about 1 s. Each commodity put on a trade curve adds an unknown, and so
+  does each activity that uses an imperfectly mobile factor or each regional factor:
+  with every commodity of that national model on both curves, 642 unknowns, the
+  shock takes 2.4 s.
 - **Fixed proportions everywhere** (`sigma_va = 0` in every activity) can leave
   the model without a solution under full employment of every factor.
 - **Under fixed export shares** with a Cobb-Douglas Armington, the exchange rate is

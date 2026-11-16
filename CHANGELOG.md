@@ -16,6 +16,30 @@ before 1.0, a minor version may add to the API and a patch version only fixes.
   carbon from the raw emission totals, agrees in two cases to 2.7e-15.
   Regional consumption in `national_accounts` is valued at what households
   pay, carbon included (`real["hh_destination_price"]`).
+- The national solver gives MINPACK the exact Jacobian of its residual
+  (`cgelab.national_jacobian`), propagated forward through the price fixed
+  point, the absorption system and the closed-form budget block. It covers the
+  value-added, Armington and CET nests, trade taxes, Cobb–Douglas and LES
+  households, own-account production, an elastic labour supply, the investment,
+  government and external closures, export-demand and import-supply curves, and
+  imperfectly mobile factors. In 25 configurations it matches central
+  differences to 1.1e-11 of the Jacobian's scale and the equilibria agree with
+  the finite-difference solver's to 3e-15. The gain is where the unknowns are
+  many: on `tools/benchmark_solver.py`, 320 sectors with every commodity on
+  both trade curves (642 unknowns) solve a shock in 26 residual evaluations and
+  5 Jacobians instead of 2,593 evaluations, 2.4 s instead of 24 s; 80 sectors
+  with sluggish capital (81 unknowns) in 0.09 s instead of 1.1 s. With the
+  standard two unknowns it is 10 evaluations instead of 28 and 0.10 s instead
+  of 0.25 s at 647 accounts. Every other option keeps finite differences:
+  the coverage gate lists what is derived, so an option it does not name
+  (energy nests, carbon prices, wedges, vintages, labour segments, CDE,
+  leisure, a tax rate that meets a government target, asymmetric Armington,
+  market structure, the complementarity conditions, the wage closures other
+  than an elastic supply) is declined by name, and so is one added later.
+- `tools/benchmark_solver.py --variants curves mobility` measures national
+  models with a world price per commodity on a curve or a factor price per
+  activity, `--jacobian finite` switches the exact national Jacobian off, and
+  the table has a `jacobians` column.
 
 ### Changed
 

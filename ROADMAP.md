@@ -379,6 +379,12 @@ items below, which became 0.16; the versions after it move up by one.
   coefficient per good across origins. Against the one-region national model under three
   closures and against `validation/regional.jl`, which calibrates carbon from the raw emission
   totals, to 2.7e-15.
+- [x] **Analytic derivatives for the national solver**: an exact Jacobian
+  (`cgelab.national_jacobian`), forward-mode through the price fixed point and the absorption
+  system. It matches extrapolated central differences to 1e-11 of the Jacobian's scale in 25
+  configurations, and the equilibria agree with the finite-difference solver's to 3e-15. It
+  pays where the unknowns are many: 320 sectors on trade curves (642 unknowns) solve a shock
+  in 2.4 s instead of 24 s. Options it does not derive keep finite differences, by name.
 
 **After 0.16: what is left, in order.** From 0.16 on, each version takes the next items of
 this list that are done and validated, and goes out; the list says the order, not the version
@@ -395,7 +401,7 @@ numbers, which numbering every version ahead kept having to shift.
    substitute perfectly with idle capital, the sale of old capital, and vintages with the
    energy nest and in several regions; historical calibration with employment, the investment
    rate and exports as unknowns; quotas on exports and output, and a floor on the producer
-   price; analytic derivatives for the national solver.
+   price.
 6. Forward-looking: risk-adjusted welfare and forward-looking migration on the dsgelab bridge,
    and an intertemporal CGE with expectations.
 7. Exports and the site: writing a model as GAMS/MPSGE and as GEMPACK TABLO input (validating

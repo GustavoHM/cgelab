@@ -9,13 +9,22 @@ solved again after a shock to productivity and world prices.
 
 For each solve the script records wall time, the number of residual
 evaluations inside the root finder (zero when the start point already solves
-the system, as the base year does), time per evaluation, the start that converged, the residual, the
+the system, as the base year does) and of exact Jacobians, time per evaluation,
+the start that converged, the residual, the
 distance from the base year (which must be zero at the base) and the peak of
 Python memory allocations. ``--profile`` adds the functions where the time of
 the largest shocked solve goes.
 
+``--variants`` adds national models with more unknowns than the standard two:
+``curves`` puts every commodity on an export-demand and an import-supply curve
+(two world prices per commodity), ``mobility`` makes capital imperfectly mobile
+(its price in every activity). ``--jacobian finite`` switches the exact national
+Jacobian off, which is the comparison it is measured against.
+
     python tools/benchmark_solver.py                      # both ladders
     python tools/benchmark_solver.py --national 10 40 160 --regional 2x4 4x8
+    python tools/benchmark_solver.py --national 40 160 --regional --variants curves mobility
+    python tools/benchmark_solver.py --national 160 --regional --jacobian finite
     python tools/benchmark_solver.py --out bench.csv --profile
 """
 
@@ -23,12 +32,13 @@ from __future__ import annotations
 
 import argparse
 import cProfile
+import dataclasses
 import io
 import pstats
 import sys
 import time
 import tracemalloc
-from contextlib import contextmanager
+from contextlib import contextmanager, nullcontext
 
 import numpy as np
 import pandas as pd
@@ -36,6 +46,7 @@ import pandas as pd
 import cgelab as cge
 import cgelab.regional as _regional
 import cgelab.solve as _solve
+from cgelab import national_jacobian as _national_jacobian
 
 SEED = 20261030
 
@@ -169,14 +180,20 @@ def regional(r: int, c: int, seed: int = SEED):
 
 @contextmanager
 def _counting():
-    """Count residual evaluations by wrapping the root finder both solvers call."""
-    calls = {"n": 0}
+    """Count residual and Jacobian evaluations by wrapping the root finder both solvers call."""
+    calls = {"n": 0, "jac": 0}
     originals = (_solve.root, _regional.root)
 
     def counted(fun, x0, *args, **kwargs):
         def wrapped(z):
             calls["n"] += 1
             return fun(z)
+        jac = kwargs.get("jac")
+        if jac is not None:
+            def wrapped_jac(z):
+                calls["jac"] += 1
+                return jac(z)
+            kwargs["jac"] = wrapped_jac
         return originals[0](wrapped, x0, *args, **kwargs)
 
     _solve.root = _regional.root = counted
@@ -217,7 +234,7 @@ def measure(label, sam, spec, accounts, profile=None):
             profile[label] = prof
         out.append(dict(
             model=label, accounts=accounts, unknowns=int(np.size(res.z)), solve=kind,
-            calibrate_s=t_cal, wall_s=wall, evaluations=calls["n"],
+            calibrate_s=t_cal, wall_s=wall, evaluations=calls["n"], jacobians=calls["jac"],
             ms_per_eval=1e3 * wall / calls["n"] if calls["n"] else np.nan, start=res.attempt,
             converged=bool(res.converged), residual=float(res.residual),
             walras=float(res.walras),
@@ -226,22 +243,55 @@ def measure(label, sam, spec, accounts, profile=None):
     return out
 
 
+VARIANTS = {
+    # Large-country trade: a world price per commodity and per curve.
+    "curves": dict(export_rule="cet", export_demand=4.0, import_supply=5.0),
+    # Sluggish capital: its price in every activity that uses it.
+    "mobility": dict(factor_mobility={"f_cap": 1.0}),
+}
+
+
+@contextmanager
+def _finite_differences():
+    """Solve the national model without its exact Jacobian."""
+    original = _national_jacobian.unsupported
+    _national_jacobian.unsupported = lambda *args: "switched off by the benchmark"
+    try:
+        yield
+    finally:
+        _national_jacobian.unsupported = original
+
+
 def main(argv=None) -> int:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("--national", type=int, nargs="*", default=[5, 10, 20, 40, 80, 160])
     parser.add_argument("--regional", nargs="*", default=["2x3", "2x6", "4x6", "4x12", "8x12"])
+    parser.add_argument("--variants", nargs="*", default=[], choices=sorted(VARIANTS),
+                        help="national models with more unknowns, beside the standard one")
+    parser.add_argument("--jacobian", choices=("exact", "finite"), default="exact",
+                        help="'finite' switches the exact national Jacobian off")
     parser.add_argument("--out", help="write the table to this CSV file")
     parser.add_argument("--profile", action="store_true",
                         help="profile the largest shocked solve of each ladder")
     args = parser.parse_args(argv)
 
     rows, profiles = [], {}
-    for n in args.national:
-        sam, spec = national(n)
-        accounts = len(sam.accounts)
-        print(f"national {n} ...", file=sys.stderr, flush=True)
-        rows += measure(f"national-{n}", sam, spec, accounts,
-                        profiles if args.profile and n == max(args.national) else None)
+    with _finite_differences() if args.jacobian == "finite" else nullcontext():
+        for n in args.national:
+            sam, spec = national(n)
+            accounts = len(sam.accounts)
+            print(f"national {n} ...", file=sys.stderr, flush=True)
+            rows += measure(f"national-{n}", sam, spec, accounts,
+                            profiles if args.profile and n == max(args.national) else None)
+            for name in args.variants:
+                print(f"national {n}, {name} ...", file=sys.stderr, flush=True)
+                try:
+                    rows += measure(f"national-{n}-{name}", sam,
+                                    dataclasses.replace(spec, **VARIANTS[name]), accounts)
+                except ValueError as exc:
+                    # A synthetic SAM this size can have an activity with negative
+                    # value added, which a transformation frontier refuses.
+                    print(f"national {n}, {name}: skipped ({exc})", file=sys.stderr)
     sizes = [tuple(map(int, s.split("x"))) for s in args.regional]
     for r, c in sizes:
         sam, spec = regional(r, c)

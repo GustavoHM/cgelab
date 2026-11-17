@@ -355,6 +355,22 @@ subsidy rate, and for each `price_floor`, the purchases in units of base
 absorption, each with one residual. Under `labour="wage_floor"` the labour
 market's residual is real wage − floor ≥ 0 ⊥ unemployment ≥ 0.
 
+Jacobian: exact, by forward-mode differentiation of the residual
+(`cgelab.national_jacobian`), when the model, closure and scenario use only
+what it derives: CES, Cobb–Douglas or fixed-proportions value added, Armington,
+fixed export shares or CET, tariffs, output and export taxes, Cobb–Douglas or
+LES households, own-account activities, `labour="full_employment"` or
+`"elastic_supply"`, every value of `investment`, `government`, `foreign` and
+`foreign_saving_unit`, `government_target="saving"` with
+`government_adjusts="spending"`, `export_demand`, `import_supply` and
+`factor_mobility`, under any scenario that sets only supplies, ownership,
+productivity, tax rates, transfers, world prices, the investment level and
+mix, and foreign income and saving. Any other option, and any field these
+classes gain later, keeps the finite-difference Jacobian of `scipy`'s `hybr`.
+The choice does not change the result: `tests/test_national_jacobian.py` holds
+the two to 1e-13 of each other in 25 configurations and the exact Jacobian to
+1e-10 of central differences. The module is internal and has no public names.
+
 When every start point raises (the residuals refuse the start, or a point the
 solver steps to from it), the `RuntimeError` lists what each start raised, starts
 with the same error on one line, and chains the last of them as `__cause__`. A

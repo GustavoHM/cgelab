@@ -301,6 +301,26 @@ includes the case where the start point already is the solution. Four start
 points are tried — warm, cold, perturbed, Levenberg–Marquardt — and the best
 residual wins.
 
+The root finder is given the exact Jacobian of the residual whenever every
+option in play is one `cgelab.national_jacobian` derives: the value-added,
+Armington and CET nests, trade taxes, Cobb–Douglas or LES households,
+own-account production, `labour="elastic_supply"`, the investment, government
+and external closures (a government target met by spending included), the trade
+curves of `export_demand` and `import_supply`, and `factor_mobility`. Any other
+option leaves the Jacobian to finite differences, one residual evaluation per
+unknown: energy nests, a carbon price, consumer and government wedges, vintages,
+labour segments, CDE demand, leisure, a tax rate that meets a government target,
+`sigma_armington_falling`, monopoly and fixed costs, least cost and backstops,
+capacity, quotas, price bounds, and the labour closures that set a wage. The
+equilibrium is the same either way, to rounding; what changes is the time, and
+only where the unknowns are many. With the standard two unknowns a shock on a
+647-account SAM takes 0.10 s instead of 0.25 s. With every commodity on both
+trade curves that model has 642 unknowns and takes 2.4 s instead of 24 s, most
+of what is left being MINPACK's own dense algebra; with sluggish capital in 80
+sectors, 81 unknowns, 0.09 s instead of 1.1 s
+(`tools/benchmark_solver.py --variants curves mobility`, and
+`--jacobian finite` for the comparison).
+
 `warm_start` accepts a previous `PeriodResult` (or a raw `z`) and is what makes a
 twenty-five year path cheap.
 

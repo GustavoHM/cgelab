@@ -29,7 +29,7 @@ read. A **📄** cell may be wrong.
 |---|---|---|---|---|---|
 | **Origin** | written for an applied SAM | ✅ port of `splcge.gams` from the GAMS library | ✅ "the simplest CGE model of Hosoe, Gawana [sic] and Hashimoto (2010)" | ✅ direct transcription of Hosoe's book, p. 72 | general-purpose platforms |
 | **Demonstrated scale** | ✅ the applied SAM it was written for, not public yet; in public, teaching examples | ✅ 3 teaching examples and a regional one | ✅ a **16×18** SAM: 4 sectors, 3 factors | ✅ **2 goods** (`BRD`, `MLK`) | thousands of accounts (GTAP) |
-| Backend | ✅ `scipy.optimize.root` on a few unknowns | ✅ Pyomo + IPOPT | ✅ `scipy` `root` | ✅ its own | dedicated solvers |
+| Backend | ✅ `scipy.optimize.root` on a few unknowns, with exact Jacobians where derived | ✅ Pyomo + IPOPT | ✅ `scipy` `root` | ✅ its own | dedicated solvers |
 | Lines of Python | ~11,800 † | ✅ 3,267 | ✅ 2,660 | ✅ 533 | n/a |
 | **SAM: reading, balance check, balancing** | ✅ long or square form, a hard gate, sign-preserving RAS | ? | ✅ reads `SAM.xlsx` | ✅ has `balance.py` | ✅ |
 | SAM flows the model does not read | ✅ listed at calibration † | ? | ? | ? | the modeller's convention |

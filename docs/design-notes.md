@@ -221,6 +221,38 @@ saving, and saving funds investment. The relation is affine in saving, so it is
 solved in closed form. Iterating it worked here too, and left the same class of
 small discontinuity in the outer Jacobian.
 
+## The exact Jacobian lists what it derives
+
+The national residual has an exact Jacobian for part of the model
+(`cgelab.national_jacobian`), carried forward one tangent row per unknown.
+Three decisions in it are worth keeping.
+
+The fixed points are differentiated, not their iterations. The purchaser-price
+loop is linear in its tangent, so the tangent is one linear solve with the
+pass-through matrix; iterating it would stop at a tolerance and put that error
+in every column. The two budgets the solver finds from probes are implicit
+functions: their tangent is the one that keeps the budget conditions at zero,
+which is a 2×2 solve per unknown and not a derivative of the probes.
+
+The reference is central differences, extrapolated from two steps. The residual
+stops its price loop at 1e-14, so a plain central difference small enough for
+its own truncation divides that noise by the step and agrees to no better than
+1e-9; that is how a wrong term of 1e-9 would pass. Extrapolated, the comparison
+holds at 1e-10 of the Jacobian's scale, at the solution and away from it.
+
+Coverage is a list of what is derived, not of what is left out. The first
+version declined a named set of options, and every option added afterwards was
+accepted until someone remembered to decline it, with a Jacobian that ignored
+it. Now `unsupported` walks the fields of the spec, the economy, the closure
+and the scenario: a field it does not name must be at its default, and a field
+with named values must hold one of them. A new option therefore starts on
+finite differences, which are slower and never wrong, and joins the exact
+Jacobian by having its algebra derived, its name listed and a case added to
+the central-difference test. The gain is in the number of unknowns: two or
+three in the standard model, where the exact Jacobian saves little, and one
+per commodity on a trade curve or per activity of a sluggish factor, where a
+finite-difference Jacobian costs hundreds of evaluations.
+
 ## Real magnitudes use a scenario-independent yardstick
 
 `real["hh_real"]`, `gov_real` and `inv_real` are absorption at **base-year**

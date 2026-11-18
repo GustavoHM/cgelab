@@ -1216,6 +1216,33 @@ total          25.32
   <p>O carbono na atividade de cada região é um imposto por unidade produzida, e as famílias o
   pagam além do preço ao comprador do bem que queimam. As emissões caem onde o imposto pesa, e a
   receita vai para o governo. Um modelo de uma região dá o resultado do solver nacional.</p>
+  <h3>52. Firmas heterogêneas e seleção de exportadoras</h3>
+<pre><code>from dataclasses import replace
+melitz = cge.solve_melitz(cge.MelitzSpec(sigma=4.0, pareto_shape=5.0, iceberg_cost=1.5))
+aberto = cge.solve_melitz(replace(melitz.spec, iceberg_cost=1.2))
+{"exportadoras (%)": round(100 * melitz.export_share, 2),
+ "corte doméstico": round(melitz.domestic_cutoff, 4), "salário real": round(melitz.real_wage, 4)}
+{"exportadoras (%)": round(100 * aberto.export_share, 2),
+ "corte doméstico": round(aberto.domestic_cutoff, 4), "salário real": round(aberto.real_wage, 4)}
+round(aberto.welfare / melitz.welfare, 6)
+round((aberto.domestic_share / melitz.domestic_share) ** (-1 / 5.0), 6)</code></pre>
+<pre class="output" data-label="Saída"><code><span class="out-expr">{"exportadoras (%)": round(100 * melitz.export_share, 2),</span>
+ "corte doméstico": round(melitz.domestic_cutoff, 4), "salário real": round(melitz.real_wage, 4)}
+{'exportadoras (%)': 13.17, 'corte doméstico': 1.112, 'salário real': 2.438}
+<span class="out-expr">{"exportadoras (%)": round(100 * aberto.export_share, 2),</span>
+ "corte doméstico": round(aberto.domestic_cutoff, 4), "salário real": round(aberto.real_wage, 4)}
+{'exportadoras (%)': 40.19, 'corte doméstico': 1.16, 'salário real': 2.545}
+<span class="out-expr">round(aberto.welfare / melitz.welfare, 6)</span>
+1.044
+<span class="out-expr">round((aberto.domestic_share / melitz.domestic_share) ** (-1 / 5.0), 6)</span>
+1.044</code></pre>
+  <p>Um modelo à parte, fora do equilíbrio baseado na MCS: dois países idênticos e um setor, como
+  em Melitz (2003) com produtividade Pareto, calculado em forma fechada. Os entrantes sorteiam a
+  produtividade e só as firmas acima do corte de exportação pagam o custo fixo de exportar.
+  Reduzir o custo iceberg de 1,5 para 1,2 leva mais firmas a exportar, eleva o corte doméstico e
+  o salário real, e o ganho é o que a fórmula de Arkolakis, Costinot e Rodríguez-Clare dá a
+  partir da parcela doméstica da despesa. Nove casos concordam a 1,8e-13 com o equilíbrio
+  resolvido em Julia a partir do problema da firma, por quadratura.</p>
 </div></section>
 
 <section id="verificacoes"><div class="wrap">

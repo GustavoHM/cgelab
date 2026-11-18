@@ -824,6 +824,30 @@ same commodities and mirrored base-year trade; scenarios cannot set world prices
 The result has `periods` (by name), `world_prices` (goods by exporter), `trade`,
 `iterations` and `residual`.
 
+### `solve_melitz(spec=None) -> MelitzResult`
+
+A symmetric two-country, one-sector Melitz equilibrium with CES monopolistic competition and
+Pareto firm productivity, evaluated in closed form. A standalone model: it reads no SAM,
+`ModelSpec` or `Scenario`, and is not part of `solve_period`. `MelitzSpec` fields and defaults:
+`sigma=4.0`, `pareto_shape=5.0`, `productivity_min=1.0`, `labour=100.0`, `entry_cost=1.0`,
+`domestic_fixed_cost=1.0`, `export_fixed_cost=1.0` and `iceberg_cost=1.5`. Costs and the labour
+endowment are in labour units and every field is finite and positive; `sigma > 1`,
+`pareto_shape > sigma - 1` and `iceberg_cost >= 1`. The model is static, so `entry_cost` is the
+per-period equivalent of the sunk cost. Selection must be interior: a domestic cutoff above
+`productivity_min` and a higher export cutoff
+(`iceberg_cost ** (sigma - 1) * export_fixed_cost > domestic_fixed_cost`). The all-exporters and
+all-entrants-produce cases raise `ValueError`, and so does an infinite `iceberg_cost`.
+
+`MelitzResult` has `spec`, `domestic_cutoff`, `export_cutoff`, `entrants`, `domestic_firms`,
+`exporters` (masses of firms), `price_index`, `welfare`, `domestic_revenue`, `export_revenue`,
+`average_domestic_productivity`, `average_export_productivity` (Melitz's average,
+`E[phi ** (sigma - 1)] ** (1 / (sigma - 1))` over the firms in each market), `residual` and
+`residuals`; properties `real_wage`, `export_share` (exporters over domestic firms),
+`entry_probability`, `domestic_share` (of expenditure) and `varieties` (domestic firms and the
+partner's exporters); and methods `revenue(productivity, *, market="domestic")` and
+`operating_profit(productivity, *, market="domestic")`, with `market="export"` for the export
+market. The other country is identical. Use `dataclasses.replace(spec, ...)` for counterfactuals.
+
 ### `calibrate_historical(econ, closure=None, *, years, targets, shifters, kind="level", growth=None, scenario=None, economy=None, pattern=None, preference_reference=None, tol=1e-12) -> Historical`
 
 A limited historical closure: observed variables are targets, and technology or

@@ -40,6 +40,25 @@ before 1.0, a minor version may add to the API and a patch version only fixes.
   models with a world price per commodity on a curve or a factor price per
   activity, `--jacobian finite` switches the exact national Jacobian off, and
   the table has a `jacobians` column.
+- `solve_melitz(spec)`, `MelitzSpec` and `MelitzResult`: a symmetric
+  two-country, one-sector Melitz model with Pareto productivity, CES
+  monopolistic competition, entry and fixed costs in labour, an iceberg trade
+  cost and a fixed cost of exporting. The domestic and export cutoffs, the
+  masses of entrants, firms and exporters, the price index, revenues, Melitz's
+  average productivities and welfare are evaluated in closed form; a firm's
+  revenue and operating profit, the selection shares and the accounting
+  residuals are reported. It is a standalone model, not a block of
+  `solve_period`: it reads no SAM, and heterogeneous firms inside the CGE are
+  not implemented. Selection must be interior; the all-exporters and
+  all-entrants-produce cases are refused by name. `validation/melitz.jl`
+  solves the equilibrium from the firm's problem with every integral by
+  Gauss-Legendre quadrature, with no Pareto closed form and without imposing
+  the budget constraint, and nine cases agree to 1.8e-13
+  (`validation/replicate_melitz.py`); `tests/data/melitz.json` lets the suite
+  check it without Julia. The suite also integrates the firm's problem with
+  scipy and checks Melitz's welfare and price-index formulas, the gains from
+  trade of Arkolakis, Costinot and Rodríguez-Clare, Chaney's trade elasticity
+  and the closed-economy limit.
 
 ### Changed
 

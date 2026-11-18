@@ -58,6 +58,7 @@ from .results import (factor_demand_by_activity, government_account, national_ac
 from .sam import SAM, BalanceError, sam_distance
 from .swap import Swapped, solve_swapped
 from .twocountry import TwoCountry, solve_two_countries
+from .melitz import MelitzResult, MelitzSpec, solve_melitz
 from .estimation import (CrossEntropy, cross_entropy, location_quotients,
                          regional_coefficients)
 from .sam_uncertainty import SAMDraws, sam_draws, sam_sweep
@@ -76,6 +77,7 @@ __version__ = "0.15.0"
 __all__ = [
     "SAM", "BalanceError", "sam_distance", "CrossEntropy", "cross_entropy",
     "location_quotients", "regional_coefficients", "Swapped", "solve_swapped", "TwoCountry", "solve_two_countries", "SAMDraws", "sam_draws", "sam_sweep",
+    "MelitzSpec", "MelitzResult", "solve_melitz",
     "ModelSpec", "AccountLayout", "TransportMargins",
     "calibrate", "Economy", "Backstop",
     "Closure", "LabourMarket", "Scenario", "consumer_wedge",

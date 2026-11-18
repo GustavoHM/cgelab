@@ -1,0 +1,263 @@
+{
+  "base": {
+    "spec": {
+      "sigma": 4.0,
+      "pareto_shape": 5.0,
+      "productivity_min": 1.0,
+      "labour": 100.0,
+      "entry_cost": 1.0,
+      "domestic_fixed_cost": 1.0,
+      "export_fixed_cost": 1.0,
+      "iceberg_cost": 1.5
+    },
+    "result": {
+      "domestic_cutoff": 1.1116383882132925,
+      "export_cutoff": 1.6674575823199391,
+      "entrants": 14.999999999999948,
+      "domestic_firms": 8.836363636363627,
+      "exporters": 1.1636363636363625,
+      "price_index": 0.4101995672471866,
+      "welfare": 243.78377742105178,
+      "domestic_revenue": 88.36363636363629,
+      "export_revenue": 11.636363636363638,
+      "average_domestic_productivity": 1.508725412124666,
+      "average_export_productivity": 2.263088118186997,
+      "export_share": 0.13168724279835392,
+      "entry_probability": 0.5890909090909104,
+      "real_wage": 2.43783777421052,
+      "domestic_share": 0.8836363636363636
+    }
+  },
+  "lower_iceberg": {
+    "spec": {
+      "sigma": 4.0,
+      "pareto_shape": 5.0,
+      "productivity_min": 1.0,
+      "labour": 100.0,
+      "entry_cost": 1.0,
+      "domestic_fixed_cost": 1.0,
+      "export_fixed_cost": 1.0,
+      "iceberg_cost": 1.2
+    },
+    "result": {
+      "domestic_cutoff": 1.1602732222649794,
+      "export_cutoff": 1.3923278667179753,
+      "entrants": 14.99999999999997,
+      "domestic_firms": 7.133290523805151,
+      "exporters": 2.866709476194842,
+      "price_index": 0.39300535169664924,
+      "welfare": 254.44946123071443,
+      "domestic_revenue": 71.33290523805144,
+      "export_revenue": 28.66709476194841,
+      "average_domestic_productivity": 1.5747330372896995,
+      "average_export_productivity": 1.8896796447476376,
+      "export_share": 0.4018775720164608,
+      "entry_probability": 0.475552701587011,
+      "real_wage": 2.5444946123071484,
+      "domestic_share": 0.7133290523805155
+    }
+  },
+  "higher_iceberg": {
+    "spec": {
+      "sigma": 4.0,
+      "pareto_shape": 5.0,
+      "productivity_min": 1.0,
+      "labour": 100.0,
+      "entry_cost": 1.0,
+      "domestic_fixed_cost": 1.0,
+      "export_fixed_cost": 1.0,
+      "iceberg_cost": 2.0
+    },
+    "result": {
+      "domestic_cutoff": 1.0911665500472354,
+      "export_cutoff": 2.182333100094471,
+      "entrants": 14.999999999999964,
+      "domestic_firms": 9.696969696969717,
+      "exporters": 0.30303030303030365,
+      "price_index": 0.41789549520255453,
+      "welfare": 239.29427607619928,
+      "domestic_revenue": 96.96969696969704,
+      "export_revenue": 3.0303030303030325,
+      "average_domestic_productivity": 1.4809408530436512,
+      "average_export_productivity": 2.9618817060873024,
+      "export_share": 0.03125,
+      "entry_probability": 0.6464646464646493,
+      "real_wage": 2.3929427607619904,
+      "domestic_share": 0.9696969696969697
+    }
+  },
+  "lower_export_fixed": {
+    "spec": {
+      "sigma": 4.0,
+      "pareto_shape": 5.0,
+      "productivity_min": 1.0,
+      "labour": 100.0,
+      "entry_cost": 1.0,
+      "domestic_fixed_cost": 1.0,
+      "export_fixed_cost": 0.7,
+      "iceberg_cost": 1.5
+    },
+    "result": {
+      "domestic_cutoff": 1.1184978358649795,
+      "export_cutoff": 1.4896780566074308,
+      "entrants": 14.999999999999982,
+      "domestic_firms": 8.568711451992597,
+      "exporters": 2.04469792572487,
+      "price_index": 0.4076839231680894,
+      "welfare": 245.28806341664267,
+      "domestic_revenue": 85.68711451992601,
+      "export_revenue": 14.312885480074096,
+      "average_domestic_productivity": 1.518035114897589,
+      "average_export_productivity": 2.0218041799550375,
+      "export_share": 0.23862373440634285,
+      "entry_probability": 0.5712474301328404,
+      "real_wage": 2.452880634166427,
+      "domestic_share": 0.8568711451992591
+    }
+  },
+  "higher_export_fixed": {
+    "spec": {
+      "sigma": 4.0,
+      "pareto_shape": 5.0,
+      "productivity_min": 1.0,
+      "labour": 100.0,
+      "entry_cost": 1.0,
+      "domestic_fixed_cost": 1.0,
+      "export_fixed_cost": 1.8,
+      "iceberg_cost": 1.5
+    },
+    "result": {
+      "domestic_cutoff": 1.1031215544374195,
+      "export_cutoff": 2.0128224359277915,
+      "entrants": 14.999999999999998,
+      "domestic_firms": 9.182784790453868,
+      "exporters": 0.4540084497478593,
+      "price_index": 0.4133665813583024,
+      "welfare": 241.91602444349712,
+      "domestic_revenue": 91.82784790453864,
+      "export_revenue": 8.172152095461483,
+      "average_domestic_productivity": 1.4971662903052432,
+      "average_export_productivity": 2.731820339579933,
+      "export_share": 0.04944125993454972,
+      "entry_probability": 0.6121856526969246,
+      "real_wage": 2.419160244434973,
+      "domestic_share": 0.9182784790453853
+    }
+  },
+  "entry_and_elasticities": {
+    "spec": {
+      "sigma": 3.0,
+      "pareto_shape": 4.5,
+      "productivity_min": 1.0,
+      "labour": 100.0,
+      "entry_cost": 0.5,
+      "domestic_fixed_cost": 1.0,
+      "export_fixed_cost": 1.0,
+      "iceberg_cost": 1.6
+    },
+    "result": {
+      "domestic_cutoff": 1.1385489829832056,
+      "export_cutoff": 1.8216783727731292,
+      "entrants": 29.62962962962961,
+      "domestic_firms": 16.525076711110614,
+      "exporters": 1.9934418074079023,
+      "price_index": 0.22819186966781893,
+      "welfare": 438.2277078739529,
+      "domestic_revenue": 89.23541423999717,
+      "export_revenue": 10.764585760002683,
+      "average_domestic_productivity": 1.5275237529982175,
+      "average_export_productivity": 2.444038004797152,
+      "export_share": 0.12063131943391309,
+      "entry_probability": 0.5577213389999837,
+      "real_wage": 4.382277078739525,
+      "domestic_share": 0.892354142399973
+    }
+  },
+  "scale": {
+    "spec": {
+      "sigma": 5.0,
+      "pareto_shape": 6.5,
+      "productivity_min": 2.0,
+      "labour": 250.0,
+      "entry_cost": 2.0,
+      "domestic_fixed_cost": 1.5,
+      "export_fixed_cost": 2.0,
+      "iceberg_cost": 1.7
+    },
+    "result": {
+      "domestic_cutoff": 2.065200569547325,
+      "export_cutoff": 3.7726441398746937,
+      "entrants": 15.384615384615373,
+      "domestic_firms": 12.488983166128966,
+      "exporters": 0.24864724078787115,
+      "price_index": 0.2518999553636605,
+      "welfare": 992.4575001971804,
+      "domestic_revenue": 243.5351717395149,
+      "export_revenue": 6.464828260484632,
+      "average_domestic_productivity": 2.6224400759695676,
+      "average_export_productivity": 4.790591931198097,
+      "export_share": 0.019909326282240545,
+      "entry_probability": 0.8117839057983834,
+      "real_wage": 3.9698300007887246,
+      "domestic_share": 0.9741406869580614
+    }
+  },
+  "heavy_tail": {
+    "spec": {
+      "sigma": 4.0,
+      "pareto_shape": 3.5,
+      "productivity_min": 1.0,
+      "labour": 100.0,
+      "entry_cost": 2.0,
+      "domestic_fixed_cost": 1.0,
+      "export_fixed_cost": 1.0,
+      "iceberg_cost": 1.5
+    },
+    "result": {
+      "domestic_cutoff": 1.4561453948962788,
+      "export_cutoff": 2.184218092344418,
+      "entrants": 10.71428571428566,
+      "domestic_firms": 2.875720210155485,
+      "exporters": 0.6957083612731011,
+      "price_index": 0.313151136815519,
+      "welfare": 319.3346223070272,
+      "domestic_revenue": 80.52016588435315,
+      "export_revenue": 19.479834115646735,
+      "average_domestic_productivity": 2.7855059325475002,
+      "average_export_productivity": 4.1782588988212535,
+      "export_share": 0.2419249128674745,
+      "entry_probability": 0.2684005529478466,
+      "real_wage": 3.1933462230702734,
+      "domestic_share": 0.8052016588435323
+    }
+  },
+  "near_all_exporters": {
+    "spec": {
+      "sigma": 4.0,
+      "pareto_shape": 5.0,
+      "productivity_min": 1.0,
+      "labour": 100.0,
+      "entry_cost": 0.8,
+      "domestic_fixed_cost": 1.0,
+      "export_fixed_cost": 1.0,
+      "iceberg_cost": 1.05
+    },
+    "result": {
+      "domestic_cutoff": 1.2730813367757565,
+      "export_cutoff": 1.3367354036144918,
+      "entrants": 18.74999999999977,
+      "domestic_firms": 5.6068703605289265,
+      "exporters": 4.393129639471722,
+      "price_index": 0.35818103102140625,
+      "welfare": 279.1884308190063,
+      "domestic_revenue": 56.06870360528873,
+      "export_revenue": 43.931296394711566,
+      "average_domestic_productivity": 1.7278372039511538,
+      "average_export_productivity": 1.8142290641486385,
+      "export_share": 0.7835261664686134,
+      "entry_probability": 0.29903308589487976,
+      "real_wage": 2.7918843081900566,
+      "domestic_share": 0.5606870360528856
+    }
+  }
+}

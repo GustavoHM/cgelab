@@ -385,6 +385,14 @@ items below, which became 0.16; the versions after it move up by one.
   configurations, and the equilibria agree with the finite-difference solver's to 3e-15. It
   pays where the unknowns are many: 320 sectors on trade curves (642 unknowns) solve a shock
   in 2.4 s instead of 24 s. Options it does not derive keep finite differences, by name.
+- [x] **Melitz firms**, as a standalone model: two symmetric countries, one sector, Pareto
+  productivity and a fixed cost of exporting, in closed form (`solve_melitz`). Validated against
+  `validation/melitz.jl`, which solves the firm's problem with every integral by quadrature, in
+  nine cases to 1.8e-13, and against Melitz's welfare formula, the gains from trade of Arkolakis,
+  Costinot and Rodríguez-Clare and Chaney's trade elasticity. Heterogeneous firms as a sectoral
+  block of `solve_period` are not in it: they need masses and fixed costs by trade pair calibrated
+  from the SAM, bilateral varieties (so the two-country or regional solver) and a reference
+  such as Balistreri and Rutherford's or Dixon, Jerie and Rimmer's code transcribed into JuMP.
 
 **After 0.16: what is left, in order.** From 0.16 on, each version takes the next items of
 this list that are done and validated, and goes out; the list says the order, not the version
@@ -393,8 +401,8 @@ numbers, which numbering every version ahead kept having to shift.
 1. The energy nest in the regional solver, and with it carbon on fuel that answers to prices.
 2. The complementarity conditions of 0.8 in the regional solver: capacity limits and import
    quotas, then price bounds, then least cost and the wage floor.
-3. Melitz firms: heterogeneous firms with a fixed cost of exporting. Reference: the closed
-   forms of the one-sector model and an independent replica.
+3. Melitz firms inside the CGE: heterogeneous firms as a sectoral block, on the two-country or
+   regional solver; the one-sector model is in 0.16.
 4. AIDS household demand; capital utilization (Galindev and Decaluwé, 2022, once its
    formulation is at hand); a nested land CET.
 5. Employment in persons, unemployment benefits and a wage curve by segment; vintages that

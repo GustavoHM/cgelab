@@ -3,7 +3,15 @@
 All notable changes to `cgelab`. Versions follow [semantic versioning](https://semver.org/);
 before 1.0, a minor version may add to the API and a patch version only fixes.
 
-## Unreleased
+## 0.16.0 — 2026-11-20
+
+Carbon in the regional solver, an exact Jacobian for the national solver and Melitz firms.
+The regional solver accepts carbon prices on activities and households, and a one-region model
+matches the national solver and `validation/regional.jl` to 2.7e-15. The national solver hands
+MINPACK the exact Jacobian of its residual, which matches central differences to 1.1e-11 and
+solves 320 sectors on trade curves in 2.4 s instead of 24 s. `solve_melitz` solves a symmetric
+two-country, one-sector Melitz model in closed form, against a JuMP replica that integrates the
+firm's problem by quadrature, to 1.8e-13. Nothing released earlier changes.
 
 ### Added
 

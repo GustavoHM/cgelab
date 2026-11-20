@@ -393,6 +393,7 @@ items below, which became 0.16; the versions after it move up by one.
   block of `solve_period` are not in it: they need masses and fixed costs by trade pair calibrated
   from the SAM, bilateral varieties (so the two-country or regional solver) and a reference
   such as Balistreri and Rutherford's or Dixon, Jerie and Rimmer's code transcribed into JuMP.
+- [ ] **Release**: 0.16.0 on PyPI and archived on Zenodo.
 
 **After 0.16: what is left, in order.** From 0.16 on, each version takes the next items of
 this list that are done and validated, and goes out; the list says the order, not the version
